@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { delete_task, generateNote } from '@/services/note.ts'
+import { delete_task, generateNote, getTasks } from '@/services/note.ts'
 import { v4 as uuidv4 } from 'uuid'
 import toast from 'react-hot-toast'
 
@@ -44,6 +44,7 @@ export interface Task {
   status: TaskStatus
   audioMeta: AudioMeta
   createdAt: string
+  platform: string
   formData: {
     video_url: string
     link: undefined | boolean
@@ -65,6 +66,7 @@ interface TaskStore {
   setCurrentTask: (taskId: string | null) => void
   getCurrentTask: () => Task | null
   retryTask: (id: string) => void
+  loadTasksFromBackend: () => Promise<void>
 }
 
 export const useTaskStore = create<TaskStore>()(
@@ -208,6 +210,58 @@ export const useTaskStore = create<TaskStore>()(
       clearTasks: () => set({ tasks: [], currentTaskId: null }),
 
       setCurrentTask: taskId => set({ currentTaskId: taskId }),
+
+      loadTasksFromBackend: async () => {
+        try {
+          const response = await getTasks(100)
+          if (response?.tasks) {
+            const backendTasks = response.tasks
+              .filter((t: any) => t.note !== null) // 只加载有笔记内容的任务
+              .map((t: any) => ({
+                id: t.task_id,
+                status: 'SUCCESS' as TaskStatus,
+                markdown: t.note.markdown || '',
+                transcript: t.note.transcript || {
+                  full_text: '',
+                  language: '',
+                  raw: null,
+                  segments: [],
+                },
+                createdAt: t.created_at || new Date().toISOString(),
+                audioMeta: t.note.audio_meta || {
+                  cover_url: '',
+                  duration: 0,
+                  file_path: '',
+                  platform: t.platform,
+                  raw_info: null,
+                  title: t.note.title || '',
+                  video_id: t.video_id,
+                },
+                platform: t.platform,
+                formData: {
+                  video_url: '',
+                  link: false,
+                  screenshot: false,
+                  platform: t.platform,
+                  quality: 'high',
+                  model_name: '',
+                  provider_id: '',
+                },
+              }))
+
+            // 合并后端任务和本地任务（去重，以后端为准）
+            const localTasks = get().tasks
+            const localTaskIds = new Set(localTasks.map(t => t.id))
+            const newTasks = backendTasks.filter((t: Task) => !localTaskIds.has(t.id))
+
+            set(state => ({
+              tasks: [...newTasks, ...state.tasks],
+            }))
+          }
+        } catch (e) {
+          console.error('加载历史任务失败:', e)
+        }
+      },
     }),
     {
       name: 'task-storage',

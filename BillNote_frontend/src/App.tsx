@@ -19,17 +19,20 @@ import { useEffect } from 'react'
 import { systemCheck } from '@/services/system.ts'
 import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
 import BackendInitDialog from '@/components/BackendInitDialog'
+import { useTaskStore } from '@/store/taskStore/index.ts'
 
 function App() {
   useTaskPolling(3000) // 每 3 秒轮询一次
   const { loading, initialized } = useCheckBackend()
+  const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
 
   // 在后端初始化完成后执行系统检查
   useEffect(() => {
     if (initialized) {
       systemCheck()
+      loadTasksFromBackend() // 从后端恢复历史任务
     }
-  }, [initialized])
+  }, [initialized, loadTasksFromBackend])
 
   // 如果后端还未初始化，显示初始化对话框
   if (!initialized) {
