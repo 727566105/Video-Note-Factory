@@ -63,6 +63,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const loadProviderById = useProviderStore(state => state.loadProviderById)
   const updateProvider = useProviderStore(state => state.updateProvider)
   const addNewProvider = useProviderStore(state => state.addNewProvider)
+  const deleteProvider = useProviderStore(state => state.deleteProvider)
   const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
   const [isBuiltIn, setIsBuiltIn] = useState(false)
@@ -135,6 +136,20 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
     } catch (e) {
       toast.error('删除异常')
+    }
+  }
+
+  // 删除供应商
+  const handleDeleteProvider = async () => {
+    if (!id) return
+    if (!window.confirm('确定要删除这个模型供应商吗？此操作不可恢复！')) return
+
+    try {
+      await deleteProvider(id!)
+      toast.success('删除供应商成功')
+      navigate('/settings/model')
+    } catch (e) {
+      toast.error('删除供应商失败')
     }
   }
   // 测试连通性
@@ -282,10 +297,19 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               </FormItem>
             )}
           />
-          <div className="pt-2">
+          <div className="flex gap-2 pt-2">
             <Button type="submit" disabled={!providerForm.formState.isDirty}>
               {isEditMode ? '保存修改' : '保存创建'}
             </Button>
+            {isEditMode && !isBuiltIn && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDeleteProvider}
+              >
+                删除供应商
+              </Button>
+            )}
           </div>
         </form>
       </Form>
