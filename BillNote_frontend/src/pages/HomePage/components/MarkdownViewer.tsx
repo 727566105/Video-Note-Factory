@@ -347,25 +347,27 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                         }
 
                         return (
-                          <li className="my-1" {...props}>
+                          <li className="my-1" {...Object.fromEntries(Object.entries(props).filter(([k, v]) => k !== 'ordered' || v !== false))}>
                             {children}
                           </li>
                         )
                       },
 
                       // Enhanced unordered lists
-                      ul: ({ children, ...props }) => (
-                        <ul className="my-6 ml-6 list-disc [&>li]:mt-2" {...props}>
+                      ul: ({ children, ...props }) => {
+                        const { ordered, ...safeProps } = props;
+                        return <ul className="my-6 ml-6 list-disc [&>li]:mt-2" {...safeProps}>
                           {children}
                         </ul>
-                      ),
+                      },
 
                       // Enhanced ordered lists
-                      ol: ({ children, ...props }) => (
-                        <ol className="my-6 ml-6 list-decimal [&>li]:mt-2" {...props}>
+                      ol: ({ children, ...props }) => {
+                        const { ordered, ...safeProps } = props;
+                        return <ol className="my-6 ml-6 list-decimal [&>li]:mt-2" {...safeProps}>
                           {children}
                         </ol>
-                      ),
+                      },
 
                       // Enhanced blockquotes
                       blockquote: ({ children, ...props }) => (

@@ -29,7 +29,26 @@
       "mcp__chrome-devtools__navigate_page",
       "mcp__chrome-devtools__list_pages",
       "Bash(openspec list:*)",
-      "Bash(openspec validate add-pdf-export:*)"
+      "Bash(openspec validate add-pdf-export:*)",
+      "Bash(openspec show:*)",
+      "Bash(for:*)",
+      "Bash(do:*)",
+      "Bash(echo:*)",
+      "Bash(done:*)",
+      "Bash(openspec archive add-pdf-export:*)",
+      "Bash(pkill:*)",
+      "Bash(unzip:*)",
+      "Bash(openspec proposal:*)",
+      "Bash(openspec --help:*)",
+      "Bash(openspec change --help:*)",
+      "Bash(openspec new --help:*)",
+      "Bash(openspec new:*)",
+      "Bash(openspec archive enhance-pdf-export:*)",
+      "mcp__chrome-devtools__get_console_message",
+      "mcp__chrome-devtools__list_network_requests",
+      "mcp__chrome-devtools__get_network_request",
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(sqlite3:*)"
     ]
   }
 }

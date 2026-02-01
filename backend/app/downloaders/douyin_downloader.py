@@ -4,6 +4,7 @@ import os
 import re
 from typing import Union, Optional
 from urllib.parse import quote, urlencode
+import logging
 
 import httpx
 import requests
@@ -20,7 +21,10 @@ from dotenv import load_dotenv
 load_dotenv()
 DOUYIN_DOMAIN = "https://www.douyin.com"
 
-cfm=CookieConfigManager()
+# 配置日志
+logger = logging.getLogger(__name__)
+
+cfm = CookieConfigManager()
 def get_timestamp(unit: str = "milli"):
     """
     根据给定的单位获取当前时间 (Get the current time based on the given unit)
@@ -110,11 +114,29 @@ class BaseRequestModel(BaseModel):
 
 
 class DouyinDownloader(Downloader):
+    # 抖音 API 必需的 cookie 字段
+    REQUIRED_COOKIE_FIELDS = ['ttwid', 'sessionid']
+    
     def __init__(self, cookie=None):
         super().__init__()
         self.headers_config = DouyinConfig.HEADERS.copy()
-        self.headers_config["Cookie"] = cfm.get('douyin')
-        print(self.headers_config)
+        
+        # 获取并转换 cookie
+        cookie_str = cookie if cookie else cfm.get('douyin', auto_convert=True)
+        
+        if not cookie_str:
+            logger.warning("抖音 cookie 未配置，API 请求可能失败")
+        else:
+            # 验证 cookie
+            is_valid, error_msg = cfm.validate_cookie('douyin', self.REQUIRED_COOKIE_FIELDS)
+            if not is_valid:
+                logger.warning(f"抖音 cookie 验证失败: {error_msg}")
+            else:
+                logger.info("抖音 cookie 验证成功")
+        
+        self.headers_config["Cookie"] = cookie_str
+        logger.debug(f"抖音下载器初始化完成，Cookie 长度: {len(cookie_str) if cookie_str else 0}")
+        
         self.proxies_config = DouyinConfig.PROXIES.copy()
         self.ttwid_config = DouyinConfig.TTWID.copy()
         self.ms_token_config = DouyinConfig.MS_TOKEN.copy()
@@ -178,34 +200,102 @@ class DouyinDownloader(Downloader):
             raise ValueError("Douyin msToken API{0}".format(e))
 
     def fetch_video_info(self, video_url: str) -> json:
+        """
+        获取抖音视频信息
+        
+        Args:
+            video_url: 视频 URL 或分享文本
+            
+        Returns:
+            视频信息的 JSON 数据
+            
+        Raises:
+            ValueError: 当请求失败或响应无效时
+        """
         try:
-
             aweme_id = self.extract_video_id(video_url)
+            if not aweme_id:
+                raise ValueError(f"无法从 URL 中提取视频 ID: {video_url}")
+            
+            logger.info(f"开始获取抖音视频信息，aweme_id: {aweme_id}")
+            
+            # 构建请求参数
             kwargs = self.headers_config
-            print("@kwargs:", kwargs)
             base_params = BaseRequestModel().model_dump()
             base_params["msToken"] = self.gen_real_msToken()
-
             base_params["aweme_id"] = aweme_id
+            
+            # 生成 a_bogus 签名
             bogus = ABogus()
             ab_value = bogus.get_value(base_params)
             a_bogus = quote(ab_value, safe='')
-            print("@a_bogus:", a_bogus)
-            print(base_params)
+            
+            # 构建完整 URL
             query_str = urlencode(base_params)
             full_url = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/?{query_str}&a_bogus={a_bogus}"
-
-            print("Request URL:", full_url)
-
-
-            response = requests.get(full_url, headers=kwargs)
-
-            print("Response JSON:", response.content)
-            return response.json()
+            
+            logger.debug(f"请求 URL: {full_url[:200]}...")
+            logger.debug(f"请求头 Cookie 长度: {len(kwargs.get('Cookie', ''))}")
+            
+            # 发送请求
+            response = requests.get(full_url, headers=kwargs, timeout=30)
+            
+            logger.info(f"API 响应状态码: {response.status_code}")
+            logger.debug(f"响应头: {dict(response.headers)}")
+            
+            # 检查状态码
+            if response.status_code != 200:
+                logger.error(f"API 返回错误状态码: {response.status_code}")
+                logger.error(f"响应内容: {response.text[:500]}")
+                raise ValueError(f"抖音 API 返回错误状态码: {response.status_code}")
+            
+            # 检查响应内容
+            if not response.content:
+                logger.error("API 返回空响应")
+                raise ValueError("抖音 API 返回空响应，可能是 Cookie 失效或被反爬虫拦截")
+            
+            # 尝试解析 JSON
+            try:
+                json_data = response.json()
+                logger.info("成功解析 JSON 响应")
+                
+                # 检查响应结构
+                if 'aweme_detail' not in json_data:
+                    logger.warning(f"响应中缺少 aweme_detail 字段，完整响应: {json.dumps(json_data, ensure_ascii=False)[:500]}")
+                    
+                    # 检查是否有错误信息
+                    if 'status_code' in json_data and json_data['status_code'] != 0:
+                        error_msg = json_data.get('status_msg', '未知错误')
+                        raise ValueError(f"抖音 API 返回错误: {error_msg}")
+                
+                return json_data
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON 解析失败: {e}")
+                logger.error(f"响应内容类型: {response.headers.get('Content-Type')}")
+                logger.error(f"响应前 1000 字符: {response.text[:1000]}")
+                
+                # 检查是否是 HTML 响应（可能是验证页面）
+                if response.text.strip().startswith('<'):
+                    raise ValueError(
+                        "抖音 API 返回 HTML 页面而非 JSON，可能原因：\n"
+                        "1. Cookie 已失效，需要重新获取\n"
+                        "2. 触发了反爬虫验证\n"
+                        "3. IP 被限制\n"
+                        f"响应内容: {response.text[:200]}"
+                    )
+                else:
+                    raise ValueError(f"抖音 API 返回无效的 JSON 数据: {response.text[:200]}")
+                
+        except requests.exceptions.Timeout:
+            logger.error("请求超时")
+            raise ValueError("抖音 API 请求超时，请检查网络连接")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"请求异常: {e}")
+            raise ValueError(f"抖音 API 请求失败: {e}")
         except Exception as e:
-            print("请求失败:", e)
-            raise ValueError("请求失败:", e)
-        # print(kwargs)
+            logger.error(f"获取视频信息失败: {e}", exc_info=True)
+            raise ValueError(f"获取抖音视频信息失败: {e}")
 
     def download(
             self,

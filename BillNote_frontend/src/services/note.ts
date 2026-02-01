@@ -73,3 +73,12 @@ export const get_task_status = async (task_id: string) => {
     throw e // 抛出错误以便调用方处理
   }
 }
+
+export const getTasks = async (limit: number = 100) => {
+  try {
+    return await request.get('/tasks?limit=' + limit)
+  } catch (e) {
+    console.error('❌ 获取任务列表失败', e)
+    throw e
+  }
+}
