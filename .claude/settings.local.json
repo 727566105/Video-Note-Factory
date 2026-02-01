@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(curl:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm --prefix /Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/BillNote_frontend dev:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(ls:*)",
+      "Bash(lsof:*)",
+      "Bash(cat:*)",
+      "Bash(rm:*)",
+      "Bash(xargs kill:*)",
+      "Bash(tail:*)",
+      "Bash(chmod:*)",
+      "Bash(source:*)",
+      "Bash(/opt/homebrew/opt/python@3.13/Frameworks/Python.framework/Versions/3.13/bin/python3:*)",
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(/Library/Frameworks/Python.framework/Versions/3.13/bin/python3:*)",
+      "Bash(/opt/homebrew/bin/python3:*)",
+      "Bash(PYTHONPATH=/Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/backend /Library/Frameworks/Python.framework/Versions/3.13/bin/python3:*)",
+      "mcp__chrome-devtools__new_page",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__list_pages",
+      "Bash(openspec list:*)",
+      "Bash(openspec validate add-pdf-export:*)"
+    ]
+  }
+}
