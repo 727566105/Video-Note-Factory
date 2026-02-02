@@ -71,32 +71,38 @@ export const useSiyuanStore = create<SiyuanStore>()(
       // 加载配置
       loadConfig: async () => {
         try {
-          // 优先使用localStorage中的配置（由persist中间件自动加载）
           const state = get()
-          
-          // 如果localStorage中已有完整配置（Token不包含...），直接使用
-          if (state.config?.api_token && !state.config.api_token.includes('...')) {
+          const hasFullToken = state.config?.api_token && !state.config.api_token.includes('...') && state.config.api_token !== '********'
+
+          // 如果 localStorage 中已有完整配置（Token 不包含...），直接使用
+          if (hasFullToken) {
             console.log('使用localStorage中的完整配置')
             return
           }
-          
-          // 否则从后端加载配置（仅用于检查是否已配置，不覆盖完整Token）
+
+          // 从后端加载配置，检查是否已配置
           const data = await getConfig()
           if (data) {
-            // 如果后端有配置，但localStorage没有或Token是脱敏的
-            // 只更新非敏感字段，保留localStorage中的完整Token
-            if (state.config?.api_token && !state.config.api_token.includes('...')) {
-              // 保留localStorage中的完整Token
-              set({ 
+            // 如果有完整 Token，保留完整 Token，只更新其他字段
+            if (hasFullToken) {
+              set({
                 config: {
                   ...data,
-                  api_token: state.config.api_token
+                  api_token: state.config!.api_token
                 },
-                isConfigured: true 
+                isConfigured: true
               })
             } else {
-              // localStorage中没有完整Token，使用后端的脱敏Token
-              set({ config: data, isConfigured: true })
+              // 没有完整 Token，使用后端返回的脱敏配置
+              // 注意：不要覆盖 localStorage 中可能存在的其他配置（如 default_notebook）
+              set({
+                config: {
+                  ...state.config,  // 保留 localStorage 中的配置
+                  ...data,          // 用后端数据更新
+                  api_token: data.api_token  // 使用后端的脱敏 Token
+                },
+                isConfigured: true
+              })
             }
           } else {
             // 后端没有配置

@@ -11,12 +11,11 @@ import {
   getBackups,
   deleteBackup as deleteBackupApi,
   restoreBackup,
+  restoreFromUpload,
   enableSchedule,
   updateSchedule,
   disableSchedule,
   getSchedule,
-  getHistory,
-  getStats,
 } from '@/services/webdav'
 
 interface WebDAVConfig {
@@ -36,27 +35,11 @@ interface BackupFile {
   size?: number
 }
 
-interface BackupHistory {
-  id: number
-  type: string
-  status: string
-  file_size?: number
-  file_count?: number
-  error_message?: string
-  created_at: string
-}
-
 interface BackupStatus {
   is_busy: boolean
   current_operation: string | null
   progress: number
   message: string
-}
-
-interface BackupStats {
-  total: number
-  successful: number
-  failed: number
 }
 
 interface WebDAVStore {
@@ -68,8 +51,6 @@ interface WebDAVStore {
   isRestoring: boolean
   backupStatus: BackupStatus
   backups: BackupFile[]
-  backupHistory: BackupHistory[]
-  backupStats: BackupStats | null
   schedule: {
     auto_backup_enabled: boolean
     auto_backup_schedule: string
@@ -91,16 +72,13 @@ interface WebDAVStore {
 
   // 操作 - 恢复
   restoreBackup: (backupName: string) => Promise<void>
+  restoreFromUpload: (file: File) => Promise<void>
 
   // 操作 - 定时任务
   loadSchedule: () => Promise<void>
   enableSchedule: (schedule: string) => Promise<void>
   updateSchedule: (enabled: boolean, schedule: string) => Promise<void>
   disableSchedule: () => Promise<void>
-
-  // 操作 - 历史和统计
-  loadHistory: () => Promise<void>
-  loadStats: () => Promise<void>
 }
 
 export const useWebDAVStore = create<WebDAVStore>()(
@@ -119,8 +97,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
         message: ''
       },
       backups: [],
-      backupHistory: [],
-      backupStats: null,
       schedule: null,
 
       // 加载配置
@@ -222,7 +198,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
         set({ isBackingUp: true })
         try {
           await createBackup('manual')
-          await get().loadHistory()
           await get().loadSchedule()
         } catch (error) {
           console.error('创建备份失败:', error)
@@ -246,9 +221,16 @@ export const useWebDAVStore = create<WebDAVStore>()(
       loadBackups: async () => {
         try {
           const data = await getBackups()
+          // 检查是否有密码解密错误
+          if (data?.password_error) {
+            console.warn('密码解密失败，可能需要重新配置 WebDAV 连接')
+            set({ backups: [] })
+            return
+          }
           set({ backups: data?.backups || [] })
         } catch (error) {
           console.error('加载备份列表失败:', error)
+          set({ backups: [] })
         }
       },
 
@@ -268,9 +250,23 @@ export const useWebDAVStore = create<WebDAVStore>()(
         set({ isRestoring: true })
         try {
           await restoreBackup(backupName)
-          await get().loadHistory()
         } catch (error) {
           console.error('恢复备份失败:', error)
+          throw error
+        } finally {
+          set({ isRestoring: false })
+        }
+      },
+
+      // 从上传文件恢复
+      restoreFromUpload: async (file) => {
+        set({ isRestoring: true })
+        try {
+          await restoreFromUpload(file)
+          // 重新加载数据
+          window.location.reload()
+        } catch (error) {
+          console.error('从文件恢复失败:', error)
           throw error
         } finally {
           set({ isRestoring: false })
@@ -330,26 +326,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
         } catch (error) {
           console.error('禁用自动备份失败:', error)
           throw error
-        }
-      },
-
-      // 加载备份历史
-      loadHistory: async () => {
-        try {
-          const data = await getHistory()
-          set({ backupHistory: data?.history || [] })
-        } catch (error) {
-          console.error('加载备份历史失败:', error)
-        }
-      },
-
-      // 加载备份统计
-      loadStats: async () => {
-        try {
-          const data = await getStats()
-          set({ backupStats: data || null })
-        } catch (error) {
-          console.error('加载备份统计失败:', error)
         }
       },
     }),

@@ -1,22 +1,34 @@
 """WebDAV 备份 API 路由"""
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
+from pathlib import Path
 
-from app.services.webdav_backup import WebDAVBackup, get_backup_status
+from app.services.webdav_backup import WebDAVBackup, get_backup_status, restore_from_local_file
 from app.db.webdav_config_dao import (
     get_config as dao_get_config,
     upsert_config,
     test_connection as dao_test_connection,
-    delete_config as dao_delete_config
+    delete_config as dao_delete_config,
+    get_decrypted_password
 )
-from app.db.backup_history_dao import get_backup_history, get_backup_stats
+from app.db.backup_history_dao import (
+    get_backup_history,
+    delete_backup_record,
+    delete_all_backup_records,
+    get_backup_stats
+)
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def _is_masked_password(password: str) -> bool:
+    """检测密码是否为脱敏格式"""
+    return password.endswith('...') or password == '********'
 
 
 class WebDAVConfigRequest(BaseModel):
@@ -55,15 +67,13 @@ def get_config():
                 "auto_backup_enabled": False
             })
 
-        # 脱敏密码（只显示前 8 位）
-        masked_password = config.password[:8] + "..." if len(config.password) > 8 else config.password
-
+        # 脱敏密码（使用统一占位符，不泄露长度）
         return R.success(data={
             "configured": True,
             "id": config.id,
             "url": config.url,
             "username": config.username,
-            "password": masked_password,
+            "password": "********",
             "path": config.path,
             "auto_backup_enabled": config.auto_backup_enabled == 1,
             "auto_backup_schedule": config.auto_backup_schedule,
@@ -98,10 +108,19 @@ def save_config(data: WebDAVConfigRequest):
 def update_config(data: WebDAVConfigRequest):
     """更新 WebDAV 配置"""
     try:
+        # 检查是否为脱敏密码，是则保留原密码
+        if _is_masked_password(data.password):
+            existing = dao_get_config()
+            if not existing:
+                return R.error(msg="配置不存在")
+            actual_password = existing.password
+        else:
+            actual_password = data.password
+
         config_id = upsert_config(
             url=data.url,
             username=data.username,
-            password=data.password,
+            password=actual_password,
             path=data.path,
             auto_backup_enabled=data.auto_backup_enabled,
             auto_backup_schedule=data.auto_backup_schedule
@@ -188,10 +207,22 @@ def list_backups():
         if not config:
             return R.error(msg="请先配置 WebDAV 连接")
 
+        # 检查密码是否可以解密
+        password = get_decrypted_password()
+        if not password:
+            # 密码解密失败（可能是因为后端重启使用了新的临时密钥）
+            # 返回空列表而不是错误，避免前端显示错误提示
+            logger.warning("密码解密失败，可能需要重新配置 WebDAV 连接")
+            return R.success(data={"backups": [], "total": 0, "password_error": True})
+
         backup_service = WebDAVBackup(config)
         backups = backup_service.list_backups()
         return R.success(data={"backups": backups, "total": len(backups)})
     except Exception as e:
+        # 检查是否是密码解密失败的异常
+        if "无法解密密码" in str(e):
+            logger.warning("密码解密失败，可能需要重新配置 WebDAV 连接")
+            return R.success(data={"backups": [], "total": 0, "password_error": True})
         logger.error(f"获取备份列表失败: {e}")
         return R.error(msg=f"获取备份列表失败: {str(e)}")
 
@@ -204,6 +235,12 @@ def delete_backup(backup_name: str):
         if not config:
             return R.error(msg="请先配置 WebDAV 连接")
 
+        # 检查密码是否可以解密
+        password = get_decrypted_password()
+        if not password:
+            logger.warning("密码解密失败，无法删除备份")
+            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
+
         backup_service = WebDAVBackup(config)
         success = backup_service.delete_backup(backup_name)
 
@@ -211,6 +248,9 @@ def delete_backup(backup_name: str):
             return R.success(msg="备份已删除")
         return R.error(msg="删除失败")
     except Exception as e:
+        if "无法解密密码" in str(e):
+            logger.warning("密码解密失败，无法删除备份")
+            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
         logger.error(f"删除备份失败: {e}")
         return R.error(msg=f"删除备份失败: {str(e)}")
 
@@ -230,13 +270,64 @@ def restore_backup(backup_name: str):
         if status["is_busy"]:
             return R.error(msg=f"恢复操作正在执行中: {status['message']}")
 
+        # 检查密码是否可以解密
+        password = get_decrypted_password()
+        if not password:
+            logger.warning("密码解密失败，无法恢复备份")
+            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
+
         backup_service = WebDAVBackup(config)
         result = backup_service.restore_backup(backup_name)
         return R.success(data=result, msg="恢复成功")
 
     except Exception as e:
+        if "无法解密密码" in str(e):
+            logger.warning("密码解密失败，无法恢复备份")
+            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
         logger.error(f"恢复失败: {e}")
         return R.error(msg=f"恢复失败: {str(e)}")
+
+
+@router.post("/restore/upload")
+def restore_from_upload(file: UploadFile = UploadFile(...)):
+    """从上传的备份文件恢复数据"""
+    try:
+        # 检查文件类型
+        if not file.filename.endswith('.zip'):
+            return R.error(msg="只支持 .zip 格式的备份文件")
+
+        # 检查是否已有恢复任务在执行
+        status = get_backup_status()
+        if status["is_busy"]:
+            return R.error(msg=f"恢复操作正在执行中: {status['message']}")
+
+        # 创建临时目录
+        from app.services.webdav_backup import BACKUP_TEMP_DIR
+        restore_temp_dir = BACKUP_TEMP_DIR / "restore"
+        restore_temp_dir.mkdir(parents=True, exist_ok=True)
+        local_zip_path = restore_temp_dir / file.filename
+
+        # 保存上传的文件
+        import shutil
+        with open(local_zip_path, 'wb') as f:
+            shutil.copyfileobj(file.file, f)
+
+        # 验证备份文件
+        import zipfile
+        if not zipfile.is_zipfile(local_zip_path):
+            return R.error(msg="备份文件已损坏或格式不正确")
+
+        # 执行恢复
+        result = restore_from_local_file(local_zip_path)
+        return R.success(data=result, msg="恢复成功")
+
+    except Exception as e:
+        logger.error(f"从上传文件恢复失败: {e}")
+        return R.error(msg=f"恢复失败: {str(e)}")
+    finally:
+        # 清理临时文件
+        if 'local_zip_path' in locals() and local_zip_path.exists():
+            local_zip_path.unlink()
 
 
 # ==================== 定时任务 ====================
@@ -366,3 +457,27 @@ def get_stats():
     except Exception as e:
         logger.error(f"获取备份统计失败: {e}")
         return R.error(msg=f"获取备份统计失败: {str(e)}")
+
+
+@router.delete("/history/{history_id}")
+def delete_history(history_id: int):
+    """删除单条备份历史记录"""
+    try:
+        success = delete_backup_record(history_id)
+        if success:
+            return R.success(msg="备份历史已删除")
+        return R.error(msg="记录不存在")
+    except Exception as e:
+        logger.error(f"删除备份历史失败: {e}")
+        return R.error(msg=f"删除失败: {str(e)}")
+
+
+@router.delete("/history")
+def delete_all_history():
+    """删除所有备份历史记录"""
+    try:
+        count = delete_all_backup_records()
+        return R.success(data={"deleted_count": count}, msg=f"已删除 {count} 条记录")
+    except Exception as e:
+        logger.error(f"删除所有备份历史失败: {e}")
+        return R.error(msg=f"删除失败: {str(e)}")

@@ -23,7 +23,7 @@ import { useSiyuanStore } from '@/store/siyuanStore'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Info, BookOpen, CheckCircle2, XCircle, History, Eye, EyeOff } from 'lucide-react'
+import { Info, BookOpen, CheckCircle2, XCircle, History, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 
 // 表单 schema
 const SiyuanConfigSchema = z.object({
@@ -56,6 +56,7 @@ const SiyuanSettings = () => {
   } | null>(null)
   const [showApiToken, setShowApiToken] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [serviceUnavailable, setServiceUnavailable] = useState(false)
 
   const form = useForm<SiyuanConfigFormValues>({
     resolver: zodResolver(SiyuanConfigSchema),
@@ -75,19 +76,29 @@ const SiyuanSettings = () => {
   // 当配置加载后，只在初次加载时填充表单
   useEffect(() => {
     if (config && !isInitialized) {
-      // 从store中读取配置（store使用localStorage持久化，保存的是完整Token）
+      // 检测脱敏 Token 格式，不回填脱敏 Token
+      const isMaskedToken = config.api_token && (
+        config.api_token.includes('...') ||
+        config.api_token === '********'
+      )
+
       form.reset({
         api_url: config.api_url || '',
-        api_token: config.api_token || '',
+        api_token: isMaskedToken ? '' : (config.api_token || ''),
         default_notebook: config.default_notebook || '',
       })
       setIsInitialized(true)
-      
-      // 如果有完整的Token，加载笔记本列表
-      if (config.api_token && !config.api_token.includes('...')) {
-        loadNotebooks().catch(() => {
-          // 静默处理加载失败
-        })
+
+      // 只有非脱敏 Token 才加载笔记本列表
+      if (config.api_token && !isMaskedToken) {
+        loadNotebooks()
+          .catch((error) => {
+            // 检测是否为连接被拒绝错误（服务未启动）
+            const errorMsg = error?.message || error?.msg || ''
+            if (errorMsg.includes('Connection refused') || errorMsg.includes('连接被拒绝') || errorMsg.includes('ECONNREFUSED')) {
+              setServiceUnavailable(true)
+            }
+          })
       }
     }
   }, [config, isInitialized])
@@ -110,17 +121,18 @@ const SiyuanSettings = () => {
 
     if (result.success) {
       toast.success('连接成功！')
+      setServiceUnavailable(false) // 清除服务不可用状态
       // 测试成功后，先更新store中的配置（使用完整Token），然后加载笔记本列表
       // 这样loadNotebooks就能使用完整的Token了
       try {
         // 临时更新store中的配置，但不保存到后端
         const { config } = useSiyuanStore.getState()
-        useSiyuanStore.setState({ 
-          config: { 
-            ...config, 
-            api_url: values.api_url, 
-            api_token: values.api_token 
-          } 
+        useSiyuanStore.setState({
+          config: {
+            ...config,
+            api_url: values.api_url,
+            api_token: values.api_token
+          }
         })
         await loadNotebooks()
       } catch (error) {
@@ -128,6 +140,10 @@ const SiyuanSettings = () => {
       }
     } else {
       toast.error(`连接失败：${result.message}`)
+      // 如果是连接被拒绝，设置服务不可用状态
+      if (result.message.includes('Connection refused') || result.message.includes('连接被拒绝')) {
+        setServiceUnavailable(true)
+      }
     }
   }
 
@@ -185,6 +201,24 @@ const SiyuanSettings = () => {
             </ul>
           </AlertDescription>
         </Alert>
+
+        {/* 服务未启动提示 */}
+        {serviceUnavailable && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-sm text-red-800">
+              <strong>思源笔记服务未启动</strong>
+              <p className="mt-1">
+                无法连接到思源笔记 API。请检查：
+              </p>
+              <ul className="mt-2 ml-4 list-disc space-y-1">
+                <li>思源笔记是否已启动</li>
+                <li>API 地址是否正确</li>
+                <li>思源笔记的 API 端口是否开放（默认 6806）</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Form {...form}>
           <form
@@ -262,7 +296,11 @@ const SiyuanSettings = () => {
                   <div className="flex flex-col gap-2 sm:col-span-3">
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Select
-                        onValueChange={field.onChange}
+                        onValueChange={(val) => {
+                          field.onChange(val)
+                          // 触发表单标记为 dirty
+                          form.setValue('default_notebook', val, { shouldDirty: true })
+                        }}
                         value={field.value}
                         disabled={notebooks.length === 0}
                       >
@@ -301,6 +339,11 @@ const SiyuanSettings = () => {
                         {isTesting ? '测试中...' : '测试连接'}
                       </Button>
                     </div>
+                    {field.value && notebooks.length === 0 && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                        已保存默认笔记本 ID: {field.value.slice(0, 8)}...（笔记本列表未加载）
+                      </div>
+                    )}
                     <FormDescription className="text-xs">
                       选择导出笔记时默认使用的笔记本
                     </FormDescription>

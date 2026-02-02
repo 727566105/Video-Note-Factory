@@ -23,7 +23,7 @@ import { useWebDAVStore } from '@/store/webdavStore'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Info, CheckCircle2, XCircle, History, Eye, EyeOff, Upload, Download, Clock, Trash2, Settings } from 'lucide-react'
+import { Info, CheckCircle2, XCircle, Eye, EyeOff, Upload, Download, Clock, Trash2, Settings, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -60,8 +60,6 @@ const WebDAVSettings = () => {
   const {
     config,
     backups,
-    backupHistory,
-    backupStats,
     schedule,
     isConfigured,
     isTesting,
@@ -76,11 +74,10 @@ const WebDAVSettings = () => {
     loadBackups,
     deleteBackup,
     restoreBackup,
+    restoreFromUpload,
     loadSchedule,
     enableSchedule,
     disableSchedule,
-    loadHistory,
-    loadStats,
   } = useWebDAVStore()
 
   const [testingResult, setTestingResult] = useState<{
@@ -92,6 +89,12 @@ const WebDAVSettings = () => {
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null)
   const [configImportDialogOpen, setConfigImportDialogOpen] = useState(false)
+
+  // 文件上传恢复相关状态
+  const [uploadRestoreDialogOpen, setUploadRestoreDialogOpen] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showDetailedInfo, setShowDetailedInfo] = useState(false)
 
   const form = useForm<WebDAVConfigFormValues>({
     resolver: zodResolver(WebDAVConfigSchema),
@@ -108,14 +111,15 @@ const WebDAVSettings = () => {
   // 只在组件挂载时加载一次配置和历史
   useEffect(() => {
     loadConfig()
-    loadHistory()
-    loadStats()
     loadSchedule()
     // 只有在已配置时才加载备份列表
     loadConfig().then(() => {
       const { isConfigured } = useWebDAVStore.getState()
       if (isConfigured) {
-        loadBackups()
+        loadBackups().catch((error) => {
+          // 静默处理密码解密错误，不显示错误提示
+          console.warn('加载备份列表失败:', error)
+        })
       }
     })
   }, [])
@@ -123,10 +127,16 @@ const WebDAVSettings = () => {
   // 当配置加载后，只在初次加载时填充表单
   useEffect(() => {
     if (config && !isInitialized) {
+      // 检测脱敏密码格式，不回填脱敏密码
+      const isMaskedPassword = config.password && (
+        config.password.includes('...') ||
+        config.password === '********'
+      )
+
       form.reset({
         url: config.url || '',
         username: config.username || '',
-        password: config.password || '',
+        password: isMaskedPassword ? '' : (config.password || ''),
         path: config.path || '/',
         auto_backup_enabled: config.auto_backup_enabled === 1,
         auto_backup_schedule: config.auto_backup_schedule || '0 2 * * *',
@@ -277,6 +287,47 @@ const WebDAVSettings = () => {
     }
   }
 
+  // 文件上传恢复
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      if (!file.name.endsWith('.zip')) {
+        toast.error('只支持 .zip 格式的备份文件')
+        return
+      }
+      setSelectedFile(file)
+    }
+  }
+
+  const confirmUploadRestore = async () => {
+    if (!selectedFile) {
+      toast.error('请选择备份文件')
+      return
+    }
+
+    try {
+      await restoreFromUpload(selectedFile)
+      toast.success('恢复成功，页面将刷新')
+      setUploadRestoreDialogOpen(false)
+      setSelectedFile(null)
+    } catch (error: any) {
+      toast.error(`恢复失败：${error?.message || '未知错误'}`)
+    }
+  }
+
+  // 刷新备份列表
+  const handleRefreshBackups = async () => {
+    setIsRefreshing(true)
+    try {
+      await loadBackups()
+      toast.success('刷新成功')
+    } catch (error: any) {
+      toast.error(`刷新失败：${error?.message || '未知错误'}`)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       {/* 配置表单 */}
@@ -291,12 +342,39 @@ const WebDAVSettings = () => {
         <Alert className="mb-6 border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-sm text-blue-800">
-            <strong>支持的 WebDAV 服务：</strong>
-            <ul className="mt-2 ml-4 list-disc space-y-1">
-              <li>坚果云：https://dav.jianguoyun.com/dav/</li>
-              <li>Nextcloud：https://your-domain.com/remote.php/webdav/</li>
-              <li>ownCloud：https://your-domain.com/remote.php/webdav/</li>
-            </ul>
+            <div 
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setShowDetailedInfo(!showDetailedInfo)}
+            >
+              <span>
+                <strong>配置提示：</strong>支持坚果云、Nextcloud、ownCloud；备份包含敏感信息
+              </span>
+              {showDetailedInfo ? (
+                <ChevronUp className="h-4 w-4 ml-2 flex-shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 ml-2 flex-shrink-0" />
+              )}
+            </div>
+            {showDetailedInfo && (
+              <div className="mt-3 space-y-3 pt-3 border-t border-blue-300">
+                <div>
+                  <strong className="block mb-1">支持的 WebDAV 服务：</strong>
+                  <ul className="ml-4 list-disc space-y-1 text-xs">
+                    <li>坚果云：https://dav.jianguoyun.com/dav/</li>
+                    <li>Nextcloud：https://your-domain.com/remote.php/webdav/</li>
+                    <li>ownCloud：https://your-domain.com/remote.php/webdav/</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong className="block mb-1">重要提示：</strong>
+                  <ul className="ml-4 list-disc space-y-1 text-xs">
+                    <li>为确保密码安全，请在后端 .env 文件中设置 WEBDAV_ENCRYPTION_KEY 环境变量</li>
+                    <li>如果后端重启后提示"密码解密失败"，请重新保存 WebDAV 配置</li>
+                    <li>备份文件包含完整的敏感信息（API Key、密码、Token），请妥善保管</li>
+                  </ul>
+                </div>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
 
@@ -558,159 +636,94 @@ const WebDAVSettings = () => {
         </Form>
       </div>
 
-      {/* 手动备份 */}
+      {/* 备份文件管理 */}
       {isConfigured && (
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between border-b pb-4">
-            <h2 className="text-xl font-bold text-gray-900">手动备份</h2>
-            {backupStats && (
-              <div className="flex gap-2">
-                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                  成功: {backupStats.successful}
-                </span>
-                <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                  失败: {backupStats.failed}
-                </span>
-              </div>
-            )}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">备份文件</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                管理 WebDAV 服务器上的备份文件，或从本地导入备份
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleRefreshBackups}
+                disabled={isRefreshing}
+                title="刷新列表"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                type="button"
+                onClick={handleBackup}
+                disabled={isBackingUp}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                {isBackingUp ? '备份中...' : '立即备份'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUploadRestoreDialogOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                导入本地备份
+              </Button>
+            </div>
           </div>
 
-          <Button
-            type="button"
-            onClick={handleBackup}
-            disabled={isBackingUp}
-            className="w-full sm:w-auto"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {isBackingUp ? '备份中...' : '立即备份'}
-          </Button>
-        </div>
-      )}
-
-      {/* 备份文件列表 */}
-      {isConfigured && backups.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 border-b pb-4">
-            <h2 className="text-xl font-bold text-gray-900">备份文件</h2>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-700">
-                <tr>
-                  <th className="px-4 py-3">文件名</th>
-                  <th className="px-4 py-3">大小</th>
-                  <th className="px-4 py-3 text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {backups.map((backup) => (
-                  <tr
-                    key={backup.name}
-                    className="border-b hover:bg-gray-50"
-                  >
-                    <td className="px-4 py-3 font-mono text-xs">
-                      {backup.name}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {formatFileSize(backup.size)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedBackup(backup.name)
-                            setRestoreDialogOpen(true)
-                          }}
-                          disabled={isRestoring}
-                        >
-                          <Download className="mr-1 h-3 w-3" />
-                          恢复
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteBackup(backup.name)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 备份历史 */}
-      {isConfigured && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between border-b pb-4">
-            <h2 className="text-xl font-bold text-gray-900">备份历史</h2>
-            {backupHistory.length > 0 && (
-              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                {backupHistory.length} 条记录
-              </span>
-            )}
-          </div>
-
-          {backupHistory.length > 0 ? (
+          {backups.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-700">
                   <tr>
-                    <th className="px-4 py-3">类型</th>
-                    <th className="px-4 py-3">状态</th>
-                    <th className="px-4 py-3">文件大小</th>
-                    <th className="px-4 py-3">文件数量</th>
-                    <th className="px-4 py-3">创建时间</th>
+                    <th className="px-4 py-3">文件名</th>
+                    <th className="px-4 py-3">大小</th>
+                    <th className="px-4 py-3 text-right">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {backupHistory.map((record) => (
+                  {backups.map((backup) => (
                     <tr
-                      key={record.id}
+                      key={backup.name}
                       className="border-b hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3">
-                        {record.type === 'auto' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">
-                            <Clock className="h-3 w-3" />
-                            自动
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">
-                            手动
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {record.status === 'success' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
-                            <CheckCircle2 className="h-3 w-3" />
-                            成功
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
-                            <XCircle className="h-3 w-3" />
-                            失败
-                          </span>
-                        )}
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {backup.name}
                       </td>
                       <td className="px-4 py-3 text-gray-500">
-                        {formatFileSize(record.file_size)}
+                        {formatFileSize(backup.size)}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">
-                        {record.file_count || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">
-                        {formatDate(record.created_at)}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedBackup(backup.name)
+                              setRestoreDialogOpen(true)
+                            }}
+                            disabled={isRestoring}
+                          >
+                            <Download className="mr-1 h-3 w-3" />
+                            恢复
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteBackup(backup.name)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -719,10 +732,10 @@ const WebDAVSettings = () => {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
-              <History className="mb-4 h-16 w-16 text-gray-300" />
-              <p className="text-base font-medium text-gray-900">暂无备份历史</p>
+              <Upload className="mb-4 h-16 w-16 text-gray-300" />
+              <p className="text-base font-medium text-gray-900">暂无备份文件</p>
               <p className="mt-2 text-sm text-gray-500">
-                执行备份后，历史记录将在此显示
+                执行备份后，文件将显示在此处
               </p>
             </div>
           )}
@@ -806,6 +819,69 @@ const WebDAVSettings = () => {
               variant="destructive"
               onClick={handleRestore}
               disabled={isRestoring}
+            >
+              {isRestoring ? '恢复中...' : '确认恢复'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 文件上传恢复对话框 */}
+      <Dialog open={uploadRestoreDialogOpen} onOpenChange={setUploadRestoreDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>导入备份文件</DialogTitle>
+            <DialogDescription>
+              选择本地的备份 ZIP 文件进行恢复。恢复前会自动备份当前数据。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">选择备份文件</label>
+              <Input
+                type="file"
+                accept=".zip"
+                onChange={handleFileSelect}
+                className="cursor-pointer"
+              />
+              {selectedFile && (
+                <p className="text-sm text-gray-500">
+                  已选择: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
+            </div>
+
+            <Alert className="border-yellow-200 bg-yellow-50">
+              <Info className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-sm text-yellow-800">
+                <strong>注意：</strong>
+                <ul className="mt-2 ml-4 list-disc space-y-1">
+                  <li>恢复操作将覆盖当前数据库和笔记文件</li>
+                  <li>系统会自动创建恢复前的备份</li>
+                  <li>恢复失败时会自动回滚到恢复前状态</li>
+                  <li>备份包含完整配置（API Key、密码、Token），恢复后无需重新输入</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setUploadRestoreDialogOpen(false)
+                setSelectedFile(null)
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmUploadRestore}
+              disabled={!selectedFile || isRestoring}
             >
               {isRestoring ? '恢复中...' : '确认恢复'}
             </Button>
