@@ -61,16 +61,16 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       base_url: provider.baseUrl,
     }
     try {
-      const res = await addProvider(payload)
-      if (res.data.code === 0) {
-        const item = res.data.data
-        console.log('Provider ', item)
+      const data = await addProvider(payload)
+      // addProvider 已经返回 res.data，直接使用
+      const item = data
+      console.log('Provider ', item)
 
-        await get().fetchProviderList()
-        return  item
-      }
+      await get().fetchProviderList()
+      return item.id || item
     } catch (error) {
-      console.error('Error fetching provider:', error)
+      console.error('Error adding provider:', error)
+      throw error
     }
   },
   // 按 id 获取单个 provider
@@ -82,14 +82,11 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         api_key: provider.apiKey,
         base_url: provider.baseUrl,
       }
-      const res = await updateProviderById(data)
-      if (res.data.code === 0) {
-        const item = res.data.data
-        console.log('Provider ', item)
-        await get().fetchProviderList()
-      }
+      const item = await updateProviderById(data)
+      console.log('Provider updated:', item)
+      await get().fetchProviderList()
     } catch (error) {
-      console.error('Error fetching provider:', error)
+      console.error('Error updating provider:', error)
     }
   },
   deleteProvider: async (id: string) => {
