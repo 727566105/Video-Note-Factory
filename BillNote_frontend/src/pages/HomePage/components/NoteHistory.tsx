@@ -45,21 +45,20 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
       : tasks
   if (filteredTasks.length === 0) {
     return (
-        <>
-          <div className="mb-2">
-            <input
-                type="text"
-                placeholder="搜索笔记标题..."
-                className="w-full rounded border border-neutral-300 px-3 py-1 text-sm outline-none focus:border-primary"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 py-6 text-center">
-            <p className="text-sm text-neutral-500">暂无记录</p>
-          </div>
-        </>
-
+      <>
+        <div className="mb-2">
+          <input
+            type="text"
+            placeholder="搜索笔记标题..."
+            className="w-full rounded border border-neutral-300 px-3 py-1 text-sm outline-none focus:border-primary"
+            value={rawSearch}
+            onChange={e => setRawSearch(e.target.value)}
+          />
+        </div>
+        <div className="rounded-md border border-neutral-200 bg-neutral-50 py-6 text-center">
+          <p className="text-sm text-neutral-500">暂无记录</p>
+        </div>
+      </>
     )
   }
 
@@ -71,11 +70,11 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
             type="text"
             placeholder="搜索笔记标题..."
             className="w-full rounded border border-neutral-300 px-3 py-1 text-sm outline-none focus:border-primary"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={rawSearch}
+            onChange={e => setRawSearch(e.target.value)}
         />
       </div>
-      <div className="flex flex-col gap-2 overflow-hidden">
+      <div className="flex flex-col gap-2 pb-4">
         {filteredTasks.map(task => (
           <div
             key={task.id}
