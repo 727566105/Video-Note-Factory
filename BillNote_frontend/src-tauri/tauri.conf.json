@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "BiliNote",
+  "productName": "VideoNoteFactory",
   "version": "1.8.1",
   "identifier": "com.jefferyhuang.bilinote",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "BiliNote",
+        "title": "Video Note Factory",
         "width": 1600,
         "height": 1000,
         "resizable": true,
