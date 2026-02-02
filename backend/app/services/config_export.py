@@ -34,14 +34,17 @@ class ConfigExporter:
     """配置导出器"""
 
     @staticmethod
-    def export_config() -> dict[str, Any]:
+    def export_config(include_sensitive: bool = True) -> dict[str, Any]:
         """
         导出所有配置到字典格式
 
+        Args:
+            include_sensitive: 是否包含敏感信息（默认 True）
+
         Returns:
-            dict: 包含所有配置的字典，敏感信息已用占位符替代
+            dict: 包含所有配置的字典
         """
-        logger.info("Starting config export")
+        logger.info(f"Starting config export (include_sensitive={include_sensitive})")
 
         configs: dict[str, Any] = {}
 
@@ -56,7 +59,7 @@ class ConfigExporter:
                     "type": p.type,
                     "base_url": p.base_url,
                     "enabled": p.enabled,
-                    "api_key": SENSITIVE_PLACEHOLDER,  # 使用占位符
+                    "api_key": p.api_key if include_sensitive else SENSITIVE_PLACEHOLDER,
                 }
                 for p in providers
             ]
@@ -83,7 +86,7 @@ class ConfigExporter:
                     "api_url": siyuan_config.api_url,
                     "default_notebook": siyuan_config.default_notebook,
                     "enabled": siyuan_config.enabled,
-                    "api_token": SENSITIVE_PLACEHOLDER,  # 使用占位符
+                    "api_token": siyuan_config.api_token if include_sensitive else SENSITIVE_PLACEHOLDER,
                 }
                 logger.info("Exported Siyuan config")
             else:
@@ -96,13 +99,21 @@ class ConfigExporter:
         try:
             webdav_config = get_config()
             if webdav_config:
+                # 获取解密后的密码
+                if include_sensitive:
+                    from app.db.webdav_config_dao import get_decrypted_password
+                    decrypted_password = get_decrypted_password()
+                    password = decrypted_password if decrypted_password else SENSITIVE_PLACEHOLDER
+                else:
+                    password = SENSITIVE_PLACEHOLDER
+                
                 configs["webdav_config"] = {
                     "url": webdav_config.url,
                     "username": webdav_config.username,
                     "path": webdav_config.path,
                     "auto_backup_enabled": webdav_config.auto_backup_enabled,
                     "auto_backup_schedule": webdav_config.auto_backup_schedule,
-                    "password": SENSITIVE_PLACEHOLDER,  # 使用占位符
+                    "password": password,
                 }
                 logger.info("Exported WebDAV config")
             else:
@@ -114,18 +125,22 @@ class ConfigExporter:
         return {
             "version": CONFIG_VERSION,
             "exported_at": datetime.now().isoformat(),
+            "include_sensitive": include_sensitive,
             "configs": configs
         }
 
     @staticmethod
-    def save_configs_file() -> str:
+    def save_configs_file(include_sensitive: bool = True) -> str:
         """
         保存配置到临时目录的 configs.json 文件
+
+        Args:
+            include_sensitive: 是否包含敏感信息（默认 True）
 
         Returns:
             str: configs.json 文件的完整路径
         """
-        config_data = ConfigExporter.export_config()
+        config_data = ConfigExporter.export_config(include_sensitive=include_sensitive)
 
         # 创建临时文件
         temp_dir = tempfile.gettempdir()
@@ -134,7 +149,7 @@ class ConfigExporter:
         try:
             with open(config_file_path, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved configs to: {config_file_path}")
+            logger.info(f"Saved configs to: {config_file_path} (include_sensitive={include_sensitive})")
             return config_file_path
         except Exception as e:
             logger.error(f"Failed to save configs file: {e}")

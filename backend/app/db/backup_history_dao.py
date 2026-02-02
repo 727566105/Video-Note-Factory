@@ -84,3 +84,39 @@ def get_backup_stats():
         raise
     finally:
         db.close()
+
+
+def delete_backup_record(history_id: int) -> bool:
+    """删除单条备份历史记录"""
+    db = next(get_db())
+    try:
+        record = db.query(BackupHistory).filter(BackupHistory.id == history_id).first()
+        if record:
+            db.delete(record)
+            db.commit()
+            logger.info(f"Deleted backup history: {history_id}")
+            return True
+        return False
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete backup history: {e}")
+        raise
+    finally:
+        db.close()
+
+
+def delete_all_backup_records() -> int:
+    """删除所有备份历史记录，返回删除数量"""
+    db = next(get_db())
+    try:
+        count = db.query(BackupHistory).count()
+        db.query(BackupHistory).delete()
+        db.commit()
+        logger.info(f"Deleted all backup history: {count} records")
+        return count
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete all backup history: {e}")
+        raise
+    finally:
+        db.close()

@@ -18,6 +18,11 @@ NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
 router = APIRouter()
 
 
+def _is_masked_token(token: str) -> bool:
+    """检测 Token 是否为脱敏格式"""
+    return token.endswith('...') or token == '********'
+
+
 class SiyuanConfigRequest(BaseModel):
     api_url: HttpUrl
     api_token: str
@@ -36,12 +41,11 @@ def get_config():
         config = dao_get_config()
         if not config:
             return R.success(data=None)
-        # 脱敏 Token（只显示前 8 位）
-        masked_token = config.api_token[:8] + "..." if len(config.api_token) > 8 else config.api_token
+        # 脱敏 Token（使用统一占位符，不泄露长度）
         return R.success(data={
             "id": config.id,
             "api_url": config.api_url,
-            "api_token": masked_token,
+            "api_token": "********",
             "default_notebook": config.default_notebook,
             "enabled": config.enabled,
             "created_at": config.created_at.isoformat() if config.created_at else None,
@@ -71,9 +75,18 @@ def save_config(data: SiyuanConfigRequest):
 def update_config(data: SiyuanConfigRequest):
     """更新思源笔记配置"""
     try:
+        # 检查是否为脱敏 Token，是则保留原 Token
+        if _is_masked_token(data.api_token):
+            existing = dao_get_config()
+            if not existing:
+                return R.error(msg="配置不存在")
+            actual_token = existing.api_token
+        else:
+            actual_token = data.api_token
+
         config_id = upsert_config(
             api_url=str(data.api_url),
-            api_token=data.api_token,
+            api_token=actual_token,
             default_notebook=data.default_notebook
         )
         return R.success(data={"id": config_id}, msg="思源笔记配置更新成功")

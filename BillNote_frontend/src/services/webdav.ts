@@ -117,3 +117,25 @@ export const getHistory = async (limit: number = 50) => {
 export const getStats = async () => {
   return await request.get('/webdav/stats')
 }
+
+// 删除单条备份历史
+export const deleteHistory = async (historyId: number) => {
+  return await request.delete(`/webdav/history/${historyId}`)
+}
+
+// 删除所有备份历史
+export const deleteAllHistory = async () => {
+  return await request.delete('/webdav/history')
+}
+
+// 从上传的文件恢复数据
+export const restoreFromUpload = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  return await request.post('/webdav/restore/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
