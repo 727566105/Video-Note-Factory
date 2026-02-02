@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Markmap } from 'markmap-view'
 import { transformer } from '@/lib/markmap.ts'
 import { Toolbar } from 'markmap-toolbar'
+import { Download, FileImage, Maximize, Minimize } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import 'markmap-toolbar/dist/style.css'
 
 export interface MarkmapEditorProps {
@@ -244,35 +246,58 @@ export default function MarkmapEditor({
   return (
     <div className="relative flex h-full flex-col bg-white">
       {/* 全屏/退出全屏 按钮 */}
-      <div className="absolute top-2 right-2 z-20 flex space-x-2">
-        <button
-          onClick={exportPng}
-          className="rounded p-1 hover:bg-gray-200"
-          title="导出PNG思维导图"
-        >
-          🖼️
-        </button>
-        <button
-          onClick={exportHtml}
-          className="rounded p-1 hover:bg-gray-200"
-          title="导出HTML思维导图"
-        >
-          💾
-        </button>
-        {isFullscreen ? (
-          <button
-            onClick={exitFullscreen}
-            className="rounded p-1 hover:bg-gray-200"
-            title="退出全屏"
-          >
-            🗗
-          </button>
-        ) : (
-          <button onClick={enterFullscreen} className="rounded p-1 hover:bg-gray-200" title="全屏">
-            🗖
-          </button>
-        )}
-      </div>
+      <TooltipProvider>
+        <div className="absolute top-2 right-2 z-20 flex space-x-2">
+          {/* 导出PNG */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={exportPng}
+                className="rounded p-1 hover:bg-gray-200"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>导出PNG思维导图</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* 导出HTML */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={exportHtml}
+                className="rounded p-1 hover:bg-gray-200"
+              >
+                <FileImage className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>导出HTML思维导图</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* 全屏/退出全屏 */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={isFullscreen ? exitFullscreen : enterFullscreen}
+                className="rounded p-1 hover:bg-gray-200"
+              >
+                {isFullscreen ? (
+                  <Minimize className="h-5 w-5" />
+                ) : (
+                  <Maximize className="h-5 w-5" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{isFullscreen ? '退出全屏' : '全屏'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
 
       {/* 如果需要编辑区，就自己加一个 <textarea> 并把 handleChange 绑上 */}
       {/* <textarea value={value} onChange={handleChange} className="mb-2 p-2 border rounded" /> */}
