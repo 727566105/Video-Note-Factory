@@ -66,6 +66,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const deleteProvider = useProviderStore(state => state.deleteProvider)
   const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [isBuiltIn, setIsBuiltIn] = useState(false)
   const loadModelsById= useModelStore(state => state.loadModelsById)
   const [modelOptions, setModelOptions] = useState<IModel[]>([]) // ⚡新增，保存模型列表
@@ -206,16 +207,22 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
   // 保存Provider信息
   const onProviderSubmit = async (values: ProviderFormValues) => {
-    if (isEditMode) {
-      await updateProvider({ ...values, id: id! })
-      toast.success('更新供应商成功')
-    } else {
-       id = await addNewProvider({ ...values })
-
-      toast.success('新增供应商成功')
+    setSaving(true)
+    try {
+      if (isEditMode) {
+        await updateProvider({ ...values, id: id! })
+        toast.success('更新供应商成功')
+      } else {
+        const newId = await addNewProvider({ ...values })
+        toast.success('新增供应商成功')
+        // 导航到新创建的供应商编辑页面
+        navigate(`/settings/model/${newId}`)
+      }
+    } catch (error) {
+      toast.error(isEditMode ? '更新供应商失败' : '新增供应商失败')
+    } finally {
+      setSaving(false)
     }
-    // 刷新页面
-
   }
 
   // 保存Model信息
@@ -298,14 +305,15 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
             )}
           />
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={!providerForm.formState.isDirty}>
-              {isEditMode ? '保存修改' : '保存创建'}
+            <Button type="submit" disabled={!providerForm.formState.isDirty || saving}>
+              {saving ? '保存中...' : (isEditMode ? '保存修改' : '保存创建')}
             </Button>
             {isEditMode && !isBuiltIn && (
               <Button
                 type="button"
                 variant="destructive"
                 onClick={handleDeleteProvider}
+                disabled={saving}
               >
                 删除供应商
               </Button>
