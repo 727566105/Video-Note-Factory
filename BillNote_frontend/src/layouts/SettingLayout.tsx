@@ -18,14 +18,9 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <div
-      className="h-full w-full"
-      style={{
-        backgroundColor: 'var(--color-muted)',
-      }}
-    >
+    <div className="flex h-screen w-full flex-col" style={{ backgroundColor: 'var(--color-muted)' }}>
       {/* 移动端顶部导航栏 */}
-      <header className="flex h-14 items-center justify-between border-b border-neutral-200 bg-white px-4 lg:hidden">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 lg:hidden">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -45,7 +40,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
         </Link>
       </header>
 
-      <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100% - 3.5rem)' }}>
+      <div className="flex flex-1 overflow-hidden">
         {/* 移动端侧边栏 - 可折叠 */}
         <aside
           className={`
@@ -53,10 +48,9 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
             lg:relative lg:z-0 lg:w-[300px] lg:translate-x-0
             ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
           `}
-          style={{ top: '3.5rem', height: 'calc(100% - 3.5rem)' }}
         >
           {/* 桌面端 Header */}
-          <header className="hidden h-16 items-center justify-between border-b px-6 lg:flex">
+          <header className="hidden h-16 shrink-0 items-center justify-between border-b px-6 lg:flex">
             <div className="flex items-center gap-2">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl">
                 <img src={logo} alt="logo" className="h-full w-full object-contain" />
@@ -80,7 +74,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           </header>
 
           {/* 菜单内容 */}
-          <div className="h-full overflow-auto p-4 lg:h-[calc(100%-4rem)]">
+          <div className="flex-1 overflow-auto p-4">
             <div onClick={() => setMobileMenuOpen(false)}>{Menu}</div>
           </div>
         </aside>
@@ -89,13 +83,12 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
         {mobileMenuOpen && (
           <div
             className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-            style={{ top: '3.5rem' }}
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
 
         {/* 右侧内容区域 */}
-        <main className="h-full flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-white">
           <Outlet />
         </main>
       </div>

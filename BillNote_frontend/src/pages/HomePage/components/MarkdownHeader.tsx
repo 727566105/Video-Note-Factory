@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { ExportPDFButton } from '@/components/ExportPDFButton'
+import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
 
 interface VersionNote {
   ver_id: string
@@ -151,6 +152,16 @@ export function MarkdownHeader({
         {/* PDF 导出按钮 */}
         {currentTask?.id && (
           <ExportPDFButton
+            taskId={currentTask.id}
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+          />
+        )}
+
+        {/* 思源笔记导出按钮 */}
+        {currentTask?.id && (
+          <ExportSiyuanButton
             taskId={currentTask.id}
             variant="ghost"
             size="sm"

@@ -77,16 +77,26 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   getProviderById: id => get().provider.find(p => p.id === id),
   updateProvider: async (provider: IProvider) => {
     try {
-      const data = {
-        ...provider,
-        api_key: provider.apiKey,
-        base_url: provider.baseUrl,
+      const data: any = {
+        id: provider.id,
       }
-      const item = await updateProviderById(data)
-      console.log('Provider updated:', item)
-      await get().fetchProviderList()
+      
+      // 只添加非 undefined 的字段
+      if (provider.name !== undefined) data.name = provider.name
+      if (provider.apiKey !== undefined) data.api_key = provider.apiKey
+      if (provider.baseUrl !== undefined) data.base_url = provider.baseUrl
+      if (provider.type !== undefined) data.type = provider.type
+      if (provider.enabled !== undefined) data.enabled = provider.enabled
+      if (provider.logo !== undefined) data.logo = provider.logo
+      
+      const res = await updateProviderById(data)
+      if (res.data.code === 0) {
+        console.log('Provider updated:', res.data.data)
+        await get().fetchProviderList()
+      }
     } catch (error) {
       console.error('Error updating provider:', error)
+      throw error
     }
   },
   deleteProvider: async (id: string) => {

@@ -22,14 +22,11 @@ const ProviderCard: FC<IProviderCardProps> = ({
     navigate(`/settings/model/${id}`)
   }
   const handleEnable = () => {
-    console.log('enable', enable)
     updateProvider({
       id,
       enabled: enable == 1 ? 0 : 1,
     })
   }
-  const rawId = useParams()
-  console.log('rawId', rawId)
   // @ts-ignore
   const { id: currentId } = useParams()
   const isActive = currentId === id

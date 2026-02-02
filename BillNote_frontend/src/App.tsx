@@ -13,6 +13,7 @@ import StepBar from '@/pages/HomePage/components/StepBar.tsx'
 import Downloading from '@/components/Lottie/download.tsx'
 import Prompt from '@/pages/SettingPage/Prompt.tsx'
 import AboutPage from '@/pages/SettingPage/about.tsx'
+import SiyuanSettings from '@/pages/SettingPage/Siyuan.tsx'
 import Downloader from '@/pages/SettingPage/Downloader.tsx'
 import DownloaderForm from '@/components/Form/DownloaderForm/Form.tsx'
 import { useEffect } from 'react'
@@ -59,6 +60,7 @@ function App() {
               <Route path="download" element={<Downloader />}>
                 <Route path=":id" element={<DownloaderForm />} />
               </Route>
+              <Route path="siyuan" element={<SiyuanSettings />} />
               <Route path="about" element={<AboutPage />}></Route>
               <Route path="*" element={<NotFoundPage />} />
             </Route>

@@ -1,6 +1,8 @@
 from app.db.models.models import Model
 from app.db.models.providers import Provider
 from app.db.models.video_tasks import VideoTask
+from app.db.models.siyuan_config import SiyuanConfig
+from app.db.models.siyuan_export_history import SiyuanExportHistory
 from app.db.engine import get_engine, Base
 
 def init_db():
