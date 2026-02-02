@@ -153,11 +153,11 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
                 <ChevronRight className="h-4 w-4" />
               </Button>
 
-              <div className="flex items-center gap-2 border-b border-neutral-200 px-3 py-2 md:px-4 md:py-3">
+              <div className="flex shrink-0 items-center gap-2 border-b border-neutral-200 px-3 py-2 md:px-4 md:py-3">
                 <Eye className="h-4 w-4 text-primary" />
                 <span className="text-sm font-semibold text-gray-700">预览</span>
               </div>
-              <div className="flex-1 overflow-hidden p-3 md:p-6">{Preview}</div>
+              <div className="flex-1 min-h-0 overflow-hidden">{Preview}</div>
             </>
           )}
 

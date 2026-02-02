@@ -17,7 +17,6 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import 'github-markdown-css/github-markdown-light.css'
 import { FC } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { useTaskStore } from '@/store/taskStore'
 import { noteStyles } from '@/constant/note.ts'
 import { MarkdownHeader } from '@/pages/HomePage/components/MarkdownHeader.tsx'
@@ -184,7 +183,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden">
+    <div className="flex h-full w-full flex-col">
       <MarkdownHeader
         currentTask={currentTask}
         isMultiVersion={isMultiVersion}
@@ -214,11 +213,11 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden bg-white py-2">
+        <div className="flex flex-1 min-h-0 flex-col bg-white">
           {selectedContent && selectedContent !== 'loading' && selectedContent !== 'empty' ? (
             <>
-              <ScrollArea className="w-full">
-                <div className={'markdown-body w-full px-2'}>
+              <div className="flex-1 overflow-y-auto p-3 md:p-6">
+                <div className={'markdown-body w-full'}>
                   <ReactMarkdown
                     remarkPlugins={[gfm, remarkMath]}
                     rehypePlugins={[rehypeKatex]}
@@ -470,7 +469,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                     {selectedContent}
                   </ReactMarkdown>
                 </div>
-              </ScrollArea>
+              </div>
               {showTranscribe && (
                 <div className={'ml-2 w-2/4'}>
                   <TranscriptViewer />
