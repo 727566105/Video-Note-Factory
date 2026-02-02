@@ -126,17 +126,21 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
     }
     load()
   }, [id])
-  const handelDelete=async (modelId)=>{
-    if (!window.confirm('确定要删除这个模型吗？')) return
+  const handelDelete = async (modelId) => {
+    if (!window.confirm('确定要删除这个模型吗？此操作不可恢复。')) return
 
     try {
       const res = await deleteModelById(modelId)
       console.log('🔧 删除结果:', res)
-
       toast.success('删除成功')
-
+      
+      // 刷新模型列表
+      const updatedModels = await loadModelsById(id!)
+      if (updatedModels) {
+        setModels(updatedModels)
+      }
     } catch (e) {
-      toast.error('删除异常')
+      toast.error('删除失败，请重试')
     }
   }
 
@@ -231,34 +235,50 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
     await loadModelsById(id!)
   }
 
-  if (loading) return <div className="p-4">加载中...</div>
+  if (loading) return (
+    <div className="flex h-full items-center justify-center p-4">
+      <div className="text-center">
+        <div className="mb-2 text-lg font-medium text-gray-600">加载中...</div>
+        <div className="text-sm text-gray-400">正在获取供应商信息</div>
+      </div>
+    </div>
+  )
 
   return (
-    <div className="flex flex-col gap-8 p-4">
+    <div className="flex h-full flex-col gap-8 overflow-y-auto p-6">
       {/* Provider信息表单 */}
-      <Form {...providerForm}>
-        <form
-          onSubmit={providerForm.handleSubmit(onProviderSubmit)}
-          className="flex max-w-xl flex-col gap-4"
-        >
-          <div className="text-lg font-bold">
-            {isEditMode ? '编辑模型供应商' : '新增模型供应商'}
-          </div>
-          {!isBuiltIn && (
-            <div className="text-sm text-red-500 italic">
-              自定义模型供应商需要确保兼容 OpenAI SDK
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <Form {...providerForm}>
+          <form
+            onSubmit={providerForm.handleSubmit(onProviderSubmit)}
+            className="flex max-w-2xl flex-col gap-5"
+          >
+            <div className="flex items-center justify-between border-b pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {isEditMode ? '编辑模型供应商' : '新增模型供应商'}
+                </h2>
+                {!isBuiltIn && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    自定义模型供应商需要确保兼容 OpenAI SDK
+                  </p>
+                )}
+              </div>
             </div>
-          )}
           <FormField
             control={providerForm.control}
             name="name"
             render={({ field }) => (
-              <FormItem className="flex items-center gap-4">
-                <FormLabel className="w-24 text-right">名称</FormLabel>
-                <FormControl>
-                  <Input {...field} disabled={isBuiltIn} className="flex-1" />
-                </FormControl>
-                <FormMessage />
+              <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  名称
+                </FormLabel>
+                <div className="sm:col-span-3">
+                  <FormControl>
+                    <Input {...field} disabled={isBuiltIn} placeholder="输入供应商名称" />
+                  </FormControl>
+                  <FormMessage />
+                </div>
               </FormItem>
             )}
           />
@@ -266,12 +286,16 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
             control={providerForm.control}
             name="apiKey"
             render={({ field }) => (
-              <FormItem className="flex items-center gap-4">
-                <FormLabel className="w-24 text-right">API Key</FormLabel>
-                <FormControl>
-                  <Input {...field} className="flex-1" />
-                </FormControl>
-                <FormMessage />
+              <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  API Key
+                </FormLabel>
+                <div className="sm:col-span-3">
+                  <FormControl>
+                    <Input {...field} type="password" placeholder="输入 API Key" />
+                  </FormControl>
+                  <FormMessage />
+                </div>
               </FormItem>
             )}
           />
@@ -279,15 +303,27 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
             control={providerForm.control}
             name="baseUrl"
             render={({ field }) => (
-              <FormItem className="flex items-center gap-4">
-                <FormLabel className="w-24 text-right">API地址</FormLabel>
-                <FormControl>
-                  <Input {...field} className="flex-1" />
-                </FormControl>
-                <Button type="button" onClick={handleTest} variant="ghost" disabled={testing}>
-                  {testing ? '测试中...' : '测试连通性'}
-                </Button>
-                <FormMessage />
+              <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-start sm:gap-4">
+                <FormLabel className="text-sm font-medium text-gray-700 sm:pt-2 sm:text-right">
+                  API地址
+                </FormLabel>
+                <div className="flex flex-col gap-2 sm:col-span-3">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <FormControl>
+                      <Input {...field} placeholder="https://api.example.com/v1" />
+                    </FormControl>
+                    <Button 
+                      type="button" 
+                      onClick={handleTest} 
+                      variant="outline" 
+                      disabled={testing}
+                      className="w-full shrink-0 sm:w-auto"
+                    >
+                      {testing ? '测试中...' : '测试连通性'}
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </div>
               </FormItem>
             )}
           />
@@ -295,17 +331,25 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
             control={providerForm.control}
             name="type"
             render={({ field }) => (
-              <FormItem className="flex items-center gap-4">
-                <FormLabel className="w-24 text-right">类型</FormLabel>
-                <FormControl>
-                  <Input {...field} disabled className="flex-1" />
-                </FormControl>
-                <FormMessage />
+              <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  类型
+                </FormLabel>
+                <div className="sm:col-span-3">
+                  <FormControl>
+                    <Input {...field} disabled className="bg-gray-50" />
+                  </FormControl>
+                  <FormMessage />
+                </div>
               </FormItem>
             )}
           />
-          <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={!providerForm.formState.isDirty || saving}>
+          <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:gap-3">
+            <Button 
+              type="submit" 
+              disabled={!providerForm.formState.isDirty || saving}
+              className="w-full min-w-[120px] sm:w-auto"
+            >
               {saving ? '保存中...' : (isEditMode ? '保存修改' : '保存创建')}
             </Button>
             {isEditMode && !isBuiltIn && (
@@ -314,6 +358,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                 variant="destructive"
                 onClick={handleDeleteProvider}
                 disabled={saving}
+                className="w-full sm:w-auto"
               >
                 删除供应商
               </Button>
@@ -321,48 +366,72 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
           </div>
         </form>
       </Form>
+      </div>
 
       {/* 模型信息表单 */}
-      <div className="flex max-w-xl flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <span className="font-bold">模型列表</span>
-          <div className={'flex flex-col gap-2 rounded bg-[#FEF0F0] p-2.5'}>
-            <h2 className={'font-bold'}>注意!</h2>
-            <span>请确保已经保存供应商信息,以及通过测试连通性.</span>
+      <div className="flex flex-col gap-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b pb-4">
+            <h2 className="text-xl font-bold text-gray-900">模型管理</h2>
           </div>
-          <ModelSelector providerId={id!} />
+          
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertDescription className="text-sm text-amber-800">
+              💡 请确保已经保存供应商信息并通过测试连通性后再添加模型
+            </AlertDescription>
+          </Alert>
 
-          {/*<datalist id="model-options">*/}
-          {/*  {modelOptions.map(model => (*/}
-          {/*    <option key={model.id + '1'} value={model.id} />*/}
-          {/*  ))}*/}
-          {/*</datalist>*/}
-        </div>
-        <div className="flex flex-col gap-2">
-          <span className="font-bold">已启用模型</span>
-          <div className={'flex flex-wrap gap-2 rounded  p-2.5'}>
-            {
-              models && models.map(model => {
-                return (
-                  <>
-                    <Tag onClose={()=>{
-                      handelDelete(model.id)
-                    }} key={model.id} closable color={'blue'}>
-                      {model.model_name}
-                    </Tag></>
-
-                )
-              })
+          <ModelSelector providerId={id!} onModelAdded={async () => {
+            const updatedModels = await loadModelsById(id!)
+            if (updatedModels) {
+              setModels(updatedModels)
             }
+          }} />
+        </div>
 
+        <div className="flex flex-col gap-4 border-t pt-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-gray-900">已启用模型</h3>
+            {models && models.length > 0 && (
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                {models.length} 个
+              </span>
+            )}
           </div>
-          {/*<ModelSelector providerId={id!} />*/}
-
-          {/*<datalist id="model-options">*/}
-          {/*  {modelOptions.map(model => (*/}
-          {/*    <option key={model.id + '1'} value={model.id} />*/}
-          {/*  ))}*/}
-          {/*</datalist>*/}
+          
+          {models && models.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {models.map(model => (
+                <Tag
+                  key={model.id}
+                  closable
+                  onClose={() => handelDelete(model.id)}
+                  color="blue"
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm"
+                >
+                  {model.model_name}
+                </Tag>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
+              <svg
+                className="mb-4 h-16 w-16 text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                />
+              </svg>
+              <p className="text-base font-medium text-gray-900">暂无已启用的模型</p>
+              <p className="mt-2 text-sm text-gray-500">请从上方选择并添加模型</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
