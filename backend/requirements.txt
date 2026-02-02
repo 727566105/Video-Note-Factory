@@ -22,6 +22,7 @@ click-plugins==1.1.1
 click-repl==0.3.0
 colorama==0.4.6
 coloredlogs==15.0.1
+cryptography==44.1.0
 cssselect2==0.8.0
 ctranslate2==4.6.3
 distro==1.9.0
@@ -119,7 +120,9 @@ uvloop==0.21.0; sys_platform != "win32"
 vine==5.1.0
 watchfiles==1.0.4
 wcwidth==0.2.13
+APScheduler==3.11.0
 weasyprint==65.1
+webdavclient3==3.14.6
 webencodings==0.5.1
 websockets==15.0.1
 yarl==1.19.0
