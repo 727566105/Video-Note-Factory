@@ -59,7 +59,12 @@
       "mcp__chrome-devtools__click",
       "mcp__chrome-devtools__fill",
       "Bash(openspec archive add-webdav-backup:*)",
-      "Bash(pnpm exec tsc:*)"
+      "Bash(pnpm exec tsc:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(playwright install:*)",
+      "Bash(PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/ playwright install:*)",
+      "Bash(pnpm build:*)",
+      "Bash(brew install:*)"
     ]
   }
 }

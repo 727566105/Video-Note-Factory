@@ -21,6 +21,10 @@ EXPORT_HISTORY_FILE = NOTE_OUTPUT_DIR / ".export_history.json"
 # PDF 样式主题
 StyleType = Literal["default", "simple", "print", "academic"]
 
+# 图文导出格式和模板
+ImageFormat = Literal["png", "jpg", "jpeg"]
+ImageTemplate = Literal["xiaohongshu", "simple", "academic"]
+
 
 def _add_export_history(task_id: str, style: str, title: str | None = None):
     """记录导出历史"""
@@ -660,3 +664,121 @@ async def redownload_pdf(
         filename=f"{task_id}.pdf",
         headers={"X-PDF-Style": style}
     )
+
+
+# ==================== 图文导出 API ====================
+
+@router.get("/image/templates")
+async def list_image_templates():
+    """获取可用的图文模板列表"""
+    from app.utils.image_export import get_available_templates
+
+    templates = get_available_templates()
+    return {
+        "templates": templates,
+        "total": len(templates)
+    }
+
+
+@router.get("/image/history/{task_id}")
+async def get_image_history(task_id: str):
+    """获取指定任务的图文导出历史"""
+    history = _get_export_history(1000)
+    image_history = [h for h in history if h.get("style", "").startswith("image_")]
+    task_history = [h for h in image_history if h.get("task_id") == task_id]
+    return {
+        "task_id": task_id,
+        "count": len(task_history),
+        "history": task_history
+    }
+
+
+@router.get("/image/{task_id}")
+async def export_image(
+    task_id: str,
+    template: ImageTemplate = Query(default="xiaohongshu", description="图文模板"),
+    width: int = Query(default=1080, ge=400, le=1920, description="图片宽度"),
+    format: ImageFormat = Query(default="png", description="图片格式")
+):
+    """
+    导出笔记为图文（多张图片打包为 ZIP）
+
+    Args:
+        task_id: 任务 ID
+        template: 模板类型 (xiaohongshu/simple/academic)
+        width: 图片宽度 (400-1920)
+        format: 图片格式 (png/jpg)
+
+    Returns:
+        ZIP 文件流（包含多张图片）
+    """
+    try:
+        import zipfile
+        from app.utils.image_export import export_note_as_image
+
+        # 导出图片（返回多张图片）
+        image_bytes_list, title = await export_note_as_image(task_id, template, width, format)
+
+        # 构建基础文件名
+        if title:
+            safe_title = re.sub(r'[\\/*?:"<>|]', '', title).strip()[:150]
+            if not safe_title:
+                safe_title = f"note_{task_id[:8]}"
+            base_filename = safe_title
+        else:
+            base_filename = f"note_{task_id}"
+
+        # 如果只有一张图片，直接返回图片
+        if len(image_bytes_list) == 1:
+            filename = f"{base_filename}.{format}"
+            filename_encoded = quote(filename.encode('utf-8'))
+            
+            logger.info(f"图文导出成功 (task_id={task_id}, 1张图片)")
+            
+            return Response(
+                content=image_bytes_list[0],
+                media_type=f"image/{format}",
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{filename_encoded}",
+                    "X-Image-Template": template,
+                    "X-Image-Width": str(width),
+                    "X-Image-Count": "1"
+                }
+            )
+
+        # 多张图片，打包为 ZIP
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for idx, image_bytes in enumerate(image_bytes_list, start=1):
+                image_filename = f"{base_filename}_{idx}.{format}"
+                zip_file.writestr(image_filename, image_bytes)
+
+        zip_buffer.seek(0)
+        zip_filename = f"{base_filename}.zip"
+        zip_filename_encoded = quote(zip_filename.encode('utf-8'))
+
+        # 记录导出历史
+        _add_export_history(task_id, f"image_{template}", title)
+
+        logger.info(f"图文导出成功 (task_id={task_id}, {len(image_bytes_list)}张图片)")
+
+        return Response(
+            content=zip_buffer.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{zip_filename_encoded}",
+                "X-Image-Template": template,
+                "X-Image-Width": str(width),
+                "X-Image-Count": str(len(image_bytes_list))
+            }
+        )
+
+    except FileNotFoundError as e:
+        logger.warning(f"图文导出失败：{str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        logger.warning(f"图文导出失败：{str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"图文导出异常 (task_id={task_id}): {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"图文生成失败：{str(e)}")

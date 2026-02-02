@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { Copy, Download, BrainCircuit, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { ExportPDFButton } from '@/components/ExportPDFButton'
 import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
+import { ExportImageButton } from '@/components/ExportImageButton'
 
 interface VersionNote {
   ver_id: string
@@ -95,12 +96,12 @@ export function MarkdownHeader({
         {isMultiVersion && (
           <Select value={currentVerId} onValueChange={setCurrentVerId}>
             <SelectTrigger className="h-8 w-[160px] text-sm">
-              <div className="flex items-center">
+              <SelectValue>
                 {(() => {
                   const idx = currentTask?.markdown.findIndex(v => v.ver_id === currentVerId)
                   return idx !== -1 ? `版本（${currentVerId.slice(-6)}）` : ''
                 })()}
-              </div>
+              </SelectValue>
             </SelectTrigger>
 
             <SelectContent>
@@ -152,6 +153,16 @@ export function MarkdownHeader({
         {/* PDF 导出按钮 */}
         {currentTask?.id && (
           <ExportPDFButton
+            taskId={currentTask.id}
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+          />
+        )}
+
+        {/* 图文导出按钮 */}
+        {currentTask?.id && (
+          <ExportImageButton
             taskId={currentTask.id}
             variant="ghost"
             size="sm"

@@ -441,7 +441,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                       ),
 
                       // Table headers
-                      th: ({ children, ...props }) => (
+                      th: ({ children, isHeader, ...props }) => (
                         <th
                           className="border-muted-foreground/20 border px-4 py-2 text-left font-medium [&[align=center]]:text-center [&[align=right]]:text-right"
                           {...props}
@@ -451,7 +451,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                       ),
 
                       // Table cells
-                      td: ({ children, ...props }) => (
+                      td: ({ children, isHeader, ...props }) => (
                         <td
                           className="border-muted-foreground/20 border px-4 py-2 text-left [&[align=center]]:text-center [&[align=right]]:text-right"
                           {...props}

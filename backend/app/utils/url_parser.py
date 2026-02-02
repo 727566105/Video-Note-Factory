@@ -28,6 +28,14 @@ def extract_video_id(url: str, platform: str) -> Optional[str]:
         return match.group(1) if match else None
 
     elif platform == "douyin":
+        # 先检查是否为短链接（v.douyin.com），解析重定向后的真实 URL
+        if "v.douyin.com" in url:
+            try:
+                response = requests.head(url, allow_redirects=True, timeout=5)
+                url = response.url  # 获取重定向后的真实 URL
+            except requests.RequestException:
+                pass
+
         # 匹配 douyin.com/video/1234567890123456789
         match = re.search(r"/video/(\d+)", url)
         return match.group(1) if match else None
