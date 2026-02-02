@@ -42,7 +42,13 @@ async def lifespan(app: FastAPI):
     init_db()
     get_transcriber(transcriber_type=os.getenv("TRANSCRIBER_TYPE", "fast-whisper"))
     seed_default_providers()
+    # 启动定时任务调度器
+    from app.tasks.scheduler import start_scheduler
+    start_scheduler()
     yield
+    # 关闭定时任务调度器
+    from app.tasks.scheduler import shutdown_scheduler
+    shutdown_scheduler()
 
 app = create_app(lifespan=lifespan)
 origins = [

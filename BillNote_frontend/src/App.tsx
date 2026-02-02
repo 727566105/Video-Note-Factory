@@ -10,6 +10,7 @@ import Model from '@/pages/SettingPage/Model.tsx'
 import ProviderForm from '@/components/Form/modelForm/Form.tsx'
 import AboutPage from '@/pages/SettingPage/about.tsx'
 import SiyuanSettings from '@/pages/SettingPage/Siyuan.tsx'
+import WebDAVSettings from '@/pages/SettingPage/WebDAV.tsx'
 import Downloader from '@/pages/SettingPage/Downloader.tsx'
 import DownloaderForm from '@/components/Form/DownloaderForm/Form.tsx'
 import { useEffect } from 'react'
@@ -57,6 +58,7 @@ function App() {
                 <Route path=":id" element={<DownloaderForm />} />
               </Route>
               <Route path="siyuan" element={<SiyuanSettings />} />
+              <Route path="webdav" element={<WebDAVSettings />} />
               <Route path="about" element={<AboutPage />}></Route>
               <Route path="*" element={<NotFoundPage />} />
             </Route>

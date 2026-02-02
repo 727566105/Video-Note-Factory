@@ -6,6 +6,7 @@ import {
   Wrench,
   Info,
   BookOpen,
+  Cloud,
 } from 'lucide-react'
 import MenuBar, { IMenuProps } from '@/pages/SettingPage/components/menuBar.tsx'
 
@@ -36,6 +37,12 @@ const Menu = () => {
       name: '思源笔记',
       icon: <BookOpen />,
       path: '/settings/siyuan',
+    },
+    {
+      id: 'webdav',
+      name: 'WebDAV 备份',
+      icon: <Cloud />,
+      path: '/settings/webdav',
     },
     // //其他配置
     // {

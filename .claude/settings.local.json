@@ -49,7 +49,17 @@
       "mcp__chrome-devtools__get_network_request",
       "mcp__chrome-devtools__evaluate_script",
       "Bash(sqlite3:*)",
-      "mcp__chrome-devtools__take_screenshot"
+      "mcp__chrome-devtools__take_screenshot",
+      "Bash(openspec archive add-siyuan-export:*)",
+      "Bash(openspec validate:*)",
+      "Bash(kill:*)",
+      "Bash(/Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/.venv/bin/pip install:*)",
+      "Bash(/Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/.venv/bin/python:*)",
+      "Bash(/Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/.venv/bin/pip:*)",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__fill",
+      "Bash(openspec archive add-webdav-backup:*)",
+      "Bash(pnpm exec tsc:*)"
     ]
   }
 }
