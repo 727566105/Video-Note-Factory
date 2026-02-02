@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select.tsx' // ⚡新增 fetchModels
 import { ModelSelector } from '@/components/Form/modelForm/ModelSelector.tsx'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert.tsx'
-import { Tags } from 'lucide-react'
+import { Tags, Eye, EyeOff } from 'lucide-react'
 import { Tag } from 'antd'
 import { useModelStore } from '@/store/modelStore'
 
@@ -67,6 +67,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
   const [isBuiltIn, setIsBuiltIn] = useState(false)
   const loadModelsById= useModelStore(state => state.loadModelsById)
   const [modelOptions, setModelOptions] = useState<IModel[]>([]) // ⚡新增，保存模型列表
@@ -292,7 +293,25 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                 </FormLabel>
                 <div className="sm:col-span-3">
                   <FormControl>
-                    <Input {...field} type="password" placeholder="输入 API Key" />
+                    <div className="relative">
+                      <Input 
+                        {...field} 
+                        type={showApiKey ? 'text' : 'password'} 
+                        placeholder="输入 API Key"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </div>

@@ -346,8 +346,10 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                           )
                         }
 
+                        // Remove ordered prop to avoid React warning
+                        const { ordered, ...safeProps } = props as any
                         return (
-                          <li className="my-1" {...Object.fromEntries(Object.entries(props).filter(([k, v]) => k !== 'ordered' || v !== false))}>
+                          <li className="my-1" {...safeProps}>
                             {children}
                           </li>
                         )
