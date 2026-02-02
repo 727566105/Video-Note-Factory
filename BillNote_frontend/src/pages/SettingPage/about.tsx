@@ -21,12 +21,12 @@ export default function AboutPage() {
           <div className="mb-4 flex items-center gap-4">
             <img
               src={logo}
-              alt="BiliNote Logo"
+              alt="Video Note Factory Logo"
               width={50}
               height={50}
               className="rounded-lg"
             />
-            <h1 className="text-4xl font-bold">BiliNote v1.8.1</h1>
+            <h1 className="text-4xl font-bold">Video Note Factory v1.8.1</h1>
           </div>
           <p className="text-muted-foreground mb-6 text-xl italic">
             AI 视频笔记生成工具 让 AI 为你的视频做笔记
@@ -44,7 +44,7 @@ export default function AboutPage() {
             <Button asChild>
               <a href="https://www.bilinote.app" target="_blank">
                 <ExternalLink className="mr-2 h-4 w-4" />
-                体验 BiliNote
+                体验 Video Note Factory
               </a>
             </Button>
             <Button variant="outline" asChild>
@@ -67,7 +67,7 @@ export default function AboutPage() {
           <h2 className="mb-6 text-center text-3xl font-bold">✨ 项目简介</h2>
           <div className="mx-auto max-w-3xl text-center">
             <p className="text-lg">
-              BiliNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接，
+              Video Note Factory 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接，
               自动提取内容并生成结构清晰、重点明确的 Markdown
               格式笔记。支持插入截图、原片跳转等功能。
             </p>
@@ -107,7 +107,7 @@ export default function AboutPage() {
               <div key={num} className="overflow-hidden rounded-lg border shadow-sm">
                 <img
                   src={num}
-                  alt={`BiliNote Screenshot ${num}`}
+                  alt={`Video Note Factory Screenshot ${num}`}
                   width={600}
                   height={400}
                   className="w-full object-cover transition-transform hover:scale-105"
@@ -129,9 +129,9 @@ export default function AboutPage() {
               <div>
                 <h3 className="mb-3 text-xl font-semibold">1. 克隆仓库</h3>
                 <div className="bg-muted rounded-md p-4 font-mono text-sm">
-                  git clone https://github.com/JefferyHcool/BiliNote.git
+                  git clone https://github.com/JefferyHcool/VideoNoteFactory.git
                   <br />
-                  cd BiliNote
+                  cd VideoNoteFactory
                   <br />
                   mv .env.example .env
                 </div>
@@ -164,9 +164,9 @@ export default function AboutPage() {
               <div>
                 <h3 className="mb-3 text-xl font-semibold">1. 克隆仓库</h3>
                 <div className="bg-muted rounded-md p-4 font-mono text-sm">
-                  git clone https://github.com/JefferyHcool/BiliNote.git
+                  git clone https://github.com/JefferyHcool/VideoNoteFactory.git
                   <br />
-                  cd BiliNote
+                  cd VideoNoteFactory
                   <br />
                   mv .env.example .env
                 </div>
@@ -198,11 +198,11 @@ export default function AboutPage() {
           <div className="mx-auto max-w-3xl">
             <div className="flex flex-col items-center justify-center gap-8">
               <div className="text-center">
-                <h3 className="mb-3 text-xl font-semibold">BiliNote 交流 QQ 群</h3>
+                <h3 className="mb-3 text-xl font-semibold">Video Note Factory 交流 QQ 群</h3>
                 <p className="text-lg font-medium">785367111</p>
               </div>
               <div className="text-center">
-                <h3 className="mb-3 text-xl font-semibold">BiliNote 交流微信群</h3>
+                <h3 className="mb-3 text-xl font-semibold">Video Note Factory 交流微信群</h3>
                 <div className="bg-muted mx-auto flex h-52 w-52 items-center justify-center rounded-md">
                   <img src={'https://common-1304618721.cos.ap-chengdu.myqcloud.com/wechat.png'} />
                 </div>

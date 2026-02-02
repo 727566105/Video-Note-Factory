@@ -34,7 +34,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
           <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg md:h-8 md:w-8">
             <img src={logo} alt="logo" className="h-full w-full object-contain" />
           </div>
-          <div className="text-base font-bold text-gray-800 md:text-lg">BiliNote</div>
+          <div className="text-base font-bold text-gray-800 md:text-lg">Video Note Factory</div>
         </div>
         <Link to={'/settings'}>
           <SlidersHorizontal className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
