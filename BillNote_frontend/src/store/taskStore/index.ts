@@ -251,7 +251,7 @@ export const useTaskStore = create<TaskStore>()(
                   },
                   platform: t.platform,
                   formData: {
-                    video_url: '',
+                    video_url: t.video_url || '',
                     link: false,
                     screenshot: false,
                     platform: t.platform,
