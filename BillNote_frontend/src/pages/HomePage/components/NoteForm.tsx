@@ -165,6 +165,15 @@ const NoteForm = () => {
 
     return
   }, [])
+  // 模型列表加载完后，同步 model_name 到表单（新建模式）
+  useEffect(() => {
+    if (modelList.length > 0 && !currentTaskId) {
+      const current = form.getValues('model_name')
+      if (!current) {
+        form.setValue('model_name', modelList[0].model_name, { shouldValidate: true })
+      }
+    }
+  }, [modelList.length, currentTaskId])
   useEffect(() => {
     if (!currentTask) return
     const { formData } = currentTask
@@ -234,7 +243,10 @@ const NoteForm = () => {
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {
     console.warn('表单校验失败：', errors)
-    // message.error('请完善所有必填项后再提交')
+    const firstError = Object.values(errors)[0]
+    if (firstError?.message) {
+      message.error(firstError.message as string)
+    }
   }
   const handleCreateNew = () => {
     // 🔁 这里清空当前任务状态
@@ -376,49 +388,38 @@ const NoteForm = () => {
           />
           <div className="grid grid-cols-2 gap-2">
             {/* 模型选择 */}
-            {
-
-             modelList.length>0?(     <FormField
-               className="w-full"
-               control={form.control}
-               name="model_name"
-               render={({ field }) => (
-                 <FormItem>
-                   <SectionHeader title="模型选择" tip="不同模型效果不同，建议自行测试" />
-                   <Select
-                     onOpenChange={()=>{
-                       loadEnabledModels()
-                     }}
-                     value={field.value}
-                     onValueChange={field.onChange}
-                     defaultValue={field.value}
-                   >
-                     <FormControl>
-                       <SelectTrigger className="w-full min-w-0 truncate">
-                         <SelectValue />
-                       </SelectTrigger>
-                     </FormControl>
-                     <SelectContent>
-                       {modelList.map(m => (
-                         <SelectItem key={m.id} value={m.model_name}>
-                           {m.model_name}
-                         </SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
-                   <FormMessage />
-                 </FormItem>
-               )}
-             />): (
-               <FormItem>
-                 <SectionHeader title="模型选择" tip="不同模型效果不同，建议自行测试" />
-                  <Button type={'button'} variant={
-                    'outline'
-                  } onClick={()=>{goModelAdd()}}>请先添加模型</Button>
-                 <FormMessage />
-               </FormItem>
-             )
-            }
+            <FormField
+              className="w-full"
+              control={form.control}
+              name="model_name"
+              render={({ field }) => (
+                <FormItem>
+                  <SectionHeader title="模型选择" tip="不同模型效果不同，建议自行测试" />
+                  <Select
+                    disabled={modelList.length === 0}
+                    onOpenChange={() => {
+                      loadEnabledModels()
+                    }}
+                    value={field.value || undefined}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full min-w-0 truncate">
+                        <SelectValue placeholder={modelList.length === 0 ? '加载中…' : '请选择模型'} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {modelList.map(m => (
+                        <SelectItem key={m.id} value={m.model_name}>
+                          {m.model_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* 笔记风格 */}
             <FormField
