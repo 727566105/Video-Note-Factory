@@ -61,6 +61,25 @@ def delete_task_by_video(video_id: str, platform: str):
         db.close()
 
 
+# 根据 task_id 删除任务
+def delete_task_by_id(task_id: str):
+    db = next(get_db())
+    try:
+        task = db.query(VideoTask).filter_by(task_id=task_id).first()
+        if task:
+            db.delete(task)
+            db.commit()
+            logger.info(f"Task deleted for task_id: {task_id}")
+        else:
+            logger.warning(f"No task found for task_id: {task_id}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete task by id: {e}")
+        raise
+    finally:
+        db.close()
+
+
 # 获取所有任务
 def get_all_tasks(limit: int = None):
     db = next(get_db())

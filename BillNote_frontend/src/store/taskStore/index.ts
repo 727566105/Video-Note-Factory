@@ -192,19 +192,24 @@ export const useTaskStore = create<TaskStore>()(
 
       removeTask: async id => {
         const task = get().tasks.find(t => t.id === id)
+        if (!task) return
 
-        // 更新 Zustand 状态
-        set(state => ({
-          tasks: state.tasks.filter(task => task.id !== id),
-          currentTaskId: state.currentTaskId === id ? null : state.currentTaskId,
-        }))
-
-        // 调用后端删除接口（如果找到了任务）
-        if (task) {
+        try {
+          // 先调用后端 API，确保后端删除成功
           await delete_task({
+            task_id: task.id,
             video_id: task.audioMeta.video_id,
             platform: task.platform,
           })
+
+          // API 成功后再更新本地状态
+          set(state => ({
+            tasks: state.tasks.filter(task => task.id !== id),
+            currentTaskId: state.currentTaskId === id ? null : state.currentTaskId,
+          }))
+        } catch (e) {
+          toast.error('删除失败')
+          throw e
         }
       },
 
@@ -258,14 +263,9 @@ export const useTaskStore = create<TaskStore>()(
                 }
               })
 
-            // 合并后端任务和本地任务（去重，以后端为准）
-            const localTasks = get().tasks
-            const localTaskIds = new Set(localTasks.map(t => t.id))
-            const newTasks = backendTasks.filter((t: Task) => !localTaskIds.has(t.id))
-
-            set(state => ({
-              tasks: [...newTasks, ...state.tasks],
-            }))
+            // 以后端数据为准，不保留本地独有的旧任务
+            // 这样删除后刷新就不会再出现了
+            set({ tasks: backendTasks })
           }
         } catch (e) {
           console.error('加载历史任务失败:', e)

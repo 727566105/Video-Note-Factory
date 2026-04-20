@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, validator, field_validator
 from dataclasses import asdict
 
-from app.db.video_task_dao import get_task_by_video, get_all_tasks
+from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id
 from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
@@ -32,8 +32,9 @@ router = APIRouter()
 
 
 class RecordRequest(BaseModel):
-    video_id: str
-    platform: str
+    video_id: Optional[str] = None
+    platform: Optional[str] = None
+    task_id: Optional[str] = None
 
 
 class VideoRequest(BaseModel):
@@ -151,11 +152,29 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
 @router.post('/delete_task')
 def delete_task(data: RecordRequest):
     try:
-        # TODO: 待持久化完成
-        # NoteGenerator().delete_note(video_id=data.video_id, platform=data.platform)
+        # 优先使用 task_id 删除（更精确）
+        if data.task_id:
+            # 删除数据库记录
+            delete_task_by_id(data.task_id)
+            # 删除笔记相关文件
+            result_file = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.json")
+            status_file = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.status.json")
+            audio_cache = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}_audio.json")
+            transcript_cache = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}_transcript.json")
+            md_cache = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.md")
+
+            for file_path in [result_file, status_file, audio_cache, transcript_cache, md_cache]:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    logger.info(f"已删除文件: {file_path}")
+        else:
+            # 兼容旧逻辑：通过 video_id + platform 删除
+            delete_task_by_video(data.video_id, data.platform)
+
         return R.success(msg='删除成功')
     except Exception as e:
-        return R.error(msg=e)
+        logger.error(f"删除任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/upload")
