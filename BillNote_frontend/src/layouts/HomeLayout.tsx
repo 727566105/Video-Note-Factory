@@ -45,7 +45,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
       <div className="flex flex-1 overflow-hidden">
         {/* 左侧面板 - 笔记表单 */}
         <div
-          className={`relative flex flex-col border-r border-neutral-200 bg-white transition-all duration-300 ${
+          className={`relative shrink-0 flex flex-col border-r border-neutral-200 bg-white transition-all duration-300 ${
             leftPanelCollapsed ? 'w-0 md:w-12' : 'w-full md:w-80 lg:w-96'
           }`}
         >
@@ -92,7 +92,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
 
         {/* 中间面板 - 历史记录 */}
         <div
-          className={`relative flex flex-col border-r border-neutral-200 bg-white transition-all duration-300 ${
+          className={`relative shrink-0 flex flex-col border-r border-neutral-200 bg-white transition-all duration-300 ${
             middlePanelCollapsed ? 'w-0 md:w-12' : 'w-full md:w-64 lg:w-80'
           }`}
         >

@@ -107,8 +107,8 @@ def save_note_to_file(task_id: str, note):
         "markdown": note.markdown,  # 保持兼容性
         "transcript": existing_transcript or asdict(note.transcript) if note.transcript else {},
         "audio_meta": existing_audio_meta or asdict(note.audio_meta) if note.audio_meta else {},
-        "model_name": note.model_name,
-        "style": note.style,
+        "model_name": note.model_name or '未知模型',
+        "style": note.style or 'detailed',
         "versions": all_versions  # 新增版本数组
     }
 
