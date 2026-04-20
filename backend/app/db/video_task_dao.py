@@ -6,14 +6,19 @@ logger = get_logger(__name__)
 
 
 # 插入任务
-def insert_video_task(video_id: str, platform: str, task_id: str):
+def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None):
     db = next(get_db())
     try:
-        task = VideoTask(video_id=video_id, platform=platform, task_id=task_id)
+        task = VideoTask(
+            video_id=video_id,
+            platform=platform,
+            task_id=task_id,
+            video_url=video_url
+        )
         db.add(task)
         db.commit()
         db.refresh(task)
-        logger.info(f"Video task inserted successfully. video_id: {video_id}, platform: {platform}, task_id: {task_id}")
+        logger.info(f"Video task inserted successfully. video_id: {video_id}, platform: {platform}, task_id: {task_id}, video_url: {video_url}")
     except Exception as e:
         logger.error(f"Failed to insert video task: {e}")
     finally:
