@@ -180,7 +180,7 @@ class NoteGenerator:
 
             # 5. 保存记录到数据库
             self._update_status(task_id, TaskStatus.SAVING)
-            self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id)
+            self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id, video_url=str(video_url))
 
             # 6. 完成
             self._update_status(task_id, TaskStatus.SUCCESS)
@@ -570,16 +570,17 @@ class NoteGenerator:
             results.append((match.group(0), total_seconds))
         return results
 
-    def _save_metadata(self, video_id: str, platform: str, task_id: str) -> None:
+    def _save_metadata(self, video_id: str, platform: str, task_id: str, video_url: str = None) -> None:
         """
         将生成的笔记任务记录插入数据库
 
         :param video_id: 视频 ID
         :param platform: 平台标识
         :param task_id: 任务 ID
+        :param video_url: 视频链接
         """
         try:
-            insert_video_task(video_id=video_id, platform=platform, task_id=task_id)
+            insert_video_task(video_id=video_id, platform=platform, task_id=task_id, video_url=video_url)
             logger.info(f"已保存任务记录到数据库 (video_id={video_id}, platform={platform}, task_id={task_id})")
         except Exception as e:
             logger.error(f"保存任务记录失败：{e}")

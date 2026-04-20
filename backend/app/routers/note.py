@@ -414,6 +414,7 @@ def get_tasks(limit: int = 100):
                     "task_id": task.task_id,
                     "video_id": task.video_id,
                     "platform": task.platform,
+                    "video_url": task.video_url,
                     "created_at": task.created_at.isoformat() if task.created_at else None,
                     "note": note_data
                 })
@@ -423,6 +424,7 @@ def get_tasks(limit: int = 100):
                     "task_id": task.task_id,
                     "video_id": task.video_id,
                     "platform": task.platform,
+                    "video_url": task.video_url,
                     "created_at": task.created_at.isoformat() if task.created_at else None,
                     "note": None
                 })
