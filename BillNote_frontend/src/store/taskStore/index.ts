@@ -52,6 +52,7 @@ export interface Task {
     platform: string
     quality: string
     model_name: string
+    style: string
     provider_id: string
   }
 }
@@ -217,37 +218,45 @@ export const useTaskStore = create<TaskStore>()(
           if (response?.tasks) {
             const backendTasks = response.tasks
               .filter((t: any) => t.note !== null) // 只加载有笔记内容的任务
-              .map((t: any) => ({
-                id: t.task_id,
-                status: 'SUCCESS' as TaskStatus,
-                markdown: t.note.markdown || '',
-                transcript: t.note.transcript || {
-                  full_text: '',
-                  language: '',
-                  raw: null,
-                  segments: [],
-                },
-                createdAt: t.created_at || new Date().toISOString(),
-                audioMeta: t.note.audio_meta || {
-                  cover_url: '',
-                  duration: 0,
-                  file_path: '',
+              .map((t: any) => {
+                // 优先使用 versions 数组，否则使用 markdown 字符串（兼容旧数据）
+                const markdownValue = t.note.versions && t.note.versions.length > 0
+                  ? t.note.versions
+                  : (t.note.markdown || '')
+
+                return {
+                  id: t.task_id,
+                  status: 'SUCCESS' as TaskStatus,
+                  markdown: markdownValue,
+                  transcript: t.note.transcript || {
+                    full_text: '',
+                    language: '',
+                    raw: null,
+                    segments: [],
+                  },
+                  createdAt: t.created_at || new Date().toISOString(),
+                  audioMeta: t.note.audio_meta || {
+                    cover_url: '',
+                    duration: 0,
+                    file_path: '',
+                    platform: t.platform,
+                    raw_info: null,
+                    title: t.note.title || '',
+                    video_id: t.video_id,
+                  },
                   platform: t.platform,
-                  raw_info: null,
-                  title: t.note.title || '',
-                  video_id: t.video_id,
-                },
-                platform: t.platform,
-                formData: {
-                  video_url: '',
-                  link: false,
-                  screenshot: false,
-                  platform: t.platform,
-                  quality: 'high',
-                  model_name: '',
-                  provider_id: '',
-                },
-              }))
+                  formData: {
+                    video_url: '',
+                    link: false,
+                    screenshot: false,
+                    platform: t.platform,
+                    quality: 'high',
+                    model_name: t.note.model_name || '',
+                    style: t.note.style || '',
+                    provider_id: '',
+                  },
+                }
+              })
 
             // 合并后端任务和本地任务（去重，以后端为准）
             const localTasks = get().tasks

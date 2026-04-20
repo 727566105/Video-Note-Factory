@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, validator, field_validator
@@ -69,8 +70,48 @@ UPLOAD_DIR = "uploads"
 
 def save_note_to_file(task_id: str, note):
     os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
-    with open(os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json"), "w", encoding="utf-8") as f:
-        json.dump(asdict(note), f, ensure_ascii=False, indent=2)
+    result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
+
+    # 检查是否存在旧版本
+    existing_versions = []
+    existing_transcript = None
+    existing_audio_meta = None
+    if os.path.exists(result_path):
+        try:
+            with open(result_path, "r", encoding="utf-8") as f:
+                old_data = json.load(f)
+                # 读取旧版本的 versions 数组
+                existing_versions = old_data.get("versions", [])
+                existing_transcript = old_data.get("transcript")
+                existing_audio_meta = old_data.get("audio_meta")
+        except Exception as e:
+            logger.warning(f"读取旧版本失败: {e}")
+
+    # 将当前 markdown 添加为新版本
+    from app.models.notes_model import NoteVersion
+    new_version = NoteVersion(
+        ver_id=f"{task_id}-{uuid.uuid4()}",
+        content=note.markdown,
+        style=note.style,
+        model_name=note.model_name,
+        created_at=datetime.now().isoformat()
+    )
+
+    # 合并版本（新版本在前）
+    all_versions = [asdict(new_version)] + existing_versions
+
+    # 构建保存数据 - 使用现有的 transcript 和 audio_meta（如果存在）
+    save_data = {
+        "markdown": note.markdown,  # 保持兼容性
+        "transcript": existing_transcript or asdict(note.transcript) if note.transcript else {},
+        "audio_meta": existing_audio_meta or asdict(note.audio_meta) if note.audio_meta else {},
+        "model_name": note.model_name,
+        "style": note.style,
+        "versions": all_versions  # 新增版本数组
+    }
+
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump(save_data, f, ensure_ascii=False, indent=2)
 
 
 def run_note_task(task_id: str, video_url: str, platform: str, quality: DownloadQuality,

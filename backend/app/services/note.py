@@ -185,7 +185,13 @@ class NoteGenerator:
             # 6. 完成
             self._update_status(task_id, TaskStatus.SUCCESS)
             logger.info(f"笔记生成成功 (task_id={task_id})")
-            return NoteResult(markdown=markdown, transcript=transcript, audio_meta=audio_meta)
+            return NoteResult(
+                markdown=markdown, 
+                transcript=transcript, 
+                audio_meta=audio_meta,
+                model_name=model_name,
+                style=style
+            )
 
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)

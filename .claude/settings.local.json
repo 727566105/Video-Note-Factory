@@ -64,7 +64,9 @@
       "Bash(playwright install:*)",
       "Bash(PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/ playwright install:*)",
       "Bash(pnpm build:*)",
-      "Bash(brew install:*)"
+      "Bash(brew install:*)",
+      "Bash(pnpm:*)",
+      "Bash(sshpass:*)"
     ]
   }
 }
