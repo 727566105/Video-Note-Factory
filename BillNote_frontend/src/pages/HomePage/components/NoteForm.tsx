@@ -232,13 +232,19 @@ const NoteForm = () => {
       provider_id: modelList.find(m => m.model_name === values.model_name)!.provider_id,
       task_id: currentTaskId || '',
     }
+
+    // 编辑模式下校验 video_url
     if (currentTaskId) {
+      if (!payload.video_url) {
+        message.error('该任务缺少视频链接，无法重新生成')
+        return
+      }
       retryTask(currentTaskId, payload)
       return
     }
 
     // message.success('已提交任务')
-    const  data  = await generateNote(payload)
+    const data = await generateNote(payload)
     addPendingTask(data.task_id, values.platform, payload)
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {
