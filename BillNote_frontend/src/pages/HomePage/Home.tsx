@@ -27,12 +27,6 @@ export const HomePage: FC = () => {
     }
   }, [currentTask])
 
-  // useEffect( () => {
-  //     get_task_status('d4e87938-c066-48a0-bbd5-9bec40d53354').then(res=>{
-  //         console.log('res1',res)
-  //         setContent(res.data.result.markdown)
-  //     })
-  // }, [tasks]);
   return (
     <HomeLayout
       NoteForm={<NoteForm />}

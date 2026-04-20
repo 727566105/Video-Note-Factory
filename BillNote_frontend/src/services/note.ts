@@ -16,7 +16,6 @@ export const generateNote = async (data: {
   grid_size: Array<number>
 }) => {
   try {
-    console.log('generateNote', data)
     const response = await request.post('/generate_note', data)
 
     if (!response) {
@@ -26,9 +25,6 @@ export const generateNote = async (data: {
       return null
     }
     toast.success('笔记生成任务已提交！')
-
-    console.log('res', response)
-    // 成功提示
 
     return response
   } catch (e: any) {

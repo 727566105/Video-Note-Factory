@@ -17,7 +17,6 @@ const ProviderCard: FC<IProviderCardProps> = ({ providerName, Icon, id }: IProvi
   }
 
   const rawId = useParams()
-  console.log('rawId', rawId)
   // @ts-ignore
   const { id: currentId } = useParams()
   const isActive = currentId === id

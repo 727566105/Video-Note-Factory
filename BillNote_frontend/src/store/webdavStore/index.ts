@@ -223,7 +223,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           const data = await getBackups()
           // 检查是否有密码解密错误
           if (data?.password_error) {
-            console.warn('密码解密失败，可能需要重新配置 WebDAV 连接')
             set({ backups: [] })
             return
           }

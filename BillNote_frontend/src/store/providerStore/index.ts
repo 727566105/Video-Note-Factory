@@ -64,7 +64,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       const data = await addProvider(payload)
       // addProvider 已经返回 res.data，直接使用
       const item = data
-      console.log('Provider ', item)
 
       await get().fetchProviderList()
       return item.id || item
@@ -91,7 +90,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       
       const res = await updateProviderById(data)
       if (res.data.code === 0) {
-        console.log('Provider updated:', res.data.data)
         await get().fetchProviderList()
       }
     } catch (error) {

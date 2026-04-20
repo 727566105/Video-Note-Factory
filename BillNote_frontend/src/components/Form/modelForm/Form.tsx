@@ -55,7 +55,7 @@ interface IModel {
   root: string
 }
 const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
-  let { id } = useParams()
+  const { id } = useParams()
   const navigate = useNavigate()
   const isEditMode = !isCreate
 
@@ -119,9 +119,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
       }
       const models = await loadModelsById(id!)
       if(models){
-        console.log('🔧 模型列表:', models)
         setModels(models)
-
       }
       setLoading(false)
     }
@@ -132,7 +130,6 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
     try {
       const res = await deleteModelById(modelId)
-      console.log('🔧 删除结果:', res)
       toast.success('删除成功')
       
       // 刷新模型列表
@@ -198,7 +195,6 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
       const res = await fetchModels(id!, { noCache: true }) // 这里稍后解释
       if (res.data.code === 0 && res.data.data.models.data.length > 0) {
         setModelOptions(res.data.data.models.data)
-        console.log('🔧 模型列表:', res.data.data)
         toast.success('模型列表加载成功 🎉')
       } else {
         toast.error('未获取到模型列表')

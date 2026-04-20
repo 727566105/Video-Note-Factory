@@ -76,7 +76,6 @@ export const useSiyuanStore = create<SiyuanStore>()(
 
           // 如果 localStorage 中已有完整配置（Token 不包含...），直接使用
           if (hasFullToken) {
-            console.log('使用localStorage中的完整配置')
             return
           }
 

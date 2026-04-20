@@ -49,7 +49,6 @@ const LazyImage: FC<LazyImageProps> = ({
             retryCount.current += 1
             const separator = src.includes('?') ? '&' : '?'
             const retrySrc = `${src}${separator}_retry=${retryCount.current}_${Date.now()}`
-            console.log(`图片加载重试 (${retryCount.current}/${maxRetries}):`, retrySrc)
 
             retryTimeoutRef.current = setTimeout(() => {
                 setImgSrc(retrySrc)

@@ -7,7 +7,9 @@ from app.models.model_config import ModelConfig
 from app.services.model import ModelService
 from app.utils.response import ResponseWrapper as R
 from app.services.provider import ProviderService
+from app.utils.logger import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 #  新增 type 字段
@@ -83,7 +85,7 @@ def update_provider(data: ProviderUpdateRequest):
         )
         return R.success(msg='更新模型供应商成功',data={'id': provider_id})
     except Exception as e:
-        print(e)
+        logger.error(f"更新供应商失败: {e}")
         return R.error(msg=str(e))
 
 @router.post('/connect_test')

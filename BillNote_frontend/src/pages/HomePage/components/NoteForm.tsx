@@ -179,8 +179,6 @@ const NoteForm = () => {
     if (!currentTask) return
     const { formData } = currentTask
 
-    console.log('currentTask.formData.platform:', formData.platform)
-
     form.reset({
       platform: formData.platform || 'bilibili',
       video_url: formData.video_url || '',
@@ -227,7 +225,6 @@ const NoteForm = () => {
   }
 
   const onSubmit = async (values: NoteFormValues) => {
-    console.log('Not even go here')
     const payload: NoteFormValues = {
       ...values,
       provider_id: modelList.find(m => m.model_name === values.model_name)!.provider_id,
@@ -249,7 +246,6 @@ const NoteForm = () => {
     addPendingTask(data.task_id, values.platform, payload)
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {
-    console.warn('表单校验失败：', errors)
     const firstError = Object.values(errors)[0]
     if (firstError?.message) {
       message.error(firstError.message as string)
