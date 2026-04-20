@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Copy, Download, BrainCircuit, FileText } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Copy, Download, BrainCircuit, FileText, MoreHorizontal, FileDown, Image, BookOpen, Trash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -9,6 +9,13 @@ import { Badge } from '@/components/ui/badge'
 import { ExportPDFButton } from '@/components/ExportPDFButton'
 import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
 import { ExportImageButton } from '@/components/ExportImageButton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface VersionNote {
   ver_id: string
@@ -30,6 +37,7 @@ interface NoteHeaderProps {
   noteStyles: { value: string; label: string }[]
   onCopy: () => void
   onDownload: () => void
+  onDelete?: () => void
   createAt?: string | Date
   setShowTranscribe: (show: boolean) => void
   showTranscribe?: boolean
@@ -47,6 +55,7 @@ export function MarkdownHeader({
   noteStyles,
   onCopy,
   onDownload,
+  onDelete,
   createAt,
   showTranscribe,
   setShowTranscribe,
@@ -54,6 +63,20 @@ export function MarkdownHeader({
   setViewMode,
 }: NoteHeaderProps) {
   const [copied, setCopied] = useState(false)
+  const [isNarrow, setIsNarrow] = useState(false)
+  const pdfBtnRef = useRef<HTMLButtonElement>(null)
+  const imageBtnRef = useRef<HTMLButtonElement>(null)
+  const siyuanBtnRef = useRef<HTMLButtonElement>(null)
+
+  // 监听窗口宽度变化
+  useEffect(() => {
+    const checkWidth = () => {
+      setIsNarrow(window.innerWidth < 1100)
+    }
+    checkWidth()
+    window.addEventListener('resize', checkWidth)
+    return () => window.removeEventListener('resize', checkWidth)
+  }, [])
 
   useEffect(() => {
     let timer: NodeJS.Timeout
@@ -131,96 +154,202 @@ export function MarkdownHeader({
 
       {/* 右侧操作按钮 */}
       <div className="flex items-center gap-1">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => {
-                  setViewMode?.(viewMode == 'preview' ? 'map' : 'preview')
-                }}
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2"
-              >
-                <BrainCircuit className="mr-1.5 h-4 w-4" />
-                <span className="text-sm">{viewMode == 'preview' ? '思维导图' : 'markdown'}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>思维导图</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {/* 宽屏：显示所有按钮 */}
+        <div className={`flex items-center gap-1 ${isNarrow ? 'hidden' : ''}`}>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => {
+                    setViewMode?.(viewMode == 'preview' ? 'map' : 'preview')
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                >
+                  <BrainCircuit className="mr-1.5 h-4 w-4" />
+                  <span className="text-sm">{viewMode == 'preview' ? '思维导图' : 'markdown'}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>思维导图</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
-        {/* PDF 导出按钮 */}
-        {currentTask?.id && (
-          <ExportPDFButton
-            taskId={currentTask.id}
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2"
-          />
+          {/* PDF 导出按钮 */}
+          {currentTask?.id && (
+            <ExportPDFButton
+              taskId={currentTask.id}
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2"
+            />
+          )}
+
+          {/* 图文导出按钮 */}
+          {currentTask?.id && (
+            <ExportImageButton
+              taskId={currentTask.id}
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2"
+            />
+          )}
+
+          {/* 思源笔记导出按钮 */}
+          {currentTask?.id && (
+            <ExportSiyuanButton
+              taskId={currentTask.id}
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2"
+            />
+          )}
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={onDownload} variant="ghost" size="sm" className="h-8 px-2">
+                  <Download className="mr-1.5 h-4 w-4" />
+                  <span className="text-sm">导出 Markdown</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>下载为 Markdown 文件</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleCopy} variant="ghost" size="sm" className="h-8 px-2">
+                  <Copy className="mr-1.5 h-4 w-4" />
+                  <span className="text-sm">{copied ? '已复制' : '复制'}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>复制内容</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => {
+                    setShowTranscribe?.(!showTranscribe)
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2"
+                >
+                  <span className="text-sm">原文参照</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>原文参照</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {onDelete && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={onDelete} variant="ghost" size="sm" className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700">
+                    <Trash className="mr-1.5 h-4 w-4" />
+                    <span className="text-sm">删除</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>删除笔记</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+
+        {/* 窄屏（<700px）：常用按钮 + 下拉菜单 */}
+        {isNarrow && (
+          <div className="flex items-center gap-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setViewMode?.(viewMode == 'preview' ? 'map' : 'preview')
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                  >
+                    <BrainCircuit className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>思维导图</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={handleCopy} variant="ghost" size="sm" className="h-8 px-2">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>复制</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* 隐藏的导出按钮，用于触发点击 */}
+            <div className="hidden">
+              {currentTask?.id && (
+                <>
+                  <ExportPDFButton ref={pdfBtnRef} taskId={currentTask.id} variant="ghost" size="sm" />
+                  <ExportImageButton ref={imageBtnRef} taskId={currentTask.id} variant="ghost" size="sm" />
+                  <ExportSiyuanButton ref={siyuanBtnRef} taskId={currentTask.id} variant="ghost" size="sm" />
+                </>
+              )}
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 px-2">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {currentTask?.id && (
+                  <>
+                    <DropdownMenuItem onClick={() => pdfBtnRef.current?.click()}>
+                      <FileDown className="mr-2 h-4 w-4" />
+                      导出 PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => imageBtnRef.current?.click()}>
+                      <Image className="mr-2 h-4 w-4" />
+                      导出图文
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => siyuanBtnRef.current?.click()}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      导出到思源
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem onClick={onDownload}>
+                  <Download className="mr-2 h-4 w-4" />
+                  导出 Markdown
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowTranscribe?.(!showTranscribe)}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  原文参照
+                </DropdownMenuItem>
+                {onDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onDelete} className="text-red-600 focus:text-red-600">
+                      <Trash className="mr-2 h-4 w-4" />
+                      删除笔记
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
-
-        {/* 图文导出按钮 */}
-        {currentTask?.id && (
-          <ExportImageButton
-            taskId={currentTask.id}
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2"
-          />
-        )}
-
-        {/* 思源笔记导出按钮 */}
-        {currentTask?.id && (
-          <ExportSiyuanButton
-            taskId={currentTask.id}
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2"
-          />
-        )}
-
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={onDownload} variant="ghost" size="sm" className="h-8 px-2">
-                <Download className="mr-1.5 h-4 w-4" />
-                <span className="text-sm">导出 Markdown</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>下载为 Markdown 文件</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button onClick={handleCopy} variant="ghost" size="sm" className="h-8 px-2">
-                <Copy className="mr-1.5 h-4 w-4" />
-                <span className="text-sm">{copied ? '已复制' : '复制'}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>复制内容</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => {
-                  setShowTranscribe?.(!showTranscribe)
-                }}
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2"
-              >
-                <span className="text-sm">原文参照</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>原文参照</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       </div>
     </div>
   )

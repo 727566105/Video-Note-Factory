@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import toast from 'react-hot-toast';
 import { Image, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -55,13 +55,13 @@ interface ExportImageButtonProps {
  * 图文导出按钮组件
  * 用于将笔记导出为图片格式，支持多种模板选择
  */
-export function ExportImageButton({
+export const ExportImageButton = forwardRef<HTMLButtonElement, ExportImageButtonProps>(({
   taskId,
   disabled = false,
   variant = 'default',
   size = 'default',
   className = '',
-}: ExportImageButtonProps) {
+}, ref) => {
   const [loading, setLoading] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('xiaohongshu');
@@ -80,7 +80,7 @@ export function ExportImageButton({
       const blob = await response.blob();
       const contentType = response.headers.get('Content-Type') || '';
       const imageCount = response.headers.get('X-Image-Count') || '1';
-      
+
       // 从 Content-Disposition 头提取文件名
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = `note_${taskId}.png`;
@@ -132,6 +132,7 @@ export function ExportImageButton({
   return (
     <>
       <Button
+        ref={ref}
         onClick={handleButtonClick}
         disabled={disabled || loading}
         variant={variant}
@@ -203,4 +204,4 @@ export function ExportImageButton({
       </Dialog>
     </>
   );
-}
+});

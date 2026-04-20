@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import toast from 'react-hot-toast';
 import { FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,13 +15,13 @@ interface ExportPDFButtonProps {
  * PDF 导出按钮组件
  * 用于将笔记导出为 PDF 文件
  */
-export function ExportPDFButton({
+export const ExportPDFButton = forwardRef<HTMLButtonElement, ExportPDFButtonProps>(({
   taskId,
   disabled = false,
   variant = 'default',
   size = 'default',
   className = '',
-}: ExportPDFButtonProps) {
+}, ref) => {
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
@@ -74,6 +74,7 @@ export function ExportPDFButton({
 
   return (
     <Button
+      ref={ref}
       onClick={handleExport}
       disabled={disabled || loading}
       variant={variant}
@@ -93,4 +94,4 @@ export function ExportPDFButton({
       )}
     </Button>
   );
-}
+});
