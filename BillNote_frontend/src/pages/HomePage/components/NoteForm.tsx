@@ -141,6 +141,7 @@ const NoteForm = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       platform: 'bilibili',
+      video_url: '',
       quality: 'medium',
       model_name: modelList[0]?.model_name || '',
       style: 'minimal',
