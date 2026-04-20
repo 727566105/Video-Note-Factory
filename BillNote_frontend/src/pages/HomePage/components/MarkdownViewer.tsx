@@ -67,8 +67,8 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
 
     if (!isMultiVersion) {
       setCurrentVerId('') // 清空旧版本 ID
-      setModelName(currentTask.formData.model_name)
-      setStyle(currentTask.formData.style)
+      setModelName(currentTask.formData.model_name || '未知模型')
+      setStyle(currentTask.formData.style || 'detailed')
       setCreateTime(currentTask.createdAt)
       setSelectedContent(currentTask?.markdown)
     } else {
@@ -86,8 +86,8 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
 
     const currentVer = currentTask.markdown.find(v => v.ver_id === currentVerId)
     if (currentVer) {
-      setModelName(currentVer.model_name)
-      setStyle(currentVer.style)
+      setModelName(currentVer.model_name || '未知模型')
+      setStyle(currentVer.style || 'detailed')
       setCreateTime(currentVer.created_at || '')
       setSelectedContent(currentVer.content)
     }
