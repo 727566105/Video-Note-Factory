@@ -142,10 +142,17 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
     document.body.removeChild(link)
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!currentTask?.id) return
     if (!window.confirm('确定要删除这条笔记吗？此操作不可恢复。')) return
-    removeTask(currentTask.id)
+
+    try {
+      await removeTask(currentTask.id)
+      toast.success('删除成功')
+    } catch (e) {
+      // 错误已在 store 中提示
+      console.error('删除失败:', e)
+    }
   }
 
   if (status === 'loading') {

@@ -41,22 +41,10 @@ export const generateNote = async (data: {
   }
 }
 
-export const delete_task = async ({ video_id, platform }) => {
-  try {
-    const data = {
-      video_id,
-      platform,
-    }
-    const res = await request.post('/delete_task', data)
-
-
-      toast.success('任务已成功删除')
-      return res
-  } catch (e) {
-    toast.error('请求异常，删除任务失败')
-    console.error('❌ 删除任务失败:', e)
-    throw e
-  }
+export const delete_task = async ({ task_id, video_id, platform }: { task_id?: string; video_id?: string; platform?: string }) => {
+  const data = { task_id, video_id, platform }
+  const res = await request.post('/delete_task', data)
+  return res
 }
 
 export const get_task_status = async (task_id: string) => {
