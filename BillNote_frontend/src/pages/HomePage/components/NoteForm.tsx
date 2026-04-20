@@ -256,9 +256,20 @@ const NoteForm = () => {
     }
   }
   const handleCreateNew = () => {
-    // 🔁 这里清空当前任务状态
-    // 比如调用 resetCurrentTask() 或者 navigate 到一个新页面
     setCurrentTask(null)
+    form.reset({
+      platform: 'bilibili',
+      video_url: '',
+      quality: 'medium',
+      model_name: modelList[0]?.model_name || '',
+      style: 'minimal',
+      video_interval: 4,
+      grid_size: [3, 3],
+      format: [],
+      screenshot: false,
+      link: false,
+      video_understanding: false,
+    })
   }
   const FormButton = () => {
     const label = generating ? '正在生成…' : editing ? '重新生成' : '生成笔记'

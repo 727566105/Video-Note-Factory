@@ -66,7 +66,12 @@
       "Bash(pnpm build:*)",
       "Bash(brew install:*)",
       "Bash(pnpm:*)",
-      "Bash(sshpass:*)"
+      "Bash(sshpass:*)",
+      "Bash(ps -p 26460 -o comm=)",
+      "Bash(open:*)",
+      "mcp__chrome__list_console_messages",
+      "mcp__chrome__get_console_message",
+      "mcp__chrome__fill"
     ]
   }
 }
