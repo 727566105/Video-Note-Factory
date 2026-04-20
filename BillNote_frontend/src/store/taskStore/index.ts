@@ -255,7 +255,7 @@ export const useTaskStore = create<TaskStore>()(
                     link: false,
                     screenshot: false,
                     platform: t.platform,
-                    quality: 'high',
+                    quality: 'medium',
                     model_name: t.note.model_name || '',
                     style: t.note.style || '',
                     provider_id: '',
