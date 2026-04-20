@@ -116,9 +116,8 @@ const WebDAVSettings = () => {
     loadConfig().then(() => {
       const { isConfigured } = useWebDAVStore.getState()
       if (isConfigured) {
-        loadBackups().catch((error) => {
+        loadBackups().catch(() => {
           // 静默处理密码解密错误，不显示错误提示
-          console.warn('加载备份列表失败:', error)
         })
       }
     })

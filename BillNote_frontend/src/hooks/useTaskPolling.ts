@@ -24,7 +24,6 @@ export const useTaskPolling = (interval = 3000) => {
 
       for (const task of pendingTasks) {
         try {
-          console.log('🔄 正在轮询任务：', task.id)
           const res = await get_task_status(task.id)
           const { status } = res
 
@@ -40,7 +39,6 @@ export const useTaskPolling = (interval = 3000) => {
               })
             } else if (status === 'FAILED') {
               updateTaskContent(task.id, { status })
-              console.warn(`⚠️ 任务 ${task.id} 失败`)
             } else {
               updateTaskContent(task.id, { status })
             }

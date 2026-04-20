@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Copy, Download, BrainCircuit, FileText, MoreHorizontal, FileDown, Image, BookOpen, Trash } from 'lucide-react'
+import { Copy, Download, BrainCircuit, FileText, MoreHorizontal, FileDown, Image, BookOpen, Trash, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { ExportPDFButton } from '@/components/ExportPDFButton'
 import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
 import { ExportImageButton } from '@/components/ExportImageButton'
+import { ToolbarConfigDialog } from '@/components/ToolbarConfigDialog'
+import { useSystemStore } from '@/store/configStore'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,20 +65,12 @@ export function MarkdownHeader({
   setViewMode,
 }: NoteHeaderProps) {
   const [copied, setCopied] = useState(false)
-  const [isNarrow, setIsNarrow] = useState(false)
+  const [configDialogOpen, setConfigDialogOpen] = useState(false)
   const pdfBtnRef = useRef<HTMLButtonElement>(null)
   const imageBtnRef = useRef<HTMLButtonElement>(null)
   const siyuanBtnRef = useRef<HTMLButtonElement>(null)
 
-  // 监听窗口宽度变化
-  useEffect(() => {
-    const checkWidth = () => {
-      setIsNarrow(window.innerWidth < 1100)
-    }
-    checkWidth()
-    window.addEventListener('resize', checkWidth)
-    return () => window.removeEventListener('resize', checkWidth)
-  }, [])
+  const toolbarConfig = useSystemStore(state => state.toolbarConfig)
 
   useEffect(() => {
     let timer: NodeJS.Timeout
@@ -154,8 +148,8 @@ export function MarkdownHeader({
 
       {/* 右侧操作按钮 */}
       <div className="flex items-center gap-1">
-        {/* 宽屏：显示所有按钮 */}
-        <div className={`flex items-center gap-1 ${isNarrow ? 'hidden' : ''}`}>
+        {/* 外部显示的按钮 */}
+        {toolbarConfig.externalButtons.includes('mindMap') && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -174,37 +168,36 @@ export function MarkdownHeader({
               <TooltipContent>思维导图</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        )}
 
-          {/* PDF 导出按钮 */}
-          {currentTask?.id && (
-            <ExportPDFButton
-              taskId={currentTask.id}
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2"
-            />
-          )}
+        {toolbarConfig.externalButtons.includes('exportPdf') && currentTask?.id && (
+          <ExportPDFButton
+            taskId={currentTask.id}
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+          />
+        )}
 
-          {/* 图文导出按钮 */}
-          {currentTask?.id && (
-            <ExportImageButton
-              taskId={currentTask.id}
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2"
-            />
-          )}
+        {toolbarConfig.externalButtons.includes('exportImage') && currentTask?.id && (
+          <ExportImageButton
+            taskId={currentTask.id}
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+          />
+        )}
 
-          {/* 思源笔记导出按钮 */}
-          {currentTask?.id && (
-            <ExportSiyuanButton
-              taskId={currentTask.id}
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2"
-            />
-          )}
+        {toolbarConfig.externalButtons.includes('exportSiyuan') && currentTask?.id && (
+          <ExportSiyuanButton
+            taskId={currentTask.id}
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2"
+          />
+        )}
 
+        {toolbarConfig.externalButtons.includes('exportMd') && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -216,7 +209,9 @@ export function MarkdownHeader({
               <TooltipContent>下载为 Markdown 文件</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        )}
 
+        {toolbarConfig.externalButtons.includes('copy') && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -228,7 +223,9 @@ export function MarkdownHeader({
               <TooltipContent>复制内容</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        )}
 
+        {toolbarConfig.externalButtons.includes('source') && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -246,54 +243,25 @@ export function MarkdownHeader({
               <TooltipContent>原文参照</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+        )}
 
-          {onDelete && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={onDelete} variant="ghost" size="sm" className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700">
-                    <Trash className="mr-1.5 h-4 w-4" />
-                    <span className="text-sm">删除</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>删除笔记</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
+        {toolbarConfig.externalButtons.includes('delete') && onDelete && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={onDelete} variant="ghost" size="sm" className="h-8 px-2 text-red-600 hover:bg-red-50 hover:text-red-700">
+                  <Trash className="mr-1.5 h-4 w-4" />
+                  <span className="text-sm">删除</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>删除笔记</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
 
-        {/* 窄屏（<700px）：常用按钮 + 下拉菜单 */}
-        {isNarrow && (
-          <div className="flex items-center gap-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      setViewMode?.(viewMode == 'preview' ? 'map' : 'preview')
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                  >
-                    <BrainCircuit className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>思维导图</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={handleCopy} variant="ghost" size="sm" className="h-8 px-2">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>复制</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
+        {/* 下拉菜单按钮 */}
+        {toolbarConfig.menuButtons.length > 0 && (
+          <>
             {/* 隐藏的导出按钮，用于触发点击 */}
             <div className="hidden">
               {currentTask?.id && (
@@ -312,32 +280,49 @@ export function MarkdownHeader({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                {currentTask?.id && (
-                  <>
-                    <DropdownMenuItem onClick={() => pdfBtnRef.current?.click()}>
-                      <FileDown className="mr-2 h-4 w-4" />
-                      导出 PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => imageBtnRef.current?.click()}>
-                      <Image className="mr-2 h-4 w-4" />
-                      导出图文
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => siyuanBtnRef.current?.click()}>
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      导出到思源
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                {toolbarConfig.menuButtons.includes('mindMap') && (
+                  <DropdownMenuItem onClick={() => setViewMode?.(viewMode == 'preview' ? 'map' : 'preview')}>
+                    <BrainCircuit className="mr-2 h-4 w-4" />
+                    {viewMode == 'preview' ? '思维导图' : 'Markdown'}
+                  </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={onDownload}>
-                  <Download className="mr-2 h-4 w-4" />
-                  导出 Markdown
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowTranscribe?.(!showTranscribe)}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  原文参照
-                </DropdownMenuItem>
-                {onDelete && (
+                {toolbarConfig.menuButtons.includes('exportPdf') && currentTask?.id && (
+                  <DropdownMenuItem onClick={() => pdfBtnRef.current?.click()}>
+                    <FileDown className="mr-2 h-4 w-4" />
+                    导出 PDF
+                  </DropdownMenuItem>
+                )}
+                {toolbarConfig.menuButtons.includes('exportImage') && currentTask?.id && (
+                  <DropdownMenuItem onClick={() => imageBtnRef.current?.click()}>
+                    <Image className="mr-2 h-4 w-4" />
+                    导出图文
+                  </DropdownMenuItem>
+                )}
+                {toolbarConfig.menuButtons.includes('exportSiyuan') && currentTask?.id && (
+                  <DropdownMenuItem onClick={() => siyuanBtnRef.current?.click()}>
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    导出到思源
+                  </DropdownMenuItem>
+                )}
+                {toolbarConfig.menuButtons.includes('exportMd') && (
+                  <DropdownMenuItem onClick={onDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    导出 Markdown
+                  </DropdownMenuItem>
+                )}
+                {toolbarConfig.menuButtons.includes('copy') && (
+                  <DropdownMenuItem onClick={handleCopy}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    {copied ? '已复制' : '复制'}
+                  </DropdownMenuItem>
+                )}
+                {toolbarConfig.menuButtons.includes('source') && (
+                  <DropdownMenuItem onClick={() => setShowTranscribe?.(!showTranscribe)}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    原文参照
+                  </DropdownMenuItem>
+                )}
+                {toolbarConfig.menuButtons.includes('delete') && onDelete && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={onDelete} className="text-red-600 focus:text-red-600">
@@ -348,8 +333,27 @@ export function MarkdownHeader({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </>
         )}
+
+        {/* 设置按钮 */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => setConfigDialogOpen(true)}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>工具栏设置</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <ToolbarConfigDialog open={configDialogOpen} onOpenChange={setConfigDialogOpen} />
       </div>
     </div>
   )

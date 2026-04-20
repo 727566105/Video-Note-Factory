@@ -26,7 +26,7 @@ export default function AboutPage() {
               height={50}
               className="rounded-lg"
             />
-            <h1 className="text-4xl font-bold">Video Note Factory v1.8.1</h1>
+            <h1 className="text-4xl font-bold">Video Note Factory v2.0.0</h1>
           </div>
           <p className="text-muted-foreground mb-6 text-xl italic">
             AI 视频笔记生成工具 让 AI 为你的视频做笔记
@@ -69,7 +69,7 @@ export default function AboutPage() {
             <p className="text-lg">
               Video Note Factory 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接，
               自动提取内容并生成结构清晰、重点明确的 Markdown
-              格式笔记。支持插入截图、原片跳转等功能。
+              格式笔记。支持插入截图、原片跳转、思源笔记导出、WebDAV 备份、工具栏自定义等丰富功能。
             </p>
           </div>
         </section>
@@ -88,6 +88,9 @@ export default function AboutPage() {
               { title: '结构化笔记', desc: '自动生成结构化 Markdown 笔记' },
               { title: '智能截图', desc: '可选插入自动截取的关键画面' },
               { title: '内容跳转', desc: '支持关联原视频的内容跳转链接' },
+              { title: '工具栏自定义', desc: '支持自定义工具栏按钮布局，灵活配置显示方式' },
+              { title: '思源笔记导出', desc: '一键导出笔记到思源笔记，实现知识管理闭环' },
+              { title: 'WebDAV 备份', desc: '支持 WebDAV 自动备份，保障数据安全' },
             ].map((feature, index) => (
               <Card key={index} className="h-full">
                 <CardContent className="pt-2">

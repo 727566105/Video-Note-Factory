@@ -1,4 +1,20 @@
 import request from '@/utils/request.ts'
+import type { ProviderFormData } from '@/types/api'
+
+export interface ProviderUpdateData {
+  id: string
+  name?: string
+  api_key?: string
+  base_url?: string
+  logo?: string
+  type?: string
+  enabled?: number
+}
+
+export interface ConnectionTestData {
+  base_url: string
+  api_key: string
+}
 
 export const getProviderList = async () => {
   return await request.get('/get_all_providers')
@@ -6,15 +22,15 @@ export const getProviderList = async () => {
 export const getProviderById = async (id: string) => {
   return await request.get(`/get_provider_by_id/${id}`)
 }
-export const updateProviderById = async (data: any) => {
+export const updateProviderById = async (data: ProviderUpdateData) => {
   return await request.post('/update_provider', data)
 }
 
-export const addProvider = async (data: any) => {
+export const addProvider = async (data: ProviderFormData) => {
   return await request.post('/add_provider', data)
 }
 
-export const testConnection = async (data: any) => {
+export const testConnection = async (data: ConnectionTestData) => {
   return await request.post('/connect_test', data)
 }
 

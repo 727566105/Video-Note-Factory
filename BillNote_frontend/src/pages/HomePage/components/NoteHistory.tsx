@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
 import PinyinMatch from 'pinyin-match'
 import Fuse from 'fuse.js'
+import { ArrowUpDown } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 import {
   Tooltip,
@@ -15,6 +17,15 @@ import {
 import LazyImage from "@/components/LazyImage.tsx";
 import {FC, useState ,useEffect } from 'react'
 
+const PLATFORMS = [
+  { value: 'all', label: '全部' },
+  { value: 'bilibili', label: '哔哩哔哩' },
+  { value: 'douyin', label: '抖音' },
+  { value: 'local', label: '本地视频' },
+  { value: 'kuaishou', label: '快手' },
+  { value: 'youtube', label: 'YouTube' },
+]
+
 interface NoteHistoryProps {
   onSelect: (taskId: string) => void
   selectedId: string | null
@@ -23,28 +34,58 @@ interface NoteHistoryProps {
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
-  // 确保baseURL没有尾部斜杠
   const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
   const [rawSearch, setRawSearch] = useState('')
   const [search, setSearch] = useState('')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
+  const [platformFilter, setPlatformFilter] = useState('all')
   const fuse = new Fuse(tasks, {
     keys: ['audioMeta.title'],
-    threshold: 0.4 // 匹配精度（越低越严格）
+    threshold: 0.4
   })
   useEffect(() => {
     const timer = setTimeout(() => {
       if (rawSearch === '') return
       setSearch(rawSearch)
-    }, 300) // 300ms 防抖
+    }, 300)
 
     return () => clearTimeout(timer)
   }, [rawSearch])
-  const filteredTasks = search.trim()
+  const filteredTasks = (search.trim()
       ? fuse.search(search).map(result => result.item)
       : tasks
+  )
+    .filter(task => platformFilter === 'all' || task.platform === platformFilter)
+    .sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime()
+      const timeB = new Date(b.createdAt).getTime()
+      return sortOrder === 'newest' ? timeB - timeA : timeA - timeB
+    })
   if (filteredTasks.length === 0) {
     return (
       <>
+        {/* 筛选栏 */}
+        <div className="mb-2 flex flex-wrap items-center gap-2 pt-2.5">
+          <button
+            onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+            className="flex h-7 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50"
+          >
+            <ArrowUpDown className="h-3 w-3" />
+            {sortOrder === 'newest' ? '最新' : '最早'}
+          </button>
+          <Select value={platformFilter} onValueChange={setPlatformFilter}>
+            <SelectTrigger className="w-[100px] h-7 text-xs">
+              <SelectValue placeholder="平台" />
+            </SelectTrigger>
+            <SelectContent>
+              {PLATFORMS.map(p => (
+                <SelectItem key={p.value} value={p.value} className="text-xs">
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="mb-2">
           <input
             type="text"
@@ -64,6 +105,28 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
 
   return (
     <>
+      {/* 筛选栏 */}
+      <div className="mb-2 flex flex-wrap items-center gap-2 pt-2.5">
+        <button
+          onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+          className="flex h-7 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50"
+        >
+          <ArrowUpDown className="h-3 w-3" />
+          {sortOrder === 'newest' ? '最新' : '最早'}
+        </button>
+        <Select value={platformFilter} onValueChange={setPlatformFilter}>
+          <SelectTrigger className="w-[100px] h-7 text-xs">
+            <SelectValue placeholder="平台" />
+          </SelectTrigger>
+          <SelectContent>
+            {PLATFORMS.map(p => (
+              <SelectItem key={p.value} value={p.value} className="text-xs">
+                {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div className="mb-2">
         <input
             type="text"

@@ -72,7 +72,8 @@
       "mcp__chrome__list_console_messages",
       "mcp__chrome__get_console_message",
       "mcp__chrome__fill",
-      "Bash(wc -l src/**/*.tsx src/**/*.ts)"
+      "Bash(wc -l src/**/*.tsx src/**/*.ts)",
+      "mcp__chrome__handle_dialog"
     ]
   }
 }

@@ -88,7 +88,6 @@ export const useModelStore = create<ModelStore>()(
     loadModelsById: async (providerId: string) => {
       try {
         const models = await fetchEnableModelById(providerId)
-        console.log('获取供应商模型成功:', models)
         return models
       } catch (error) {
         console.error('加载供应商模型失败', error)
@@ -102,7 +101,6 @@ export const useModelStore = create<ModelStore>()(
         const res = await addModel({ provider_id: providerId, model_name: modelId })
 
         if (res.code === 0) {
-          console.log('新增模型成功:', modelId)
           set((state) => ({
             models: [
               ...state.models,

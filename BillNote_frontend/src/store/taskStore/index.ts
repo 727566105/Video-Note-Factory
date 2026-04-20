@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { delete_task, generateNote, getTasks } from '@/services/note.ts'
 import { v4 as uuidv4 } from 'uuid'
 import toast from 'react-hot-toast'
+import type { BackendTask } from '@/types/api'
 
 
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILD'
@@ -12,7 +13,7 @@ export interface AudioMeta {
   duration: number
   file_path: string
   platform: string
-  raw_info: any
+  raw_info: Record<string, unknown>
   title: string
   video_id: string
 }
@@ -26,7 +27,7 @@ export interface Segment {
 export interface Transcript {
   full_text: string
   language: string
-  raw: any
+  raw: Record<string, unknown>
   segments: Segment[]
 }
 export interface Markdown {
@@ -76,7 +77,7 @@ export const useTaskStore = create<TaskStore>()(
       tasks: [],
       currentTaskId: null,
 
-      addPendingTask: (taskId: string, platform: string, formData: any) =>
+      addPendingTask: (taskId: string, platform: string, formData: Record<string, unknown>) =>
 
         set(state => ({
           tasks: [
@@ -160,14 +161,13 @@ export const useTaskStore = create<TaskStore>()(
         const currentTaskId = get().currentTaskId
         return get().tasks.find(task => task.id === currentTaskId) || null
       },
-      retryTask: async (id: string, payload?: any) => {
+      retryTask: async (id: string, payload?: Record<string, unknown>) => {
 
         if (!id){
           toast.error('任务不存在')
           return
         }
         const task = get().tasks.find(task => task.id === id)
-        console.log('retry',task)
         if (!task) return
 
         const newFormData = payload || task.formData
@@ -222,8 +222,8 @@ export const useTaskStore = create<TaskStore>()(
           const response = await getTasks(100)
           if (response?.tasks) {
             const backendTasks = response.tasks
-              .filter((t: any) => t.note !== null) // 只加载有笔记内容的任务
-              .map((t: any) => {
+              .filter((t: BackendTask) => t.note !== null)
+              .map((t: BackendTask) => {
                 // 优先使用 versions 数组，否则使用 markdown 字符串（兼容旧数据）
                 const markdownValue = t.note.versions && t.note.versions.length > 0
                   ? t.note.versions
