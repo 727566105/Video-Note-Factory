@@ -2,6 +2,7 @@
 import json
 import os
 import uuid
+import hashlib
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -20,7 +21,7 @@ from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
 from app.validators.video_url_validator import is_supported_video_url
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 import httpx
 from app.enmus.task_status_enums import TaskStatus
 
@@ -260,30 +261,121 @@ def get_task_status(task_id: str):
     })
 
 
-@router.get("/image_proxy")
-async def image_proxy(request: Request, url: str):
-    headers = {
-        "Referer": "https://www.bilibili.com/",
-        "User-Agent": request.headers.get("User-Agent", ""),
+def get_referer_by_url(url: str) -> str:
+    """根据图片 URL 判断平台并返回对应 Referer"""
+    url_lower = url.lower()
+    if "bilibili" in url_lower or "hdslb.com" in url_lower:
+        return "https://www.bilibili.com/"
+    elif "douyin" in url_lower or "byteimg.com" in url_lower or "douyinpic.com" in url_lower:
+        return "https://www.douyin.com/"
+    elif "kuaishou" in url_lower or "kspkg.com" in url_lower or "ksapisrv.com" in url_lower:
+        return "https://www.kuaishou.com/"
+    elif "youtube" in url_lower or "ytimg.com" in url_lower or "ggpht.com" in url_lower:
+        return "https://www.youtube.com/"
+    return ""
+
+
+def get_platform_from_url(url: str) -> str:
+    """根据图片 URL 判断平台名称"""
+    url_lower = url.lower()
+    if "bilibili" in url_lower or "hdslb.com" in url_lower:
+        return "bilibili"
+    elif "douyin" in url_lower or "byteimg.com" in url_lower or "douyinpic.com" in url_lower:
+        return "douyin"
+    elif "kuaishou" in url_lower or "kspkg.com" in url_lower or "ksapisrv.com" in url_lower:
+        return "kuaishou"
+    elif "youtube" in url_lower or "ytimg.com" in url_lower or "ggpht.com" in url_lower:
+        return "youtube"
+    return "other"
+
+
+def get_cover_cache_path(url: str, platform: str) -> Path:
+    """根据 URL 生成缓存文件路径"""
+    # 使用 MD5 哈希避免文件名冲突
+    url_hash = hashlib.md5(url.encode()).hexdigest()[:16]
+    # 尝试从 URL 获取扩展名
+    ext = "jpg"
+    url_path = url.split("?")[0]  # 去除查询参数
+    if "." in url_path:
+        possible_ext = url_path.split(".")[-1].lower()
+        if possible_ext in ["jpg", "jpeg", "png", "webp", "gif"]:
+            ext = possible_ext
+    return Path("static/covers") / platform / f"{url_hash}.{ext}"
+
+
+def get_image_headers(url: str, request: Request) -> dict:
+    """根据平台返回对应的请求头"""
+    url_lower = url.lower()
+    base_headers = {
+        "User-Agent": request.headers.get("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
     }
 
+    # 抖音需要更完整的请求头
+    if "douyin" in url_lower or "byteimg.com" in url_lower or "douyinpic.com" in url_lower:
+        base_headers.update({
+            "Referer": "https://www.douyin.com/",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Sec-Fetch-Dest": "image",
+            "Sec-Fetch-Mode": "no-cors",
+            "Sec-Fetch-Site": "cross-site",
+        })
+    elif "bilibili" in url_lower or "hdslb.com" in url_lower:
+        base_headers["Referer"] = "https://www.bilibili.com/"
+    elif "kuaishou" in url_lower or "kspkg.com" in url_lower:
+        base_headers["Referer"] = "https://www.kuaishou.com/"
+    elif "youtube" in url_lower or "ytimg.com" in url_lower:
+        base_headers["Referer"] = "https://www.youtube.com/"
+
+    return base_headers
+
+
+@router.get("/image_proxy")
+async def image_proxy(request: Request, url: str):
+    """图片代理接口，支持本地缓存"""
+    # 1. 判断平台和缓存路径
+    platform = get_platform_from_url(url)
+    cache_path = get_cover_cache_path(url, platform)
+    placeholder_path = Path("static/placeholder.png")
+
+    # 2. 检查本地缓存
+    if cache_path.exists():
+        logger.info(f"图片从缓存加载: {cache_path}")
+        return FileResponse(
+            cache_path,
+            media_type=f"image/{cache_path.suffix[1:]}",
+            headers={"Cache-Control": "public, max-age=31536000"}  # 缓存一年
+        )
+
+    # 3. 远程获取图片
+    headers = get_image_headers(url, request)
+
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=headers)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers, follow_redirects=True)
 
             if resp.status_code != 200:
+                logger.warning(f"图片获取失败: {url[:50]}... 状态码: {resp.status_code}")
+                if placeholder_path.exists():
+                    return FileResponse(placeholder_path, media_type="image/png")
                 raise HTTPException(status_code=resp.status_code, detail="图片获取失败")
 
+            # 4. 保存到本地缓存
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_bytes(resp.content)
+            logger.info(f"图片已缓存: {cache_path}")
+
+            # 5. 返回图片
             content_type = resp.headers.get("Content-Type", "image/jpeg")
-            return StreamingResponse(
-                resp.aiter_bytes(),
+            return FileResponse(
+                cache_path,
                 media_type=content_type,
-                headers={
-                    "Cache-Control": "public, max-age=86400",  #  缓存一天
-                    "Content-Type": content_type,
-                }
+                headers={"Cache-Control": "public, max-age=31536000"}  # 缓存一年
             )
     except Exception as e:
+        logger.error(f"图片代理异常: {url[:50]}... 错误: {e}")
+        if placeholder_path.exists():
+            return FileResponse(placeholder_path, media_type="image/png")
         raise HTTPException(status_code=500, detail=str(e))
 
 

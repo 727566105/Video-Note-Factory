@@ -2,7 +2,6 @@ import { useTaskStore } from '@/store/taskStore'
 import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { cn } from '@/lib/utils.ts'
-import { Trash } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import PinyinMatch from 'pinyin-match'
 import Fuse from 'fuse.js'
@@ -142,30 +141,6 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                 {task.status === 'FAILED' && (
                   <div className={'w-10 rounded bg-red-500 p-0.5 text-center text-white'}>失败</div>
                 )}
-              </div>
-
-              <div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        size="small"
-                        variant="ghost"
-                        onClick={e => {
-                          e.stopPropagation()
-                          removeTask(task.id)
-                        }}
-                        className="shrink-0"
-                      >
-                        <Trash className="text-muted-foreground h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>删除</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </div>
               {/*<div className="shrink-0">*/}
               {/*  {task.status === 'SUCCESS' && <Badge variant="default">已完成</Badge>}*/}

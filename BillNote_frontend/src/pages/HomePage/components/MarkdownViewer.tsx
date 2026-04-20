@@ -55,6 +55,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
   const baseURL = (String(import.meta.env.VITE_API_BASE_URL || '').replace('/api','') || '').replace(/\/$/, '')
   const getCurrentTask = useTaskStore.getState().getCurrentTask
   const currentTask = useTaskStore(state => state.getCurrentTask())
+  const removeTask = useTaskStore(state => state.removeTask)
   const taskStatus = currentTask?.status || 'PENDING'
   const retryTask = useTaskStore.getState().retryTask
   const isMultiVersion = Array.isArray(currentTask?.markdown)
@@ -141,6 +142,12 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
     document.body.removeChild(link)
   }
 
+  const handleDelete = () => {
+    if (!currentTask?.id) return
+    if (!window.confirm('确定要删除这条笔记吗？此操作不可恢复。')) return
+    removeTask(currentTask.id)
+  }
+
   if (status === 'loading') {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center space-y-4 text-neutral-500">
@@ -194,6 +201,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
         noteStyles={noteStyles}
         onCopy={handleCopy}
         onDownload={handleDownload}
+        onDelete={handleDelete}
         createAt={createTime}
         showTranscribe={showTranscribe}
         setShowTranscribe={setShowTranscribe}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, forwardRef } from 'react'
 import toast from 'react-hot-toast'
 import { BookOpen, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,13 +16,13 @@ interface ExportSiyuanButtonProps {
  * 思源笔记导出按钮组件
  * 用于将笔记导出到思源笔记
  */
-export function ExportSiyuanButton({
+export const ExportSiyuanButton = forwardRef<HTMLButtonElement, ExportSiyuanButtonProps>(({
   taskId,
   disabled = false,
   variant = 'outline',
   size = 'sm',
   className = '',
-}: ExportSiyuanButtonProps) {
+}, ref) => {
   const { isConfigured, isExporting, exportNote } = useSiyuanStore()
   const [loading, setLoading] = useState(false)
 
@@ -49,6 +49,7 @@ export function ExportSiyuanButton({
 
   return (
     <Button
+      ref={ref}
       onClick={handleExport}
       disabled={disabled || loading || isExporting || !isConfigured}
       variant={variant}
@@ -69,4 +70,4 @@ export function ExportSiyuanButton({
       )}
     </Button>
   )
-}
+})
