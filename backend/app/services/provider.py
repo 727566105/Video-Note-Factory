@@ -18,6 +18,7 @@ class ProviderService:
 
     @staticmethod
     def serialize_provider(row: Provider) -> dict:
+        """序列化供应商（包含完整 api_key，仅限内部服务调用，禁止返回前端）"""
         if not row:
             return None
         row = ProviderService.provider_to_dict(row)
@@ -30,16 +31,10 @@ class ProviderService:
             "base_url": row.get("base_url"),
             "api_key": row.get("api_key"),
             "created_at": jsonable_encoder(row.get("created_at")),
-            # "name": row[1],
-            # "logo": row[2],
-            # "type": row[3],
-            # "api_key": row[4],
-            # "base_url": row[5],
-            # "enabled": row[6],
-            # "created_at": row[7],
         }
     @staticmethod
     def serialize_provider_safe(row: Provider) -> dict:
+        """序列化供应商（api_key 已脱敏，用于返回前端的安全版本）"""
         if not row:
             return None
         row = ProviderService.provider_to_dict(row)
@@ -53,15 +48,6 @@ class ProviderService:
             "base_url": row.get("base_url"),
             "api_key":  ProviderService.mask_key(row.get("api_key")),
             "created_at": jsonable_encoder(row.get("created_at")),
-
-            # "id": row[0],
-            # "name": row[1],
-            # "logo": row[2],
-            # "type": row[3],
-            # "api_key": ProviderService.mask_key(row[4]),
-            # "base_url": row[5],
-            # "enabled": row[6],
-            # "created_at": row[7],
         }
     @staticmethod
     def mask_key(key: str) -> str:
@@ -90,28 +76,34 @@ class ProviderService:
         }
     @staticmethod
     def get_all_providers():
+        """获取所有供应商（内部使用，包含完整 api_key）"""
         rows = get_all_providers()
         if rows is None:
             return []
 
         return [ProviderService.serialize_provider(row) for row in rows] if rows else []
+
     @staticmethod
     def get_all_providers_safe():
+        """获取所有供应商（安全版本，api_key 已脱敏，用于返回前端）"""
         rows = get_all_providers()
 
-        return [ProviderService.serialize_provider(row) for row in rows] if (rows) else []
+        return [ProviderService.serialize_provider_safe(row) for row in rows] if (rows) else []
     @staticmethod
     def get_provider_by_name(name: str):
+        """根据名称获取供应商（内部使用，包含完整 api_key）"""
         row = get_provider_by_name(name)
         return ProviderService.serialize_provider(row)
 
     @staticmethod
-    def get_provider_by_id(id: str):  # 已改为 str 类型
+    def get_provider_by_id(id: str):
+        """根据 ID 获取供应商（内部使用，包含完整 api_key）"""
         row = get_provider_by_id(id)
         return ProviderService.serialize_provider(row)
 
     @staticmethod
-    def get_provider_by_id_safe(id: str):  # 已改为 str 类型
+    def get_provider_by_id_safe(id: str):
+        """根据 ID 获取供应商（安全版本，api_key 已脱敏，用于返回前端）"""
         row = get_provider_by_id(id)
         return ProviderService.serialize_provider_safe(row)
             # all_models.extend(provider['models'])

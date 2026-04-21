@@ -1,4 +1,5 @@
 import os
+import asyncio
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -14,7 +15,7 @@ from app.exceptions.exception_handlers import register_exception_handlers
 # from app.db.provider_dao import init_provider_table
 from app.utils.logger import get_logger
 from app import create_app
-from app.transcriber.transcriber_provider import get_transcriber
+from app.transcriber.transcriber_provider import warm_up_transcriber_async, get_warm_up_status
 from events import register_handler
 from ffmpeg_helper import ensure_ffmpeg_or_raise
 
@@ -40,15 +41,26 @@ if not os.path.exists(out_dir):
 async def lifespan(app: FastAPI):
     register_handler()
     init_db()
-    get_transcriber(transcriber_type=os.getenv("TRANSCRIBER_TYPE", "fast-whisper"))
     seed_default_providers()
+
     # 启动定时任务调度器
     from app.tasks.scheduler import start_scheduler
     start_scheduler()
+
+    # 异步预热转写器（不阻塞应用启动）
+    transcriber_type = os.getenv("TRANSCRIBER_TYPE", "fast-whisper")
+    logger.info(f"应用启动中，转写器类型: {transcriber_type}")
+    asyncio.create_task(warm_up_transcriber_async(transcriber_type))
+
     yield
+
     # 关闭定时任务调度器
     from app.tasks.scheduler import shutdown_scheduler
     shutdown_scheduler()
+
+    # 输出预热最终状态
+    status = get_warm_up_status()
+    logger.info(f"应用关闭，转写器预热状态: {status}")
 
 app = create_app(lifespan=lifespan)
 origins = [

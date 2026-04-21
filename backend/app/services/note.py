@@ -332,7 +332,7 @@ class NoteGenerator:
     ) -> AudioDownloadResult | None:
         """
         1. 检查音频缓存；若不存在，则根据需要下载音频或视频（若需截图/可视化）。
-        2. 如果需要视频，则先下载视频并生成缩略图集，再下载音频。
+        2. 如果需要视频，则并行下载视频和音频，提升效率。
         3. 返回 AudioDownloadResult
 
         :param downloader: Downloader 实例
@@ -351,52 +351,47 @@ class NoteGenerator:
         task_id = audio_cache_file.stem.split("_")[0]
         self._update_status(task_id, status_phase)
 
-
-
         # 判断是否需要下载视频
         need_video = screenshot or video_understanding
-        if need_video:
-            try:
-                logger.info("开始下载视频")
-                video_path_str = downloader.download_video(video_url)
-                self.video_path = Path(video_path_str)
-                logger.info(f"视频下载完成：{self.video_path}")
 
-                # 若指定了 grid_size，则生成缩略图
-                if grid_size:
-                    self.video_img_urls=VideoReader(
-                        video_path=str(self.video_path),
-                        grid_size=tuple(grid_size),
-                        frame_interval=video_interval,
-                        unit_width=1280,
-                        unit_height=720,
-                        save_quality=90,
-                    ).run()
-                else:
-                    logger.info("未指定 grid_size，跳过缩略图生成")
-            except Exception as exc:
-                logger.error(f"视频下载失败：{exc}")
-
-                self._handle_exception(task_id, exc)
-                raise
-        # 已有缓存，尝试加载
+        # 已有音频缓存，直接加载
         if audio_cache_file.exists():
             logger.info(f"检测到音频缓存 ({audio_cache_file})，直接读取")
             try:
                 data = json.loads(audio_cache_file.read_text(encoding="utf-8"))
-                return AudioDownloadResult(**data)
+                audio_meta = AudioDownloadResult(**data)
+                # 如果需要视频且缓存中有视频路径，直接返回
+                if need_video and audio_meta.file_path:
+                    # 检查视频是否已下载（从缓存元信息推断）
+                    if self._check_video_cached(task_id):
+                        logger.info("视频已缓存，跳过下载")
+                        return audio_meta
+                return audio_meta
             except Exception as e:
                 logger.warning(f"读取音频缓存失败，将重新下载：{e}")
-        # 下载音频
+
+        # 并行下载视频和音频
+        if need_video:
+            return self._parallel_download(
+                downloader=downloader,
+                video_url=video_url,
+                quality=quality,
+                audio_cache_file=audio_cache_file,
+                task_id=task_id,
+                output_path=output_path,
+                grid_size=grid_size,
+                video_interval=video_interval,
+            )
+
+        # 单独下载音频（保持原有逻辑）
         try:
             logger.info("开始下载音频")
             audio = downloader.download(
                 video_url=video_url,
                 quality=quality,
                 output_dir=output_path,
-                need_video=need_video,
+                need_video=False,
             )
-            # 缓存 audio 元信息到本地 JSON
             audio_cache_file.write_text(json.dumps(asdict(audio), ensure_ascii=False, indent=2), encoding="utf-8")
             logger.info(f"音频下载并缓存成功 ({audio_cache_file})")
             return audio
@@ -404,6 +399,115 @@ class NoteGenerator:
             logger.error(f"音频下载失败：{exc}")
             self._handle_exception(task_id, exc)
             raise
+
+    def _check_video_cached(self, task_id: str) -> bool:
+        """
+        检查视频是否已缓存（通过检查视频文件是否存在）
+        """
+        # 视频文件通常以 task_id 命名或存储在 data 目录
+        video_patterns = [
+            NOTE_OUTPUT_DIR / f"{task_id}.mp4",
+            NOTE_OUTPUT_DIR / f"{task_id}.mkv",
+            NOTE_OUTPUT_DIR / f"{task_id}.webm",
+            Path(os.getenv("DATA_DIR", "data")) / f"{task_id}.mp4",
+        ]
+        return any(p.exists() for p in video_patterns)
+
+    def _parallel_download(
+        self,
+        downloader: Downloader,
+        video_url: Union[str, HttpUrl],
+        quality: DownloadQuality,
+        audio_cache_file: Path,
+        task_id: str,
+        output_path: Optional[str],
+        grid_size: List[int],
+        video_interval: int,
+    ) -> AudioDownloadResult:
+        """
+        并行下载视频和音频，使用 asyncio.gather 提升效率
+
+        :param downloader: Downloader 实例
+        :param video_url: 视频/音频链接
+        :param quality: 音频下载质量
+        :param audio_cache_file: 音频缓存文件路径
+        :param task_id: 任务 ID
+        :param output_path: 输出目录
+        :param grid_size: 缩略图网格尺寸
+        :param video_interval: 视频截帧间隔
+        :return: AudioDownloadResult 对象
+        """
+        import concurrent.futures
+
+        # 使用 ThreadPoolExecutor 并行执行同步下载任务
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            # 提交视频下载任务
+            video_future = executor.submit(
+                downloader.download_video,
+                video_url,
+                None,  # output_dir
+            )
+
+            # 提交音频下载任务
+            audio_future = executor.submit(
+                downloader.download,
+                video_url,
+                output_path,
+                quality,
+                True,  # need_video
+            )
+
+            # 等待两个任务完成，处理结果
+            video_result = None
+            audio_result = None
+
+            try:
+                # 先获取视频下载结果（用于生成缩略图）
+                video_result = video_future.result()
+                if video_result:
+                    self.video_path = Path(video_result)
+                    logger.info(f"视频下载完成：{self.video_path}")
+
+                    # 生成缩略图
+                    if grid_size:
+                        try:
+                            self.video_img_urls = VideoReader(
+                                video_path=str(self.video_path),
+                                grid_size=tuple(grid_size),
+                                frame_interval=video_interval,
+                                unit_width=1280,
+                                unit_height=720,
+                                save_quality=90,
+                            ).run()
+                        except Exception as exc:
+                            logger.warning(f"缩略图生成失败：{exc}")
+                            self.video_img_urls = []
+                    else:
+                        logger.info("未指定 grid_size，跳过缩略图生成")
+            except Exception as exc:
+                logger.error(f"视频下载失败：{exc}")
+                # 视频下载失败不阻塞音频下载，继续等待音频结果
+
+            try:
+                # 获取音频下载结果
+                audio_result = audio_future.result()
+                audio_cache_file.write_text(
+                    json.dumps(asdict(audio_result), ensure_ascii=False, indent=2),
+                    encoding="utf-8"
+                )
+                logger.info(f"音频下载并缓存成功 ({audio_cache_file})")
+            except Exception as exc:
+                logger.error(f"音频下载失败：{exc}")
+                self._handle_exception(task_id, exc)
+                raise
+
+            # 如果视频下载失败但音频成功，仍返回音频结果
+            if audio_result:
+                return audio_result
+
+            # 两者都失败
+            self._handle_exception(task_id, Exception("视频和音频下载均失败"))
+            raise NoteError(code=NoteErrorEnum.DOWNLOAD_FAILED, message="下载失败")
 
 
     def _transcribe_audio(

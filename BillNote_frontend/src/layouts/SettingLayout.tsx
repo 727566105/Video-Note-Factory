@@ -7,7 +7,7 @@ import {
 import { Link, Outlet } from 'react-router-dom'
 import { SlidersHorizontal, Menu as MenuIcon, X } from 'lucide-react'
 import React, { useState } from 'react'
-import logo from '@/assets/icon.svg'
+import logo from '@/assets/logo.png'
 import { Button } from '@/components/ui/button'
 
 interface ISettingLayoutProps {
@@ -55,7 +55,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl">
                 <img src={logo} alt="logo" className="h-full w-full object-contain" />
               </div>
-              <div className="text-2xl font-bold text-gray-800">Video Note Factory</div>
+              <div className="text-2xl font-bold text-gray-800">videoNote</div>
             </div>
             <div>
               <TooltipProvider>

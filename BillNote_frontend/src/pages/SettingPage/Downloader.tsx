@@ -4,7 +4,7 @@ import Options from '@/components/Form/DownloaderForm/Options.tsx'
 const Downloader = () => {
   return (
     <div className={'flex h-full bg-white'}>
-      <div className={'flex-1/5 border-r border-neutral-200 p-2'}>
+      <div className={'w-[375px] border-r border-neutral-200 p-2'}>
         <Options></Options>
       </div>
       <div className={'flex-4/5'}>

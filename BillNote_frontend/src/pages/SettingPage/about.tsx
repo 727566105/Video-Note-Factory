@@ -4,15 +4,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Github, Star, ExternalLink, Download } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area.tsx'
-import logo from '@/assets/icon.svg'
+import logo from '@/assets/logo.png'
 
 export default function AboutPage() {
-  const images = [
-    'https://common-1304618721.cos.ap-chengdu.myqcloud.com/20250504102850.png',
-    'https://common-1304618721.cos.ap-chengdu.myqcloud.com/20250504103028.png',
-    'https://common-1304618721.cos.ap-chengdu.myqcloud.com/20250504103304.png',
-    'https://common-1304618721.cos.ap-chengdu.myqcloud.com/20250504103625.png',
-  ]
   return (
     <ScrollArea className={'h-full overflow-y-auto bg-white'}>
       <div className="container mx-auto px-4 py-12">
@@ -21,12 +15,12 @@ export default function AboutPage() {
           <div className="mb-4 flex items-center gap-4">
             <img
               src={logo}
-              alt="Video Note Factory Logo"
+              alt="videoNote Logo"
               width={50}
               height={50}
               className="rounded-lg"
             />
-            <h1 className="text-4xl font-bold">Video Note Factory v2.0.0</h1>
+            <h1 className="text-4xl font-bold">videoNote v2.0.0</h1>
           </div>
           <p className="text-muted-foreground mb-6 text-xl italic">
             AI 视频笔记生成工具 让 AI 为你的视频做笔记
@@ -44,7 +38,7 @@ export default function AboutPage() {
             <Button asChild>
               <a href="https://www.bilinote.app" target="_blank">
                 <ExternalLink className="mr-2 h-4 w-4" />
-                体验 Video Note Factory
+                体验 videoNote
               </a>
             </Button>
             <Button variant="outline" asChild>
@@ -67,7 +61,7 @@ export default function AboutPage() {
           <h2 className="mb-6 text-center text-3xl font-bold">✨ 项目简介</h2>
           <div className="mx-auto max-w-3xl text-center">
             <p className="text-lg">
-              Video Note Factory 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接，
+              videoNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接，
               自动提取内容并生成结构清晰、重点明确的 Markdown
               格式笔记。支持插入截图、原片跳转、思源笔记导出、WebDAV 备份、工具栏自定义等丰富功能。
             </p>
@@ -102,24 +96,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Screenshots Section */}
-        <section className="mb-16">
-          <h2 className="mb-8 text-center text-3xl font-bold">📸 截图预览</h2>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {images.map(num => (
-              <div key={num} className="overflow-hidden rounded-lg border shadow-sm">
-                <img
-                  src={num}
-                  alt={`Video Note Factory Screenshot ${num}`}
-                  width={600}
-                  height={400}
-                  className="w-full object-cover transition-transform hover:scale-105"
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-
+        
         {/* Quick Start Section */}
         <section className="mb-16">
           <h2 className="mb-8 text-center text-3xl font-bold">🚀 快速开始</h2>
@@ -201,11 +178,11 @@ export default function AboutPage() {
           <div className="mx-auto max-w-3xl">
             <div className="flex flex-col items-center justify-center gap-8">
               <div className="text-center">
-                <h3 className="mb-3 text-xl font-semibold">Video Note Factory 交流 QQ 群</h3>
+                <h3 className="mb-3 text-xl font-semibold">videoNote 交流 QQ 群</h3>
                 <p className="text-lg font-medium">785367111</p>
               </div>
               <div className="text-center">
-                <h3 className="mb-3 text-xl font-semibold">Video Note Factory 交流微信群</h3>
+                <h3 className="mb-3 text-xl font-semibold">videoNote 交流微信群</h3>
                 <div className="bg-muted mx-auto flex h-52 w-52 items-center justify-center rounded-md">
                   <img src={'https://common-1304618721.cos.ap-chengdu.myqcloud.com/wechat.png'} />
                 </div>

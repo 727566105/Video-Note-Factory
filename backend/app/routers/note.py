@@ -3,6 +3,8 @@ import json
 import os
 import uuid
 import hashlib
+import ipaddress
+import socket
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -17,6 +19,7 @@ from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
 from app.services.note import NoteGenerator, logger
+from app.services.cache_cleaner import clean_expired_cache, get_cache_stats, CACHE_TTL_DAYS
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
 from app.validators.video_url_validator import is_supported_video_url
@@ -68,6 +71,37 @@ class VideoRequest(BaseModel):
 
 NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
 UPLOAD_DIR = "uploads"
+
+# 文件上传安全配置
+ALLOWED_EXTENSIONS = {
+    # 图片类型
+    "jpg", "jpeg", "png", "webp", "gif", "bmp", "svg",
+    # 视频类型
+    "mp4", "avi", "mov", "mkv", "webm", "flv", "wmv",
+    # 音频类型
+    "mp3", "wav", "aac", "ogg", "flac", "m4a", "wma",
+}
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    安全处理文件名，防止路径遍历攻击
+    - 移除路径分隔符
+    - 使用 UUID 生成唯一文件名
+    """
+    # 获取原始扩展名
+    ext = ""
+    if "." in filename:
+        ext = filename.rsplit(".", 1)[-1].lower()
+        if ext in ALLOWED_EXTENSIONS:
+            ext = f".{ext}"
+        else:
+            ext = ""
+
+    # 使用 UUID 生成安全的唯一文件名
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    return safe_name
 
 
 def save_note_to_file(task_id: str, note):
@@ -179,14 +213,42 @@ def delete_task(data: RecordRequest):
 
 @router.post("/upload")
 async def upload(file: UploadFile = File(...)):
+    # 1. 验证文件扩展名
+    if file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的文件类型: .{ext}，仅支持图片、视频、音频文件"
+            )
+
+    # 2. 读取文件内容并验证大小
+    content = await file.read()
+    file_size = len(content)
+
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件过大: {file_size / 1024 / 1024:.2f}MB，最大允许 100MB"
+        )
+
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+
+    # 3. 安全处理文件名
+    safe_filename = sanitize_filename(file.filename or "upload")
+
+    # 4. 保存文件
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    file_location = os.path.join(UPLOAD_DIR, file.filename)
+    file_location = os.path.join(UPLOAD_DIR, safe_filename)
 
-    with open(file_location, "wb+") as f:
-        f.write(await file.read())
+    with open(file_location, "wb") as f:
+        f.write(content)
 
-    # 假设你静态目录挂载了 /uploads
-    return R.success({"url": f"/uploads/{file.filename}"})
+    logger.info(f"文件上传成功: {safe_filename}, 大小: {file_size / 1024:.2f}KB")
+
+    # 返回安全的 URL
+    return R.success({"url": f"/uploads/{safe_filename}"})
 
 
 @router.post("/generate_note")
@@ -280,6 +342,124 @@ def get_task_status(task_id: str):
     })
 
 
+# 允许的图片 CDN 域名白名单
+ALLOWED_DOMAINS = [
+    # Bilibili
+    "bilibili.com",
+    "hdslb.com",
+    # 抖音
+    "douyin.com",
+    "douyinpic.com",
+    "byteimg.com",
+    "bytednsdoc.com",
+    # 快手
+    "kuaishou.com",
+    "kspkg.com",
+    "ksapisrv.com",
+    "yximgs.com",
+    # YouTube
+    "youtube.com",
+    "ytimg.com",
+    "ggpht.com",
+    # 通用 CDN
+    "cdn.com",
+]
+
+
+def is_private_ip(ip_str: str) -> bool:
+    """检查 IP 是否为内网地址（排除 198.18.0.0/15 基准测试地址）"""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+
+        # 198.18.0.0/15 是 IANA 为网络基准测试保留的地址，很多 CDN 会使用此范围
+        # 不应将其视为内网地址
+        if ip.version == 4:
+            ip_int = int(ip)
+            # 198.18.0.0 - 198.19.255.255 (基准测试地址范围)
+            if 198 * 256**3 + 18 * 256**2 <= ip_int <= 198 * 256**3 + 19 * 256**2 + 256**2 - 1:
+                return False
+
+        # 检查是否为真正的私有地址、回环地址、链路本地地址等
+        return (
+            ip.is_loopback or
+            ip.is_link_local or
+            ip.is_multicast or
+            # 只检查真正的私有网络范围，不使用 ip.is_private（它会包含基准测试地址）
+            _is_private_network(ip)
+        )
+    except ValueError:
+        return True  # 无效 IP 视为不安全
+
+
+def _is_private_network(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """检查是否为真正的私有网络地址（不包括基准测试地址）"""
+    if ip.version == 4:
+        ip_int = int(ip)
+        # 10.0.0.0/8
+        if 10 * 256**3 <= ip_int < 11 * 256**3:
+            return True
+        # 172.16.0.0/12
+        if 172 * 256**3 + 16 * 256**2 <= ip_int < 172 * 256**3 + 32 * 256**2:
+            return True
+        # 192.168.0.0/16
+        if 192 * 256**3 + 168 * 256**2 <= ip_int < 192 * 256**3 + 169 * 256**2:
+            return True
+        return False
+    else:
+        # IPv6 私有地址
+        return ip.is_private
+
+
+def is_safe_url(url: str) -> tuple[bool, str]:
+    """
+    检查 URL 是否安全（防止 SSRF 攻击）
+    返回: (is_safe, error_message)
+    """
+    try:
+        parsed = urlparse(url)
+
+        # 1. 只允许 http 和 https 协议
+        if parsed.scheme not in ("http", "https"):
+            return False, "只允许 HTTP/HTTPS 协议"
+
+        # 2. 检查域名是否在白名单中
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "URL 缺少主机名"
+
+        hostname_lower = hostname.lower()
+
+        # 检查是否为 localhost 或类似域名
+        blocked_hostnames = ["localhost", "local", "localhost.localdomain", "ip6-localhost"]
+        if hostname_lower in blocked_hostnames or hostname_lower.endswith(".local"):
+            return False, "禁止访问本地域名"
+
+        # 检查域名是否在白名单中（支持子域名匹配）
+        domain_allowed = False
+        for allowed_domain in ALLOWED_DOMAINS:
+            if hostname_lower == allowed_domain or hostname_lower.endswith(f".{allowed_domain}"):
+                domain_allowed = True
+                break
+
+        if not domain_allowed:
+            return False, f"域名 {hostname} 不在允许的白名单中"
+
+        # 3. 解析 IP 地址并检查是否为内网地址
+        try:
+            # 尝试解析域名获取 IP
+            ip_str = socket.gethostbyname(hostname)
+            if is_private_ip(ip_str):
+                return False, f"禁止访问内网地址: {ip_str}"
+        except socket.gaierror:
+            # DNS 解析失败，可能是无效域名
+            return False, f"无法解析域名: {hostname}"
+
+        return True, ""
+
+    except Exception as e:
+        return False, f"URL 解析失败: {str(e)}"
+
+
 def get_referer_by_url(url: str) -> str:
     """根据图片 URL 判断平台并返回对应 Referer"""
     url_lower = url.lower()
@@ -352,6 +532,12 @@ def get_image_headers(url: str, request: Request) -> dict:
 @router.get("/image_proxy")
 async def image_proxy(request: Request, url: str):
     """图片代理接口，支持本地缓存"""
+    # 0. SSRF 安全检查
+    is_safe, error_msg = is_safe_url(url)
+    if not is_safe:
+        logger.warning(f"SSRF 攻击尝试被拦截: {url[:50]}... 原因: {error_msg}")
+        raise HTTPException(status_code=400, detail=f"不安全的 URL: {error_msg}")
+
     # 1. 判断平台和缓存路径
     platform = get_platform_from_url(url)
     cache_path = get_cover_cache_path(url, platform)
@@ -432,4 +618,66 @@ def get_tasks(limit: int = 100):
         return R.success({"tasks": result})
     except Exception as e:
         logger.error(f"Failed to get tasks: {e}")
+        return R.error(msg=str(e))
+
+
+# ==================== 缓存管理接口 ====================
+
+@router.get("/cache/stats")
+def cache_statistics():
+    """
+    获取缓存统计信息
+
+    返回缓存文件的总数、总大小、过期文件数等统计信息
+    """
+    try:
+        stats = get_cache_stats()
+        return R.success({
+            "total_files": stats["total_files"],
+            "total_size_bytes": stats["total_size_bytes"],
+            "total_size_mb": stats["total_size_mb"],
+            "expired_files": stats["expired_files"],
+            "expired_size_bytes": stats["expired_size_bytes"],
+            "expired_size_mb": stats["expired_size_mb"],
+            "ttl_days": stats["ttl_days"]
+        })
+    except Exception as e:
+        logger.error(f"获取缓存统计失败: {e}")
+        return R.error(msg=str(e))
+
+
+@router.post("/cache/clean")
+def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None):
+    """
+    手动触发缓存清理
+
+    :param dry_run: 是否为模拟运行（只统计不删除），默认 False
+    :param ttl_days: 自定义 TTL 天数，不传则使用默认配置
+    :return: 清理结果统计
+    """
+    try:
+        actual_ttl = ttl_days if ttl_days is not None else CACHE_TTL_DAYS
+
+        logger.info(f"手动触发缓存清理 (dry_run={dry_run}, ttl_days={actual_ttl})")
+
+        deleted_count, freed_bytes, deleted_files = clean_expired_cache(
+            ttl_days=actual_ttl,
+            dry_run=dry_run
+        )
+
+        result = {
+            "dry_run": dry_run,
+            "ttl_days": actual_ttl,
+            "deleted_count": deleted_count,
+            "freed_bytes": freed_bytes,
+            "freed_mb": round(freed_bytes / 1024 / 1024, 2),
+        }
+
+        # 如果删除文件数较多，只返回摘要
+        if len(deleted_files) <= 50:
+            result["deleted_files"] = deleted_files
+
+        return R.success(result)
+    except Exception as e:
+        logger.error(f"缓存清理失败: {e}")
         return R.error(msg=str(e))

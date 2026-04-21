@@ -422,7 +422,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                   closable
                   onClose={() => handelDelete(model.id)}
                   color="blue"
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', fontSize: '14px' }}
                 >
                   {model.model_name}
                 </Tag>

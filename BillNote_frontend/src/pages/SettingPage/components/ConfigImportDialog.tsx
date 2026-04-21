@@ -190,7 +190,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
         <Alert className="w-full max-w-md mt-4 border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-sm text-blue-800">
-            请选择从本系统或其他 Video Note Factory 实例导出的配置文件（bilinote_configs.json）
+            请选择从本系统或其他 videoNote 实例导出的配置文件（bilinote_configs.json）
           </AlertDescription>
         </Alert>
       </div>

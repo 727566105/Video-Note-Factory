@@ -14,9 +14,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { getDownloaderCookie, updateDownloaderCookie } from '@/services/downloader' // 你自定义的请求
+import { getDownloaderCookie, updateDownloaderCookie } from '@/services/downloader'
 import { useParams } from 'react-router-dom'
 import { videoPlatforms } from '@/constant/note.ts'
+import { Copy, Eye, EyeOff } from 'lucide-react'
 
 const CookieSchema = z.object({
   cookie: z.string().min(10, '请填写有效 Cookie'),
@@ -30,6 +31,7 @@ const DownloaderForm = () => {
   const { id } = useParams()
 
   const [loading, setLoading] = useState(true)
+  const [showCookie, setShowCookie] = useState(false)
 
   useEffect(() => {
     const loadCookie = async () => {
@@ -48,6 +50,15 @@ const DownloaderForm = () => {
 
     if (id) loadCookie()
   }, [id]) // 🔁 每当 id 变化时触发
+
+  const handleCopy = () => {
+    if (form.getValues('cookie')) {
+      navigator.clipboard.writeText(form.getValues('cookie'))
+      toast.success('已复制到剪贴板')
+    } else {
+      toast.error('Cookie 为空')
+    }
+  }
 
   const onSubmit = async values => {
     try {
@@ -78,7 +89,30 @@ const DownloaderForm = () => {
               <FormItem className="flex flex-col gap-2">
                 <FormLabel>Cookie</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="输入 Cookie" />
+                  <div className="relative">
+                    <Input
+                      {...field}
+                      type={showCookie ? 'text' : 'password'}
+                      placeholder="输入 Cookie"
+                      className="pr-20"
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        className="p-1 text-neutral-400 hover:text-neutral-600"
+                        onClick={() => setShowCookie(!showCookie)}
+                      >
+                        {showCookie ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                      <button
+                        type="button"
+                        className="p-1 text-neutral-400 hover:text-neutral-600"
+                        onClick={handleCopy}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
