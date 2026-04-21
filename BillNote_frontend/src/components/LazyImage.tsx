@@ -72,9 +72,8 @@ const LazyImage: FC<LazyImageProps> = ({
                 className="h-full w-full rounded-md object-cover"
                 style={{
                     display: 'block',
-                    opacity: loaded || error ? 1 : 0.5,
-                    transition: 'opacity 0.3s ease-in-out',
-                    backgroundColor: '#f3f4f6'
+                    opacity: loaded ? 1 : error ? 0.7 : 0.8,
+                    transition: 'opacity 0.3s ease-in-out'
                 }}
             />
         </div>
