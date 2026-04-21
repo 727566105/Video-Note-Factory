@@ -68,13 +68,13 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
         <div className="mb-2 flex flex-wrap items-center gap-2 pt-2.5">
           <button
             onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-            className="flex h-7 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-neutral-200 bg-white px-3 text-xs font-normal text-neutral-700 shadow-xs hover:bg-neutral-50"
           >
-            <ArrowUpDown className="h-3 w-3" />
+            <ArrowUpDown className="h-3.5 w-3.5" />
             {sortOrder === 'newest' ? '最新' : '最早'}
           </button>
           <Select value={platformFilter} onValueChange={setPlatformFilter}>
-            <SelectTrigger className="w-[100px] h-7 text-xs">
+            <SelectTrigger className="w-[100px] h-8 px-3 text-xs font-normal py-1.5">
               <SelectValue placeholder="平台" />
             </SelectTrigger>
             <SelectContent>
@@ -107,15 +107,17 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     <>
       {/* 筛选栏 */}
       <div className="mb-2 flex flex-wrap items-center gap-2 pt-2.5">
-        <button
+        <Button
+          variant="outline"
+          size="xs"
           onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
-          className="flex h-7 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700 hover:bg-neutral-50"
+          className="gap-1"
         >
           <ArrowUpDown className="h-3 w-3" />
           {sortOrder === 'newest' ? '最新' : '最早'}
-        </button>
+        </Button>
         <Select value={platformFilter} onValueChange={setPlatformFilter}>
-          <SelectTrigger className="w-[100px] h-7 text-xs">
+          <SelectTrigger size="sm" className="w-[100px] text-xs">
             <SelectValue placeholder="平台" />
           </SelectTrigger>
           <SelectContent>

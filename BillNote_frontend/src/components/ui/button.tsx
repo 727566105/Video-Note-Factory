@@ -23,6 +23,7 @@ const buttonVariants = cva(
         sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5',
         lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
         icon: 'size-9',
+        xs: 'h-8 rounded-md gap-1 px-3 has-[>svg]:px-2.5',
       },
     },
     defaultVariants: {
@@ -44,10 +45,29 @@ function Button({
   }) {
   const Comp = asChild ? Slot : 'button'
 
+  // 获取基础样式
+  const baseStyles = buttonVariants({ variant, size })
+
+  // 对于 xs size，直接拼接样式（绕过 twMerge 的冲突检测）
+  if (size === 'xs') {
+    // 移除 baseStyles 中的 text-sm font-medium
+    const cleanBase = baseStyles.replace(/text-sm/g, '').replace(/font-medium/g, '')
+    const finalClasses = `${cleanBase} text-xs font-normal ${className || ''}`
+    return (
+      <Comp
+        data-slot="button"
+        className={finalClasses}
+        {...props}
+      />
+    )
+  }
+
+  const finalClasses = cn(baseStyles, className)
+
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={finalClasses}
       {...props}
     />
   )

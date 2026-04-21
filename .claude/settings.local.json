@@ -73,7 +73,10 @@
       "mcp__chrome__get_console_message",
       "mcp__chrome__fill",
       "Bash(wc -l src/**/*.tsx src/**/*.ts)",
-      "mcp__chrome__handle_dialog"
+      "mcp__chrome__handle_dialog",
+      "Bash(osascript:*)",
+      "Bash(grep -r \"important\" /Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/BillNote_frontend/tailwind.config.*)",
+      "mcp__chrome__new_page"
     ]
   }
 }
