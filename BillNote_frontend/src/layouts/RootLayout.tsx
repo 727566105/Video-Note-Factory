@@ -7,7 +7,7 @@ interface RootLayoutProps {
 }
 
 export const metadata = {
-  title: 'Video Note Factory - 视频笔记生成器',
+  title: 'videoNote - 视频笔记生成器',
   description: '通过视频链接结合大模型自动生成对应的笔记',
 }
 

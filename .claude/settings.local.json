@@ -76,7 +76,11 @@
       "mcp__chrome__handle_dialog",
       "Bash(osascript:*)",
       "Bash(grep -r \"important\" /Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/BillNote_frontend/tailwind.config.*)",
-      "mcp__chrome__new_page"
+      "mcp__chrome__new_page",
+      "Bash(xargs -r kill)",
+      "mcp__MiniMax__understand_image",
+      "Bash(xargs -r kill -9)",
+      "Bash(grep -r \"VITE_API_BASE_URL\" BillNote_frontend/.env* ../.env*)"
     ]
   }
 }

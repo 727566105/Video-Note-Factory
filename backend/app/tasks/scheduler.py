@@ -1,16 +1,24 @@
 """定时任务调度器"""
 import logging
+import os
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from dotenv import load_dotenv
 
 from app.db.webdav_config_dao import get_config
 from app.services.webdav_backup import WebDAVBackup
+from app.services.cache_cleaner import cache_cleaner_job, CACHE_TTL_DAYS
 from app.utils.logger import get_logger
+
+load_dotenv()
 
 logger = get_logger(__name__)
 
 # 全局调度器实例
 scheduler = BackgroundScheduler()
+
+# 缓存清理定时配置（Cron 表达式，默认每天凌晨 3 点执行）
+CACHE_CLEAN_SCHEDULE = os.getenv("CACHE_CLEAN_SCHEDULE", "0 3 * * *")
 
 
 def backup_job():
@@ -91,10 +99,40 @@ def start_scheduler():
 
             # 初始化定时任务
             update_scheduled_jobs()
+
+            # 添加缓存清理定时任务
+            _setup_cache_cleaner_job()
         else:
             logger.warning("Scheduler already running")
     except Exception as e:
         logger.error(f"Failed to start scheduler: {e}")
+
+
+def _setup_cache_cleaner_job():
+    """设置缓存清理定时任务"""
+    try:
+        # 解析 Cron 表达式
+        parts = CACHE_CLEAN_SCHEDULE.split()
+        if len(parts) == 5:
+            minute, hour, day, month, day_of_week = parts
+            scheduler.add_job(
+                cache_cleaner_job,
+                trigger=CronTrigger(
+                    minute=minute,
+                    hour=hour,
+                    day=day,
+                    month=month,
+                    day_of_week=day_of_week
+                ),
+                id="cache_cleaner",
+                name="缓存清理",
+                replace_existing=True
+            )
+            logger.info(f"已添加缓存清理定时任务 (TTL={CACHE_TTL_DAYS}天, Schedule={CACHE_CLEAN_SCHEDULE})")
+        else:
+            logger.error(f"无效的缓存清理 Cron 表达式: {CACHE_CLEAN_SCHEDULE}")
+    except Exception as e:
+        logger.error(f"设置缓存清理任务失败: {e}")
 
 
 def shutdown_scheduler():

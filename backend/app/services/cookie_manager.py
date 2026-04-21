@@ -39,6 +39,10 @@ class CookieConfigManager:
         # 检查是否已经是浏览器格式（包含 = 和 ; 但不包含 tab）
         if '=' in netscape_cookie and '\t' not in netscape_cookie and '; ' in netscape_cookie:
             return netscape_cookie
+
+        # 单个键值对格式（如 key=value），直接返回
+        if '=' in netscape_cookie and '\t' not in netscape_cookie:
+            return netscape_cookie
         
         # 处理单行格式（用空格分隔多个 cookie 条目）
         # 例如: "www.douyin.com\tFALSE\t/\tFALSE\t0\tname\tvalue www.douyin.com\tFALSE..."

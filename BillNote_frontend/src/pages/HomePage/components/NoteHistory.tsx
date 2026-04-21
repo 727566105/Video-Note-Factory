@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
 import PinyinMatch from 'pinyin-match'
 import Fuse from 'fuse.js'
-import { ArrowUpDown } from 'lucide-react'
+import { ArrowUpDown, XIcon } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 import {
@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip.tsx'
 import LazyImage from "@/components/LazyImage.tsx";
+import ImagePreviewDialog from "@/components/ImagePreviewDialog.tsx";
 import {FC, useState ,useEffect } from 'react'
 
 const PLATFORMS = [
@@ -39,13 +40,19 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const [search, setSearch] = useState('')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
   const [platformFilter, setPlatformFilter] = useState('all')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewImageUrl, setPreviewImageUrl] = useState('')
+  const [previewTitle, setPreviewTitle] = useState('')
   const fuse = new Fuse(tasks, {
     keys: ['audioMeta.title'],
     threshold: 0.4
   })
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (rawSearch === '') return
+      if (rawSearch === '') {
+        setSearch('')
+        return
+      }
       setSearch(rawSearch)
     }, 300)
 
@@ -87,13 +94,24 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
           </Select>
         </div>
         <div className="mb-2">
-          <input
-            type="text"
-            placeholder="搜索笔记标题..."
-            className="w-full rounded border border-neutral-300 px-3 py-1 text-sm outline-none focus:border-primary"
-            value={rawSearch}
-            onChange={e => setRawSearch(e.target.value)}
-          />
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="搜索笔记标题..."
+              className="w-full rounded border border-neutral-300 px-3 py-1 pr-8 text-sm outline-none focus:border-primary"
+              value={rawSearch}
+              onChange={e => setRawSearch(e.target.value)}
+            />
+            {rawSearch && (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                onClick={() => setRawSearch('')}
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
         <div className="rounded-md border border-neutral-200 bg-neutral-50 py-6 text-center">
           <p className="text-sm text-neutral-500">暂无记录</p>
@@ -152,25 +170,40 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
               className={cn('flex items-center gap-4')}
             >
               {/* 封面图 */}
-              {task.platform === 'local' ? (
-                <img
-                  src={
-                    task.audioMeta.cover_url ? `${task.audioMeta.cover_url}` : '/placeholder.png'
-                  }
-                  alt="封面"
-                  className="h-10 w-12 rounded-md object-cover"
-                />
-              ) : (
-                  <LazyImage
-
-                      src={
-                        task.audioMeta.cover_url
-                            ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
-                            : '/placeholder.png'
-                      }
-                      alt="封面"
+              <div
+                className="flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const url = task.platform === 'local'
+                    ? task.audioMeta.cover_url || '/placeholder.png'
+                    : task.audioMeta.cover_url
+                      ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                      : '/placeholder.png'
+                  setPreviewImageUrl(url)
+                  setPreviewTitle(task.audioMeta.title || '未命名笔记')
+                  setPreviewOpen(true)
+                }}
+              >
+                {task.platform === 'local' ? (
+                  <img
+                    src={
+                      task.audioMeta.cover_url ? `${task.audioMeta.cover_url}` : '/placeholder.png'
+                    }
+                    alt="封面"
+                    className="h-10 w-12 rounded-md object-cover"
                   />
-              )}
+                ) : (
+                    <LazyImage
+
+                        src={
+                          task.audioMeta.cover_url
+                              ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                              : '/placeholder.png'
+                        }
+                        alt="封面"
+                    />
+                )}
+              </div>
 
               {/* 标题 + 状态 */}
 
@@ -218,6 +251,12 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
           </div>
         ))}
       </div>
+      <ImagePreviewDialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        imageUrl={previewImageUrl}
+        title={previewTitle}
+      />
     </>
   )
 }
