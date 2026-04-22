@@ -2,6 +2,7 @@ import { FC } from 'react'
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog.tsx'
 
 interface ImagePreviewDialogProps {
@@ -23,6 +24,7 @@ const ImagePreviewDialog: FC<ImagePreviewDialogProps> = ({
         className="max-w-4xl w-full bg-black/90 border-none p-0 flex items-center justify-center [&>[data-slot=dialog-close]]:rounded-full [&>[data-slot=dialog-close]]:bg-white/80 [&>[data-slot=dialog-close]]:p-2 [&>[data-slot=dialog-close]]:text-black [&>[data-slot=dialog-close]]:opacity-100 [&>[data-slot=dialog-close]]:hover:bg-white"
         showCloseButton={true}
       >
+        <DialogTitle className="sr-only">{title}</DialogTitle>
         <div className="relative w-full h-full flex items-center justify-center p-4">
           <img
             src={imageUrl}

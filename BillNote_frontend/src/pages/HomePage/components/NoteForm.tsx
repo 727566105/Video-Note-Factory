@@ -414,7 +414,7 @@ const NoteForm = () => {
                     onOpenChange={() => {
                       loadEnabledModels()
                     }}
-                    value={field.value || undefined}
+                    value={field.value ?? ''}
                     onValueChange={field.onChange}
                   >
                     <FormControl>

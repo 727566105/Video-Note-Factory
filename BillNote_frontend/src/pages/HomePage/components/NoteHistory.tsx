@@ -7,6 +7,7 @@ import PinyinMatch from 'pinyin-match'
 import Fuse from 'fuse.js'
 import { ArrowUpDown, XIcon } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo } from '@/components/Icons/platform.tsx'
 
 import {
   Tooltip,
@@ -16,7 +17,7 @@ import {
 } from '@/components/ui/tooltip.tsx'
 import LazyImage from "@/components/LazyImage.tsx";
 import ImagePreviewDialog from "@/components/ImagePreviewDialog.tsx";
-import {FC, useState ,useEffect } from 'react'
+import {FC, useState ,useEffect, useMemo } from 'react'
 
 const PLATFORMS = [
   { value: 'all', label: '全部' },
@@ -26,6 +27,22 @@ const PLATFORMS = [
   { value: 'kuaishou', label: '快手' },
   { value: 'youtube', label: 'YouTube' },
 ]
+
+const PLATFORM_LABEL_MAP: Record<string, string> = {
+  bilibili: 'B站',
+  douyin: '抖音',
+  local: '本地',
+  kuaishou: '快手',
+  youtube: 'YouTube',
+}
+
+const PLATFORM_ICON_MAP: Record<string, React.FC> = {
+  bilibili: BiliBiliLogo,
+  douyin: DouyinLogo,
+  local: LocalLogo,
+  kuaishou: KuaishouLogo,
+  youtube: YoutubeLogo,
+}
 
 interface NoteHistoryProps {
   onSelect: (taskId: string) => void
@@ -43,10 +60,10 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewImageUrl, setPreviewImageUrl] = useState('')
   const [previewTitle, setPreviewTitle] = useState('')
-  const fuse = new Fuse(tasks, {
+  const fuse = useMemo(() => new Fuse(tasks, {
     keys: ['audioMeta.title'],
     threshold: 0.4
-  })
+  }), [tasks])
   useEffect(() => {
     const timer = setTimeout(() => {
       if (rawSearch === '') {
@@ -58,7 +75,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
 
     return () => clearTimeout(timer)
   }, [rawSearch])
-  const filteredTasks = (search.trim()
+  const filteredTasks = useMemo(() => (search.trim()
       ? fuse.search(search).map(result => result.item)
       : tasks
   )
@@ -67,7 +84,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
       const timeA = new Date(a.createdAt).getTime()
       const timeB = new Date(b.createdAt).getTime()
       return sortOrder === 'newest' ? timeB - timeA : timeA - timeB
-    })
+    }), [search, fuse, tasks, platformFilter, sortOrder])
   if (filteredTasks.length === 0) {
     return (
       <>
@@ -175,7 +192,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                 onClick={(e) => {
                   e.stopPropagation()
                   const url = task.platform === 'local'
-                    ? task.audioMeta.cover_url || '/placeholder.png'
+                    ? task.audioMeta.cover_url || '/local-video-cover.svg'
                     : task.audioMeta.cover_url
                       ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
                       : '/placeholder.png'
@@ -187,10 +204,11 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                 {task.platform === 'local' ? (
                   <img
                     src={
-                      task.audioMeta.cover_url ? `${task.audioMeta.cover_url}` : '/placeholder.png'
+                      task.audioMeta.cover_url ? `${task.audioMeta.cover_url}` : '/local-video-cover.svg'
                     }
                     alt="封面"
                     className="h-10 w-12 rounded-md object-cover"
+                    onError={(e) => { e.currentTarget.src = '/local-video-cover.svg' }}
                   />
                 ) : (
                     <LazyImage
@@ -222,8 +240,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                 </TooltipProvider>
               </div>
             </div>
-            <div className={'mt-2 flex items-center justify-between text-[10px]'}>
-              <div className="shrink-0">
+            <div className={'mt-2 flex items-center gap-1 text-[10px]'}>
                 {task.status === 'SUCCESS' && (
                   <div className={'bg-primary w-10 rounded p-0.5 text-center text-white'}>
                     已完成
@@ -239,14 +256,13 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                 {task.status === 'FAILED' && (
                   <div className={'w-10 rounded bg-red-500 p-0.5 text-center text-white'}>失败</div>
                 )}
-              </div>
-              {/*<div className="shrink-0">*/}
-              {/*  {task.status === 'SUCCESS' && <Badge variant="default">已完成</Badge>}*/}
-              {/*  {task.status !== 'SUCCESS' && task.status === 'FAILED' && (*/}
-              {/*    <Badge variant="outline">等待中</Badge>*/}
-              {/*  )}*/}
-              {/*  {task.status === 'FAILED' && <Badge variant="destructive">失败</Badge>}*/}
-              {/*</div>*/}
+                <div className={'flex items-center gap-0.5 rounded bg-neutral-200 px-1.5 py-0.5 text-neutral-600'}>
+                  {(() => {
+                    const Icon = PLATFORM_ICON_MAP[task.platform]
+                    return Icon ? <Icon className="h-3 w-3 rounded-sm" /> : null
+                  })()}
+                  {PLATFORM_LABEL_MAP[task.platform] || task.platform}
+                </div>
             </div>
           </div>
         ))}
