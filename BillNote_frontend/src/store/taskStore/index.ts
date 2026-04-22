@@ -221,51 +221,72 @@ export const useTaskStore = create<TaskStore>()(
         try {
           const response = await getTasks(100)
           if (response?.tasks) {
-            const backendTasks = response.tasks
-              .filter((t: BackendTask) => t.note !== null)
-              .map((t: BackendTask) => {
+            // 保留本地正在进行的任务（避免被后端数据覆盖）
+            const localPendingTasks = get().tasks.filter(
+              t => t.status !== 'SUCCESS' && t.status !== 'FAILED'
+            )
+
+            const backendTasks = response.tasks.map((t: BackendTask) => {
+              // 使用后端返回的 status，如果没有则根据 note 是否存在判断
+              const taskStatus = (t.status || (t.note ? 'SUCCESS' : 'PENDING')) as TaskStatus
+
+              // 处理 markdown 数据
+              let markdownValue: string | Markdown[] = ''
+              if (t.note) {
                 // 优先使用 versions 数组，否则使用 markdown 字符串（兼容旧数据）
-                const markdownValue = t.note.versions && t.note.versions.length > 0
+                markdownValue = t.note.versions && t.note.versions.length > 0
                   ? t.note.versions
                   : (t.note.markdown || '')
+              }
 
-                return {
-                  id: t.task_id,
-                  status: 'SUCCESS' as TaskStatus,
-                  markdown: markdownValue,
-                  transcript: t.note.transcript || {
-                    full_text: '',
-                    language: '',
-                    raw: null,
-                    segments: [],
-                  },
-                  createdAt: t.created_at || new Date().toISOString(),
-                  audioMeta: t.note.audio_meta || {
-                    cover_url: '',
-                    duration: 0,
-                    file_path: '',
-                    platform: t.platform,
-                    raw_info: null,
-                    title: t.note.title || '',
-                    video_id: t.video_id,
-                  },
+              return {
+                id: t.task_id,
+                status: taskStatus,
+                markdown: markdownValue,
+                transcript: t.note?.transcript || {
+                  full_text: '',
+                  language: '',
+                  raw: null,
+                  segments: [],
+                },
+                createdAt: t.created_at || new Date().toISOString(),
+                audioMeta: t.note?.audio_meta || {
+                  cover_url: '',
+                  duration: 0,
+                  file_path: '',
                   platform: t.platform,
-                  formData: {
-                    video_url: t.video_url || '',
-                    link: false,
-                    screenshot: false,
-                    platform: t.platform,
-                    quality: 'medium',
-                    model_name: t.note.model_name || '',
-                    style: t.note.style || '',
-                    provider_id: '',
-                  },
-                }
-              })
+                  raw_info: null,
+                  title: t.note?.title || '',
+                  video_id: t.video_id,
+                },
+                platform: t.platform,
+                formData: {
+                  video_url: t.video_url || '',
+                  link: false,
+                  screenshot: false,
+                  platform: t.platform,
+                  quality: 'medium',
+                  model_name: t.note?.model_name || '',
+                  style: t.note?.style || '',
+                  provider_id: '',
+                },
+              }
+            })
 
-            // 以后端数据为准，不保留本地独有的旧任务
-            // 这样删除后刷新就不会再出现了
-            set({ tasks: backendTasks })
+            // 合并策略：本地 pending 任务优先（状态更实时），再去重合并后端任务
+            const mergedTasks = [
+              ...localPendingTasks,
+              ...backendTasks.filter(
+                bt => !localPendingTasks.some(lt => lt.id === bt.id)
+              ),
+            ]
+
+            // 按 createdAt 排序（最新的在前）
+            mergedTasks.sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            )
+
+            set({ tasks: mergedTasks })
           }
         } catch (e) {
           console.error('加载历史任务失败:', e)

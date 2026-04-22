@@ -592,28 +592,35 @@ def get_tasks(limit: int = 100):
         result = []
 
         for task in db_tasks:
-            result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task.task_id}.json")
+            task_id = task.task_id
+            status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
+            result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
+
+            # 读取状态文件，获取任务进度
+            status = "SUCCESS"  # 默认值（已完成）
+            message = ""
+            if os.path.exists(status_path):
+                with open(status_path, "r", encoding="utf-8") as f:
+                    status_data = json.load(f)
+                    status = status_data.get("status", "PENDING")
+                    message = status_data.get("message", "")
+
+            # 读取笔记内容（如果存在）
+            note_data = None
             if os.path.exists(result_path):
                 with open(result_path, "r", encoding="utf-8") as f:
                     note_data = json.load(f)
-                result.append({
-                    "task_id": task.task_id,
-                    "video_id": task.video_id,
-                    "platform": task.platform,
-                    "video_url": task.video_url,
-                    "created_at": task.created_at.isoformat() if task.created_at else None,
-                    "note": note_data
-                })
-            else:
-                # 只有数据库记录，没有笔记文件的情况
-                result.append({
-                    "task_id": task.task_id,
-                    "video_id": task.video_id,
-                    "platform": task.platform,
-                    "video_url": task.video_url,
-                    "created_at": task.created_at.isoformat() if task.created_at else None,
-                    "note": None
-                })
+
+            result.append({
+                "task_id": task_id,
+                "video_id": task.video_id,
+                "platform": task.platform,
+                "video_url": task.video_url,
+                "created_at": task.created_at.isoformat() if task.created_at else None,
+                "status": status,
+                "message": message,
+                "note": note_data
+            })
 
         return R.success({"tasks": result})
     except Exception as e:

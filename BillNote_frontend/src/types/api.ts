@@ -60,6 +60,8 @@ export interface BackendTask {
   platform: string
   video_url: string | null
   created_at: string | null
+  status?: string    // 任务状态：PENDING/RUNNING/SUCCESS/FAILED 等
+  message?: string   // 进度提示信息
   note: BackendTaskNote | null
 }
 
