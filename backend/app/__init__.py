@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 
-from .routers import note, provider, model, config, export, siyuan, webdav, config_backup
+from .routers import note, provider, model, config, export, siyuan, webdav, config_backup, health
 
 
 def create_app(lifespan) -> FastAPI:
     app = FastAPI(title="BiliNote",lifespan=lifespan)
+    app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(note.router, prefix="/api")
     app.include_router(provider.router, prefix="/api")
     app.include_router(model.router,prefix="/api")
