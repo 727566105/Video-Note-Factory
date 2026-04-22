@@ -4,6 +4,7 @@ import {
   DouyinLogo,
   KuaishouLogo,
   LocalLogo,
+  AudioLogo,
   YoutubeLogo,
 } from '@/components/Icons/platform.tsx'
 
@@ -32,4 +33,5 @@ export const videoPlatforms = [
   { label: '抖音', value: 'douyin', logo: DouyinLogo },
   { label: '快手', value: 'kuaishou', logo: KuaishouLogo },
   { label: '本地视频', value: 'local', logo: LocalLogo },
+  { label: '本地音频', value: 'local_audio', logo: AudioLogo },
 ] as const

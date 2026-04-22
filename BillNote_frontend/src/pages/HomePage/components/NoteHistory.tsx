@@ -3,11 +3,10 @@ import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import { Badge } from '@/components/ui/badge.tsx'
 import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
-import PinyinMatch from 'pinyin-match'
 import Fuse from 'fuse.js'
 import { ArrowUpDown, XIcon } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo } from '@/components/Icons/platform.tsx'
+import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform.tsx'
 
 import {
   Tooltip,
@@ -24,6 +23,7 @@ const PLATFORMS = [
   { value: 'bilibili', label: '哔哩哔哩' },
   { value: 'douyin', label: '抖音' },
   { value: 'local', label: '本地视频' },
+  { value: 'local_audio', label: '本地音频' },
   { value: 'kuaishou', label: '快手' },
   { value: 'youtube', label: 'YouTube' },
 ]
@@ -32,6 +32,7 @@ const PLATFORM_LABEL_MAP: Record<string, string> = {
   bilibili: 'B站',
   douyin: '抖音',
   local: '本地',
+  local_audio: '本地音频',
   kuaishou: '快手',
   youtube: 'YouTube',
 }
@@ -40,6 +41,7 @@ const PLATFORM_ICON_MAP: Record<string, React.FC> = {
   bilibili: BiliBiliLogo,
   douyin: DouyinLogo,
   local: LocalLogo,
+  local_audio: AudioLogo,
   kuaishou: KuaishouLogo,
   youtube: YoutubeLogo,
 }
