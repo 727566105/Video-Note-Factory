@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import type { BackendTask } from '@/types/api'
 
 
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILD'
+export type TaskStatus = 'PENDING' | 'RUNNING' | 'QUEUED' | 'SUCCESS' | 'FAILD'
 
 export interface AudioMeta {
   cover_url: string

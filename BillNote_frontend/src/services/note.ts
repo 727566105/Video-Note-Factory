@@ -66,3 +66,20 @@ export const getTasks = async (limit: number = 100) => {
     throw e
   }
 }
+
+export const getQueueStatus = async () => {
+  try {
+    return await request.get('/task_queue/status', { headers: { 'X-Silent': 'true' } })
+  } catch {
+    return null
+  }
+}
+
+export const updateQueueConfig = async (maxConcurrent: number) => {
+  try {
+    return await request.post('/task_queue/config', { max_concurrent: maxConcurrent })
+  } catch (e) {
+    console.error('❌ 更新队列配置失败', e)
+    throw e
+  }
+}

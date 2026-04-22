@@ -5,6 +5,7 @@ import uuid
 import hashlib
 import ipaddress
 import socket
+import threading
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -19,6 +20,7 @@ from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
 from app.services.note import NoteGenerator, logger
+from app.services.task_queue import task_queue
 from app.services.cache_cleaner import clean_expired_cache, get_cache_stats, CACHE_TTL_DAYS
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
@@ -150,36 +152,84 @@ def save_note_to_file(task_id: str, note):
         json.dump(save_data, f, ensure_ascii=False, indent=2)
 
 
+def _save_queued_task_params(task_id: str, data: VideoRequest):
+    """保存排队任务的参数到文件，供后续拉起时读取"""
+    os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
+    queue_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.queue.json")
+    params = {
+        "video_url": data.video_url,
+        "platform": data.platform,
+        "quality": data.quality.value if isinstance(data.quality, DownloadQuality) else data.quality,
+        "link": data.link,
+        "screenshot": data.screenshot,
+        "model_name": data.model_name,
+        "provider_id": data.provider_id,
+        "_format": data.format,
+        "style": data.style,
+        "extras": data.extras,
+        "video_understanding": data.video_understanding,
+        "video_interval": data.video_interval,
+        "grid_size": data.grid_size,
+    }
+    with open(queue_path, "w", encoding="utf-8") as f:
+        json.dump(params, f, ensure_ascii=False)
+
+
+def _start_queued_task(task_id: str):
+    """从队列文件读取参数并在新线程中启动排队任务"""
+    queue_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.queue.json")
+    if not os.path.exists(queue_path):
+        logger.error(f"排队任务参数文件不存在: {task_id}")
+        return
+    try:
+        with open(queue_path, "r", encoding="utf-8") as f:
+            params = json.load(f)
+        os.remove(queue_path)
+        if "quality" in params and isinstance(params["quality"], str):
+            params["quality"] = DownloadQuality(params["quality"])
+        thread = threading.Thread(target=run_note_task, args=(task_id,), kwargs=params, daemon=True)
+        thread.start()
+        logger.info(f"排队任务 {task_id} 已在新线程中启动")
+    except Exception as e:
+        logger.error(f"启动排队任务失败: {task_id}, 错误: {e}")
+        task_queue.release(task_id)
+
+
 def run_note_task(task_id: str, video_url: str, platform: str, quality: DownloadQuality,
                   link: bool = False, screenshot: bool = False, model_name: str = None, provider_id: str = None,
                   _format: list = None, style: str = None, extras: str = None, video_understanding: bool = False,
                   video_interval=0, grid_size=[]
                   ):
+    try:
+        if not model_name or not provider_id:
+            raise HTTPException(status_code=400, detail="请选择模型和提供者")
 
-    if not model_name or not provider_id:
-        raise HTTPException(status_code=400, detail="请选择模型和提供者")
-
-    note = NoteGenerator().generate(
-        video_url=video_url,
-        platform=platform,
-        quality=quality,
-        task_id=task_id,
-        model_name=model_name,
-        provider_id=provider_id,
-        link=link,
-        _format=_format,
-        style=style,
-        extras=extras,
-        screenshot=screenshot
-        , video_understanding=video_understanding,
-        video_interval=video_interval,
-        grid_size=grid_size
-    )
-    logger.info(f"Note generated: {task_id}")
-    if not note or not note.markdown:
-        logger.warning(f"任务 {task_id} 执行失败，跳过保存")
-        return
-    save_note_to_file(task_id, note)
+        note = NoteGenerator().generate(
+            video_url=video_url,
+            platform=platform,
+            quality=quality,
+            task_id=task_id,
+            model_name=model_name,
+            provider_id=provider_id,
+            link=link,
+            _format=_format,
+            style=style,
+            extras=extras,
+            screenshot=screenshot
+            , video_understanding=video_understanding,
+            video_interval=video_interval,
+            grid_size=grid_size
+        )
+        logger.info(f"Note generated: {task_id}")
+        if not note or not note.markdown:
+            logger.warning(f"任务 {task_id} 执行失败，跳过保存")
+            return
+        save_note_to_file(task_id, note)
+    finally:
+        # 释放执行槽位，触发下一个排队任务
+        next_task_id = task_queue.release(task_id)
+        if next_task_id:
+            _start_queued_task(next_task_id)
 
 
 
@@ -201,6 +251,11 @@ def delete_task(data: RecordRequest):
                 if os.path.exists(file_path):
                     os.remove(file_path)
                     logger.info(f"已删除文件: {file_path}")
+            # 清理排队任务文件和队列
+            queue_file = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.queue.json")
+            if os.path.exists(queue_file):
+                os.remove(queue_file)
+            task_queue.remove(data.task_id)
         else:
             # 兼容旧逻辑：通过 video_id + platform 删除
             delete_task_by_video(data.video_id, data.platform)
@@ -254,29 +309,22 @@ async def upload(file: UploadFile = File(...)):
 @router.post("/generate_note")
 def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
     try:
-
         video_id = extract_video_id(data.video_url, data.platform)
-        # if not video_id:
-        #     raise HTTPException(status_code=400, detail="无法提取视频 ID")
-        # existing = get_task_by_video(video_id, data.platform)
-        # if existing:
-        #     return R.error(
-        #         msg='笔记已生成，请勿重复发起',
-        #
-        #     )
         if data.task_id:
-            # 如果传了task_id，说明是重试！
             task_id = data.task_id
-            # 更新之前的状态
             NoteGenerator()._update_status(task_id, TaskStatus.PENDING)
             logger.info(f"重试模式，复用已有 task_id={task_id}")
         else:
-            # 正常新建任务
             task_id = str(uuid.uuid4())
 
-        background_tasks.add_task(run_note_task, task_id, data.video_url, data.platform, data.quality, data.link,
-                                  data.screenshot, data.model_name, data.provider_id, data.format, data.style,
-                                  data.extras, data.video_understanding, data.video_interval, data.grid_size)
+        acquired = task_queue.acquire(task_id)
+        if acquired:
+            background_tasks.add_task(run_note_task, task_id, data.video_url, data.platform, data.quality, data.link,
+                                      data.screenshot, data.model_name, data.provider_id, data.format, data.style,
+                                      data.extras, data.video_understanding, data.video_interval, data.grid_size)
+        else:
+            _save_queued_task_params(task_id, data)
+
         return R.success({"task_id": task_id})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -688,3 +736,36 @@ def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None):
     except Exception as e:
         logger.error(f"缓存清理失败: {e}")
         return R.error(msg=str(e))
+
+
+# ==================== 任务队列配置接口 ====================
+
+class QueueConfigRequest(BaseModel):
+    max_concurrent: int
+
+    @field_validator("max_concurrent")
+    def validate_max_concurrent(cls, v):
+        if v < 1 or v > 10:
+            raise ValueError("最大并发数必须在 1-10 之间")
+        return v
+
+
+@router.get("/task_queue/status")
+def get_queue_status():
+    """获取当前任务队列状态"""
+    return R.success(task_queue.get_status())
+
+
+@router.post("/task_queue/config")
+def update_queue_config(data: QueueConfigRequest):
+    """更新任务队列配置"""
+    try:
+        task_queue.update_max_concurrent(data.max_concurrent)
+        return R.success(task_queue.get_status())
+    except Exception as e:
+        logger.error(f"更新队列配置失败: {e}")
+        return R.error(msg=str(e))
+
+
+# 注册队列管理器的任务启动回调（必须在 _start_queued_task 定义之后）
+task_queue.register_start_callback(_start_queued_task)
