@@ -3,6 +3,7 @@ import { SlidersHorizontal } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import logo from '@/assets/logo.png'
+import TaskStatusBar from '@/components/TaskStatusBar.tsx'
 
 interface IProps {
   NoteForm: React.ReactNode
@@ -27,6 +28,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
       </header>
 
       {/* 三栏布局 */}
+      <TaskStatusBar />
       <div className="flex flex-1 overflow-hidden">
         {/* 左侧面板 - 笔记表单 */}
         <div className="shrink-0 flex flex-col border-r border-neutral-200 bg-white w-full md:w-80 lg:w-96">

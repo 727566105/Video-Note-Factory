@@ -66,12 +66,6 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     keys: ['audioMeta.title'],
     threshold: 0.4
   }), [tasks])
-
-  const queueStats = useMemo(() => {
-    const running = tasks.filter(t => t.status !== 'SUCCESS' && t.status !== 'FAILED' && t.status !== 'QUEUED').length
-    const queued = tasks.filter(t => t.status === 'QUEUED').length
-    return { running, queued }
-  }, [tasks])
   useEffect(() => {
     const timer = setTimeout(() => {
       if (rawSearch === '') {
@@ -96,18 +90,6 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   if (filteredTasks.length === 0) {
     return (
       <>
-        {/* 进度概览条 */}
-        {(queueStats.running > 0 || queueStats.queued > 0) && (
-          <div className="mb-2 flex items-center gap-3 rounded-md bg-blue-50 px-3 py-1.5 text-xs text-blue-700">
-            <span>执行中 <b>{queueStats.running}</b></span>
-            {queueStats.queued > 0 && (
-              <>
-                <span className="text-blue-300">|</span>
-                <span>排队中 <b>{queueStats.queued}</b></span>
-              </>
-            )}
-          </div>
-        )}
         {/* 筛选栏 */}
         <div className="mb-2 flex flex-wrap items-center gap-2 pt-2.5">
           <button
@@ -160,18 +142,6 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
 
   return (
     <>
-      {/* 进度概览条 */}
-      {(queueStats.running > 0 || queueStats.queued > 0) && (
-        <div className="mb-2 flex items-center gap-3 rounded-md bg-blue-50 px-3 py-1.5 text-xs text-blue-700">
-          <span>执行中 <b>{queueStats.running}</b></span>
-          {queueStats.queued > 0 && (
-            <>
-              <span className="text-blue-300">|</span>
-              <span>排队中 <b>{queueStats.queued}</b></span>
-            </>
-          )}
-        </div>
-      )}
       {/* 筛选栏 */}
       <div className="mb-2 flex flex-wrap items-center gap-2 pt-2.5">
         <Button
