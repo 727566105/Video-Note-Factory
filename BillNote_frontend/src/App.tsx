@@ -22,7 +22,7 @@ import { useTaskStore } from '@/store/taskStore/index.ts'
 
 function App() {
   useTaskPolling(3000) // 每 3 秒轮询一次
-  const { loading, initialized } = useCheckBackend()
+  const { initialized } = useCheckBackend()
   const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
 
   // 在后端初始化完成后执行系统检查

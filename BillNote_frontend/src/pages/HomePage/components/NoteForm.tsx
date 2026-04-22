@@ -60,9 +60,9 @@ const formSchema = z
       .optional(),
   })
   .superRefine(({ video_url, platform }, ctx) => {
-    if (platform === 'local') {
+    if (platform === 'local' || platform === 'local_audio') {
       if (!video_url) {
-        ctx.addIssue({ code: 'custom', message: '本地视频路径不能为空', path: ['video_url'] })
+        ctx.addIssue({ code: 'custom', message: platform === 'local' ? '本地视频路径不能为空' : '本地音频路径不能为空', path: ['video_url'] })
       }
     }
     else {
@@ -212,38 +212,48 @@ const NoteForm = () => {
     setUploadSuccess(false)
 
     try {
-  
-      const  data  = await uploadFile(formData)
-        cb(data.url)
-        setUploadSuccess(true)
+      const data = await uploadFile(formData)
+      cb(data.url)
+      setUploadSuccess(true)
     } catch (err) {
       console.error('上传失败:', err)
-      // message.error('上传失败，请重试')
+      message.error('上传失败，请重试')
     } finally {
       setIsUploading(false)
     }
   }
 
   const onSubmit = async (values: NoteFormValues) => {
+    try {
+    // 如果 currentTaskId 存在但对应任务已不存在，清除它
+    const currentTask = getCurrentTask()
+    if (currentTaskId && !currentTask) {
+      setCurrentTask(null)
+    }
+    const effectiveTaskId = currentTask ? currentTaskId : null
+
     const payload: NoteFormValues = {
       ...values,
       provider_id: modelList.find(m => m.model_name === values.model_name)!.provider_id,
-      task_id: currentTaskId || '',
+      task_id: effectiveTaskId || '',
     }
 
     // 编辑模式下校验 video_url
-    if (currentTaskId) {
+    if (effectiveTaskId) {
       if (!payload.video_url) {
         message.error('该任务缺少视频链接，无法重新生成')
         return
       }
-      retryTask(currentTaskId, payload)
+      retryTask(effectiveTaskId, payload)
       return
     }
 
     // message.success('已提交任务')
     const data = await generateNote(payload)
     addPendingTask(data.task_id, values.platform, payload)
+    } catch (err) {
+      console.error('提交失败:', err)
+    }
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {
     const firstError = Object.values(errors)[0]
@@ -345,6 +355,10 @@ const NoteForm = () => {
                     <>
                       <Input disabled={!!editing} placeholder="请输入本地视频路径" {...field} />
                     </>
+                  ) : platform === 'local_audio' ? (
+                    <>
+                      <Input disabled={!!editing} placeholder="请输入本地音频路径" {...field} />
+                    </>
                   ) : (
                     <Input disabled={!!editing} placeholder="请输入视频网站链接" {...field} />
                   )}
@@ -389,8 +403,45 @@ const NoteForm = () => {
                         <p className="text-center text-sm text-green-500">上传成功！</p>
                       ) : (
                         <p className="text-center text-sm text-gray-500">
-                          拖拽文件到这里上传 <br />
+                          拖拽视频文件到这里上传 <br />
                           <span className="text-xs text-gray-400">或点击选择文件</span>
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+                {platform === 'local_audio' && (
+                  <>
+                    <div
+                      className="hover:border-primary mt-2 flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 transition-colors"
+                      onDragOver={e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                      onDrop={e => {
+                        e.preventDefault()
+                        const file = e.dataTransfer.files?.[0]
+                        if (file) handleFileUpload(file, field.onChange)
+                      }}
+                      onClick={() => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'audio/*'
+                        input.onchange = e => {
+                          const file = (e.target as HTMLInputElement).files?.[0]
+                          if (file) handleFileUpload(file, field.onChange)
+                        }
+                        input.click()
+                      }}
+                    >
+                      {isUploading ? (
+                        <p className="text-center text-sm text-blue-500">上传中，请稍候…</p>
+                      ) : uploadSuccess ? (
+                        <p className="text-center text-sm text-green-500">上传成功！</p>
+                      ) : (
+                        <p className="text-center text-sm text-gray-500">
+                          拖拽音频文件到这里上传 <br />
+                          <span className="text-xs text-gray-400">支持 mp3、wav、aac、flac 等格式</span>
                         </p>
                       )}
                     </div>
@@ -552,7 +603,7 @@ const NoteForm = () => {
                   value={field.value}
                   onChange={field.onChange}
                   disabledMap={{
-                    link: platform === 'local',
+                    link: platform === 'local' || platform === 'local_audio',
                     screenshot: !videoUnderstandingEnabled,
                   }}
                 />
