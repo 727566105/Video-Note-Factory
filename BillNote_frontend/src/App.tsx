@@ -13,10 +13,11 @@ import SiyuanSettings from '@/pages/SettingPage/Siyuan.tsx'
 import WebDAVSettings from '@/pages/SettingPage/WebDAV.tsx'
 import Downloader from '@/pages/SettingPage/Downloader.tsx'
 import DownloaderForm from '@/components/Form/DownloaderForm/Form.tsx'
+import TaskQueueSettings from '@/pages/SettingPage/TaskQueue.tsx'
 import { useEffect } from 'react'
 import { systemCheck } from '@/services/system.ts'
 import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
-import BackendInitDialog from '@/components/BackendInitDialog'
+import HomeSkeleton from '@/components/HomeSkeleton'
 import { useTaskStore } from '@/store/taskStore/index.ts'
 
 function App() {
@@ -34,11 +35,7 @@ function App() {
 
   // 如果后端还未初始化，显示初始化对话框
   if (!initialized) {
-    return (
-      <>
-        <BackendInitDialog open={loading} />
-      </>
-    )
+    return <HomeSkeleton />
   }
 
   // 后端已初始化，渲染主应用
@@ -57,6 +54,7 @@ function App() {
               <Route path="download" element={<Downloader />}>
                 <Route path=":id" element={<DownloaderForm />} />
               </Route>
+              <Route path="taskqueue" element={<TaskQueueSettings />} />
               <Route path="siyuan" element={<SiyuanSettings />} />
               <Route path="webdav" element={<WebDAVSettings />} />
               <Route path="about" element={<AboutPage />}></Route>

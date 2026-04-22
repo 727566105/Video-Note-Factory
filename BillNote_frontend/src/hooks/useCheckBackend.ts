@@ -5,7 +5,7 @@ const MAX_RETRIES = 3
 const RETRY_INTERVAL = 10000 // 10秒
 
 export const useCheckBackend = () => {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {

@@ -7,6 +7,7 @@ import {
   Info,
   BookOpen,
   Cloud,
+  ListOrdered,
 } from 'lucide-react'
 import MenuBar, { IMenuProps } from '@/pages/SettingPage/components/menuBar.tsx'
 
@@ -31,6 +32,12 @@ const Menu = () => {
       name: '下载配置',
       icon: <HardDriveDownload />,
       path: '/settings/download',
+    },
+    {
+      id: 'taskqueue',
+      name: '任务队列',
+      icon: <ListOrdered />,
+      path: '/settings/taskqueue',
     },
     {
       id: 'siyuan',
