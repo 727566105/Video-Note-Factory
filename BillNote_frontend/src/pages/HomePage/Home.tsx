@@ -6,14 +6,13 @@ import { useTaskStore } from '@/store/taskStore'
 import History from '@/pages/HomePage/components/History.tsx'
 type ViewStatus = 'idle' | 'loading' | 'success' | 'failed'
 export const HomePage: FC = () => {
-  const tasks = useTaskStore(state => state.tasks)
-  const currentTaskId = useTaskStore(state => state.currentTaskId)
-
-  const currentTask = tasks.find(t => t.id === currentTaskId)
+  // 用正确的 selector 直接获取 currentTask，避免订阅整个 tasks 数组
+  const currentTask = useTaskStore(state => {
+    const task = state.tasks.find(t => t.id === state.currentTaskId)
+    return task || null
+  })
 
   const [status, setStatus] = useState<ViewStatus>('idle')
-
-  const content = currentTask?.markdown || ''
 
   useEffect(() => {
     if (!currentTask) {

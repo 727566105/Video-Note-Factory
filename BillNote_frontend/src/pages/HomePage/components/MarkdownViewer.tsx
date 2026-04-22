@@ -46,15 +46,14 @@ const steps = [
 
 const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
   const [copied, setCopied] = useState(false)
-  const [currentVerId, setCurrentVerId] = useState<string>('')
-  const [selectedContent, setSelectedContent] = useState<string>('')
-  const [modelName, setModelName] = useState<string>('')
-  const [style, setStyle] = useState<string>('')
-  const [createTime, setCreateTime] = useState<string>('')
   // 确保baseURL没有尾部斜杠
   const baseURL = (String(import.meta.env.VITE_API_BASE_URL || '').replace('/api','') || '').replace(/\/$/, '')
-  const getCurrentTask = useTaskStore.getState().getCurrentTask
-  const currentTask = useTaskStore(state => state.getCurrentTask())
+
+  // 用正确的 selector 模式获取 currentTask，避免反模式
+  const currentTask = useTaskStore(state => {
+    const task = state.tasks.find(t => t.id === state.currentTaskId)
+    return task || null
+  })
   const removeTask = useTaskStore(state => state.removeTask)
   const taskStatus = currentTask?.status || 'PENDING'
   const retryTask = useTaskStore.getState().retryTask
@@ -62,40 +61,68 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
   const [showTranscribe, setShowTranscribe] = useState(false)
   const [viewMode, setViewMode] = useState<'map' | 'preview'>('preview')
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // 合并为单个状态对象，避免多次 setState 导致多次渲染
+  const [versionState, setVersionState] = useState({
+    currentVerId: '',
+    selectedContent: '',
+    modelName: '',
+    style: '',
+    createTime: '',
+  })
+
   // 多版本内容处理
   useEffect(() => {
     if (!currentTask) return
 
     if (!isMultiVersion) {
-      setCurrentVerId('') // 清空旧版本 ID
-      setModelName(currentTask.formData.model_name || '未知模型')
-      setStyle(currentTask.formData.style || 'detailed')
-      setCreateTime(currentTask.createdAt)
-      setSelectedContent(currentTask?.markdown)
+      setVersionState({
+        currentVerId: '',
+        selectedContent: currentTask.markdown as string || '',
+        modelName: currentTask.formData.model_name || '未知模型',
+        style: currentTask.formData.style || 'detailed',
+        createTime: currentTask.createdAt,
+      })
     } else {
       const latestVersion = [...currentTask.markdown].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )[0]
 
       if (latestVersion) {
-        setCurrentVerId(latestVersion.ver_id)
+        setVersionState({
+          currentVerId: latestVersion.ver_id,
+          selectedContent: latestVersion.content,
+          modelName: latestVersion.model_name || '未知模型',
+          style: latestVersion.style || 'detailed',
+          createTime: latestVersion.created_at || '',
+        })
       }
     }
-  }, [currentTask?.id, taskStatus])
+  }, [currentTask?.id])
+
   useEffect(() => {
     if (!currentTask || !isMultiVersion) return
+    if (!versionState.currentVerId) return
 
-    const currentVer = currentTask.markdown.find(v => v.ver_id === currentVerId)
+    const currentVer = currentTask.markdown.find(v => v.ver_id === versionState.currentVerId)
     if (currentVer) {
-      setModelName(currentVer.model_name || '未知模型')
-      setStyle(currentVer.style || 'detailed')
-      setCreateTime(currentVer.created_at || '')
-      setSelectedContent(currentVer.content)
+      setVersionState(prev => ({
+        ...prev,
+        selectedContent: currentVer.content,
+        modelName: currentVer.model_name || '未知模型',
+        style: currentVer.style || 'detailed',
+        createTime: currentVer.created_at || '',
+      }))
     }
-  }, [currentVerId, currentTask?.id])
+  }, [versionState.currentVerId])
+
+  const setCurrentVerId = (id: string) => {
+    setVersionState(prev => ({ ...prev, currentVerId: id }))
+  }
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(selectedContent)
+      await navigator.clipboard.writeText(versionState.selectedContent)
       setCopied(true)
       toast.success('已复制到剪贴板')
       setTimeout(() => setCopied(false), 2000)
@@ -131,9 +158,8 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
     },
   }
   const handleDownload = () => {
-    const task = getCurrentTask()
-    const name = task?.audioMeta.title || 'note'
-    const blob = new Blob([selectedContent], { type: 'text/markdown;charset=utf-8' })
+    const name = currentTask?.audioMeta?.title || 'note'
+    const blob = new Blob([versionState.selectedContent], { type: 'text/markdown;charset=utf-8' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = `${name}.md`
@@ -201,15 +227,15 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
       <MarkdownHeader
         currentTask={currentTask}
         isMultiVersion={isMultiVersion}
-        currentVerId={currentVerId}
+        currentVerId={versionState.currentVerId}
         setCurrentVerId={setCurrentVerId}
-        modelName={modelName}
-        style={style}
+        modelName={versionState.modelName}
+        style={versionState.style}
         noteStyles={noteStyles}
         onCopy={handleCopy}
         onDownload={handleDownload}
         onDelete={handleDelete}
-        createAt={createTime}
+        createAt={versionState.createTime}
         showTranscribe={showTranscribe}
         setShowTranscribe={setShowTranscribe}
         viewMode={viewMode}
@@ -220,7 +246,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
         <div className="flex w-full flex-1 overflow-hidden bg-white">
           <div className={'w-full'}>
             <MarkmapEditor
-              value={selectedContent}
+              value={versionState.selectedContent}
               onChange={() => {}}
               height="100%" // 根据需求可以设定百分比或固定高度
               title={currentTask?.audioMeta?.title || '思维导图'}
@@ -229,7 +255,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 flex-col bg-white">
-          {selectedContent && selectedContent !== 'loading' && selectedContent !== 'empty' ? (
+          {versionState.selectedContent && versionState.selectedContent !== 'loading' && versionState.selectedContent !== 'empty' ? (
             <>
               <div className="flex-1 overflow-y-auto p-3 md:p-6">
                 <div className={'markdown-body w-full'}>
@@ -481,7 +507,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                       ),
                     }}
                   >
-                    {selectedContent}
+                    {versionState.selectedContent}
                   </ReactMarkdown>
                 </div>
               </div>

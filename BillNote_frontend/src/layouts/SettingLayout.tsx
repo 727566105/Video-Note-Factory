@@ -1,11 +1,5 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip.tsx'
 import { Link, Outlet } from 'react-router-dom'
-import { SlidersHorizontal, Menu as MenuIcon, X } from 'lucide-react'
+import { ArrowLeft, Menu as MenuIcon, X } from 'lucide-react'
 import React, { useState } from 'react'
 import logo from '@/assets/logo.png'
 import { Button } from '@/components/ui/button'
@@ -19,8 +13,8 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
 
   return (
     <div className="flex h-screen w-full flex-col" style={{ backgroundColor: 'var(--color-muted)' }}>
-      {/* 移动端顶部导航栏 */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 lg:hidden">
+      {/* 顶部导航栏 - 全平台可见 */}
+      <header className="flex h-12 items-center justify-between border-b border-neutral-200 bg-white px-3 md:h-14 md:px-4">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -30,51 +24,27 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
           </Button>
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl">
+          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg md:h-8 md:w-8">
             <img src={logo} alt="logo" className="h-full w-full object-contain" />
           </div>
-          <div className="text-lg font-bold text-gray-800">设置</div>
+          <div className="text-base font-bold text-gray-800 md:text-lg">设置</div>
         </div>
         <Link to={'/'}>
-          <SlidersHorizontal className="h-5 w-5 cursor-pointer text-muted-foreground hover:text-primary" />
+          <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
         </Link>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* 移动端侧边栏 - 可折叠 */}
+        {/* 侧边栏 */}
         <aside
           className={`
-            fixed inset-y-0 left-0 z-50 w-[280px] transform border-r border-neutral-200 bg-white transition-transform duration-300 ease-in-out
-            lg:relative lg:z-0 lg:w-[375px] lg:translate-x-0
-            ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+            shrink-0 w-[280px] border-r border-neutral-200 bg-white transition-all duration-300 ease-in-out
+            lg:block lg:w-[375px]
+            ${mobileMenuOpen ? 'block' : 'hidden'}
           `}
         >
-          {/* 桌面端 Header */}
-          <header className="hidden h-16 shrink-0 items-center justify-between border-b px-6 lg:flex">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl">
-                <img src={logo} alt="logo" className="h-full w-full object-contain" />
-              </div>
-              <div className="text-2xl font-bold text-gray-800">videoNote</div>
-            </div>
-            <div>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Link to={'/'}>
-                      <SlidersHorizontal className="cursor-pointer text-muted-foreground hover:text-primary" />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <span>返回首页</span>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </header>
-
           {/* 菜单内容 */}
-          <div className="flex-1 overflow-auto p-4">
+          <div className="h-full overflow-auto p-4">
             <div onClick={() => setMobileMenuOpen(false)}>{Menu}</div>
           </div>
         </aside>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
+  <rect width="480" height="360" rx="12" fill="#F8F9FA"/>
+  <rect x="16" y="16" width="448" height="328" rx="8" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="1"/>
+  <!-- Folder back -->
+  <path d="M160 130 L220 130 L240 110 L360 110 L360 280 L120 280 L120 130 Z" fill="#FFD569" opacity="0.3"/>
+  <!-- Folder front -->
+  <path d="M120 160 L360 160 L360 280 L120 280 Z" fill="#FFC225" rx="4"/>
+  <path d="M120 160 L360 160 L360 280 L120 280 Z" fill="url(#folderGrad)" rx="4"/>
+  <defs>
+    <linearGradient id="folderGrad" x1="120" y1="160" x2="120" y2="280" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFD569"/>
+      <stop offset="100%" stop-color="#FFC225"/>
+    </linearGradient>
+  </defs>
+  <!-- Play button -->
+  <circle cx="240" cy="220" r="24" fill="#FFC225" opacity="0.6"/>
+  <polygon points="232,208 256,220 232,232" fill="#FFFFFF"/>
+  <!-- Text -->
+  <text x="240" y="310" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#9CA3AF">本地视频</text>
+</svg>
