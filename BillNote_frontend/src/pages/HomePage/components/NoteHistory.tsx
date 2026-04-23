@@ -50,6 +50,14 @@ const PLATFORM_ICON_MAP: Record<string, React.FC> = {
   youtube: YoutubeLogo,
 }
 
+const getTaskTitle = (task: { platform: string; formData?: { video_url?: string }; audioMeta: { title: string } }) => {
+  if ((task.platform === 'local_audio' || task.platform === 'local') && task.formData?.video_url) {
+    const filename = task.formData.video_url.split('/').pop() || ''
+    if (filename) return filename
+  }
+  return task.audioMeta.title || '未命名笔记'
+}
+
 interface NoteHistoryProps {
   onSelect: (taskId: string) => void
   selectedId: string | null
@@ -183,7 +191,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                         ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
                         : '/placeholder.png'
                     setPreviewImageUrl(url)
-                    setPreviewTitle(task.audioMeta.title || '未命名笔记')
+                    setPreviewTitle(getTaskTitle(task))
                     setPreviewOpen(true)
                   }}
                 >
@@ -216,11 +224,11 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className="line-clamp-2 max-w-[180px] flex-1 overflow-hidden text-sm text-ellipsis">
-                          {task.audioMeta.title || '未命名笔记'}
+                          {getTaskTitle(task)}
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>{task.audioMeta.title || '未命名笔记'}</p>
+                        <p>{getTaskTitle(task)}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

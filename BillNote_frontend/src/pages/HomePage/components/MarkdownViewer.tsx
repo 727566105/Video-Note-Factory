@@ -98,7 +98,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
         })
       }
     }
-  }, [currentTask?.id])
+  }, [currentTask?.id, currentTask?.markdown])
 
   useEffect(() => {
     if (!currentTask || !isMultiVersion) return
