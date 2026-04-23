@@ -206,6 +206,13 @@ const NoteForm = () => {
     currentTask?.formData?.video_url,
   ])
 
+  // 选择"本地音频"时自动切换到"会议纪要"风格
+  useEffect(() => {
+    if (platform === 'local_audio') {
+      form.setValue('style', 'meeting_minutes', { shouldValidate: true })
+    }
+  }, [platform])
+
   /* ---- 帮助函数 ---- */
   const isGenerating = () => !['SUCCESS', 'FAILED', undefined].includes(currentTask?.status)
   const generating = isGenerating()
@@ -380,7 +387,7 @@ const NoteForm = () => {
                 {platform === 'local' && (
                   <>
                     <div
-                      className="hover:border-primary mt-2 flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 transition-colors"
+                      className="hover:border-primary mt-2 flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 transition-colors"
                       onDragOver={e => {
                         e.preventDefault()
                         e.stopPropagation()
@@ -417,7 +424,7 @@ const NoteForm = () => {
                 {platform === 'local_audio' && (
                   <>
                     <div
-                      className="hover:border-primary mt-2 flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 transition-colors"
+                      className="hover:border-primary mt-2 flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 transition-colors"
                       onDragOver={e => {
                         e.preventDefault()
                         e.stopPropagation()
