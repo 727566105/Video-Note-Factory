@@ -1,0 +1,50 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: videonote-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8483}:8483"
+    volumes:
+      - ./data:/app/data
+      - ./note_results:/app/note_results
+      - ./static:/app/static
+      - ./uploads:/app/uploads
+      - ./models:/app/models
+    environment:
+      - BACKEND_PORT=8483
+      - BACKEND_HOST=0.0.0.0
+      - ENV=production
+      - STATIC=/static
+      - OUT_DIR=./static/screenshots
+      - NOTE_OUTPUT_DIR=note_results
+      - IMAGE_BASE_URL=/static/screenshots
+      - DATA_DIR=data
+      - TRANSCRIBER_TYPE=${TRANSCRIBER_TYPE:-fast-whisper}
+      - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - WEBDAV_ENCRYPTION_KEY=${WEBDAV_ENCRYPTION_KEY}
+      - DATABASE_URL=sqlite:///data/bili_note.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8483/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: BillNote_frontend/Dockerfile
+    container_name: videonote-frontend
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3015}:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

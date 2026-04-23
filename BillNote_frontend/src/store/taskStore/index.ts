@@ -46,6 +46,7 @@ export interface Task {
   audioMeta: AudioMeta
   createdAt: string
   platform: string
+  message?: string  // 错误信息，用于展示失败原因
   formData: {
     video_url: string
     link: undefined | boolean

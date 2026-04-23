@@ -480,7 +480,7 @@ const NoteForm = () => {
                     onValueChange={field.onChange}
                   >
                     <FormControl>
-                      <SelectTrigger className="w-full min-w-0 truncate">
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder={modelList.length === 0 ? '加载中…' : '请选择模型'} />
                       </SelectTrigger>
                     </FormControl>
@@ -511,14 +511,19 @@ const NoteForm = () => {
                     defaultValue={field.value}
                   >
                     <FormControl>
-                      <SelectTrigger className="w-full min-w-0 truncate">
-                        <SelectValue />
+                      <SelectTrigger className="w-full">
+                        <SelectValue>
+                          {noteStyles.find(s => s.value === field.value)?.label || '请选择风格'}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {noteStyles.map(({ label, value }) => (
+                      {noteStyles.map(({ label, value, desc }) => (
                         <SelectItem key={value} value={value}>
-                          {label}
+                          <div className="flex flex-col gap-1 py-0.5">
+                            <span className="font-medium">{label}</span>
+                            <span className="text-xs text-muted-foreground">{desc}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>

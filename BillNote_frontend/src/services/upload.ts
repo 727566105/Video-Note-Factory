@@ -5,5 +5,6 @@ export const uploadFile = (formData: FormData) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: 300000, // 上传大文件需要更长超时（5分钟）
   })
 }
