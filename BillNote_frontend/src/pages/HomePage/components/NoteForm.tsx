@@ -135,10 +135,8 @@ const NoteForm = () => {
   const { addPendingTask, currentTaskId, setCurrentTask, retryTask } = useTaskStore()
   const currentTask = useTaskStore(state => {
     const task = state.tasks.find(t => t.id === state.currentTaskId)
-    console.log('[NoteForm] selector 计算: currentTaskId=', state.currentTaskId, '找到的task=', task?.id, 'platform=', task?.formData?.platform)
     return task || null
   })
-  console.log('[NoteForm] 渲染时: currentTaskId=', currentTaskId, 'currentTask=', currentTask?.id, 'platform=', currentTask?.formData?.platform)
   const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint } = useModelStore()
 
   /* ---- 表单 ---- */
@@ -180,10 +178,8 @@ const NoteForm = () => {
     }
   }, [modelList.length, currentTaskId])
   useEffect(() => {
-    console.log('[NoteForm] form-reset effect 触发: currentTask=', currentTask?.id, 'platform=', currentTask?.formData?.platform, 'currentTaskId=', currentTaskId)
     if (!currentTask) return
     const { formData } = currentTask
-    console.log('[NoteForm] 即将 form.reset: platform=', formData.platform, 'video_url=', formData.video_url)
 
     form.reset({
       platform: formData.platform || 'bilibili',
@@ -204,8 +200,9 @@ const NoteForm = () => {
     currentTaskId,
     // modelList 用来兜底 model_name
     modelList.length,
-    // currentTask 变化时重新 reset（包含平台、链接等所有表单数据）
-    currentTask,
+    // 使用 formData 的具体字段作为依赖，避免 currentTask 对象引用变化导致的无限循环
+    currentTask?.formData?.platform,
+    currentTask?.formData?.video_url,
   ])
 
   /* ---- 帮助函数 ---- */
@@ -327,8 +324,9 @@ const NoteForm = () => {
                   <Select
                     disabled={!!editing}
                     value={field.value}
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    onValueChange={(v) => {
+                      if (v) field.onChange(v)
+                    }}
                   >
                     <FormControl>
                       <SelectTrigger className="w-32">
