@@ -1,9 +1,9 @@
 <div style="display: flex; justify-content: center; align-items: center; gap: 10px;
 ">
     <p align="center">
-  <img src="./doc/icon.svg" alt="BiliNote Banner" width="50" height="50"  />
+  <img src="./doc/icon.svg" alt="videoNote Banner" width="50" height="50"  />
 </p>
-<h1 align="center" > BiliNote v1.9.0</h1>
+<h1 align="center" > videoNote v1.9.0</h1>
 </div>
 
 <p align="center"><i>AI 视频笔记生成工具 让 AI 为你的视频做笔记</i></p>
@@ -21,7 +21,7 @@
 
 ## ✨ 项目简介
 
-BiliNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接或本地音视频文件，自动提取内容并生成结构清晰、重点明确的 Markdown 格式笔记。支持插入截图、原片跳转、批量生成等功能。
+videoNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接或本地音视频文件，自动提取内容并生成结构清晰、重点明确的 Markdown 格式笔记。支持插入截图、原片跳转、批量生成等功能。
 
 ## 📝 使用文档
 
@@ -65,7 +65,7 @@ BiliNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、Y
 ## 🏗️ 项目架构
 
 ```
-BiliNote/
+videoNote/
 ├── backend/                    # 后端服务 (FastAPI)
 │   ├── app/
 │   │   ├── downloaders/        # 视频下载器 (Bilibili/YouTube/抖音/快手)
