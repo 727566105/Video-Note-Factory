@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VideoNote Helper 设置</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 24px;
+      color: #4f46e5;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin-top: 24px;
+      margin-bottom: 16px;
+      color: #374151;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #374151;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      border-color: #4f46e5;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      width: auto;
+    }
+
+    .checkbox-item label {
+      margin-bottom: 0;
+      font-weight: normal;
+    }
+
+    .save-btn {
+      padding: 10px 24px;
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 16px;
+    }
+
+    .save-btn:hover {
+      background: #4338ca;
+    }
+
+    .message {
+      margin-top: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .message.success {
+      display: block;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+
+    .message.error {
+      display: block;
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>VideoNote Helper 设置</h1>
+
+    <h2>服务地址</h2>
+    <div class="form-group">
+      <label for="videoNoteUrl">VideoNote 服务地址</label>
+      <input type="url" id="videoNoteUrl" placeholder="http://localhost:8483">
+      <div class="hint">VideoNote 后端服务的完整地址</div>
+    </div>
+
+    <h2>默认参数</h2>
+    <div class="form-group">
+      <label for="defaultModel">默认模型</label>
+      <select id="defaultModel">
+        <option value="">加载中...</option>
+      </select>
+      <div class="hint">从 VideoNote 服务获取可用模型列表</div>
+    </div>
+
+    <div class="form-group">
+      <label for="defaultStyle">默认笔记风格</label>
+      <select id="defaultStyle">
+        <option value="精简">精简</option>
+        <option value="详细">详细</option>
+        <option value="学术">学术</option>
+        <option value="口语化">口语化</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>默认笔记格式</label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="format-toc" value="目录">
+          <label for="format-toc">目录</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="format-link" value="原片跳转">
+          <label for="format-link">原片跳转</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="format-summary" value="AI总结">
+          <label for="format-summary">AI 总结</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="defaultQuality">默认下载质量</label>
+      <select id="defaultQuality">
+        <option value="fast">快速</option>
+        <option value="medium">中等</option>
+        <option value="high">高质量</option>
+      </select>
+    </div>
+
+    <button class="save-btn" id="save-btn">保存设置</button>
+
+    <div class="message" id="save-message"></div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

@@ -83,7 +83,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_origin_regex="https?://localhost(:[0-9]+)?|https?://127\\.0\\.0\\.1(:[0-9]+)?",
+    allow_origin_regex=r"https?://localhost(:[0-9]+)?|https?://127\.0\.0\.1(:[0-9]+)?|chrome-extension://.*",
 )
 register_exception_handlers(app)
 app.mount(static_path, StaticFiles(directory=static_dir), name="static")

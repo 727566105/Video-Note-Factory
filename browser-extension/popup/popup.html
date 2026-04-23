@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VideoNote Helper</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Tab 导航 -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="cookie">Cookie 获取</button>
+      <button class="tab-btn" data-tab="submit">快捷提交</button>
+    </div>
+
+    <!-- Tab 1: Cookie 获取 -->
+    <div class="tab-content active" id="cookie-tab">
+      <div class="status-bar">
+        <span class="current-page-label">当前页面：</span>
+        <span class="current-page-name" id="current-page-name">未知</span>
+      </div>
+
+      <div class="platform-list">
+        <div class="platform-item" data-platform="bilibili">
+          <span class="platform-icon">📺</span>
+          <span class="platform-name">哔哩哔哩</span>
+          <span class="platform-status" id="bilibili-status"></span>
+          <span class="current-badge" id="bilibili-current"></span>
+        </div>
+        <div class="platform-item" data-platform="douyin">
+          <span class="platform-icon">🎵</span>
+          <span class="platform-name">抖音</span>
+          <span class="platform-status" id="douyin-status"></span>
+          <span class="current-badge" id="douyin-current"></span>
+        </div>
+        <div class="platform-item" data-platform="kuaishou">
+          <span class="platform-icon">⚡</span>
+          <span class="platform-name">快手</span>
+          <span class="platform-status" id="kuaishou-status"></span>
+          <span class="current-badge" id="kuaishou-current"></span>
+        </div>
+        <div class="platform-item" data-platform="youtube">
+          <span class="platform-icon">▶️</span>
+          <span class="platform-name">YouTube</span>
+          <span class="platform-status" id="youtube-status"></span>
+          <span class="current-badge" id="youtube-current"></span>
+        </div>
+      </div>
+
+      <button class="primary-btn" id="get-cookie-btn">获取 Cookie</button>
+
+      <div class="cookie-result" id="cookie-result" style="display: none;">
+        <textarea id="cookie-text" readonly></textarea>
+        <div class="action-buttons">
+          <button class="action-btn" id="copy-browser-btn">复制</button>
+          <button class="action-btn primary" id="push-btn">推送到 VideoNote</button>
+          <button class="action-btn" id="copy-netscape-btn">复制为 Netscape</button>
+        </div>
+      </div>
+
+      <div class="message" id="cookie-message"></div>
+    </div>
+
+    <!-- Tab 2: 快捷提交 -->
+    <div class="tab-content" id="submit-tab">
+      <div class="video-info">
+        <div class="info-row">
+          <label>视频 URL：</label>
+          <input type="text" id="video-url" readonly>
+        </div>
+        <div class="info-row">
+          <label>视频标题：</label>
+          <input type="text" id="video-title" readonly placeholder="未能获取">
+        </div>
+      </div>
+
+      <div class="preset-info">
+        <div class="info-row">
+          <label>模型：</label>
+          <span id="preset-model">未设置</span>
+        </div>
+        <div class="info-row">
+          <label>风格：</label>
+          <span id="preset-style">未设置</span>
+        </div>
+        <div class="info-row">
+          <label>格式：</label>
+          <span id="preset-format">未设置</span>
+        </div>
+        <a href="#" class="link-btn" id="open-options">⚙️ 修改设置</a>
+      </div>
+
+      <button class="primary-btn" id="submit-btn">提交笔记任务</button>
+
+      <div class="submit-result" id="submit-result" style="display: none;">
+        <div class="result-text" id="result-text"></div>
+        <button class="action-btn primary" id="view-note-btn" style="display: none;">查看笔记</button>
+      </div>
+
+      <div class="message" id="submit-message"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
