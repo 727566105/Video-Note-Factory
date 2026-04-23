@@ -1,59 +1,20 @@
-import { useState, forwardRef } from 'react';
-import toast from 'react-hot-toast';
-import { Image, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-
-export interface ImageTemplate {
-  id: string;
-  name: string;
-  description: string;
-  width: number;
-  preview: string;
-}
-
-const IMAGE_TEMPLATES: ImageTemplate[] = [
-  {
-    id: 'xiaohongshu',
-    name: '温暖橙粉',
-    description: '温暖渐变，柔和配色，适合生活分享',
-    width: 1080,
-    preview: '/templates/xiaohongshu-preview.png',
-  },
-  {
-    id: 'simple',
-    name: '极简黑白',
-    description: '黑白配色，极简设计，专业现代',
-    width: 1080,
-    preview: '/templates/simple-preview.png',
-  },
-  {
-    id: 'academic',
-    name: '学术蓝',
-    description: '深蓝配色，正式排版，适合学术笔记',
-    width: 1080,
-    preview: '/templates/academic-preview.png',
-  },
-];
+import { useState, forwardRef } from 'react'
+import { Image } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useTaskStore } from '@/store/taskStore'
+import ExportImageDialog from './ExportImageDialog'
 
 interface ExportImageButtonProps {
-  taskId: string;
-  disabled?: boolean;
-  variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
-  className?: string;
+  taskId: string
+  disabled?: boolean
+  variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive'
+  size?: 'default' | 'sm' | 'lg' | 'icon'
+  className?: string
 }
 
 /**
  * 图文导出按钮组件
- * 用于将笔记导出为图片格式，支持多种模板选择
+ * 点击后前端渲染笔记内容并生成 750px 宽度的长图，类似锤子笔记风格
  */
 export const ExportImageButton = forwardRef<HTMLButtonElement, ExportImageButtonProps>(({
   taskId,
@@ -62,146 +23,95 @@ export const ExportImageButton = forwardRef<HTMLButtonElement, ExportImageButton
   size = 'default',
   className = '',
 }, ref) => {
-  const [loading, setLoading] = useState(false);
-  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState('xiaohongshu');
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-  const handleExport = async (template: string) => {
-    setLoading(true);
-    setShowTemplateDialog(false);
-    try {
-      const response = await fetch(`/api/export/image/${taskId}?template=${template}`);
+  // 从 taskStore 获取当前任务的完整数据
+  const currentTask = useTaskStore(state => {
+    const task = state.tasks.find(t => t.id === taskId)
+    return task || null
+  })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: '导出失败' }));
-        throw new Error(errorData.detail || '导出失败');
-      }
+  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || '').replace('/api', '') || '').replace(/\/$/, '')
 
-      const blob = await response.blob();
-      const contentType = response.headers.get('Content-Type') || '';
-      const imageCount = response.headers.get('X-Image-Count') || '1';
-
-      // 从 Content-Disposition 头提取文件名
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `note_${taskId}.png`;
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-        if (filenameMatch) {
-          filename = decodeURIComponent(filenameMatch[1]);
-        } else {
-          const plainMatch = contentDisposition.match(/filename="([^"]+)"/i);
-          if (plainMatch) {
-            filename = plainMatch[1];
-          }
-        }
-      }
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      // 根据文件类型显示不同的成功消息
-      if (contentType.includes('zip')) {
-        toast.success(`图文导出成功（${imageCount}张图片已打包）`);
-      } else {
-        toast.success('图文导出成功');
-      }
-    } catch (error) {
-      console.error('图文导出失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '图文导出失败，请重试';
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
+  // 提取显示内容
+  const getContent = () => {
+    if (!currentTask?.markdown) return ''
+    if (Array.isArray(currentTask.markdown)) {
+      // 多版本取最新的
+      const sorted = [...currentTask.markdown].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      return sorted[0]?.content || ''
     }
-  };
+    return currentTask.markdown as string
+  }
 
-  const handleButtonClick = () => {
-    setShowTemplateDialog(true);
-  };
+  const getTitle = () => {
+    if (!currentTask) return '未命名笔记'
+    if (currentTask.platform === 'local_audio' || currentTask.platform === 'local') {
+      const filename = currentTask.formData?.video_url?.split('/').pop()
+      if (filename) return filename
+    }
+    return currentTask.audioMeta?.title || '未命名笔记'
+  }
 
-  const handleConfirmExport = () => {
-    handleExport(selectedTemplate);
-  };
+  const getCoverUrl = () => {
+    if (!currentTask?.audioMeta?.cover_url) return undefined
+    const isLocal = currentTask.platform === 'local' || currentTask.platform === 'local_audio'
+    if (isLocal) return currentTask.audioMeta.cover_url
+    return `${baseURL}/api/image_proxy?url=${encodeURIComponent(currentTask.audioMeta.cover_url)}`
+  }
+
+  const getModelName = () => {
+    if (!currentTask?.markdown) return currentTask?.formData?.model_name || ''
+    if (Array.isArray(currentTask.markdown)) {
+      const sorted = [...currentTask.markdown].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      return sorted[0]?.model_name || currentTask?.formData?.model_name || ''
+    }
+    return currentTask?.formData?.model_name || ''
+  }
+
+  const getStyle = () => {
+    if (!currentTask?.markdown) return currentTask?.formData?.style || ''
+    if (Array.isArray(currentTask.markdown)) {
+      const sorted = [...currentTask.markdown].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      return sorted[0]?.style || currentTask?.formData?.style || ''
+    }
+    return currentTask?.formData?.style || ''
+  }
 
   return (
     <>
       <Button
         ref={ref}
-        onClick={handleButtonClick}
-        disabled={disabled || loading}
+        onClick={() => setDialogOpen(true)}
+        disabled={disabled || !currentTask}
         variant={variant}
         size={size}
         className={className}
       >
-        {loading ? (
-          <>
-            <Image className="w-4 h-4 animate-pulse" />
-            <span>生成中...</span>
-          </>
-        ) : (
-          <>
-            <Image className="w-4 h-4" />
-            <span>导出图文</span>
-          </>
-        )}
+        <Image className="w-4 h-4" />
+        <span>导出图文</span>
       </Button>
 
-      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>选择图文模板</DialogTitle>
-            <DialogDescription>
-              选择一个模板样式来导出笔记为图片
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-4">
-            {IMAGE_TEMPLATES.map((template) => (
-              <button
-                key={template.id}
-                onClick={() => setSelectedTemplate(template.id)}
-                type="button"
-                className={`w-full flex items-start gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-gray-50 ${
-                  selectedTemplate === template.id ? 'border-primary bg-primary/5' : 'border-gray-200'
-                }`}
-              >
-                <div className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border ${
-                  selectedTemplate === template.id
-                    ? 'border-primary bg-primary'
-                    : 'border-gray-300'
-                }`}>
-                  {selectedTemplate === template.id && (
-                    <Check className="h-3 w-3 text-white" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium">{template.name}</div>
-                  <div className="text-sm text-gray-500 mt-1">{template.description}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowTemplateDialog(false)}
-            >
-              取消
-            </Button>
-            <Button type="button" onClick={handleConfirmExport} disabled={loading}>
-              {loading ? '生成中...' : '确认导出'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {currentTask && (
+        <ExportImageDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          taskId={taskId}
+          content={getContent()}
+          title={getTitle()}
+          coverUrl={getCoverUrl()}
+          platform={currentTask.platform}
+          modelName={getModelName()}
+          style={getStyle()}
+          createdAt={currentTask.createdAt}
+        />
+      )}
     </>
-  );
-});
+  )
+})
