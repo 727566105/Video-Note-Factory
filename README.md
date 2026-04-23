@@ -3,7 +3,7 @@
     <p align="center">
   <img src="./doc/icon.svg" alt="BiliNote Banner" width="50" height="50"  />
 </p>
-<h1 align="center" > BiliNote v1.8.1</h1>
+<h1 align="center" > BiliNote v1.9.0</h1>
 </div>
 
 <p align="center"><i>AI 视频笔记生成工具 让 AI 为你的视频做笔记</i></p>
@@ -21,7 +21,7 @@
 
 ## ✨ 项目简介
 
-BiliNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接，自动提取内容并生成结构清晰、重点明确的 Markdown 格式笔记。支持插入截图、原片跳转等功能。
+BiliNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、YouTube、抖音等视频链接或本地音视频文件，自动提取内容并生成结构清晰、重点明确的 Markdown 格式笔记。支持插入截图、原片跳转、批量生成等功能。
 
 ## 📝 使用文档
 
@@ -39,7 +39,8 @@ BiliNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、Y
 
 ### 📹 视频平台支持
 
-- **多平台下载**：Bilibili、YouTube、抖音、快手、本地视频
+- **多平台下载**：Bilibili、YouTube、抖音、快手、本地视频、本地音频
+- **批量生成**：支持批量提交视频链接，自动排队处理
 - **灵活扩展**：插件化下载器架构，易于添加新平台支持
 
 ### 📝 笔记生成
@@ -100,9 +101,9 @@ BiliNote/
 
 | 层级         | 技术                         | 说明                    |
 | ------------ | ---------------------------- | ----------------------- |
-| **前端**     | React 18 + TypeScript + Vite | 现代化前端框架          |
+| **前端**     | React 19 + TypeScript + Vite | 现代化前端框架          |
 | **状态管理** | Zustand + persist            | 轻量级状态管理          |
-| **UI 组件**  | TailwindCSS + shadcn/ui      | 原子化 CSS + 组件库     |
+| **UI 组件**  | Tailwind CSS 4.x + shadcn/ui | 原子化 CSS + 组件库     |
 | **后端**     | FastAPI + Python 3.13+       | 高性能异步 API 框架     |
 | **数据库**   | SQLite                       | 轻量级嵌入式数据库      |
 | **桌面**     | Tauri 2.x                    | Rust 驱动的桌面应用框架 |
@@ -154,7 +155,7 @@ pnpm install
 pnpm dev
 ```
 
-访问：`http://localhost:5173` （前端端口可能因占用而自动切换为 3018 等端口）
+访问：`http://localhost:3015` （前端端口可能因占用而自动切换）
 
 ### 🐳 使用 Docker 一键部署
 
@@ -252,10 +253,11 @@ sudo apt install ffmpeg
 - [x] 支持抖音及快手等视频平台
 - [x] 支持前端设置切换 AI 模型切换、语音转文字模型
 - [x] AI 摘要风格自定义（学术风、口语风、重点提取等）
+- [x] 加入更多模型支持（OpenAI、DeepSeek、Qwen 等）
+- [x] 加入更多音频转文本模型支持（Fast-Whisper、BCut、Groq 等）
+- [x] 支持本地音频文件处理
+- [x] 支持批量视频/音频处理
 - [ ] 笔记导出为 PDF / Word / Notion
-- [x] 加入更多模型支持
-- [x] 加入更多音频转文本模型支持
-- [ ] 支持批量视频处理
 - [ ] 支持视频剪辑功能
 - [ ] 移动端 App 开发
 
