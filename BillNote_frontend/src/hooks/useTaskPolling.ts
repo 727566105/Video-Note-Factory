@@ -6,8 +6,7 @@ import toast from 'react-hot-toast'
 export const useTaskPolling = (interval = 3000) => {
   const tasks = useTaskStore(state => state.tasks)
   const updateTaskContent = useTaskStore(state => state.updateTaskContent)
-  const updateTaskStatus = useTaskStore(state => state.updateTaskStatus)
-  const removeTask = useTaskStore(state => state.removeTask)
+  const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
 
   const tasksRef = useRef(tasks)
 
@@ -15,6 +14,15 @@ export const useTaskPolling = (interval = 3000) => {
   useEffect(() => {
     tasksRef.current = tasks
   }, [tasks])
+
+  // 定期从后端同步新任务（如从浏览器扩展提交的任务）
+  useEffect(() => {
+    const syncTimer = setInterval(async () => {
+      await loadTasksFromBackend()
+    }, 10000) // 10 秒同步一次
+
+    return () => clearInterval(syncTimer)
+  }, [loadTasksFromBackend])
 
   useEffect(() => {
     const timer = setInterval(async () => {

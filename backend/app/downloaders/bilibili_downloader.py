@@ -1,4 +1,5 @@
 import os
+import tempfile
 from abc import ABC
 from typing import Union, Optional
 
@@ -24,16 +25,34 @@ class BilibiliDownloader(Downloader, ABC):
     def __init__(self):
         super().__init__()
 
-    def _get_headers(self) -> dict:
-        """获取请求头，包含 cookie"""
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            'Referer': 'https://www.bilibili.com/',
-        }
-        cookie = cfm.get("bilibili")
-        if cookie:
-            headers['Cookie'] = cookie
-        return headers
+    def _write_cookiefile(self) -> Optional[str]:
+        """将 cookie 写入临时 Netscape 格式文件，返回文件路径"""
+        cookie_str = cfm.get("bilibili")
+        if not cookie_str:
+            return None
+
+        # 转换浏览器格式 cookie 为 Netscape 格式
+        lines = ["# Netscape HTTP Cookie File\n"]
+        for item in cookie_str.split(';'):
+            item = item.strip()
+            if '=' in item:
+                name, value = item.split('=', 1)
+                # Netscape 格式: domain flag path secure expiration name value
+                lines.append(f".bilibili.com\tTRUE\t/\tTRUE\t0\t{name.strip()}\t{value.strip()}\n")
+
+        # 写入临时文件
+        cookiefile = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+        cookiefile.write(''.join(lines))
+        cookiefile.close()
+        return cookiefile.name
+
+    def _cleanup_cookiefile(self, cookiefile: Optional[str]):
+        """清理临时 cookie 文件"""
+        if cookiefile and os.path.exists(cookiefile):
+            try:
+                os.remove(cookiefile)
+            except Exception:
+                pass
 
     def download(
         self,
@@ -49,6 +68,7 @@ class BilibiliDownloader(Downloader, ABC):
         os.makedirs(output_dir, exist_ok=True)
 
         output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
+        cookiefile = self._write_cookiefile()
 
         ydl_opts = {
             'format': 'bestaudio[ext=m4a]/bestaudio/best',
@@ -62,8 +82,9 @@ class BilibiliDownloader(Downloader, ABC):
             ],
             'noplaylist': True,
             'quiet': False,
-            'http_headers': self._get_headers(),
         }
+        if cookiefile:
+            ydl_opts['cookiefile'] = cookiefile
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -89,6 +110,8 @@ class BilibiliDownloader(Downloader, ABC):
             if "412" in error_msg or "Precondition Failed" in error_msg:
                 raise ValueError(BILI_COOKIE_ERROR_MSG) from e
             raise
+        finally:
+            self._cleanup_cookiefile(cookiefile)
 
     def download_video(
         self,
@@ -108,10 +131,8 @@ class BilibiliDownloader(Downloader, ABC):
         if os.path.exists(video_path):
             return video_path
 
-        # 检查是否已经存在
-
-
         output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
+        cookiefile = self._write_cookiefile()
 
         ydl_opts = {
             'format': 'bv*[ext=mp4]/bestvideo+bestaudio/best',
@@ -119,8 +140,9 @@ class BilibiliDownloader(Downloader, ABC):
             'noplaylist': True,
             'quiet': False,
             'merge_output_format': 'mp4',
-            'http_headers': self._get_headers(),
         }
+        if cookiefile:
+            ydl_opts['cookiefile'] = cookiefile
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -132,6 +154,8 @@ class BilibiliDownloader(Downloader, ABC):
             if "412" in error_msg or "Precondition Failed" in error_msg:
                 raise ValueError(BILI_COOKIE_ERROR_MSG) from e
             raise
+        finally:
+            self._cleanup_cookiefile(cookiefile)
 
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"视频文件未找到: {video_path}")
