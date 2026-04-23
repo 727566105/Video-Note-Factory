@@ -193,8 +193,10 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                 className="flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation()
-                  const url = task.platform === 'local'
-                    ? task.audioMeta.cover_url || '/local-video-cover.svg'
+                  const isLocal = task.platform === 'local' || task.platform === 'local_audio'
+                  const defaultCover = task.platform === 'local_audio' ? '/local-audio-cover.svg' : '/local-video-cover.svg'
+                  const url = isLocal
+                    ? task.audioMeta.cover_url || defaultCover
                     : task.audioMeta.cover_url
                       ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
                       : '/placeholder.png'
@@ -203,14 +205,16 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                   setPreviewOpen(true)
                 }}
               >
-                {task.platform === 'local' ? (
+                {(task.platform === 'local' || task.platform === 'local_audio') ? (
                   <img
                     src={
-                      task.audioMeta.cover_url ? `${task.audioMeta.cover_url}` : '/local-video-cover.svg'
+                      task.platform === 'local_audio'
+                        ? task.audioMeta.cover_url || '/local-audio-cover.svg'
+                        : task.audioMeta.cover_url || '/local-video-cover.svg'
                     }
                     alt="封面"
                     className="h-10 w-12 rounded-md object-cover"
-                    onError={(e) => { e.currentTarget.src = '/local-video-cover.svg' }}
+                    onError={(e) => { e.currentTarget.src = task.platform === 'local_audio' ? '/local-audio-cover.svg' : '/local-video-cover.svg' }}
                   />
                 ) : (
                     <LazyImage
