@@ -3,7 +3,7 @@
   "name": "VideoNote Helper",
   "version": "1.0.0",
   "description": "一键获取平台 Cookie 并快捷提交视频笔记任务到 VideoNote",
-  "permissions": ["cookies", "activeTab", "storage", "scripting", "permissions"],
+  "permissions": ["cookies", "activeTab", "storage", "scripting"],
   "host_permissions": [
     "*://*.bilibili.com/*",
     "*://*.douyin.com/*",
