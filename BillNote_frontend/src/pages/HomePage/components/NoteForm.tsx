@@ -132,8 +132,13 @@ const NoteForm = () => {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   /* ---- 全局状态 ---- */
-  const { addPendingTask, currentTaskId, setCurrentTask, getCurrentTask, retryTask } =
-    useTaskStore()
+  const { addPendingTask, currentTaskId, setCurrentTask, retryTask } = useTaskStore()
+  const currentTask = useTaskStore(state => {
+    const task = state.tasks.find(t => t.id === state.currentTaskId)
+    console.log('[NoteForm] selector 计算: currentTaskId=', state.currentTaskId, '找到的task=', task?.id, 'platform=', task?.formData?.platform)
+    return task || null
+  })
+  console.log('[NoteForm] 渲染时: currentTaskId=', currentTaskId, 'currentTask=', currentTask?.id, 'platform=', currentTask?.formData?.platform)
   const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint } = useModelStore()
 
   /* ---- 表单 ---- */
@@ -150,7 +155,6 @@ const NoteForm = () => {
       format: [],
     },
   })
-  const currentTask = getCurrentTask()
 
   /* ---- 派生状态（只 watch 一次，提高性能） ---- */
   const platform = useWatch({ control: form.control, name: 'platform' }) as string
@@ -176,8 +180,10 @@ const NoteForm = () => {
     }
   }, [modelList.length, currentTaskId])
   useEffect(() => {
+    console.log('[NoteForm] form-reset effect 触发: currentTask=', currentTask?.id, 'platform=', currentTask?.formData?.platform, 'currentTaskId=', currentTaskId)
     if (!currentTask) return
     const { formData } = currentTask
+    console.log('[NoteForm] 即将 form.reset: platform=', formData.platform, 'video_url=', formData.video_url)
 
     form.reset({
       platform: formData.platform || 'bilibili',
@@ -198,12 +204,12 @@ const NoteForm = () => {
     currentTaskId,
     // modelList 用来兜底 model_name
     modelList.length,
-    // 还要加上 formData 的各字段，或者直接 currentTask
-    currentTask?.formData,
+    // currentTask 变化时重新 reset（包含平台、链接等所有表单数据）
+    currentTask,
   ])
 
   /* ---- 帮助函数 ---- */
-  const isGenerating = () => !['SUCCESS', 'FAILED', undefined].includes(getCurrentTask()?.status)
+  const isGenerating = () => !['SUCCESS', 'FAILED', undefined].includes(currentTask?.status)
   const generating = isGenerating()
   const handleFileUpload = async (file: File, cb: (url: string) => void) => {
     const formData = new FormData()
@@ -226,7 +232,6 @@ const NoteForm = () => {
   const onSubmit = async (values: NoteFormValues) => {
     try {
     // 如果 currentTaskId 存在但对应任务已不存在，清除它
-    const currentTask = getCurrentTask()
     if (currentTaskId && !currentTask) {
       setCurrentTask(null)
     }
