@@ -19,7 +19,7 @@ const Provider = () => {
       <div className="mt-6 flex-1">
         {videoPlatforms &&
           videoPlatforms.map((provider, index) => {
-            if (provider.value !== 'local')
+            if (provider.value !== 'local' && provider.value !== 'local_audio')
               return (
                 <ProviderCard
                   key={index}
