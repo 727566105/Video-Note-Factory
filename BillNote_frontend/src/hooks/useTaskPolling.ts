@@ -38,16 +38,15 @@ export const useTaskPolling = (interval = 3000) => {
                 audioMeta: audio_meta,
               })
             } else if (status === 'FAILED') {
-              updateTaskContent(task.id, { status })
+              updateTaskContent(task.id, { status, message: res?.message })
             } else {
               updateTaskContent(task.id, { status })
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error('❌ 任务轮询失败：', e)
-          // toast.error(`生成失败 ${e.message || e}`)
-          updateTaskContent(task.id, { status: 'FAILED' })
-          // removeTask(task.id)
+          const message = e?.msg || ''
+          updateTaskContent(task.id, { status: 'FAILED', message })
         }
       }
     }, interval)

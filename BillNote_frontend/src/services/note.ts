@@ -50,10 +50,6 @@ export const get_task_status = async (task_id: string) => {
     return await request.get('/task_status/' + task_id)
   } catch (e) {
     console.error('❌ 请求出错', e)
-
-    // 错误提示
-    toast.error('笔记生成失败，请稍后重试')
-
     throw e // 抛出错误以便调用方处理
   }
 }

@@ -21,13 +21,11 @@ const PLATFORM_LABEL_MAP: Record<string, string> = {
 interface ExportImageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  taskId: string
   content: string
   title: string
   coverUrl?: string
   platform?: string
   modelName?: string
-  style?: string
   createdAt?: string
 }
 
@@ -56,12 +54,6 @@ const ExportImageDialog = ({
 
   // 构建 iframe 内容 HTML
   const buildHTML = useCallback(() => {
-    const escapedContent = content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-
-    // 使用 marked CDN 在 iframe 内渲染 markdown
     return `<!DOCTYPE html>
 <html>
 <head>

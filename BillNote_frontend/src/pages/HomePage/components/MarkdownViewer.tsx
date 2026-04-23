@@ -207,12 +207,13 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
   }
 
   if (status === 'failed' && !isMultiVersion) {
+    const errorMessage = currentTask?.message || '请检查后台或稍后再试'
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 space-y-3">
         <Error />
         <div className="text-center">
           <p className="text-lg font-bold text-red-500">笔记生成失败</p>
-          <p className="mt-2 mb-2 text-xs text-red-400">请检查后台或稍后再试</p>
+          <p className="mt-2 mb-2 text-xs text-red-400">{errorMessage}</p>
 
           <Button onClick={() => retryTask(currentTask.id)} size="lg">
             重试

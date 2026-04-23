@@ -73,17 +73,6 @@ export const ExportImageButton = forwardRef<HTMLButtonElement, ExportImageButton
     return currentTask?.formData?.model_name || ''
   }
 
-  const getStyle = () => {
-    if (!currentTask?.markdown) return currentTask?.formData?.style || ''
-    if (Array.isArray(currentTask.markdown)) {
-      const sorted = [...currentTask.markdown].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
-      return sorted[0]?.style || currentTask?.formData?.style || ''
-    }
-    return currentTask?.formData?.style || ''
-  }
-
   return (
     <>
       <Button
@@ -102,13 +91,11 @@ export const ExportImageButton = forwardRef<HTMLButtonElement, ExportImageButton
         <ExportImageDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          taskId={taskId}
           content={getContent()}
           title={getTitle()}
           coverUrl={getCoverUrl()}
           platform={currentTask.platform}
           modelName={getModelName()}
-          style={getStyle()}
           createdAt={currentTask.createdAt}
         />
       )}
