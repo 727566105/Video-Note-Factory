@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { getDownloaderCookie, updateDownloaderCookie } from '@/services/downloader'
-import { useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import { videoPlatforms } from '@/constant/note.ts'
 import { Copy, Eye, EyeOff } from 'lucide-react'
 
@@ -24,32 +24,31 @@ const CookieSchema = z.object({
 })
 
 const DownloaderForm = () => {
+  const { id } = useParams()
   const form = useForm({
     resolver: zodResolver(CookieSchema),
     defaultValues: { cookie: '' },
   })
-  const { id } = useParams()
-
   const [loading, setLoading] = useState(true)
   const [showCookie, setShowCookie] = useState(false)
 
   useEffect(() => {
     const loadCookie = async () => {
-      setLoading(true) // 🔁 切换平台时显示 loading
+      setLoading(true)
       try {
         const res = await getDownloaderCookie(id)
         const cookie = res?.cookie || ''
-        form.reset({ cookie }) // ✅ 正确重置表单值
+        form.reset({ cookie })
       } catch (e) {
         toast.error('加载 Cookie 失败: ' + e)
-        form.reset({ cookie: '' }) // ❗失败时也要清空旧值
+        form.reset({ cookie: '' })
       } finally {
         setLoading(false)
       }
     }
 
     if (id) loadCookie()
-  }, [id]) // 🔁 每当 id 变化时触发
+  }, [id])
 
   const handleCopy = () => {
     if (form.getValues('cookie')) {
@@ -70,6 +69,11 @@ const DownloaderForm = () => {
     } catch (e) {
       toast.error('保存失败')
     }
+  }
+
+  // 本地视频和本地音频不需要配置 Cookie，重定向回下载器列表
+  if (id === 'local' || id === 'local_audio') {
+    return <Navigate to="/settings/download" replace />
   }
 
   if (loading) return <div className="p-4">加载中...</div>
