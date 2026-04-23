@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select.tsx'
 import { Input } from '@/components/ui/input.tsx'
+import { ClearableInput } from '@/components/ui/clearable-input.tsx'
 import { Textarea } from '@/components/ui/textarea.tsx'
 import { noteStyles, noteFormats, videoPlatforms } from '@/constant/note.ts'
 import { fetchModels } from '@/services/model.ts'
@@ -356,14 +357,14 @@ const NoteForm = () => {
                 <FormItem className="flex-1">
                   {platform === 'local' ? (
                     <>
-                      <Input disabled={!!editing} placeholder="请输入本地视频路径" {...field} />
+                      <ClearableInput disabled={!!editing} placeholder="请输入本地视频路径" {...field} />
                     </>
                   ) : platform === 'local_audio' ? (
                     <>
-                      <Input disabled={!!editing} placeholder="请输入本地音频路径" {...field} />
+                      <ClearableInput disabled={!!editing} placeholder="请输入本地音频路径" {...field} />
                     </>
                   ) : (
-                    <Input disabled={!!editing} placeholder="请输入视频网站链接" {...field} />
+                    <ClearableInput disabled={!!editing} placeholder="请输入视频网站链接" {...field} />
                   )}
                   <FormMessage style={{ display: 'none' }} />
                 </FormItem>
