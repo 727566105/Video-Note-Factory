@@ -108,6 +108,22 @@
       background: #4338ca;
     }
 
+    .test-btn {
+      padding: 8px 20px;
+      background: #6b7280;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 8px;
+    }
+
+    .test-btn:hover {
+      background: #4b5563;
+    }
+
     .message {
       margin-top: 12px;
       padding: 8px 12px;
@@ -139,8 +155,10 @@
     <div class="form-group">
       <label for="videoNoteUrl">VideoNote 服务地址</label>
       <input type="url" id="videoNoteUrl" placeholder="http://localhost:8483">
-      <div class="hint">VideoNote 后端服务的完整地址</div>
+      <div class="hint">VideoNote 后端服务的完整地址（如 https://your-domain:port）</div>
     </div>
+    <button class="test-btn" id="test-btn">测试连接</button>
+    <div class="message" id="test-message"></div>
 
     <h2>默认参数</h2>
     <div class="form-group">

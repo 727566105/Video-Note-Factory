@@ -39,15 +39,34 @@ python main.py              # 启动后端 (默认端口 8483)
 ### 前端开发
 ```bash
 cd BillNote_frontend
-pnpm install
-pnpm dev                    # 启动开发服务器 (默认端口 5173)
+pnpm install                # 安装依赖
+pnpm dev                    # 启动开发服务器 (端口动态分配，默认 3015)
 pnpm build                  # 构建生产版本
+pnpm build --mode tauri     # 构建 Tauri 桌面应用版本
 pnpm lint                   # ESLint 检查
+pnpm preview                # 预览构建结果
 ```
 
 ### Docker 部署
 ```bash
 docker-compose up --build   # 构建并启动所有服务
+```
+
+## 项目结构
+
+```
+BiliNote/
+├── backend/                    # 后端服务 (FastAPI)
+├── BillNote_frontend/          # 前端服务 (React + TypeScript)
+│   └── src-tauri/              # Tauri 桌面应用配置
+├── browser-extension/          # Chrome 浏览器插件
+│   ├── manifest.json           # 插件配置
+│   ├── popup/                  # 弹窗页面
+│   ├── options/                # 设置页面
+│   └── background/             # Service Worker
+├── doc/                        # 文档资源
+├── nginx/                      # Nginx 配置
+└── .env.example                # 环境变量模板
 ```
 
 ## 架构说明
@@ -78,24 +97,49 @@ docker-compose up --build   # 构建并启动所有服务
 
 ### 前端架构 (BillNote_frontend/)
 
-1. **状态管理** (`src/store/`)
-   - `taskStore`: 管理笔记生成任务，支持版本控制
-   - `modelStore`: 管理 AI 模型配置
-   - `configStore`: 应用全局配置
-   - 使用 Zustand + persist 中间件持久化
+**技术栈**: React 19 + TypeScript + Vite + Tailwind CSS 4.x + Zustand + shadcn/ui + antd
 
-2. **服务层** (`src/services/`)
-   - 基于 axios 的统一请求封装 (`src/utils/request.ts`)
-   - 响应拦截器统一处理错误提示
+1. **状态管理** (`src/store/`) — 各 store 独立管理，使用 `persist` 中间件持久化到 localStorage
 
-3. **路由设计** (`src/App.tsx`)
-   - 首页: 笔记生成和查看
-   - 设置页: 模型/下载器配置
-   - 嵌套路由用于表单复用
+   | Store | 职责 |
+   |-------|------|
+   | `taskStore` | 笔记任务管理，支持版本控制 |
+   | `modelStore` | AI 模型配置列表 |
+   | `providerStore` | 模型供应商配置 |
+   | `configStore` | 应用全局配置 |
+   | `siyuanStore` | 思源笔记集成 |
+   | `webdavStore` | WebDAV 备份配置 |
+
+2. **路由结构** (`src/App.tsx`)
+   ```
+   /                          → 首页 (笔记生成)
+   /settings/model            → 模型供应商列表
+   /settings/model/new        → 新建供应商
+   /settings/model/:id        → 编辑供应商
+   /settings/download/:id     → 编辑下载器
+   /settings/siyuan           → 思源笔记配置
+   /settings/webdav           → WebDAV 备份配置
+   /settings/about            → 关于页面
+   ```
+
+3. **请求封装** (`src/utils/request.ts`)
+   - 基于 axios，后端返回格式 `{ code, msg, data }`，`code === 0` 为成功
+   - 错误时自动 toast 提示
 
 4. **任务轮询** (`src/hooks/useTaskPolling.ts`)
-   - 每 3 秒轮询后端任务状态
-   - 自动更新前端任务列表
+   - 每 3 秒轮询 `/api/task_status/{task_id}`
+   - 仅轮询 PENDING/RUNNING 状态的任务
+
+5. **Tauri 桌面应用**
+   - 配置文件：`src-tauri/tauri.conf.json`
+   - 构建命令：`pnpm build --mode tauri`
+
+### 浏览器插件 (browser-extension/)
+
+Chrome 插件 "VideoNote Helper"，功能：
+- 一键获取 B站/抖音/快手/YouTube 平台 Cookie
+- 快捷提交视频链接到 VideoNote 后端
+- Manifest V3，Service Worker 后台运行
 
 ## 开发注意事项
 
@@ -132,12 +176,26 @@ docker-compose up --build   # 构建并启动所有服务
 
 ## 关键文件位置
 
-- 后端入口: [backend/main.py](backend/main.py)
-- 核心服务: [backend/app/services/note.py](backend/app/services/note.py)
-- API 路由: [backend/app/routers/](backend/app/routers/)
-- 前端入口: [BillNote_frontend/src/App.tsx](BillNote_frontend/src/App.tsx)
-- 请求封装: [BillNote_frontend/src/utils/request.ts](BillNote_frontend/src/utils/request.ts)
-- 环境配置: [.env.example](.env.example)
+- 后端入口: `backend/main.py`
+- 核心服务: `backend/app/services/note.py`
+- API 路由: `backend/app/routers/`
+- 前端入口: `BillNote_frontend/src/App.tsx`
+- 请求封装: `BillNote_frontend/src/utils/request.ts`
+- 浏览器插件: `browser-extension/manifest.json`
+- 环境配置: `.env.example`
+
+## 环境变量
+
+关键配置项（参考 `.env.example`）：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `TRANSCRIBER_TYPE` | 转写引擎类型 | `fast-whisper` |
+| `WHISPER_MODEL_SIZE` | Whisper 模型大小 | `base` |
+| `BACKEND_PORT` | 后端端口 | `8483` |
+| `FRONTEND_PORT` | 前端端口 | `3015` |
+| `VITE_API_BASE_URL` | 前端访问后端地址 | `http://127.0.0.1:8483` |
+| `WEBDAV_ENCRYPTION_KEY` | WebDAV 加密密钥 | 需自行设置 |
 
 ## 缓存机制
 

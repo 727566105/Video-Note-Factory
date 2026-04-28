@@ -27,7 +27,7 @@ const MenuBar: ({ menuItem }: { menuItem: any }) => JSX.Element = ({ menuItem })
           (isActive ? ' bg-[#F0F0F0] font-semibold text-blue-600' : '')
         }
       >
-        <div className="h-6 w-6">{menuItem.icon}</div>
+        <div>{menuItem.icon}</div>
         <div className="text-[16px]">{menuItem.name}</div>
       </div>
     </Link>

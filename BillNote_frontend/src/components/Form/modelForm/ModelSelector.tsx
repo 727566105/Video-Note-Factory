@@ -1,55 +1,112 @@
 import { useState, useEffect } from 'react'
 import { useModelStore } from '@/store/modelStore'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import toast from 'react-hot-toast'
-import { RefreshCw, Plus, Search } from 'lucide-react'
+import { RefreshCw, Search, Check, X } from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { batchAddModels } from '@/services/model'
+
+interface ExistingModel {
+  id: string
+  model_name: string
+}
 
 interface ModelSelectorProps {
   providerId: string
-  onModelAdded?: () => void
+  existingModels?: ExistingModel[]
+  onDeleteModel?: (modelId: string) => void
+  onModelsAdded?: () => void
 }
 
-export function ModelSelector({ providerId, onModelAdded }: ModelSelectorProps) {
-  const { models, loading, selectedModel, loadModels, setSelectedModel, addNewModel } =
-    useModelStore()
+export function ModelSelector({ providerId, existingModels = [], onDeleteModel, onModelsAdded }: ModelSelectorProps) {
+  const { models, loading, loadModels } = useModelStore()
   const [search, setSearch] = useState('')
+  const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
 
+  const existingModelNames = existingModels.map(m => m.model_name)
+
+  // 过滤模型列表
   const filteredModels = models.filter(model => {
     const keywords = search.trim().toLowerCase().split(/\s+/)
     const target = model.id.toLowerCase()
     return keywords.every(kw => target.includes(kw))
   })
 
+  // 可选的模型（排除已添加的）
+  const availableCount = filteredModels.filter(m => !existingModelNames.includes(m.id)).length
+
+  // 加载模型列表
   useEffect(() => {
     if (providerId) {
       loadModels(providerId)
     }
   }, [providerId])
 
-  const handleSubmit = async () => {
-    if (!selectedModel) {
-      toast.error('请选择一个模型')
+  // 刷新模型列表
+  const handleRefresh = () => {
+    if (providerId) {
+      loadModels(providerId)
+    }
+  }
+
+  // 全选/取消全选（仅可选模型）
+  const handleSelectAll = () => {
+    const available = filteredModels.filter(m => !existingModelNames.includes(m.id))
+    if (selectedModels.length === available.length) {
+      setSelectedModels([])
+    } else {
+      setSelectedModels(available.map(m => m.id))
+    }
+  }
+
+  // 单个模型选择
+  const handleToggle = (modelId: string) => {
+    setSelectedModels(prev =>
+      prev.includes(modelId)
+        ? prev.filter(id => id !== modelId)
+        : [...prev, modelId]
+    )
+  }
+
+  // 批量添加模型
+  const handleAddModels = async () => {
+    if (selectedModels.length === 0) {
+      toast.error('请选择至少一个模型')
       return
     }
+
+    const duplicateNames = selectedModels.filter(name => existingModelNames.includes(name))
+    const newModelNames = selectedModels.filter(name => !existingModelNames.includes(name))
+
+    if (newModelNames.length === 0) {
+      toast('这些模型已添加，无需重复添加', { icon: '⚠️' })
+      setSelectedModels([])
+      return
+    }
+
     try {
       setSubmitting(true)
-      await addNewModel(providerId, selectedModel)
-      toast.success('添加模型成功 🎉')
-      setSelectedModel('') // 清空选择
-      if (onModelAdded) {
-        onModelAdded()
+      const items = newModelNames.map(name => ({
+        provider_id: providerId,
+        model_name: name,
+      }))
+      await batchAddModels(items)
+
+      if (duplicateNames.length > 0) {
+        toast.success(`已添加 ${newModelNames.length} 个新模型，跳过 ${duplicateNames.length} 个已存在模型`)
+      } else {
+        toast.success(`成功添加 ${newModelNames.length} 个模型 🎉`)
+      }
+
+      setSelectedModels([])
+      if (onModelsAdded) {
+        onModelsAdded()
       }
     } catch (error) {
-      toast.error('添加失败，请重试')
+      toast.error('添加模型失败，请重试')
     } finally {
       setSubmitting(false)
     }
@@ -57,18 +114,19 @@ export function ModelSelector({ providerId, onModelAdded }: ModelSelectorProps) 
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4">
+      {/* 标题栏 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-            <Plus className="h-4 w-4 text-blue-600" />
+            <Check className="h-4 w-4 text-blue-600" />
           </div>
-          <span className="font-medium text-gray-900">添加模型</span>
+          <span className="font-medium text-gray-900">模型管理</span>
         </div>
         <Button
           variant="outline"
           size="sm"
           type="button"
-          onClick={() => loadModels(providerId)}
+          onClick={handleRefresh}
           disabled={loading}
           className="gap-1.5"
         >
@@ -77,63 +135,128 @@ export function ModelSelector({ providerId, onModelAdded }: ModelSelectorProps) 
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Select value={selectedModel} onValueChange={setSelectedModel}>
-          <SelectTrigger className="flex-1">
-            <SelectValue placeholder="请选择要添加的模型" />
-          </SelectTrigger>
-          <SelectContent>
-            <div className="sticky top-0 bg-white p-2 pb-1">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                <Input
-                  placeholder="搜索模型名称..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="h-8 pl-8"
-                />
-              </div>
-            </div>
-            <div className="max-h-[300px] overflow-y-auto">
-              {filteredModels.length > 0 ? (
-                filteredModels.map((model, index) => (
-                  <SelectItem 
-                    key={`${model.id}-${index}`} 
-                    value={model.id}
-                    className="cursor-pointer"
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{model.id}</span>
-                      {model.owned_by && (
-                        <span className="text-xs text-gray-500">by {model.owned_by}</span>
+      {/* 左右分栏 */}
+      <div className="flex gap-4">
+        {/* 左侧：可选模型 */}
+        <div className="flex flex-1 flex-col gap-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-gray-700">可选模型</span>
+            {filteredModels.length > 0 && (
+              <button onClick={handleSelectAll} className="text-blue-600 hover:text-blue-800">
+                {selectedModels.length === availableCount ? '取消全选' : '全选'}
+              </button>
+            )}
+          </div>
+
+          {/* 搜索框 */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="搜索模型名称..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-10 h-8 text-sm"
+            />
+          </div>
+
+          {/* 模型列表 */}
+          <ScrollArea className="h-[280px] rounded-md border">
+            {filteredModels.length > 0 ? (
+              <div className="p-1">
+                {filteredModels.map(model => {
+                  const isExisting = existingModelNames.includes(model.id)
+                  return (
+                    <div
+                      key={model.id}
+                      className={`flex items-center gap-2 py-1.5 px-2 rounded text-sm ${
+                        isExisting
+                          ? 'bg-gray-50 cursor-not-allowed'
+                          : 'hover:bg-gray-50 cursor-pointer'
+                      }`}
+                      onClick={() => !isExisting && handleToggle(model.id)}
+                    >
+                      <Checkbox
+                        checked={selectedModels.includes(model.id)}
+                        disabled={isExisting}
+                        onCheckedChange={() => !isExisting && handleToggle(model.id)}
+                        className="shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className={`truncate ${isExisting ? 'text-gray-400' : 'text-gray-900'}`}>
+                          {model.id}
+                        </div>
+                      </div>
+                      {isExisting && (
+                        <span className="shrink-0 text-xs text-gray-400">已添加</span>
                       )}
                     </div>
-                  </SelectItem>
-                ))
-              ) : (
-                <div className="p-4 text-center text-sm text-gray-500">
-                  {search ? '未找到匹配的模型' : '暂无可用模型'}
-                </div>
-              )}
-            </div>
-          </SelectContent>
-        </Select>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex min-h-[280px] items-center justify-center text-sm text-gray-500">
+                {search ? '未找到匹配的模型' : '暂无可用模型'}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
 
-        <Button 
-          onClick={handleSubmit} 
-          disabled={submitting || !selectedModel}
-          className="gap-1.5 sm:w-auto"
-        >
-          <Plus className="h-4 w-4" />
-          {submitting ? '添加中...' : '添加模型'}
-        </Button>
+        {/* 右侧：已启用模型 */}
+        <div className="flex flex-1 flex-col gap-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-gray-700">
+              已启用 <span className="text-blue-600">({existingModels.length})</span>
+            </span>
+          </div>
+
+          {/* 占位（与左侧搜索框对齐） */}
+          <div className="h-8" />
+
+          {/* 已启用模型列表 */}
+          <ScrollArea className="h-[280px] rounded-md border">
+            {existingModels.length > 0 ? (
+              <div className="p-1">
+                {existingModels.map(model => (
+                  <div
+                    key={model.id}
+                    className="flex items-center justify-between gap-2 py-1.5 px-2 rounded text-sm hover:bg-gray-50 group"
+                  >
+                    <span className="truncate text-gray-900">{model.model_name}</span>
+                    {onDeleteModel && (
+                      <button
+                        onClick={() => onDeleteModel(model.id)}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[280px] items-center justify-center text-sm text-gray-500">
+                暂无已启用模型
+              </div>
+            )}
+          </ScrollArea>
+        </div>
       </div>
 
-      {models.length > 0 && (
-        <div className="text-xs text-gray-500">
-          共 {models.length} 个可用模型
-        </div>
-      )}
+      {/* 底部操作 */}
+      <div className="flex items-center justify-between border-t pt-3">
+        <span className="text-sm text-gray-600">
+          已选 <span className="font-semibold text-blue-600">{selectedModels.length}</span> 个模型
+        </span>
+        <Button
+          onClick={handleAddModels}
+          disabled={submitting || selectedModels.length === 0}
+          size="sm"
+          className="gap-1.5"
+        >
+          <Check className="h-4 w-4" />
+          {submitting ? '添加中...' : '添加已选模型'}
+        </Button>
+      </div>
     </div>
   )
 }

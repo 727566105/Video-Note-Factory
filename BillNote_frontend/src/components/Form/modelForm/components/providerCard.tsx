@@ -4,6 +4,7 @@ import styles from './index.module.css'
 import { useNavigate, useParams } from 'react-router-dom'
 import AILogo from '@/components/Form/modelForm/Icons'
 import { useProviderStore } from '@/store/providerStore'
+import { useModelStore } from '@/store/modelStore'
 export interface IProviderCardProps {
   id: string
   providerName: string
@@ -18,14 +19,17 @@ const ProviderCard: FC<IProviderCardProps> = ({
 }: IProviderCardProps) => {
   const navigate = useNavigate()
   const updateProvider = useProviderStore(state => state.updateProvider)
+  const loadEnabledModels = useModelStore(state => state.loadEnabledModels)
   const handleClick = () => {
     navigate(`/settings/model/${id}`)
   }
-  const handleEnable = () => {
-    updateProvider({
+  const handleEnable = async () => {
+    await updateProvider({
       id,
       enabled: enable == 1 ? 0 : 1,
     })
+    // 刷新首页模型列表
+    loadEnabledModels()
   }
   // @ts-ignore
   const { id: currentId } = useParams()
@@ -52,6 +56,7 @@ const ProviderCard: FC<IProviderCardProps> = ({
         <Switch
           onClick={e => {
             e.preventDefault()
+            e.stopPropagation()
             handleEnable()
           }}
           checked={enable == 1}
