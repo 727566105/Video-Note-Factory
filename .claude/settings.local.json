@@ -86,7 +86,8 @@
       "mcp__chrome__wait_for",
       "mcp__shadcn__get_add_command_for_items",
       "Bash(npx shadcn@latest add progress)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }

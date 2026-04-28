@@ -66,7 +66,6 @@ app = create_app(lifespan=lifespan)
 origins = [
     "http://localhost",
     "http://127.0.0.1",
-    "http://tauri.localhost",
     "http://localhost:3000",
     "http://localhost:3015",
     "http://localhost:3018",

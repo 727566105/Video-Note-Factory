@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 BiliNote 是一个 AI 视频笔记生成工具，支持从 Bilibili、YouTube、抖音等平台下载视频，通过 AI 转写和总结生成 Markdown 笔记。
 
-**技术栈**: FastAPI (后端) + React/TypeScript (前端) + Tauri (桌面应用)
+**技术栈**: FastAPI (后端) + React/TypeScript (前端)
 
 ## 常用命令
 
@@ -42,7 +42,6 @@ cd BillNote_frontend
 pnpm install                # 安装依赖
 pnpm dev                    # 启动开发服务器 (端口动态分配，默认 3015)
 pnpm build                  # 构建生产版本
-pnpm build --mode tauri     # 构建 Tauri 桌面应用版本
 pnpm lint                   # ESLint 检查
 pnpm preview                # 预览构建结果
 ```
@@ -58,7 +57,6 @@ docker-compose up --build   # 构建并启动所有服务
 BiliNote/
 ├── backend/                    # 后端服务 (FastAPI)
 ├── BillNote_frontend/          # 前端服务 (React + TypeScript)
-│   └── src-tauri/              # Tauri 桌面应用配置
 ├── browser-extension/          # Chrome 浏览器插件
 │   ├── manifest.json           # 插件配置
 │   ├── popup/                  # 弹窗页面
@@ -129,10 +127,6 @@ BiliNote/
 4. **任务轮询** (`src/hooks/useTaskPolling.ts`)
    - 每 3 秒轮询 `/api/task_status/{task_id}`
    - 仅轮询 PENDING/RUNNING 状态的任务
-
-5. **Tauri 桌面应用**
-   - 配置文件：`src-tauri/tauri.conf.json`
-   - 构建命令：`pnpm build --mode tauri`
 
 ### 浏览器插件 (browser-extension/)
 
