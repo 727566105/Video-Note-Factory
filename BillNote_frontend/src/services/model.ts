@@ -57,3 +57,14 @@ export const deleteModelById = async (modelId: number) => {
 export const deleteProvider = async (id: string) => {
   return await request.delete(`/delete_provider/${id}`)
 }
+
+// 批量添加模型
+export interface BatchAddModelItem {
+  provider_id: string
+  model_name: string
+}
+
+export const batchAddModels = async (items: BatchAddModelItem[]) => {
+  // 如果后端没有批量接口，使用 Promise.all 并发调用
+  return Promise.all(items.map(item => addModel(item)))
+}

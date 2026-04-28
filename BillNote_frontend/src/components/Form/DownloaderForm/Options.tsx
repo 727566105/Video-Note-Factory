@@ -13,7 +13,7 @@ const Provider = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex w-full flex-col gap-2">
+      <div>
         <div className="text-sm font-medium text-gray-800">下载器配置</div>
       </div>
       <div className="mt-6 flex-1">

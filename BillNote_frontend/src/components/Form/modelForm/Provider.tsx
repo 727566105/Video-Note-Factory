@@ -11,6 +11,13 @@ const Provider = () => {
     navigate(`/settings/model/new`)
   }
 
+  // 排序：已启用(enabled=1)排前面，已关闭(enabled=0)排后面
+  const sortedProviders = [...providers].sort((a, b) => {
+    const aEnabled = a.enabled ?? 0
+    const bEnabled = b.enabled ?? 0
+    return bEnabled - aEnabled
+  })
+
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-col gap-3">
@@ -28,8 +35,8 @@ const Provider = () => {
       <div className="flex flex-col gap-2">
         <div className="text-xs font-medium text-gray-500">已添加的供应商</div>
         <div className="flex flex-col gap-1">
-          {providers && providers.length > 0 ? (
-            providers.map((provider, index) => (
+          {sortedProviders && sortedProviders.length > 0 ? (
+            sortedProviders.map((provider, index) => (
               <ProviderCard
                 key={index}
                 providerName={provider.name}

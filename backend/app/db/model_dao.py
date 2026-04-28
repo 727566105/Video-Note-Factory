@@ -65,3 +65,18 @@ def get_all_models():
         ]
     finally:
         db.close()
+
+
+def get_models_by_provider_ids(provider_ids: list):
+    """获取指定供应商 ID 列表下的所有模型"""
+    if not provider_ids:
+        return []
+    db = next(get_db())
+    try:
+        models = db.query(Model).filter(Model.provider_id.in_(provider_ids)).all()
+        return [
+            {"id": m.id, "provider_id": m.provider_id, "model_name": m.model_name}
+            for m in models
+        ]
+    finally:
+        db.close()

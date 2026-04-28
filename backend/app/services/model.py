@@ -1,6 +1,6 @@
 
 
-from app.db.model_dao import insert_model, get_all_models, get_model_by_provider_and_name, delete_model
+from app.db.model_dao import insert_model, get_model_by_provider_and_name, delete_model, get_models_by_provider_ids
 from app.db.provider_dao import get_enabled_providers
 from app.enmus.exception import ProviderErrorEnum
 from app.exceptions.provider import ProviderError
@@ -43,7 +43,13 @@ class ModelService:
     @staticmethod
     def get_all_models(verbose: bool = False):
         try:
-            raw_models = get_all_models()
+            # 获取已启用的供应商 ID 列表
+            enabled_providers = get_enabled_providers()
+            enabled_ids = [p.id for p in enabled_providers]
+
+            # 只查询这些供应商下的模型
+            raw_models = get_models_by_provider_ids(enabled_ids) if enabled_ids else []
+
             if verbose:
                 print(f"所有模型列表: {raw_models}")
             return ModelService._format_models(raw_models)
@@ -52,14 +58,7 @@ class ModelService:
             return []
     @staticmethod
     def get_all_models_safe(verbose: bool = False):
-        try:
-            raw_models = get_all_models()
-            if verbose:
-                print(f"所有模型列表: {raw_models}")
-            return ModelService._format_models(raw_models)
-        except Exception as e:
-            print(f"获取所有模型失败: {e}")
-            return []
+        return ModelService.get_all_models(verbose)
     @staticmethod
     def _format_models(raw_models: list) -> list:
         """

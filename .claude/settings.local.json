@@ -80,7 +80,13 @@
       "Bash(xargs -r kill)",
       "mcp__MiniMax__understand_image",
       "Bash(xargs -r kill -9)",
-      "Bash(grep -r \"VITE_API_BASE_URL\" BillNote_frontend/.env* ../.env*)"
+      "Bash(grep -r \"VITE_API_BASE_URL\" BillNote_frontend/.env* ../.env*)",
+      "mcp__chrome__list_network_requests",
+      "mcp__chrome__get_network_request",
+      "mcp__chrome__wait_for",
+      "mcp__shadcn__get_add_command_for_items",
+      "Bash(npx shadcn@latest add progress)",
+      "Bash(git checkout:*)"
     ]
   }
 }

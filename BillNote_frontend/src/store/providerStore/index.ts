@@ -6,6 +6,8 @@ import {
   getProviderById,
   getProviderList,
   updateProviderById,
+  batchAddModels,
+  BatchAddModelItem,
 } from '@/services/model.ts'
 
 interface ProviderStore {
@@ -17,6 +19,7 @@ interface ProviderStore {
   fetchProviderList: () => Promise<void>
   loadProviderById: (id: string) => Promise<void>
   addNewProvider: (provider: IProvider) => Promise<void>
+  addNewProviderWithModels: (provider: IProvider, models: string[]) => Promise<string>
   updateProvider: (provider: IProvider) => Promise<void>
   deleteProvider: (id: string) => Promise<void>
 }
@@ -62,15 +65,34 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
     }
     try {
       const data = await addProvider(payload)
-      // addProvider 已经返回 res.data，直接使用
       const item = data
-
       await get().fetchProviderList()
       return item.id || item
     } catch (error) {
       console.error('Error adding provider:', error)
       throw error
     }
+  },
+  // 一气呵成：保存供应商 + 批量添加模型
+  addNewProviderWithModels: async (provider: IProvider, modelNames: string[]) => {
+    const payload = {
+      ...provider,
+      api_key: provider.apiKey,
+      base_url: provider.baseUrl,
+    }
+    const data = await addProvider(payload)
+    const newId = data.id || data
+
+    if (modelNames.length > 0) {
+      const items: BatchAddModelItem[] = modelNames.map(name => ({
+        provider_id: newId,
+        model_name: name,
+      }))
+      await batchAddModels(items)
+    }
+
+    await get().fetchProviderList()
+    return newId
   },
   // 按 id 获取单个 provider
   getProviderById: id => get().provider.find(p => p.id === id),
@@ -89,9 +111,8 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       if (provider.logo !== undefined) data.logo = provider.logo
       
       const res = await updateProviderById(data)
-      if (res.data.code === 0) {
-        await get().fetchProviderList()
-      }
+      await get().fetchProviderList()
+      return res
     } catch (error) {
       console.error('Error updating provider:', error)
       throw error
