@@ -12,7 +12,6 @@
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" />
   <img src="https://img.shields.io/badge/frontend-React%20%2B%20TypeScript-blue" />
   <img src="https://img.shields.io/badge/backend-FastAPI-green" />
-  <img src="https://img.shields.io/badge/desktop-Tauri-FFC131" />
   <img src="https://img.shields.io/badge/GPT-OpenAI%20%7C%20DeepSeek%20%7C%20Qwen%20%7C%20自定义-ff69b4" />
   <img src="https://img.shields.io/badge/docker-compose-blue" />
   <img src="https://img.shields.io/badge/status-active-success" />
@@ -87,7 +86,6 @@ videoNote/
 │   │   ├── services/           # API 服务
 │   │   ├── hooks/              # 自定义 Hooks
 │   │   └── utils/              # 工具函数
-│   ├── src-tauri/              # Tauri 桌面应用配置
 │   └── package.json            # Node 依赖
 │
 ├── doc/                        # 文档资源
@@ -106,7 +104,6 @@ videoNote/
 | **UI 组件**  | Tailwind CSS 4.x + shadcn/ui | 原子化 CSS + 组件库     |
 | **后端**     | FastAPI + Python 3.13+       | 高性能异步 API 框架     |
 | **数据库**   | SQLite                       | 轻量级嵌入式数据库      |
-| **桌面**     | Tauri 2.x                    | Rust 驱动的桌面应用框架 |
 | **部署**     | Docker + Nginx               | 容器化部署方案          |
 
 ### 核心流程

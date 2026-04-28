@@ -8,7 +8,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pnpm install          # 安装依赖
 pnpm dev              # 启动开发服务器 (端口 3015)
 pnpm build            # 构建生产版本
-pnpm build --mode tauri  # 构建 Tauri 桌面应用版本
 pnpm lint             # ESLint 检查
 pnpm preview          # 预览构建结果
 ```
@@ -80,8 +79,3 @@ src/
 ├── hooks/            # 自定义 hooks
 └── store/            # Zustand stores
 ```
-
-### Tauri 桌面应用
-配置文件：`src-tauri/tauri.conf.json`
-- 前端构建命令：`pnpm build --mode tauri`
-- 开发端口配置在 `tauri.conf.json` 的 `build.devUrl`
