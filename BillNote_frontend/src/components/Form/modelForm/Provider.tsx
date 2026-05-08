@@ -41,6 +41,7 @@ const Provider = () => {
                 key={index}
                 providerName={provider.name}
                 Icon={provider.logo}
+                logoUrl={provider.logoUrl}
                 id={provider.id}
                 enable={provider.enabled}
               />

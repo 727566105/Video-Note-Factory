@@ -5,6 +5,7 @@ export interface Provider {
   api_key: string
   base_url: string
   logo: string
+  logoUrl?: string
   type: string
   enabled: number
 }

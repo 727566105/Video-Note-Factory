@@ -5,10 +5,13 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-# 插入任务
+# 插入任务（已存在则跳过）
 def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None):
     db = next(get_db())
     try:
+        existing = db.query(VideoTask).filter_by(task_id=task_id).first()
+        if existing:
+            return
         task = VideoTask(
             video_id=video_id,
             platform=platform,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,8 +16,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useProviderStore } from '@/store/providerStore'
 import { useModelStore } from '@/store/modelStore'
 import toast from 'react-hot-toast'
-import { testConnection, fetchModels, deleteModelById } from '@/services/model.ts'
-import { Eye, EyeOff, Check, AlertCircle, Plus, Loader2 } from 'lucide-react'
+import { testConnection, fetchModels, deleteModelById, uploadIcon } from '@/services/model.ts'
+import { Eye, EyeOff, Check, AlertCircle, Plus, Loader2, Upload, X } from 'lucide-react'
 import { Tag } from 'antd'
 import AILogo from '@/components/Form/modelForm/Icons'
 import { ModelSelector } from '@/components/Form/modelForm/ModelSelector.tsx'
@@ -80,6 +80,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const [isCustom, setIsCustom] = useState(false)
   const [modelsToSave, setModelsToSave] = useState<string[]>([])
   const [modelSelectorVisible, setModelSelectorVisible] = useState(false)
+  const [customLogoUrl, setCustomLogoUrl] = useState<string>('')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const providerForm = useForm<ProviderFormValues>({
     resolver: zodResolver(ProviderSchema),
@@ -101,6 +104,10 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
           setIsBuiltIn(data.type === 'built-in')
           setTestSuccess(true) // 编辑模式下默认认为已测试通过
           setModelSelectorVisible(true) // 编辑模式下默认显示模型管理
+
+          if (data.logoUrl) {
+            setCustomLogoUrl(data.logoUrl)
+          }
 
           // 加载已有模型
           const existingModels = await loadModelsById(id)
@@ -154,6 +161,64 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
     setModelSelectorVisible(false)
   }
 
+  // 上传自定义图标（新建模式）
+  const handleUploadIcon = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('仅支持 JPG、PNG、WebP、SVG 格式')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('图片大小不能超过 2MB')
+      return
+    }
+
+    try {
+      setUploading(true)
+      const res = await uploadIcon(file)
+      setCustomLogoUrl(res.url)
+      toast.success('图标上传成功')
+    } catch {
+      toast.error('图标上传失败')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  // 编辑模式下上传并自动保存
+  const handleEditUploadIcon = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('仅支持 JPG、PNG、WebP、SVG 格式')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('图片大小不能超过 2MB')
+      return
+    }
+
+    try {
+      setUploading(true)
+      const res = await uploadIcon(file)
+      setCustomLogoUrl(res.url)
+      await updateProvider({
+        id: id!,
+        logoUrl: res.url,
+      })
+      toast.success('图标已更新')
+    } catch {
+      toast.error('图标上传失败')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   // 测试连通性
   const handleTest = async () => {
     const values = providerForm.getValues()
@@ -172,6 +237,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
           api_key: values.apiKey,
           base_url: values.baseUrl,
           logo: selectedPreset?.logo || 'custom',
+          logo_url: customLogoUrl || undefined,
           type: values.type,
         }
         const newItem = await addNewProviderWithModels(payload as any, [])
@@ -323,6 +389,16 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                     <AILogo name={selectedPreset.logo} size={40} />
                   </div>
                 )}
+                {isCustom && customLogoUrl && (
+                  <div className="flex h-10 w-10 items-center justify-center">
+                    <AILogo name="custom" logoUrl={customLogoUrl} size={40} />
+                  </div>
+                )}
+                {isCustom && !customLogoUrl && (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
+                    <Plus className="h-5 w-5 text-gray-400" />
+                  </div>
+                )}
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
                     {isEditMode ? '编辑供应商' : `配置 ${selectedPreset?.name || '自定义供应商'}`}
@@ -407,6 +483,49 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                 </FormItem>
               )}
             />
+
+            {/* 图标上传 - 仅自定义供应商 */}
+            {(isCustom || (isEditMode && !isBuiltIn)) && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label className="text-right text-sm font-medium text-gray-700">图标</label>
+                <div className="col-span-3">
+                  <div className="flex items-center gap-3">
+                    {customLogoUrl ? (
+                      <div className="relative group">
+                        <AILogo name="custom" logoUrl={customLogoUrl} size={40} />
+                        <button
+                          type="button"
+                          onClick={() => setCustomLogoUrl('')}
+                          className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-gray-300 bg-gray-50">
+                        <Upload className="h-4 w-4 text-gray-400" />
+                      </div>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      id="icon-upload"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      style={{ display: 'none' }}
+                      onChange={isEditMode ? handleEditUploadIcon : handleUploadIcon}
+                      disabled={uploading}
+                    />
+                    <label
+                      htmlFor="icon-upload"
+                      className={`inline-flex cursor-pointer items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${uploading ? 'text-gray-400 pointer-events-none' : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'}`}
+                    >
+                      {uploading ? '上传中...' : customLogoUrl ? '更换图标' : '上传图标'}
+                    </label>
+                    <span className="text-xs text-gray-400">JPG/PNG/WebP/SVG, 最大 2MB</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 测试连通性 */}
             <div className="flex items-center gap-3 border-t pt-4">

@@ -2,12 +2,28 @@ import * as Icons from '@lobehub/icons'
 import CustomLogo from '@/assets/customAI.png'
 
 interface AILogoProps {
-  name: string // 图标名称（区分大小写！如 OpenAI、DeepSeek）
+  name: string
+  logoUrl?: string
   style?: 'Color' | 'Text' | 'Outlined' | 'Glyph'
   size?: number
 }
 
-const AILogo = ({ name, style = 'Color', size = 24 }: AILogoProps) => {
+const AILogo = ({ name, logoUrl, style = 'Color', size = 24 }: AILogoProps) => {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt="logo"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+        }}
+      />
+    )
+  }
+
   const Icon = Icons[name as keyof typeof Icons]
   if (!Icon) {
     return (

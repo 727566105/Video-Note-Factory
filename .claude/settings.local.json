@@ -87,7 +87,16 @@
       "mcp__shadcn__get_add_command_for_items",
       "Bash(npx shadcn@latest add progress)",
       "Bash(git checkout:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(npm i:*)",
+      "Bash(sudo npm:*)",
+      "mcp__chrome__take_screenshot",
+      "mcp__chrome__navigate_page",
+      "mcp__chrome__take_snapshot",
+      "mcp__chrome__click",
+      "mcp__chrome__evaluate_script",
+      "mcp__chrome__upload_file",
+      "Bash(ffmpeg -version)"
     ]
   }
 }
