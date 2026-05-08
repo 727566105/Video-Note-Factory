@@ -18,6 +18,7 @@ import { generateNote } from '@/services/note.ts'
 import { uploadFile } from '@/services/upload.ts'
 import { useTaskStore } from '@/store/taskStore'
 import { useModelStore } from '@/store/modelStore'
+import { useProviderStore } from '@/store/providerStore'
 import {
   Tooltip,
   TooltipContent,
@@ -139,6 +140,8 @@ const NoteForm = () => {
     return task || null
   })
   const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint } = useModelStore()
+  const providers = useProviderStore(state => state.provider)
+  const fetchProviderList = useProviderStore(state => state.fetchProviderList)
 
   /* ---- 表单 ---- */
   const form = useForm<NoteFormValues>({
@@ -147,7 +150,7 @@ const NoteForm = () => {
       platform: 'bilibili',
       video_url: '',
       quality: 'medium',
-      model_name: modelList[0]?.model_name || '',
+      model_name: modelList[0] ? String(modelList[0].id) : '',
       style: 'minimal',
       video_interval: 4,
       grid_size: [3, 3],
@@ -166,15 +169,14 @@ const NoteForm = () => {
   /* ---- 副作用 ---- */
   useEffect(() => {
     loadEnabledModels()
-
-    return
+    fetchProviderList()
   }, [])
   // 模型列表加载完后，同步 model_name 到表单（新建模式）
   useEffect(() => {
     if (modelList.length > 0 && !currentTaskId) {
       const current = form.getValues('model_name')
       if (!current) {
-        form.setValue('model_name', modelList[0].model_name, { shouldValidate: true })
+        form.setValue('model_name', String(modelList[0].id), { shouldValidate: true })
       }
     }
   }, [modelList.length, currentTaskId])
@@ -182,10 +184,20 @@ const NoteForm = () => {
     if (!currentTask) return
     const { formData } = currentTask
 
+    // 兼容旧的 formData.model_name（可能是字符串名称或新的 id）
+    let modelValue = ''
+    if (formData.model_name) {
+      const found = modelList.find(m => m.model_name === formData.model_name || String(m.id) === formData.model_name)
+      modelValue = found ? String(found.id) : ''
+    }
+    if (!modelValue && modelList[0]) {
+      modelValue = String(modelList[0].id)
+    }
+
     form.reset({
       platform: formData.platform || 'bilibili',
       video_url: formData.video_url || '',
-      model_name: formData.model_name || modelList[0]?.model_name || '',
+      model_name: modelValue,
       style: formData.style || 'minimal',
       quality: formData.quality || 'medium',
       extras: formData.extras || '',
@@ -242,9 +254,11 @@ const NoteForm = () => {
     }
     const effectiveTaskId = currentTask ? currentTaskId : null
 
+    const selectedModel = modelList.find(m => String(m.id) === values.model_name)
     const payload: NoteFormValues = {
       ...values,
-      provider_id: modelList.find(m => m.model_name === values.model_name)!.provider_id,
+      model_name: selectedModel?.model_name || values.model_name,
+      provider_id: selectedModel?.provider_id || '',
       task_id: effectiveTaskId || '',
     }
 
@@ -277,7 +291,7 @@ const NoteForm = () => {
       platform: 'bilibili',
       video_url: '',
       quality: 'medium',
-      model_name: modelList[0]?.model_name || '',
+      model_name: modelList[0] ? String(modelList[0].id) : '',
       style: 'minimal',
       video_interval: 4,
       grid_size: [3, 3],
@@ -485,11 +499,15 @@ const NoteForm = () => {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {modelList.map(m => (
-                        <SelectItem key={m.id} value={m.model_name}>
-                          {m.model_name}
-                        </SelectItem>
-                      ))}
+                      {modelList.map(m => {
+                        const provider = providers.find(p => p.id === m.provider_id)
+                        const displayName = provider ? `${provider.name}/${m.model_name}` : m.model_name
+                        return (
+                          <SelectItem key={m.id} value={String(m.id)}>
+                            {displayName}
+                          </SelectItem>
+                        )
+                      })}
                     </SelectContent>
                   </Select>
                   <FormMessage />
