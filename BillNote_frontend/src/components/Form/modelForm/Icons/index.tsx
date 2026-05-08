@@ -5,11 +5,12 @@ import NewApiLogo from '@/assets/newapi.svg'
 interface AILogoProps {
   name: string
   logoUrl?: string
+  type?: string
   style?: 'Color' | 'Text' | 'Outlined' | 'Glyph'
   size?: number
 }
 
-const AILogo = ({ name, logoUrl, style = 'Color', size = 24 }: AILogoProps) => {
+const AILogo = ({ name, logoUrl, type, style = 'Color', size = 24 }: AILogoProps) => {
   if (logoUrl) {
     return (
       <img
@@ -25,8 +26,8 @@ const AILogo = ({ name, logoUrl, style = 'Color', size = 24 }: AILogoProps) => {
     )
   }
 
-  // NewAPI 使用官方 logo
-  if (name === 'NewAPI') {
+  // NewAPI 使用官方 logo（兼容 logo='custom' + type='newapi' 的情况）
+  if (name === 'NewAPI' || type === 'newapi') {
     return (
       <img
         src={NewApiLogo}
