@@ -1,6 +1,8 @@
 from typing import Optional
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
+import os
+import uuid
 
 from app.exceptions.provider import ProviderError
 from app.models.model_config import ModelConfig
@@ -18,6 +20,7 @@ class ProviderRequest(BaseModel):
     api_key: str
     base_url: str
     logo: Optional[str] = None
+    logo_url: Optional[str] = None
     type: str
 
 class TestRequest(BaseModel):
@@ -28,6 +31,7 @@ class ProviderUpdateRequest(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     logo: Optional[str] = None
+    logo_url: Optional[str] = None
     type: Optional[str] = None
     enabled:Optional[int] = None
 
@@ -39,7 +43,8 @@ def add_provider(data: ProviderRequest):
             api_key=data.api_key,
             base_url=data.base_url,
             logo=data.logo,
-            type_=data.type
+            type_=data.type,
+            logo_url=data.logo_url
         )
         return R.success(msg='添加模型供应商成功',data=res)
     except Exception as e:
@@ -75,7 +80,7 @@ def update_provider(data: ProviderUpdateRequest):
     try:
         if all(
             field is None
-            for field in [data.name, data.api_key, data.base_url, data.logo, data.type,data.enabled]
+            for field in [data.name, data.api_key, data.base_url, data.logo, data.logo_url, data.type,data.enabled]
         ):
             return R.error(msg='请至少填写一个参数')
 
@@ -103,3 +108,30 @@ def delete_provider(id: str):
         return R.success(msg='删除模型供应商成功')
     except Exception as e:
         return R.error(msg=f'删除模型供应商失败: {e}')
+
+# 图标上传配置
+ICON_UPLOAD_DIR = "uploads/icons"
+ICON_ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "svg"}
+ICON_MAX_SIZE = 2 * 1024 * 1024  # 2MB
+
+@router.post("/upload_icon")
+async def upload_icon(file: UploadFile = File(...)):
+    """上传供应商图标"""
+    ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
+    if ext not in ICON_ALLOWED_EXTENSIONS:
+        return R.error(msg=f"不支持的文件格式，仅允许: {', '.join(ICON_ALLOWED_EXTENSIONS)}")
+
+    content = await file.read()
+    if len(content) > ICON_MAX_SIZE:
+        return R.error(msg="文件大小不能超过 2MB")
+
+    os.makedirs(ICON_UPLOAD_DIR, exist_ok=True)
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(ICON_UPLOAD_DIR, filename)
+
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    url = f"/uploads/icons/{filename}"
+    return R.success(data={"url": url})

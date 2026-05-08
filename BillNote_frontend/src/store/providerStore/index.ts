@@ -50,6 +50,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         id: item.id,
         name: item.name,
         logo: item.logo,
+        logoUrl: item.logo_url,
         apiKey: item.api_key,
         baseUrl: item.base_url,
         type: item.type,
@@ -58,11 +59,13 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   },
   addNewProvider: async (provider: IProvider) => {
-    const payload = {
+    const payload: any = {
       ...provider,
-      api_key: provider.apiKey,
-      base_url: provider.baseUrl,
+      api_key: provider.api_key ?? provider.apiKey,
+      base_url: provider.base_url ?? provider.baseUrl,
     }
+    delete payload.apiKey
+    delete payload.baseUrl
     try {
       const data = await addProvider(payload)
       const item = data
@@ -75,11 +78,13 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   },
   // 一气呵成：保存供应商 + 批量添加模型
   addNewProviderWithModels: async (provider: IProvider, modelNames: string[]) => {
-    const payload = {
+    const payload: any = {
       ...provider,
-      api_key: provider.apiKey,
-      base_url: provider.baseUrl,
+      api_key: provider.api_key ?? provider.apiKey,
+      base_url: provider.base_url ?? provider.baseUrl,
     }
+    delete payload.apiKey
+    delete payload.baseUrl
     const data = await addProvider(payload)
     const newId = data.id || data
 
@@ -109,6 +114,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       if (provider.type !== undefined) data.type = provider.type
       if (provider.enabled !== undefined) data.enabled = provider.enabled
       if (provider.logo !== undefined) data.logo = provider.logo
+      if (provider.logoUrl !== undefined) data.logo_url = provider.logoUrl
       
       const res = await updateProviderById(data)
       await get().fetchProviderList()
@@ -138,6 +144,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
               id: string
               name: string
               logo: string
+              logo_url: string
               api_key: string
               base_url: string
               type: string
@@ -147,6 +154,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
                 id: item.id,
                 name: item.name,
                 logo: item.logo,
+                logoUrl: item.logo_url,
                 apiKey: item.api_key,
                 baseUrl: item.base_url,
                 type: item.type,

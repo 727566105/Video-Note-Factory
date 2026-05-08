@@ -33,6 +33,7 @@ if not os.path.exists(static_dir):
     os.makedirs(static_dir)
 if not os.path.exists(uploads_dir):
     os.makedirs(uploads_dir)
+    os.makedirs(os.path.join(uploads_dir, "icons"), exist_ok=True)
 
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)

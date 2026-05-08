@@ -26,6 +26,7 @@ class ProviderService:
             "id": row.get("id"),
             "name": row.get("name"),
             "logo": row.get("logo"),
+            "logo_url": row.get("logo_url"),
             "type":row.get("type"),
             "enabled": row.get("enabled"),
             "base_url": row.get("base_url"),
@@ -43,6 +44,7 @@ class ProviderService:
             "id": row.get("id"),
             "name": row.get("name"),
             "logo": row.get("logo"),
+            "logo_url": row.get("logo_url"),
             "type":row.get("type"),
             "enabled": row.get("enabled"),
             "base_url": row.get("base_url"),
@@ -55,11 +57,11 @@ class ProviderService:
             return '*' * len(key)
         return key[:4] + '*' * (len(key) - 8) + key[-4:]
     @staticmethod
-    def add_provider( name: str, api_key: str, base_url: str, logo: str, type_: str, enabled: int = 1):
+    def add_provider( name: str, api_key: str, base_url: str, logo: str, type_: str, enabled: int = 1, logo_url: str = None):
         try:
             id = uuid().lower()
             logo='custom'
-            return insert_provider(id, name, api_key, base_url, logo, type_, enabled)
+            return insert_provider(id, name, api_key, base_url, logo, type_, enabled, logo_url=logo_url)
         except Exception as  e:
             print('创建模式失败',e)
     @staticmethod
@@ -68,6 +70,7 @@ class ProviderService:
             "id": p.id,
             "name": p.name,
             "logo": p.logo,
+            "logo_url": p.logo_url,
             "type": p.type,
             "api_key": p.api_key,
             "base_url": p.base_url,

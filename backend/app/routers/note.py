@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, validator, field_validator
 from dataclasses import asdict
 
-from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id
+from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task
 from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
@@ -316,6 +316,9 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
             logger.info(f"重试模式，复用已有 task_id={task_id}")
         else:
             task_id = str(uuid.uuid4())
+
+        # 立即写入数据库，确保其他浏览器能通过 GET /tasks 看到该任务
+        insert_video_task(video_id=video_id, platform=data.platform, task_id=task_id, video_url=data.video_url)
 
         acquired = task_queue.acquire(task_id)
         if acquired:

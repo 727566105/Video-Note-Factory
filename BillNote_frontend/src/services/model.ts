@@ -7,6 +7,7 @@ export interface ProviderUpdateData {
   api_key?: string
   base_url?: string
   logo?: string
+  logo_url?: string
   type?: string
   enabled?: number
 }
@@ -67,4 +68,11 @@ export interface BatchAddModelItem {
 export const batchAddModels = async (items: BatchAddModelItem[]) => {
   // 如果后端没有批量接口，使用 Promise.all 并发调用
   return Promise.all(items.map(item => addModel(item)))
+}
+
+// 上传供应商图标
+export const uploadIcon = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return await request.post('/upload_icon', formData)
 }

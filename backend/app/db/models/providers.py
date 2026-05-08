@@ -10,6 +10,7 @@ class Provider(Base):
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     logo = Column(String, nullable=False)
+    logo_url = Column(String, nullable=True, default=None)
     type = Column(String, nullable=False)
     api_key = Column(String, nullable=False)
     base_url = Column(String, nullable=False)
