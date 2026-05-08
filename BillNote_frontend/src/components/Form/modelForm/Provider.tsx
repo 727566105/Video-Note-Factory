@@ -42,6 +42,7 @@ const Provider = () => {
                 providerName={provider.name}
                 Icon={provider.logo}
                 logoUrl={provider.logoUrl}
+                type={provider.type}
                 id={provider.id}
                 enable={provider.enabled}
               />

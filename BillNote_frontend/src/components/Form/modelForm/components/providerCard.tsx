@@ -10,12 +10,14 @@ export interface IProviderCardProps {
   providerName: string
   Icon: string
   logoUrl?: string
+  type?: string
   enable: number
 }
 const ProviderCard: FC<IProviderCardProps> = ({
   providerName,
   Icon,
   logoUrl,
+  type,
   id,
   enable,
 }: IProviderCardProps) => {
@@ -49,7 +51,7 @@ const ProviderCard: FC<IProviderCardProps> = ({
     >
       <div className="flex items-center text-lg">
         <div className="flex h-9 w-9 items-center">
-          <AILogo name={Icon} logoUrl={logoUrl} />
+          <AILogo name={Icon} logoUrl={logoUrl} type={type} />
         </div>
         <div className="font-semibold">{providerName}</div>
       </div>

@@ -60,8 +60,9 @@ class ProviderService:
     def add_provider( name: str, api_key: str, base_url: str, logo: str, type_: str, enabled: int = 1, logo_url: str = None):
         try:
             id = uuid().lower()
-            logo='custom'
-            return insert_provider(id, name, api_key, base_url, logo, type_, enabled, logo_url=logo_url)
+            # 使用传入的 logo 值，未传入时默认为 'custom'
+            final_logo = logo if logo else 'custom'
+            return insert_provider(id, name, api_key, base_url, final_logo, type_, enabled, logo_url=logo_url)
         except Exception as  e:
             print('创建模式失败',e)
     @staticmethod
