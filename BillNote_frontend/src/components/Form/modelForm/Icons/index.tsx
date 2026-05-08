@@ -1,5 +1,6 @@
 import * as Icons from '@lobehub/icons'
 import CustomLogo from '@/assets/customAI.png'
+import NewApiLogo from '@/assets/newapi.svg'
 
 interface AILogoProps {
   name: string
@@ -19,6 +20,21 @@ const AILogo = ({ name, logoUrl, style = 'Color', size = 24 }: AILogoProps) => {
           height: size,
           borderRadius: '50%',
           objectFit: 'cover',
+        }}
+      />
+    )
+  }
+
+  // NewAPI 使用官方 logo
+  if (name === 'NewAPI') {
+    return (
+      <img
+        src={NewApiLogo}
+        alt="NewAPI"
+        style={{
+          width: size,
+          height: size,
+          objectFit: 'contain',
         }}
       />
     )
