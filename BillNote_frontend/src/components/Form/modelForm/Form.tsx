@@ -12,14 +12,15 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useProviderStore } from '@/store/providerStore'
 import { useModelStore } from '@/store/modelStore'
 import toast from 'react-hot-toast'
-import { testConnection, fetchModels, deleteModelById, uploadIcon } from '@/services/model.ts'
+import { testConnection, fetchModels, deleteModelById, uploadIcon, batchAddModels, BatchAddModelItem } from '@/services/model.ts'
 import { Eye, EyeOff, Check, AlertCircle, Plus, Loader2, Upload, X } from 'lucide-react'
 import { Tag } from 'antd'
 import AILogo from '@/components/Form/modelForm/Icons'
+import NewApiLogo from '@/assets/newapi.svg'
 import { ModelSelector } from '@/components/Form/modelForm/ModelSelector.tsx'
 
 // 预设供应商列表
@@ -61,6 +62,7 @@ interface IModelItem {
 const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const isEditMode = !isCreate
 
   const loadProviderById = useProviderStore(state => state.loadProviderById)
@@ -83,6 +85,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const [customLogoUrl, setCustomLogoUrl] = useState<string>('')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isNewApi = selectedPreset?.id === 'newapi'
 
   const providerForm = useForm<ProviderFormValues>({
     resolver: zodResolver(ProviderSchema),
@@ -93,6 +96,23 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
       type: 'custom',
     },
   })
+
+  // 监听 location.state 变化，重置选择状态（用于"添加供应商"按钮强制重置）
+  useEffect(() => {
+    if (isCreate && location.state?.reset) {
+      setSelectedPreset(null)
+      setIsCustom(false)
+      setCustomLogoUrl('')
+      setTestSuccess(false)
+      setModelSelectorVisible(false)
+      providerForm.reset({
+        name: '',
+        apiKey: '',
+        baseUrl: '',
+        type: 'custom',
+      })
+    }
+  }, [location.state, isCreate])
 
   // 加载已有供应商和模型
   useEffect(() => {
@@ -125,6 +145,8 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
           baseUrl: '',
           type: 'custom',
         })
+        setSelectedPreset(null)
+        setIsCustom(false)
         setIsBuiltIn(false)
         setTestSuccess(false)
       }
@@ -159,6 +181,57 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
     })
     setTestSuccess(false)
     setModelSelectorVisible(false)
+  }
+
+  // NewAPI 一键接入
+  const handleNewApiConnect = async () => {
+    const values = providerForm.getValues()
+    if (!values.baseUrl || !values.apiKey) {
+      toast.error('请填写 API 地址和 API Key')
+      return
+    }
+
+    try {
+      setSaving(true)
+
+      // 1. 创建供应商
+      const payload = {
+        name: values.name || 'NewAPI',
+        api_key: values.apiKey,
+        base_url: values.baseUrl,
+        logo: 'NewAPI',
+        type: 'newapi',
+      }
+      const newId = await addNewProviderWithModels(payload as any, [])
+
+      // 2. 测试连通性
+      setTesting(true)
+      await testConnection({ id: newId })
+      toast.success('连通性测试成功')
+
+      // 3. 获取模型列表
+      const models = await fetchModels(newId)
+
+      // 4. 批量添加模型
+      if (models && models.length > 0) {
+        const modelItems: BatchAddModelItem[] = models.map((m: any) => ({
+          provider_id: newId,
+          model_name: m.id || m.name || m,
+        }))
+        await batchAddModels(modelItems)
+        toast.success(`成功接入 ${modelItems.length} 个模型`)
+      } else {
+        toast.success('供应商已创建，暂无可用模型')
+      }
+
+      // 5. 跳转到编辑页
+      navigate(`/settings/model/${newId}`)
+    } catch (error) {
+      toast.error('接入失败，请检查 API 地址和 API Key')
+    } finally {
+      setTesting(false)
+      setSaving(false)
+    }
   }
 
   // 上传自定义图标（新建模式）
@@ -360,6 +433,30 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               <span className="font-medium text-gray-900">{preset.name}</span>
             </button>
           ))}
+
+          {/* NewAPI 快捷接入 */}
+          <button
+            onClick={() => {
+              setSelectedPreset({ id: 'newapi', name: 'NewAPI', logo: 'NewAPI', baseUrl: '', type: 'newapi' })
+              setIsCustom(false)
+              providerForm.reset({
+                name: 'NewAPI',
+                apiKey: '',
+                baseUrl: '',
+                type: 'newapi',
+              })
+              setTestSuccess(false)
+              setModelSelectorVisible(false)
+            }}
+            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <img src={NewApiLogo} alt="NewAPI" className="h-8 w-8 object-contain" />
+            </div>
+            <span className="font-medium text-gray-900">NewAPI</span>
+            <span className="text-xs text-gray-400">一键接入</span>
+          </button>
+
           {/* 自定义卡片 */}
           <button
             onClick={handleSelectCustom}
@@ -370,6 +467,115 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
             </div>
             <span className="font-medium text-gray-900">自定义</span>
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  // NewAPI 快捷接入模式
+  if (isCreate && isNewApi && selectedPreset) {
+    return (
+      <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
+        <div className="text-center">
+          <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-gray-100 mb-2">
+            <img src={NewApiLogo} alt="NewAPI" className="h-8 w-8 object-contain" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">接入 NewAPI</h2>
+          <p className="mt-1 text-sm text-gray-500">输入 API 地址和 Key，一键完成配置</p>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <Form {...providerForm}>
+            <form className="flex flex-col gap-5">
+              {/* 名称 */}
+              <FormField
+                control={providerForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem className="grid grid-cols-4 items-center gap-4">
+                    <FormLabel className="text-right">名称</FormLabel>
+                    <div className="col-span-3">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="NewAPI"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {/* API 地址 */}
+              <FormField
+                control={providerForm.control}
+                name="baseUrl"
+                render={({ field }) => (
+                  <FormItem className="grid grid-cols-4 items-start gap-4">
+                    <FormLabel className="pt-2 text-right">API 地址 <span className="text-red-500">*</span></FormLabel>
+                    <div className="col-span-3 flex flex-col gap-2">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="https://your-api.com/v1"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {/* API Key */}
+              <FormField
+                control={providerForm.control}
+                name="apiKey"
+                render={({ field }) => (
+                  <FormItem className="grid grid-cols-4 items-start gap-4">
+                    <FormLabel className="pt-2 text-right">API Key <span className="text-red-500">*</span></FormLabel>
+                    <div className="col-span-3 flex flex-col gap-2">
+                      <div className="relative">
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type={showApiKey ? 'text' : 'password'}
+                            placeholder="输入 API Key"
+                            className="pr-10"
+                          />
+                        </FormControl>
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {/* 一键接入按钮 */}
+              <div className="flex items-center justify-center border-t pt-4">
+                <Button
+                  type="button"
+                  onClick={handleNewApiConnect}
+                  disabled={testing || saving || !providerForm.getValues().baseUrl || !providerForm.getValues().apiKey}
+                  className="gap-1.5"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  {saving ? '接入中...' : '一键接入'}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </div>
       </div>
     )

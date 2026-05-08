@@ -8,7 +8,7 @@ const Provider = () => {
   const providers = useProviderStore(state => state.provider)
   const navigate = useNavigate()
   const handleClick = () => {
-    navigate(`/settings/model/new`)
+    navigate(`/settings/model/new`, { state: { reset: true } })
   }
 
   // 排序：已启用(enabled=1)排前面，已关闭(enabled=0)排后面
