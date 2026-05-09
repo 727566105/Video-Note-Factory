@@ -33,7 +33,15 @@ BiliNote 是一个 AI 视频笔记生成工具，支持从 Bilibili、YouTube、
 ```bash
 cd backend
 pip install -r requirements.txt
-python main.py              # 启动后端 (默认端口 8483)
+python3 main.py              # 启动后端 (默认端口 8483)
+# 注意: macOS 需要 python3，不是 python
+```
+
+### 后端测试
+```bash
+cd backend
+python3 -m pytest tests/     # 运行测试
+python3 -m app.routers.test_export  # 单独测试导出功能
 ```
 
 ### 前端开发
@@ -88,7 +96,13 @@ BiliNote/
    - `ProviderService` 管理用户的 API 配置
    - 所有 GPT 类继承自 `GPT` 基类
 
-4. **任务状态管理**
+4. **供应商类型系统**
+   - `built-in`: 内置供应商（OpenAI/DeepSeek/Qwen 等），logo 来自 `@lobehub/icons`
+   - `custom`: 自定义供应商，支持上传 logo 图标
+   - `newapi`: NewAPI 中转服务，使用专用 logo
+   - 前端 `AILogo` 组件根据 `name` + `type` + `logoUrl` 决定显示哪个图标
+
+5. **任务状态管理**
    - 状态文件: `{task_id}.status.json` (实时更新)
    - 结果文件: `{task_id}.json` (最终笔记)
    - 支持缓存机制: 音频/转写/Markdown 都会缓存
@@ -97,16 +111,18 @@ BiliNote/
 
 **技术栈**: React 19 + TypeScript + Vite + Tailwind CSS 4.x + Zustand + shadcn/ui + antd
 
-1. **状态管理** (`src/store/`) — 各 store 独立管理，使用 `persist` 中间件持久化到 localStorage
+1. **状态管理** (`src/store/`) — 各 store 独立管理
 
-   | Store | 职责 |
-   |-------|------|
-   | `taskStore` | 笔记任务管理，支持版本控制 |
-   | `modelStore` | AI 模型配置列表 |
-   | `providerStore` | 模型供应商配置 |
-   | `configStore` | 应用全局配置 |
-   | `siyuanStore` | 思源笔记集成 |
-   | `webdavStore` | WebDAV 备份配置 |
+   | Store | 职责 | persist |
+   |-------|------|---------|
+   | `taskStore` | 笔记任务管理，支持版本控制 | 是 |
+   | `modelStore` | AI 模型配置列表 | 是 |
+   | `providerStore` | 模型供应商配置（需 fetchProviderList 初始化） | 否 |
+   | `configStore` | 应用全局配置 | 是 |
+   | `siyuanStore` | 思源笔记集成 | 是 |
+   | `webdavStore` | WebDAV 备份配置 | 是 |
+
+   注意：`providerStore` 没有 persist，需要在组件 useEffect 中调用 `fetchProviderList()` 加载数据。
 
 2. **路由结构** (`src/App.tsx`)
    ```
@@ -198,3 +214,7 @@ Chrome 插件 "VideoNote Helper"，功能：
 - `{task_id}_transcript.json`: 转写结果
 - `{task_id}.md`: GPT 生成的 Markdown
 - `{task_id}.status.json`: 任务实时状态
+
+## 数据库
+
+使用 SQLite + SQLAlchemy，数据库文件位于 `backend/data/`。后端启动时自动初始化（`init_db`）并种子默认供应商（`seed_default_providers`）。

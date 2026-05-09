@@ -1,9 +1,10 @@
 import React, { FC } from 'react'
-import { SlidersHorizontal } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { LogOut, SlidersHorizontal } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 
 import TaskStatusBar from '@/components/TaskStatusBar.tsx'
 import logo from '@/assets/logo.png'
+import { useAuthStore } from '@/store/authStore'
 
 interface IProps {
   NoteForm: React.ReactNode
@@ -12,6 +13,15 @@ interface IProps {
 }
 
 const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
+  const user = useAuthStore(state => state.user)
+  const logout = useAuthStore(state => state.logout)
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* 移动端顶部导航栏 */}
@@ -22,9 +32,15 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
           </div>
           <div className="text-base font-bold text-gray-800 md:text-lg">BiliNote</div>
         </div>
-        <Link to={'/settings'}>
-          <SlidersHorizontal className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
-        </Link>
+        <div className="flex items-center gap-3">
+          <span className="hidden text-xs text-gray-500 md:inline">{user?.username}</span>
+          <Link to={'/settings'}>
+            <SlidersHorizontal className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
+          </Link>
+          <button onClick={handleLogout} title="退出登录">
+            <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
+          </button>
+        </div>
       </header>
 
       {/* 三栏布局 */}

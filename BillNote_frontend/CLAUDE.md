@@ -26,16 +26,16 @@ pnpm preview          # 预览构建结果
 ### 状态管理 (`src/store/`)
 使用 Zustand 的单一 store 模式，各 store 独立管理：
 
-| Store | 文件 |职责 |
-|-------|------|------|
-| taskStore | `store/taskStore/` | 笔记任务管理，支持版本控制 |
-| modelStore | `store/modelStore/` | AI 模型配置列表 |
-| providerStore | `store/providerStore/` | 模型供应商配置 |
-| configStore | `store/configStore/` | 应用全局配置 |
-| siyuanStore | `store/siyuanStore/` | 思源笔记集成配置 |
-| webdavStore | `store/webdavStore/` | WebDAV 备份配置 |
+| Store | 文件 |职责 | persist |
+|-------|------|------|---------|
+| taskStore | `store/taskStore/` | 笔记任务管理，支持版本控制 | 是 |
+| modelStore | `store/modelStore/` | AI 模型配置列表 | 是 |
+| providerStore | `store/providerStore/` | 模型供应商配置（需 fetchProviderList 初始化） | 否 |
+| configStore | `store/configStore/` | 应用全局配置 | 是 |
+| siyuanStore | `store/siyuanStore/` | 思源笔记集成配置 | 是 |
+| webdavStore | `store/webdavStore/` | WebDAV 备份配置 | 是 |
 
-所有 store 使用 `persist` 中间件持久化到 localStorage。
+注意：`providerStore` 没有 persist，需要在组件 useEffect 中调用 `fetchProviderList()` 加载数据。
 
 ### 路由结构 (`src/App.tsx`)
 ```

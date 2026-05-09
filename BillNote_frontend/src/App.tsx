@@ -2,8 +2,7 @@ import './App.css'
 import { HomePage } from './pages/HomePage/Home.tsx'
 import { useTaskPolling } from '@/hooks/useTaskPolling.ts'
 import SettingPage from './pages/SettingPage/index.tsx'
-import { BrowserRouter, Navigate, Routes } from 'react-router-dom'
-import { Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import Index from '@/pages/Index.tsx'
 import NotFoundPage from '@/pages/NotFoundPage'
 import Model from '@/pages/SettingPage/Model.tsx'
@@ -14,40 +13,61 @@ import WebDAVSettings from '@/pages/SettingPage/WebDAV.tsx'
 import Downloader from '@/pages/SettingPage/Downloader.tsx'
 import DownloaderForm from '@/components/Form/DownloaderForm/Form.tsx'
 import TaskQueueSettings from '@/pages/SettingPage/TaskQueue.tsx'
-import { useEffect } from 'react'
+import UsersPage from '@/pages/SettingPage/Users.tsx'
+import LoginPage from '@/pages/LoginPage'
+import { useEffect, ReactNode } from 'react'
 import { systemCheck } from '@/services/system.ts'
 import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
 import HomeSkeleton from '@/components/HomeSkeleton'
 import { useTaskStore } from '@/store/taskStore/index.ts'
+import { useAuthStore } from '@/store/authStore'
 
-function App() {
-  useTaskPolling(3000) // 每 3 秒轮询一次
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated())
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+  return <>{children}</>
+}
+
+function AdminRoute({ children }: { children: ReactNode }) {
+  const isAdmin = useAuthStore(state => state.isAdmin())
+  if (!isAdmin) {
+    return <Navigate to="/" replace />
+  }
+  return <>{children}</>
+}
+
+function AuthenticatedApp({ children }: { children: ReactNode }) {
+  useTaskPolling(3000)
   const { initialized } = useCheckBackend()
   const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
 
-  // 在后端初始化完成后执行系统检查
   useEffect(() => {
     if (initialized) {
       systemCheck()
-      loadTasksFromBackend() // 从后端恢复历史任务
+      loadTasksFromBackend()
     }
   }, [initialized, loadTasksFromBackend])
 
-  // 如果后端还未初始化，显示初始化对话框
   if (!initialized) {
     return <HomeSkeleton />
   }
 
-  // 后端已初始化，渲染主应用
+  return <>{children}</>
+}
+
+function App() {
   return (
     <>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<ProtectedRoute><AuthenticatedApp><Index /></AuthenticatedApp></ProtectedRoute>}>
             <Route index element={<HomePage />} />
             <Route path="settings" element={<SettingPage />}>
-              <Route index element={<Navigate to="model" replace />} />
-              <Route path="model" element={<Model />}>
+              <Route index element={<Navigate to="about" replace />} />
+              <Route path="model" element={<AdminRoute><Model /></AdminRoute>}>
                 <Route path="new" element={<ProviderForm isCreate />} />
                 <Route path=":id" element={<ProviderForm />} />
               </Route>
@@ -57,7 +77,8 @@ function App() {
               <Route path="taskqueue" element={<TaskQueueSettings />} />
               <Route path="siyuan" element={<SiyuanSettings />} />
               <Route path="webdav" element={<WebDAVSettings />} />
-              <Route path="about" element={<AboutPage />}></Route>
+              <Route path="about" element={<AboutPage />} />
+              <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />

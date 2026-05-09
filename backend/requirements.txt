@@ -130,3 +130,5 @@ yarl==1.19.0
 yt-dlp==2025.3.31
 zopfli==0.2.3.post1
 playwright==1.49.0
+python-jose[cryptography]
+passlib[bcrypt]
