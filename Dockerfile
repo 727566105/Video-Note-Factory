@@ -5,8 +5,7 @@ RUN npm install -g pnpm
 RUN pnpm config set registry https://registry.npmmirror.com
 
 WORKDIR /app/frontend
-COPY ./videoNote_frontend/package.json ./
-RUN echo "node-linker=hoisted" > .npmrc
+COPY ./videoNote_frontend/package.json ./videoNote_frontend/.npmrc ./
 RUN pnpm install
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
