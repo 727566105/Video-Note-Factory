@@ -6,7 +6,7 @@ logger = get_logger(__name__)
 
 
 # 插入任务（已存在则跳过）
-def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None):
+def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None, user_id: int = 1):
     db = next(get_db())
     try:
         existing = db.query(VideoTask).filter_by(task_id=task_id).first()
@@ -16,7 +16,8 @@ def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str
             video_id=video_id,
             platform=platform,
             task_id=task_id,
-            video_url=video_url
+            video_url=video_url,
+            user_id=user_id
         )
         db.add(task)
         db.commit()
@@ -88,15 +89,18 @@ def delete_task_by_id(task_id: str):
         db.close()
 
 
-# 获取所有任务
-def get_all_tasks(limit: int = None):
+# 获取所有任务（按用户隔离，管理员可看全部）
+def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
     db = next(get_db())
     try:
         query = db.query(VideoTask).order_by(VideoTask.created_at.desc())
+        # 非管理员只能看自己的任务
+        if role != "admin" and user_id:
+            query = query.filter_by(user_id=user_id)
         if limit:
             query = query.limit(limit)
         tasks = query.all()
-        logger.info(f"Retrieved {len(tasks)} tasks")
+        logger.info(f"Retrieved {len(tasks)} tasks for user_id={user_id}, role={role}")
         return tasks
     except Exception as e:
         logger.error(f"Failed to get all tasks: {e}")

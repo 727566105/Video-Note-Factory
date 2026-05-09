@@ -1,8 +1,9 @@
-import { Link, Outlet } from 'react-router-dom'
-import { ArrowLeft, Menu as MenuIcon, X } from 'lucide-react'
+import { Link, Outlet, useNavigate } from 'react-router-dom'
+import { ArrowLeft, LogOut, Menu as MenuIcon, X } from 'lucide-react'
 import React, { useState } from 'react'
 import logo from '@/assets/logo.png'
 import { Button } from '@/components/ui/button'
+import { useAuthStore } from '@/store/authStore'
 
 interface ISettingLayoutProps {
   Menu: React.ReactNode
@@ -10,6 +11,13 @@ interface ISettingLayoutProps {
 
 const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const logout = useAuthStore(state => state.logout)
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="flex h-screen w-full flex-col" style={{ backgroundColor: 'var(--color-muted)' }}>
@@ -32,6 +40,9 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
         <Link to={'/'}>
           <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
         </Link>
+        <button onClick={handleLogout} title="退出登录">
+          <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
+        </button>
       </header>
 
       <div className="flex flex-1 overflow-hidden">

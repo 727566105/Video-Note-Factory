@@ -6,6 +6,7 @@ import hashlib
 import ipaddress
 import socket
 import threading
+import httpx
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -25,9 +26,9 @@ from app.services.cache_cleaner import clean_expired_cache, get_cache_stats, CAC
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
 from app.validators.video_url_validator import is_supported_video_url
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse, FileResponse
-import httpx
+from app.auth.dependencies import get_current_user
 from app.enmus.task_status_enums import TaskStatus
 
 # from app.services.downloader import download_raw_audio
@@ -307,7 +308,7 @@ async def upload(file: UploadFile = File(...)):
 
 
 @router.post("/generate_note")
-def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
+def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current_user=Depends(get_current_user)):
     try:
         video_id = extract_video_id(data.video_url, data.platform)
         if data.task_id:
@@ -318,7 +319,7 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks):
             task_id = str(uuid.uuid4())
 
         # 立即写入数据库，确保其他浏览器能通过 GET /tasks 看到该任务
-        insert_video_task(video_id=video_id, platform=data.platform, task_id=task_id, video_url=data.video_url)
+        insert_video_task(video_id=video_id, platform=data.platform, task_id=task_id, video_url=data.video_url, user_id=current_user.id)
 
         acquired = task_queue.acquire(task_id)
         if acquired:
@@ -366,7 +367,11 @@ def get_task_status(task_id: str):
                 })
 
         if status == TaskStatus.FAILED.value:
-            return R.error(message or "任务失败", code=500)
+            return R.success({
+                "status": status,
+                "message": message or "任务失败",
+                "task_id": task_id
+            })
 
         # 处理中状态
         return R.success({
@@ -636,10 +641,10 @@ async def image_proxy(request: Request, url: str):
 
 
 @router.get("/tasks")
-def get_tasks(limit: int = 100):
+def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
     """获取所有历史任务列表"""
     try:
-        db_tasks = get_all_tasks(limit)
+        db_tasks = get_all_tasks(user_id=current_user.id, role=current_user.role, limit=limit)
         result = []
 
         for task in db_tasks:

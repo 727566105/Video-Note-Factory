@@ -12,4 +12,5 @@ class VideoTask(Base):
     platform = Column(String, nullable=False)
     task_id = Column(String, unique=True, nullable=False)
     video_url = Column(String, nullable=True)  # 新增字段，nullable=True 兼容旧数据
+    user_id = Column(Integer, nullable=True, default=1)  # 关联用户，默认 admin
     created_at = Column(DateTime, server_default=func.now())
