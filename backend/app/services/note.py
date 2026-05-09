@@ -580,6 +580,13 @@ class NoteGenerator:
         task_id = markdown_cache_file.stem
         self._update_status(task_id, TaskStatus.SUMMARIZING)
 
+        # style=raw 时，跳过 GPT，直接输出转写原文
+        if style == 'raw':
+            markdown = self._generate_raw_markdown(audio_meta, transcript, formats)
+            markdown_cache_file.write_text(markdown, encoding="utf-8")
+            logger.info(f"原文模式，跳过 GPT，直接缓存 ({markdown_cache_file})")
+            return markdown
+
         source = GPTSource(
             title=audio_meta.title,
             segment=transcript.segments,
@@ -601,6 +608,33 @@ class NoteGenerator:
             logger.error(f"GPT 总结失败：{exc}")
             self._handle_exception(task_id, exc)
             raise
+
+    def _generate_raw_markdown(
+        self,
+        audio_meta: AudioDownloadResult,
+        transcript: TranscriptResult,
+        formats: List[str],
+    ) -> str:
+        """
+        将转写原文直接拼接为 Markdown 格式（不做任何总结）。
+
+        :param audio_meta: 音频元信息
+        :param transcript: 转写结果
+        :param formats: 格式列表（用于添加时间戳跳转）
+        :return: Markdown 字符串
+        """
+        lines = [f"# {audio_meta.title or '转写原文'}\n\n"]
+        lines.append("> 本笔记为转写原文，未经过 AI 总结。\n\n")
+
+        for segment in transcript.segments:
+            minutes = int(segment.start // 60)
+            seconds = int(segment.start % 60)
+            timestamp = f"[{minutes:02d}:{seconds:02d}]"
+            text = segment.text.strip()
+            if text:
+                lines.append(f"{timestamp} {text}\n\n")
+
+        return "".join(lines)
 
     def _post_process_markdown(
         self,

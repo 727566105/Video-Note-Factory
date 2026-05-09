@@ -10,6 +10,7 @@ note_formats = [
 note_styles = [
     {'label': '精简', 'value': 'minimal'},
     {'label': '详细', 'value': 'detailed'},
+    {'label': '原文', 'value': 'raw'},
     {'label': '学术', 'value': 'academic'},
     {"label": '教程',"value": 'tutorial', },
     {'label': '小红书', 'value': 'xiaohongshu'},
@@ -82,7 +83,8 @@ def get_style_format(style):
         'task_oriented': '6. **任务导向**: 强调任务、目标，适合工作和待办事项。',
         'business': '7. **商业风格**: 适合商业报告、会议纪要，正式且精准。',
         'meeting_minutes': '8. **会议纪要**: 适合商业报告、会议纪要，正式且精准。',
-        "tutorial":"9.**教程笔记**:尽可能详细的记录教程,特别是关键点和一些重要的结论步骤"
+        "tutorial":"9.**教程笔记**:尽可能详细的记录教程,特别是关键点和一些重要的结论步骤",
+        'raw': '10. **原文模式**: 直接输出转写原文，不做任何总结或改写。'
     }
     return style_map.get(style, '')
 

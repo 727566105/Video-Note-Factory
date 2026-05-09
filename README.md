@@ -3,7 +3,7 @@
     <p align="center">
   <img src="./doc/icon.svg" alt="videoNote Banner" width="50" height="50"  />
 </p>
-<h1 align="center" > videoNote v1.9.0</h1>
+<h1 align="center" > videoNote v2.5.1</h1>
 </div>
 
 <p align="center"><i>AI 视频笔记生成工具 让 AI 为你的视频做笔记</i></p>
@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" />
   <img src="https://img.shields.io/badge/frontend-React%20%2B%20TypeScript-blue" />
   <img src="https://img.shields.io/badge/backend-FastAPI-green" />
-  <img src="https://img.shields.io/badge/GPT-OpenAI%20%7C%20DeepSeek%20%7C%20Qwen%20%7C%20自定义-ff69b4" />
+  <img src="https://img.shields.io/badge/GPT-OpenAI%20%7C%20DeepSeek%20%7C%20Qwen%20%7C%20NewAPI%20%7C%20自定义-ff69b4" />
   <img src="https://img.shields.io/badge/docker-compose-blue" />
   <img src="https://img.shields.io/badge/status-active-success" />
   <img src="https://img.shields.io/github/stars/jefferyhcool/videoNote?style=social" />
@@ -42,6 +42,12 @@ videoNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、
 - **批量生成**：支持批量提交视频链接，自动排队处理
 - **灵活扩展**：插件化下载器架构，易于添加新平台支持
 
+### 🧩 浏览器插件
+
+- **VideoNote Helper**：Chrome 浏览器插件，一键获取平台 Cookie
+- **快捷提交**：直接从浏览器提交视频链接到 VideoNote 后端
+- **平台支持**：B站、抖音、快手、YouTube
+
 ### 📝 笔记生成
 
 - **多格式输出**：Markdown（支持导出为 PDF/Word/Notion，开发中）
@@ -52,8 +58,18 @@ videoNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、
 ### 🤖 AI 模型
 
 - **转写引擎**：Fast-Whisper、BCut、快手、MLX-Whisper、Groq 等
-- **GPT 模型**：OpenAI、DeepSeek、Qwen、自定义模型
+- **GPT 模型**：OpenAI、DeepSeek、Qwen、自定义模型、NewAPI 中转
 - **多模态理解**：支持视频画面与语音联合分析
+
+### 🔐 用户认证
+- **用户登录**：支持用户注册、登录认证
+- **数据隔离**：每个用户的笔记数据完全隔离，保护隐私
+- **多用户支持**：支持多用户同时使用，各自管理自己的数据
+
+### 🤖 AI 模型配置
+- **NewAPI 快捷接入**：支持通过 NewAPI 中转服务快速接入各种模型
+- **供应商管理**：内置 OpenAI/DeepSeek/Qwen 等主流供应商，支持自定义供应商
+- **模型切换**：前端灵活切换不同模型和供应商
 
 ### 💾 数据管理
 
@@ -88,6 +104,11 @@ videoNote/
 │   │   └── utils/              # 工具函数
 │   └── package.json            # Node 依赖
 │
+├── browser-extension/          # Chrome 浏览器插件
+│   ├── manifest.json           # 插件配置 (Manifest V3)
+│   ├── popup/                  # 弹窗页面
+│   ├── options/                # 设置页面
+│   └── background/             # Service Worker
 ├── doc/                        # 文档资源
 ├── nginx/                      # Nginx 配置
 ├── docker-compose.yml          # Docker 部署配置
@@ -254,6 +275,9 @@ sudo apt install ffmpeg
 - [x] 加入更多音频转文本模型支持（Fast-Whisper、BCut、Groq 等）
 - [x] 支持本地音频文件处理
 - [x] 支持批量视频/音频处理
+- [x] 浏览器插件（Chrome Extension）
+- [x] 用户登录认证与数据隔离
+- [x] NewAPI 快捷接入功能
 - [ ] 笔记导出为 PDF / Word / Notion
 - [ ] 支持视频剪辑功能
 - [ ] 移动端 App 开发
