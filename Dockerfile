@@ -12,7 +12,7 @@ RUN pnpm install
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
-RUN ls -la ../ && cat ../.env && pnpm run build
+RUN pnpm run build
 
 # === 阶段2：后端构建 ===
 FROM python:3.11-slim AS backend-builder
@@ -70,7 +70,7 @@ ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages
 COPY --from=backend-builder /app/models /app/models
 
 # 复制前端构建产物
-COPY --from=frontend-builder /app/frontend/dist /var/www/html
+COPY --from=frontend-builder /build/frontend/dist /var/www/html
 
 # 复制 nginx 配置
 COPY ./deploy/nginx.conf /etc/nginx/sites-available/default
