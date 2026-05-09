@@ -1,6 +1,10 @@
 services:
   videonote:
-    image: dick86114/videonote:latest
+    # 本地开发构建: docker compose build
+    # 使用预构建镜像: docker compose pull && docker compose up -d
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: videonote
     restart: unless-stopped
     ports:

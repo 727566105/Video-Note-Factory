@@ -30,8 +30,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 RUN pip install --no-cache-dir bcrypt==4.0.1
 
-RUN mkdir -p /app/models/whisper && \
-    python -c "from faster_whisper import WhisperModel; WhisperModel('base', download_root='/app/models/whisper', device='cpu', compute_type='int8')"
+RUN mkdir -p /app/backend/models/whisper && \
+    python -c "from faster_whisper import WhisperModel; WhisperModel('base', download_root='/app/backend/models/whisper', device='cpu', compute_type='int8')"
 
 # === 阶段3：最终镜像 ===
 FROM python:3.11-slim
@@ -46,9 +46,7 @@ COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/l
 COPY --from=backend-builder /usr/local/bin /usr/local/bin
 COPY ./backend /app/backend
 
-ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages
-
-COPY --from=backend-builder /app/models /app/models
+COPY --from=backend-builder /app/backend/models /app/backend/models
 
 COPY --from=frontend-builder /app/frontend/dist /var/www/html
 
@@ -72,7 +70,9 @@ ENV IMAGE_BASE_URL=/static/screenshots
 ENV DATA_DIR=data
 ENV TRANSCRIBER_TYPE=fast-whisper
 ENV WHISPER_MODEL_SIZE=base
-ENV DATABASE_URL=sqlite:///data/video_note.db
+ENV DATABASE_URL=sqlite:////app/data/video_note.db
+ENV HF_ENDPOINT=https://hf-mirror.com
+ENV WEBDAV_ENCRYPTION_KEY=
 
 EXPOSE 80 8483
 
