@@ -1,5 +1,5 @@
 # === 阶段1：前端构建 ===
-FROM node:18-alpine AS frontend-builder
+FROM node:18 AS frontend-builder
 
 RUN npm install -g pnpm
 RUN pnpm config set registry https://registry.npmmirror.com
@@ -10,7 +10,13 @@ RUN pnpm install
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
-RUN pnpm run build
+RUN pnpm run build 2>&1 | tee /tmp/build.log; \
+    exit_code=$?; \
+    if [ $exit_code -ne 0 ]; then \
+      echo "=== BUILD FAILED, showing first 100 lines ==="; \
+      head -100 /tmp/build.log; \
+      exit $exit_code; \
+    fi
 
 # === 阶段2：后端构建 ===
 FROM python:3.11-slim AS backend-builder
