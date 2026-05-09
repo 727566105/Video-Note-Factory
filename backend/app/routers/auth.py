@@ -33,6 +33,11 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
 
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 @router.post("/login")
 def login(req: LoginRequest):
     user = get_user_by_username(req.username)
@@ -100,3 +105,13 @@ def delete_user_api(user_id: int, current_user=Depends(require_admin)):
         return R.success(msg=result["message"])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/change-password")
+def change_password(req: ChangePasswordRequest, current_user=Depends(get_current_user)):
+    if not verify_password(req.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="旧密码错误")
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="新密码长度不能少于6位")
+    update_user(current_user.id, password=req.new_password)
+    return R.success(msg="密码修改成功")

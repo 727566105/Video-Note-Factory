@@ -37,12 +37,14 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           </div>
           <div className="text-base font-bold text-gray-800 md:text-lg">设置</div>
         </div>
-        <Link to={'/'}>
-          <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
-        </Link>
-        <button onClick={handleLogout} title="退出登录">
-          <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
-        </button>
+        <div className="flex items-center gap-3">
+          <Link to={'/'}>
+            <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
+          </Link>
+          <button onClick={handleLogout} title="退出登录">
+            <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
