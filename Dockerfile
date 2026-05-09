@@ -12,7 +12,7 @@ RUN pnpm install
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
-RUN pnpm run build
+RUN ls -la ../ && cat ../.env && pnpm run build
 
 # === 阶段2：后端构建 ===
 FROM python:3.11-slim AS backend-builder
