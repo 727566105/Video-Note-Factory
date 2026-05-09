@@ -7,10 +7,6 @@ on:
       - docker-v1
   workflow_dispatch:
 
-env:
-  DOCKER_BUILDKIT: 1
-  BUILDKIT_PROGRESS: plain
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -34,13 +30,16 @@ jobs:
           VERSION=$(date +'%Y%m%d-%H%M%S')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          no-cache: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }}
+      - name: Build Docker image
+        run: |
+          docker build \
+            --progress=plain \
+            --no-cache \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }} \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }}
