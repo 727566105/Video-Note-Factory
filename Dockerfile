@@ -5,8 +5,8 @@ RUN npm install -g pnpm
 RUN pnpm config set registry https://registry.npmmirror.com
 
 WORKDIR /app/frontend
-COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY ./videoNote_frontend/package.json ./
+RUN pnpm install
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
