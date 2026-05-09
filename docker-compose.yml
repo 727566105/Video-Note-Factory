@@ -2,9 +2,10 @@ services:
   videonote:
     image: dick86114/videonote:latest
     container_name: videonote
-    restart: unless-stopped
+    restart: always
+    network_mode: bridge
     ports:
-      - "${APP_PORT:-3015}:80"
+      - ${APP_PORT:-3015}:80
     volumes:
       - ./data:/app/data
       - ./note_results:/app/note_results
