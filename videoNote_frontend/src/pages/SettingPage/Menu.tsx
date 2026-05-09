@@ -17,18 +17,6 @@ const Menu = () => {
 
   const baseMenuList: IMenuProps[] = [
     {
-      id: 'taskqueue',
-      name: '任务队列',
-      icon: <ListOrdered />,
-      path: '/settings/taskqueue',
-    },
-    {
-      id: 'download',
-      name: '下载配置',
-      icon: <HardDriveDownload />,
-      path: '/settings/download',
-    },
-    {
       id: 'siyuan',
       name: '思源笔记',
       icon: <BookOpen />,
@@ -54,6 +42,18 @@ const Menu = () => {
       name: 'AI 模型设置',
       icon: <BotMessageSquare />,
       path: '/settings/model',
+    },
+    {
+      id: 'taskqueue',
+      name: '任务队列',
+      icon: <ListOrdered />,
+      path: '/settings/taskqueue',
+    },
+    {
+      id: 'download',
+      name: '下载配置',
+      icon: <HardDriveDownload />,
+      path: '/settings/download',
     },
   ]
 
