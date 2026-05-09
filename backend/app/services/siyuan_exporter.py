@@ -61,7 +61,7 @@ class SiyuanExporter:
         导出笔记到思源笔记
 
         Args:
-            task_id: BiliNote 任务 ID
+            task_id: videoNote 任务 ID
             title: 笔记标题（可选）
 
         Returns:
@@ -83,7 +83,7 @@ class SiyuanExporter:
             # 生成文档路径
             doc_title = title or f"笔记_{task_id[:8]}"
             safe_title = re.sub(r'[\\/*?:"<>|]', '', doc_title).strip()
-            doc_path = f"/BiliNote/{safe_title}.md"
+            doc_path = f"/videoNote/{safe_title}.md"
 
             # 调用思源笔记官方 API
             url = f"{self.config.api_url.rstrip('/')}/api/filetree/createDocWithMd"

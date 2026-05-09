@@ -41,7 +41,7 @@ CREATE TABLE siyuan_configs (
 ```sql
 CREATE TABLE siyuan_export_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id TEXT NOT NULL,          -- BiliNote 任务 ID
+    task_id TEXT NOT NULL,          -- videoNote 任务 ID
     siyuan_doc_id TEXT,             -- 思源笔记文档 ID
     notebook_id TEXT,               -- 导出的笔记本 ID
     notebook_name TEXT,             -- 导出的笔记本名称
@@ -82,7 +82,7 @@ Headers: {
 }
 Body: {
     "notebook": "<notebook_id>",     # 笔记本 ID
-    "path": "/BiliNote/视频标题",    # 文档路径（含 .md 扩展名）
+    "path": "/videoNote/视频标题",    # 文档路径（含 .md 扩展名）
     "markdown": "# 笔记内容"         # Markdown 内容
 }
 
@@ -137,9 +137,9 @@ Body: {
 
 ## Markdown 格式转换
 
-BiliNote 生成的 Markdown 可能需要适配思源笔记格式：
+videoNote 生成的 Markdown 可能需要适配思源笔记格式：
 
-| 特性 | BiliNote | 思源笔记 | 处理方式 |
+| 特性 | videoNote | 思源笔记 | 处理方式 |
 |------|----------|----------|----------|
 | 标题 | `# H1` | `# H1` | 直接兼容 |
 | 代码块 | ` ``` ` | ` ``` ` | 直接兼容 |

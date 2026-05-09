@@ -36,7 +36,7 @@ const LoginPage = () => {
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-lg">
         <div className="mb-6 flex flex-col items-center">
           <img src={logo} alt="logo" className="mb-3 h-12 w-12" />
-          <h1 className="text-xl font-bold text-gray-800">BiliNote</h1>
+          <h1 className="text-xl font-bold text-gray-800">videoNote</h1>
           <p className="mt-1 text-sm text-gray-500">AI 视频笔记生成工具</p>
         </div>
 

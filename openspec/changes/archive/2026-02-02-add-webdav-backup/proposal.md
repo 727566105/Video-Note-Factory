@@ -2,11 +2,11 @@
 
 ## 概述
 
-为 BiliNote 添加 WebDAV 备份功能，允许用户将生成的笔记数据和数据库配置备份到 WebDAV 服务器（如坚果云、Nextcloud、ownCloud 等），支持手动备份和定时自动备份。
+为 videoNote 添加 WebDAV 备份功能，允许用户将生成的笔记数据和数据库配置备份到 WebDAV 服务器（如坚果云、Nextcloud、ownCloud 等），支持手动备份和定时自动备份。
 
 ## 背景
 
-当前 BiliNote 的数据存储在：
+当前 videoNote 的数据存储在：
 - 本地文件系统 `note_results/` 目录 - 存储生成的 Markdown、音频缓存、JSON 元数据
 - SQLite 数据库 - 存储任务记录、模型配置、思源笔记配置等
 
@@ -79,10 +79,10 @@
 ```
 {webdav_path}/
 ├── backups/
-│   ├── bilinote_{timestamp}.db          # 数据库备份
+│   ├── videonote_{timestamp}.db          # 数据库备份
 │   ├── note_results_{timestamp}.zip      # 笔记文件备份
 │   └── backup_info_{timestamp}.json      # 备份元信息
-└── .bilinote/
+└── .videonote/
     └── backup_history.json                # 备份历史记录
 ```
 

@@ -2,11 +2,11 @@
 
 ## 概述
 
-为 BiliNote 添加 PDF 导出功能，允许用户将生成的 Markdown 笔记导出为格式化的 PDF 文档。
+为 videoNote 添加 PDF 导出功能，允许用户将生成的 Markdown 笔记导出为格式化的 PDF 文档。
 
 ## 背景
 
-当前 BiliNote 可以生成 Markdown 格式的笔记，但用户无法直接导出为 PDF 格式进行分享或存档。虽然后端已安装 `markdown_pdf` 包，但尚未实现导出功能。
+当前 videoNote 可以生成 Markdown 格式的笔记，但用户无法直接导出为 PDF 格式进行分享或存档。虽然后端已安装 `markdown_pdf` 包，但尚未实现导出功能。
 
 ## 目标
 

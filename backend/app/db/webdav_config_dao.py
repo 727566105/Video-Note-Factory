@@ -142,7 +142,7 @@ def test_connection(url: str, username: str, password: str) -> tuple[bool, str]:
         except Exception as list_error:
             # 如果列出根目录失败，尝试创建一个测试文件
             try:
-                test_path = "bilinote_test"
+                test_path = "videonote_test"
                 client.mkdir(test_path)
                 client.rmdir(test_path)
                 logger.info("WebDAV connection successful (write test)")

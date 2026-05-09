@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-BiliNote 是一个 AI 视频笔记生成工具，支持从 Bilibili、YouTube、抖音等平台下载视频，通过 AI 转写和总结生成 Markdown 笔记。
+videoNote 是一个 AI 视频笔记生成工具，支持从 Bilibili、YouTube、抖音等平台下载视频，通过 AI 转写和总结生成 Markdown 笔记。
 
 **技术栈**: FastAPI (后端) + React/TypeScript (前端)
 
@@ -46,7 +46,7 @@ python3 -m app.routers.test_export  # 单独测试导出功能
 
 ### 前端开发
 ```bash
-cd BillNote_frontend
+cd videoNote_frontend
 pnpm install                # 安装依赖
 pnpm dev                    # 启动开发服务器 (端口动态分配，默认 3015)
 pnpm build                  # 构建生产版本
@@ -62,9 +62,9 @@ docker-compose up --build   # 构建并启动所有服务
 ## 项目结构
 
 ```
-BiliNote/
+videoNote/
 ├── backend/                    # 后端服务 (FastAPI)
-├── BillNote_frontend/          # 前端服务 (React + TypeScript)
+├── videoNote_frontend/          # 前端服务 (React + TypeScript)
 ├── browser-extension/          # Chrome 浏览器插件
 │   ├── manifest.json           # 插件配置
 │   ├── popup/                  # 弹窗页面
@@ -107,7 +107,7 @@ BiliNote/
    - 结果文件: `{task_id}.json` (最终笔记)
    - 支持缓存机制: 音频/转写/Markdown 都会缓存
 
-### 前端架构 (BillNote_frontend/)
+### 前端架构 (videoNote_frontend/)
 
 **技术栈**: React 19 + TypeScript + Vite + Tailwind CSS 4.x + Zustand + shadcn/ui + antd
 
@@ -189,8 +189,8 @@ Chrome 插件 "VideoNote Helper"，功能：
 - 后端入口: `backend/main.py`
 - 核心服务: `backend/app/services/note.py`
 - API 路由: `backend/app/routers/`
-- 前端入口: `BillNote_frontend/src/App.tsx`
-- 请求封装: `BillNote_frontend/src/utils/request.ts`
+- 前端入口: `videoNote_frontend/src/App.tsx`
+- 请求封装: `videoNote_frontend/src/utils/request.ts`
 - 浏览器插件: `browser-extension/manifest.json`
 - 环境配置: `.env.example`
 

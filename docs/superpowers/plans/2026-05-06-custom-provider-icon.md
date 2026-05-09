@@ -19,13 +19,13 @@
 | 修改 | `backend/app/services/provider.py` | 序列化包含 `logo_url`，add_provider 接受 `logo_url` |
 | 修改 | `backend/app/routers/provider.py` | 新增上传端点 + 请求模型含 `logo_url` |
 | 修改 | `backend/main.py` | 启动时创建 `uploads/icons/` 目录 |
-| 修改 | `BillNote_frontend/src/types/api.ts` | Provider 新增 `logoUrl` |
-| 修改 | `BillNote_frontend/src/services/model.ts` | 新增 `uploadIcon` 函数 |
-| 修改 | `BillNote_frontend/src/components/Form/modelForm/Icons/index.tsx` | AILogo 支持 `logoUrl` |
-| 修改 | `BillNote_frontend/src/store/providerStore/index.ts` | 映射 `logo_url` |
-| 修改 | `BillNote_frontend/src/components/Form/modelForm/components/providerCard.tsx` | 传递 `logoUrl` |
-| 修改 | `BillNote_frontend/src/components/Form/modelForm/Provider.tsx` | 传递 `logoUrl` |
-| 修改 | `BillNote_frontend/src/components/Form/modelForm/Form.tsx` | 上传 UI |
+| 修改 | `videoNote_frontend/src/types/api.ts` | Provider 新增 `logoUrl` |
+| 修改 | `videoNote_frontend/src/services/model.ts` | 新增 `uploadIcon` 函数 |
+| 修改 | `videoNote_frontend/src/components/Form/modelForm/Icons/index.tsx` | AILogo 支持 `logoUrl` |
+| 修改 | `videoNote_frontend/src/store/providerStore/index.ts` | 映射 `logo_url` |
+| 修改 | `videoNote_frontend/src/components/Form/modelForm/components/providerCard.tsx` | 传递 `logoUrl` |
+| 修改 | `videoNote_frontend/src/components/Form/modelForm/Provider.tsx` | 传递 `logoUrl` |
+| 修改 | `videoNote_frontend/src/components/Form/modelForm/Form.tsx` | 上传 UI |
 
 ---
 
@@ -352,12 +352,12 @@ git commit -m "feat: add icon upload endpoint and logo_url support in routes"
 ### Task 5: 前端类型定义 + API 服务
 
 **Files:**
-- Modify: `BillNote_frontend/src/types/api.ts`
-- Modify: `BillNote_frontend/src/services/model.ts`
+- Modify: `videoNote_frontend/src/types/api.ts`
+- Modify: `videoNote_frontend/src/services/model.ts`
 
 - [ ] **Step 1: 更新 Provider 类型**
 
-在 `BillNote_frontend/src/types/api.ts` 中，给 `Provider` 接口新增 `logoUrl` 字段：
+在 `videoNote_frontend/src/types/api.ts` 中，给 `Provider` 接口新增 `logoUrl` 字段：
 
 ```typescript
 // Provider 相关
@@ -375,7 +375,7 @@ export interface Provider {
 
 - [ ] **Step 2: 新增 `uploadIcon` 函数和更新 `ProviderUpdateData`**
 
-在 `BillNote_frontend/src/services/model.ts` 中，更新 `ProviderUpdateData` 并新增 `uploadIcon`：
+在 `videoNote_frontend/src/services/model.ts` 中，更新 `ProviderUpdateData` 并新增 `uploadIcon`：
 
 ```typescript
 export interface ProviderUpdateData {
@@ -404,7 +404,7 @@ export const uploadIcon = async (file: File) => {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add BillNote_frontend/src/types/api.ts BillNote_frontend/src/services/model.ts
+git add videoNote_frontend/src/types/api.ts videoNote_frontend/src/services/model.ts
 git commit -m "feat: add logoUrl type and uploadIcon API function"
 ```
 
@@ -413,11 +413,11 @@ git commit -m "feat: add logoUrl type and uploadIcon API function"
 ### Task 6: 前端 AILogo 组件 — 支持 `logoUrl`
 
 **Files:**
-- Modify: `BillNote_frontend/src/components/Form/modelForm/Icons/index.tsx`
+- Modify: `videoNote_frontend/src/components/Form/modelForm/Icons/index.tsx`
 
 - [ ] **Step 1: 更新 AILogo 组件**
 
-替换 `BillNote_frontend/src/components/Form/modelForm/Icons/index.tsx` 全部内容：
+替换 `videoNote_frontend/src/components/Form/modelForm/Icons/index.tsx` 全部内容：
 
 ```tsx
 import * as Icons from '@lobehub/icons'
@@ -470,7 +470,7 @@ export default AILogo
 - [ ] **Step 2: Commit**
 
 ```bash
-git add BillNote_frontend/src/components/Form/modelForm/Icons/index.tsx
+git add videoNote_frontend/src/components/Form/modelForm/Icons/index.tsx
 git commit -m "feat: AILogo supports logoUrl for custom uploaded icons"
 ```
 
@@ -479,11 +479,11 @@ git commit -m "feat: AILogo supports logoUrl for custom uploaded icons"
 ### Task 7: 前端 ProviderStore — 映射 `logo_url`
 
 **Files:**
-- Modify: `BillNote_frontend/src/store/providerStore/index.ts`
+- Modify: `videoNote_frontend/src/store/providerStore/index.ts`
 
 - [ ] **Step 1: 更新 `fetchProviderList` 映射**
 
-在 `BillNote_frontend/src/store/providerStore/index.ts` 中，修改 `fetchProviderList` 内的 map 函数（约第 140 行），新增 `logo_url` 映射：
+在 `videoNote_frontend/src/store/providerStore/index.ts` 中，修改 `fetchProviderList` 内的 map 函数（约第 140 行），新增 `logo_url` 映射：
 
 ```typescript
       fetchProviderList: async () => {
@@ -575,7 +575,7 @@ git commit -m "feat: AILogo supports logoUrl for custom uploaded icons"
 - [ ] **Step 4: Commit**
 
 ```bash
-git add BillNote_frontend/src/store/providerStore/index.ts
+git add videoNote_frontend/src/store/providerStore/index.ts
 git commit -m "feat: map logo_url in providerStore"
 ```
 
@@ -584,12 +584,12 @@ git commit -m "feat: map logo_url in providerStore"
 ### Task 8: 前端 ProviderCard + Provider 列表 — 传递 `logoUrl`
 
 **Files:**
-- Modify: `BillNote_frontend/src/components/Form/modelForm/components/providerCard.tsx`
-- Modify: `BillNote_frontend/src/components/Form/modelForm/Provider.tsx`
+- Modify: `videoNote_frontend/src/components/Form/modelForm/components/providerCard.tsx`
+- Modify: `videoNote_frontend/src/components/Form/modelForm/Provider.tsx`
 
 - [ ] **Step 1: 更新 ProviderCard 接收并传递 `logoUrl`**
 
-在 `BillNote_frontend/src/components/Form/modelForm/components/providerCard.tsx` 中：
+在 `videoNote_frontend/src/components/Form/modelForm/components/providerCard.tsx` 中：
 
 更新接口（第 8 行起）：
 ```typescript
@@ -620,7 +620,7 @@ const ProviderCard: FC<IProviderCardProps> = ({
 
 - [ ] **Step 2: 更新 Provider 列表传递 `logoUrl`**
 
-在 `BillNote_frontend/src/components/Form/modelForm/Provider.tsx` 中，更新 ProviderCard 调用（第 41 行起）：
+在 `videoNote_frontend/src/components/Form/modelForm/Provider.tsx` 中，更新 ProviderCard 调用（第 41 行起）：
 
 ```tsx
               <ProviderCard
@@ -636,7 +636,7 @@ const ProviderCard: FC<IProviderCardProps> = ({
 - [ ] **Step 3: Commit**
 
 ```bash
-git add BillNote_frontend/src/components/Form/modelForm/components/providerCard.tsx BillNote_frontend/src/components/Form/modelForm/Provider.tsx
+git add videoNote_frontend/src/components/Form/modelForm/components/providerCard.tsx videoNote_frontend/src/components/Form/modelForm/Provider.tsx
 git commit -m "feat: pass logoUrl through ProviderCard and Provider list"
 ```
 
@@ -645,7 +645,7 @@ git commit -m "feat: pass logoUrl through ProviderCard and Provider list"
 ### Task 9: 前端 ProviderForm — 图标上传 UI
 
 **Files:**
-- Modify: `BillNote_frontend/src/components/Form/modelForm/Form.tsx`
+- Modify: `videoNote_frontend/src/components/Form/modelForm/Form.tsx`
 
 这是最大的一个改动。在 Form.tsx 中：
 
@@ -657,7 +657,7 @@ git commit -m "feat: pass logoUrl through ProviderCard and Provider list"
 
 - [ ] **Step 1: 新增 import**
 
-在 `BillNote_frontend/src/components/Form/modelForm/Form.tsx` 顶部 import 区域（第 19 行之后）新增：
+在 `videoNote_frontend/src/components/Form/modelForm/Form.tsx` 顶部 import 区域（第 19 行之后）新增：
 
 ```typescript
 import { uploadIcon } from '@/services/model.ts'
@@ -882,7 +882,7 @@ import { Upload, X } from 'lucide-react'
 - [ ] **Step 6: Commit**
 
 ```bash
-git add BillNote_frontend/src/components/Form/modelForm/Form.tsx
+git add videoNote_frontend/src/components/Form/modelForm/Form.tsx
 git commit -m "feat: add icon upload UI to provider create/edit form"
 ```
 
@@ -896,7 +896,7 @@ git commit -m "feat: add icon upload UI to provider create/edit form"
 # 后端
 cd backend && python3 main.py
 # 前端
-cd BillNote_frontend && pnpm dev
+cd videoNote_frontend && pnpm dev
 ```
 
 - [ ] **Step 2: 验证新建自定义供应商 + 上传图标**

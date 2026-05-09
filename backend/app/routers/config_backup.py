@@ -59,7 +59,7 @@ def export_configs_file():
 
         # 创建临时文件用于下载
         temp_dir = tempfile.gettempdir()
-        download_path = os.path.join(temp_dir, "bilinote_configs.json")
+        download_path = os.path.join(temp_dir, "videonote_configs.json")
 
         # 复制文件到下载位置
         import shutil
@@ -70,7 +70,7 @@ def export_configs_file():
         # 返回文件下载响应
         return FileResponse(
             path=download_path,
-            filename="bilinote_configs.json",
+            filename="videonote_configs.json",
             media_type="application/json",
             background=None
         )

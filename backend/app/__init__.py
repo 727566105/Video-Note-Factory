@@ -4,7 +4,7 @@ from .routers import note, provider, model, config, export, siyuan, webdav, conf
 
 
 def create_app(lifespan) -> FastAPI:
-    app = FastAPI(title="BiliNote",lifespan=lifespan)
+    app = FastAPI(title="videoNote",lifespan=lifespan)
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
     app.include_router(note.router, prefix="/api")

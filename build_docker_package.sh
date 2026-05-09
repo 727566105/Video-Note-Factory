@@ -1,15 +1,15 @@
 #!/bin/bash
-# BiliNote Docker 部署打包脚本
+# videoNote Docker 部署打包脚本
 # 用于飞牛 NAS Docker 部署
 
 set -e
 
 echo "=========================================="
-echo "  BiliNote Docker 部署打包脚本"
+echo "  videoNote Docker 部署打包脚本"
 echo "=========================================="
 
 # 包名
-PACKAGE_NAME="bilinote-docker"
+PACKAGE_NAME="videonote-docker"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_DIR="${PACKAGE_NAME}_${TIMESTAMP}"
 
@@ -21,7 +21,7 @@ echo "[2/5] 复制必要文件..."
 # 复制 Docker 相关文件
 cp docker-compose.yml "$OUTPUT_DIR/"
 cp -r backend "$OUTPUT_DIR/"
-cp -r BillNote_frontend "$OUTPUT_DIR/"
+cp -r videoNote_frontend "$OUTPUT_DIR/"
 cp -r nginx "$OUTPUT_DIR/"
 
 # 复制配置文件
@@ -36,16 +36,16 @@ rm -rf "$OUTPUT_DIR/backend/data"
 rm -rf "$OUTPUT_DIR/backend/note_results"
 rm -rf "$OUTPUT_DIR/backend/models"
 rm -rf "$OUTPUT_DIR/backend/uploads"
-rm -f "$OUTPUT_DIR/backend/bili_note.db"
+rm -f "$OUTPUT_DIR/backend/video_note.db"
 
 # 清理前端
-rm -rf "$OUTPUT_DIR/BillNote_frontend/node_modules"
-rm -rf "$OUTPUT_DIR/BillNote_frontend/dist"
-rm -rf "$OUTPUT_DIR/BillNote_frontend/.idea"
+rm -rf "$OUTPUT_DIR/videoNote_frontend/node_modules"
+rm -rf "$OUTPUT_DIR/videoNote_frontend/dist"
+rm -rf "$OUTPUT_DIR/videoNote_frontend/.idea"
 
 echo "[4/5] 创建说明文件..."
 cat > "$OUTPUT_DIR/README_DEPLOY.md" << 'EOF'
-# BiliNote Docker 部署说明
+# videoNote Docker 部署说明
 
 ## 部署步骤
 

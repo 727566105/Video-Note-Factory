@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-echo "🛑 停止 BiliNote 服务..."
+echo "🛑 停止 videoNote 服务..."
 
 if [ -f .backend.pid ]; then
     kill $(cat .backend.pid) 2>/dev/null
@@ -17,7 +17,7 @@ fi
 
 # 清理可能残留的进程
 pkill -f "python3.*main.py" 2>/dev/null
-pkill -f "vite.*BiliNote" 2>/dev/null
+pkill -f "vite.*videoNote" 2>/dev/null
 
 echo "✅ 所有服务已停止"
 

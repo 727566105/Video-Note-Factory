@@ -63,7 +63,7 @@
 ## 阶段 3：前端开发 (2-3天)
 
 ### 3.1 创建导出图文名称件
-**文件**：`BillNote_frontend/src/components/ExportImageButton.tsx`
+**文件**：`videoNote_frontend/src/components/ExportImageButton.tsx`
 
 - [ ] 实现"导出图文"按钮
 - [ ] 实现加载状态显示
@@ -75,7 +75,7 @@
 - 下载的图片文件名正确
 
 ### 3.2 创建模板选择对话框
-**文件**：`BillNote_frontend/src/components/TemplateDialog.tsx`
+**文件**：`videoNote_frontend/src/components/TemplateDialog.tsx`
 
 - [ ] 实现模板列表展示
 - [ ] 实现模板预览功能
@@ -87,7 +87,7 @@
 - 可以选择不同模板并生成对应样式的图片
 
 ### 3.3 集成到笔记详情页
-**文件**：`BillNote_frontend/src/pages/HomePage/components/MarkdownHeader.tsx`
+**文件**：`videoNote_frontend/src/pages/HomePage/components/MarkdownHeader.tsx`
 
 - [ ] 在工具栏添加"导出图文"按钮
 - [ ] 调整按钮布局（PDF + 图文）

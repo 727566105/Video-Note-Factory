@@ -220,7 +220,7 @@ git commit -m "feat(api): generate_note 保存 video_url，get_tasks 返回 vide
 ## Task 5: 前端读取 video_url
 
 **Files:**
-- Modify: `BillNote_frontend/src/store/taskStore/index.ts`
+- Modify: `videoNote_frontend/src/store/taskStore/index.ts`
 
 - [ ] **Step 1: 修改 loadTasksFromBackend 函数**
 
@@ -242,7 +242,7 @@ formData: {
 - [ ] **Step 2: 提交变更**
 
 ```bash
-git add BillNote_frontend/src/store/taskStore/index.ts
+git add videoNote_frontend/src/store/taskStore/index.ts
 git commit -m "feat(store): loadTasksFromBackend 读取 video_url"
 ```
 
@@ -251,7 +251,7 @@ git commit -m "feat(store): loadTasksFromBackend 读取 video_url"
 ## Task 6: 前端校验 video_url 并提示
 
 **Files:**
-- Modify: `BillNote_frontend/src/pages/HomePage/components/NoteForm.tsx`
+- Modify: `videoNote_frontend/src/pages/HomePage/components/NoteForm.tsx`
 
 - [ ] **Step 1: 撤销 is_editing 临时修复，恢复原始 schema**
 
@@ -363,7 +363,7 @@ const onSubmit = async (values: NoteFormValues) => {
 - [ ] **Step 5: 提交变更**
 
 ```bash
-git add BillNote_frontend/src/pages/HomePage/components/NoteForm.tsx
+git add videoNote_frontend/src/pages/HomePage/components/NoteForm.tsx
 git commit -m "feat(form): 编辑模式下校验 video_url，为空时提示无法重试"
 ```
 
@@ -390,7 +390,7 @@ python main.py
 - [ ] **Step 3: 启动前端服务**
 
 ```bash
-cd BillNote_frontend
+cd videoNote_frontend
 pnpm dev
 ```
 

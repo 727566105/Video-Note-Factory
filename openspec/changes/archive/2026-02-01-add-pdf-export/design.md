@@ -127,7 +127,7 @@ app.include_router(export.router, prefix="/api/export")
 
 ### 前端实现
 
-#### 导出按钮组件：`BillNote_frontend/src/components/ExportPDFButton.tsx`
+#### 导出按钮组件：`videoNote_frontend/src/components/ExportPDFButton.tsx`
 
 ```tsx
 import { useState } from 'react';
@@ -185,7 +185,7 @@ export function ExportPDFButton({ taskId, disabled = false }: ExportPDFButtonPro
 
 #### 集成到笔记详情页
 
-在 `BillNote_frontend/src/pages/HomePage/components/MarkdownViewer.tsx` 中添加导出按钮。
+在 `videoNote_frontend/src/pages/HomePage/components/MarkdownViewer.tsx` 中添加导出按钮。
 
 ## 错误处理
 
