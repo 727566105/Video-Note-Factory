@@ -71,10 +71,10 @@ function App() {
                 <Route path="new" element={<ProviderForm isCreate />} />
                 <Route path=":id" element={<ProviderForm />} />
               </Route>
-              <Route path="download" element={<Downloader />}>
+              <Route path="download" element={<AdminRoute><Downloader /></AdminRoute>}>
                 <Route path=":id" element={<DownloaderForm />} />
               </Route>
-              <Route path="taskqueue" element={<TaskQueueSettings />} />
+              <Route path="taskqueue" element={<AdminRoute><TaskQueueSettings /></AdminRoute>} />
               <Route path="siyuan" element={<SiyuanSettings />} />
               <Route path="webdav" element={<WebDAVSettings />} />
               <Route path="about" element={<AboutPage />} />
