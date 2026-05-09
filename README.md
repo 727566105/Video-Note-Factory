@@ -1,7 +1,7 @@
 <div style="display: flex; justify-content: center; align-items: center; gap: 10px;
 ">
     <p align="center">
-  <img src="./doc/icon.svg" alt="videoNote Banner" width="50" height="50"  />
+  <img src="https://img.860114.xyz/logo-1_1778361840853.png" alt="videoNote Banner" width="50" height="50"  />
 </p>
 <h1 align="center" > videoNote v2.5.1</h1>
 </div>
