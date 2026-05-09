@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'react-hot-toast'
 import { Trash2, Edit2, Plus } from 'lucide-react'
+import { useAuthStore } from '@/store/authStore'
 
 interface User {
   id: number
@@ -20,6 +21,15 @@ const Users = () => {
   const [adding, setAdding] = useState(false)
   const [addForm, setAddForm] = useState({ username: '', password: '', role: 'user' })
 
+  // 普通用户修改密码
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+
+  const currentUser = useAuthStore(state => state.user)
+  const isAdmin = useAuthStore(state => state.isAdmin())
+
   const loadUsers = async () => {
     setLoading(true)
     try {
@@ -33,8 +43,10 @@ const Users = () => {
   }
 
   useEffect(() => {
-    loadUsers()
-  }, [])
+    if (isAdmin) {
+      loadUsers()
+    }
+  }, [isAdmin])
 
   const handleAdd = async () => {
     if (!addForm.username || !addForm.password) {
@@ -83,6 +95,85 @@ const Users = () => {
     setEditForm({ username: user.username, password: '', role: user.role })
   }
 
+  // 普通用户修改密码
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      toast.error('请填写所有字段')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('新密码两次输入不一致')
+      return
+    }
+    if (newPassword.length < 6) {
+      toast.error('新密码长度不能少于6位')
+      return
+    }
+    setChangingPassword(true)
+    try {
+      await request.put('/auth/change-password', {
+        old_password: oldPassword,
+        new_password: newPassword,
+      })
+      toast.success('密码修改成功')
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err: any) {
+      toast.error(err?.detail || '修改失败')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
+  // 普通用户：只显示修改密码表单
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col gap-6">
+        <h3 className="text-lg font-semibold">修改密码</h3>
+        <div className="max-w-md rounded-lg border bg-gray-50 p-6">
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">当前用户</label>
+              <div className="text-sm text-gray-600">{currentUser?.username}</div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">旧密码</label>
+              <Input
+                type="password"
+                value={oldPassword}
+                onChange={e => setOldPassword(e.target.value)}
+                placeholder="请输入旧密码"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">新密码</label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="请输入新密码（至少6位）"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">确认新密码</label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="请再次输入新密码"
+              />
+            </div>
+            <Button className="mt-2 w-fit" onClick={handleChangePassword} disabled={changingPassword}>
+              {changingPassword ? '修改中...' : '确认修改'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // 管理员：完整的用户管理
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -131,6 +222,7 @@ const Users = () => {
             <tr className="border-b bg-gray-50 text-left">
               <th className="px-4 py-2 font-medium">ID</th>
               <th className="px-4 py-2 font-medium">用户名</th>
+              <th className="px-4 py-2 font-medium">密码</th>
               <th className="px-4 py-2 font-medium">角色</th>
               <th className="px-4 py-2 font-medium">创建时间</th>
               <th className="px-4 py-2 font-medium text-right">操作</th>
@@ -146,6 +238,14 @@ const Users = () => {
                       <Input
                         value={editForm.username}
                         onChange={e => setEditForm({ ...editForm, username: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <Input
+                        type="password"
+                        placeholder="留空不修改"
+                        value={editForm.password}
+                        onChange={e => setEditForm({ ...editForm, password: e.target.value })}
                       />
                     </td>
                     <td className="px-4 py-2">
@@ -168,6 +268,7 @@ const Users = () => {
                   <>
                     <td className="px-4 py-2">{user.id}</td>
                     <td className="px-4 py-2">{user.username}</td>
+                    <td className="px-4 py-2 text-gray-400">******</td>
                     <td className="px-4 py-2">{user.role === 'admin' ? '管理员' : '普通用户'}</td>
                     <td className="px-4 py-2">{user.created_at}</td>
                     <td className="px-4 py-2 text-right">

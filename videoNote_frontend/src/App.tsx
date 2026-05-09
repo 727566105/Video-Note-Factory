@@ -78,7 +78,7 @@ function App() {
               <Route path="siyuan" element={<SiyuanSettings />} />
               <Route path="webdav" element={<WebDAVSettings />} />
               <Route path="about" element={<AboutPage />} />
-              <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
+              <Route path="users" element={<UsersPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />

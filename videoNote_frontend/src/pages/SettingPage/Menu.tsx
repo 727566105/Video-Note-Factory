@@ -55,6 +55,9 @@ const Menu = () => {
       icon: <BotMessageSquare />,
       path: '/settings/model',
     },
+  ]
+
+  const commonMenuList: IMenuProps[] = [
     {
       id: 'users',
       name: '用户管理',
@@ -63,7 +66,7 @@ const Menu = () => {
     },
   ]
 
-  const menuList = isAdmin ? [...adminMenuList, ...baseMenuList] : baseMenuList
+  const menuList = isAdmin ? [...adminMenuList, ...commonMenuList, ...baseMenuList] : [...commonMenuList, ...baseMenuList]
 
   return (
     <div className="flex h-full flex-col">
