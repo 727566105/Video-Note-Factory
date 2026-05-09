@@ -18,6 +18,7 @@ export const noteFormats = [
 export const noteStyles = [
   { label: '精简', value: 'minimal', desc: '只保留核心要点，适合快速回顾' },
   { label: '详细', value: 'detailed', desc: '尽可能完整记录内容，不遗漏细节' },
+  { label: '原文', value: 'raw', desc: '不做任何总结，直接显示转写原文' },
   { label: '教程', value: 'tutorial', desc: '重点记录步骤、关键操作和结论' },
   { label: '学术', value: 'academic', desc: '正式结构化排版，适合学术报告' },
   { label: '小红书', value: 'xiaohongshu', desc: '爆款标题 + emoji，轻松活泼' },
