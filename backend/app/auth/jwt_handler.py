@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "bilinote-secret-key-change-in-production")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "videonote-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 

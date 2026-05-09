@@ -25,4 +25,4 @@ HF_ENDPOINT=https://hf-mirror.com
 WEBDAV_ENCRYPTION_KEY=请设置32字符以上随机密钥
 
 # 数据库路径 (默认即可)
-DATABASE_URL=sqlite:///bili_note.db
+DATABASE_URL=sqlite:///video_note.db

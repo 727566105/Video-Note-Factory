@@ -11,13 +11,13 @@ RUN pnpm config set registry https://registry.npmmirror.com
 WORKDIR /app
 
 # 先复制依赖文件，利用缓存
-COPY ./BillNote_frontend/package.json ./BillNote_frontend/pnpm-lock.yaml ./
+COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-lock.yaml ./
 
 # 安装依赖
 RUN pnpm install --frozen-lockfile
 
 # 复制剩余源码
-COPY ./BillNote_frontend .
+COPY ./videoNote_frontend .
 
 # 设置生产环境 API 地址（相对路径，通过 nginx 代理）
 ENV VITE_API_BASE_URL=/api
@@ -31,7 +31,7 @@ FROM nginx:1.25-alpine
 
 # 删除默认配置（可选）
 RUN rm -rf /etc/nginx/conf.d/default.conf
-COPY ./BillNote_frontend/deploy/default.conf /etc/nginx/conf.d/default.conf
+COPY ./videoNote_frontend/deploy/default.conf /etc/nginx/conf.d/default.conf
 
 
 # 拷贝构建产物

@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/GPT-OpenAI%20%7C%20DeepSeek%20%7C%20Qwen%20%7C%20自定义-ff69b4" />
   <img src="https://img.shields.io/badge/docker-compose-blue" />
   <img src="https://img.shields.io/badge/status-active-success" />
-  <img src="https://img.shields.io/github/stars/jefferyhcool/BiliNote?style=social" />
+  <img src="https://img.shields.io/github/stars/jefferyhcool/videoNote?style=social" />
 </p>
 
 ## ✨ 项目简介
@@ -24,15 +24,15 @@ videoNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、
 
 ## 📝 使用文档
 
-详细文档可以查看[这里](https://docs.bilinote.app/)
+详细文档可以查看[这里](https://docs.videonote.app/)
 
 ## 体验地址
 
-可以通过访问 [这里](https://www.bilinote.app/) 进行体验，速度略慢，不支持长视频。
+可以通过访问 [这里](https://www.videonote.app/) 进行体验，速度略慢，不支持长视频。
 
 ## 📦 Windows 打包版
 
-本项目提供了 Windows 系统的 exe 文件，可在[release](https://github.com/JefferyHcool/BiliNote/releases/tag/v1.1.1)进行下载。**注意一定要在没有中文路径的环境下运行。**
+本项目提供了 Windows 系统的 exe 文件，可在[release](https://github.com/JefferyHcool/videoNote/releases/tag/v1.1.1)进行下载。**注意一定要在没有中文路径的环境下运行。**
 
 ## 🔧 功能特性
 
@@ -78,7 +78,7 @@ videoNote/
 │   ├── main.py                 # 后端入口
 │   └── requirements.txt        # Python 依赖
 │
-├── BillNote_frontend/           # 前端服务 (React + TypeScript)
+├── videoNote_frontend/           # 前端服务 (React + TypeScript)
 │   ├── src/
 │   │   ├── components/         # React 组件
 │   │   ├── pages/              # 页面组件
@@ -131,8 +131,8 @@ videoNote/
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/JefferyHcool/BiliNote.git
-cd BiliNote
+git clone https://github.com/JefferyHcool/videoNote.git
+cd videoNote
 mv .env.example .env
 ```
 
@@ -147,7 +147,7 @@ python main.py
 ### 3. 启动前端（Vite + React）
 
 ```bash
-cd BillNote_frontend
+cd videoNote_frontend
 pnpm install
 pnpm dev
 ```
@@ -158,7 +158,7 @@ pnpm dev
 
 确保你已安装 Docker 和 Docker Compose：
 
-[docker 部署](https://github.com/JefferyHcool/bilinote-deploy/blob/master/README.md)
+[docker 部署](https://github.com/JefferyHcool/videonote-deploy/blob/master/README.md)
 
 ## 📖 开发指南
 
@@ -173,7 +173,7 @@ pnpm dev
 
 1. 在 `backend/app/downloaders/` 创建新的下载器类，继承 `Downloader` 基类
 2. 在 `backend/app/services/constant.py` 的 `SUPPORT_PLATFORM_MAP` 注册
-3. 更新前端平台图标 `BillNote_frontend/src/components/Icons/platform.tsx`
+3. 更新前端平台图标 `videoNote_frontend/src/components/Icons/platform.tsx`
 4. 添加 URL 验证规则 `backend/app/validators/video_url_validator.py`
 
 ### 添加新转写引擎

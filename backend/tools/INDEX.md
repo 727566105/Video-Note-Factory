@@ -287,4 +287,4 @@ tail -50 ../logs/app.log
 
 **最后更新**: 2026-02-01  
 **版本**: 1.0.0  
-**维护者**: BiliNote Team
+**维护者**: videoNote Team

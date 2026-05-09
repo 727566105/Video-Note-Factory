@@ -2,7 +2,7 @@
 
 ## Context
 
-当前 BiliNote 的供应商图标仅支持 `@lobehub/icons` 预设图标（OpenAI、DeepSeek 等 7 种），自定义供应商统一显示 `customAI.png` 占位图。用户希望能上传自定义图标，让非预设供应商也有辨识度。
+当前 videoNote 的供应商图标仅支持 `@lobehub/icons` 预设图标（OpenAI、DeepSeek 等 7 种），自定义供应商统一显示 `customAI.png` 占位图。用户希望能上传自定义图标，让非预设供应商也有辨识度。
 
 ## 方案：新增 `logo_url` 字段
 
@@ -103,13 +103,13 @@ interface AILogoProps {
 | `backend/app/routers/provider.py` | 新增图标上传端点 + CRUD 支持 `logo_url` |
 | `backend/app/services/provider.py` | 序列化包含 `logo_url` |
 | `backend/app/db/provider_dao.py` | DAO 支持 `logo_url` |
-| `BillNote_frontend/src/types/api.ts` | Provider 新增 `logoUrl` |
-| `BillNote_frontend/src/components/Form/modelForm/Icons/index.tsx` | AILogo 支持 `logoUrl` |
-| `BillNote_frontend/src/store/providerStore/index.ts` | 映射 `logo_url` |
-| `BillNote_frontend/src/components/Form/modelForm/Form.tsx` | 上传 UI |
-| `BillNote_frontend/src/components/Form/modelForm/components/providerCard.tsx` | 传递 `logoUrl` |
-| `BillNote_frontend/src/components/Form/modelForm/Provider.tsx` | 传递 `logoUrl` |
-| `BillNote_frontend/src/services/model.ts` | 新增 `uploadIcon` 函数 |
+| `videoNote_frontend/src/types/api.ts` | Provider 新增 `logoUrl` |
+| `videoNote_frontend/src/components/Form/modelForm/Icons/index.tsx` | AILogo 支持 `logoUrl` |
+| `videoNote_frontend/src/store/providerStore/index.ts` | 映射 `logo_url` |
+| `videoNote_frontend/src/components/Form/modelForm/Form.tsx` | 上传 UI |
+| `videoNote_frontend/src/components/Form/modelForm/components/providerCard.tsx` | 传递 `logoUrl` |
+| `videoNote_frontend/src/components/Form/modelForm/Provider.tsx` | 传递 `logoUrl` |
+| `videoNote_frontend/src/services/model.ts` | 新增 `uploadIcon` 函数 |
 
 ## 验证方式
 

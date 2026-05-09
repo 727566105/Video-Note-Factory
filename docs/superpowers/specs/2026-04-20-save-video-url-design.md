@@ -37,11 +37,11 @@ SQL 脚本：`ALTER TABLE video_tasks ADD COLUMN video_url VARCHAR DEFAULT NULL`
 
 ### 5. 前端
 
-**文件**: `BillNote_frontend/src/store/taskStore/index.ts`
+**文件**: `videoNote_frontend/src/store/taskStore/index.ts`
 
 - `loadTasksFromBackend`：从后端数据中读取 `video_url`
 
-**文件**: `BillNote_frontend/src/pages/HomePage/components/NoteForm.tsx`
+**文件**: `videoNote_frontend/src/pages/HomePage/components/NoteForm.tsx`
 
 - 编辑模式下，若 `video_url` 为空，提交时提示「该任务缺少视频链接，无法重新生成」
 

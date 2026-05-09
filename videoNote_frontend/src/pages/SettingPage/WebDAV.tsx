@@ -475,7 +475,7 @@ const WebDAVSettings = () => {
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="/BiliNote/backups"
+                        placeholder="/videoNote/backups"
                       />
                     </FormControl>
                     <FormDescription className="text-xs">

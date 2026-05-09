@@ -186,7 +186,7 @@ data = result.get("data", {})
 
 ### REQ-EXPORT-002: Markdown 内容适配
 
-系统应将 BiliNote 生成的 Markdown 适配为思源笔记兼容格式。
+系统应将 videoNote 生成的 Markdown 适配为思源笔记兼容格式。
 
 #### Scenario: 移除内部锚点链接
 

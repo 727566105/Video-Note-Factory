@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-echo "🚀 启动 BiliNote 服务..."
+echo "🚀 启动 videoNote 服务..."
 echo ""
 
 # 启动后端
@@ -17,7 +17,7 @@ sleep 3
 
 # 启动前端
 echo "🎨 启动前端服务 (端口 3015)..."
-cd BillNote_frontend
+cd videoNote_frontend
 pnpm dev > ../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo "   前端 PID: $FRONTEND_PID"

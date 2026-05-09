@@ -1,11 +1,11 @@
 #!/bin/bash
-# BiliNote NAS 部署脚本
+# videoNote NAS 部署脚本
 
 # 创建数据目录
 mkdir -p data/db data/note_results data/static/screenshots data/static/covers data/downloads data/models
 
 # 创建数据库文件（如不存在）
-touch data/db/bili_note.db
+touch data/db/video_note.db
 
 # 复制环境配置
 if [ ! -f .env ]; then

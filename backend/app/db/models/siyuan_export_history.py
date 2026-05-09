@@ -7,7 +7,7 @@ class SiyuanExportHistory(Base):
     __tablename__ = "siyuan_export_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(String, nullable=False)          # BiliNote 任务 ID
+    task_id = Column(String, nullable=False)          # videoNote 任务 ID
     siyuan_doc_id = Column(String)                      # 思源笔记文档 ID
     notebook_id = Column(String)                        # 导出的笔记本 ID
     notebook_name = Column(String)                      # 导出的笔记本名称

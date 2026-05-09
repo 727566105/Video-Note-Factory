@@ -96,7 +96,15 @@
       "mcp__chrome__click",
       "mcp__chrome__evaluate_script",
       "mcp__chrome__upload_file",
-      "Bash(ffmpeg -version)"
+      "Bash(ffmpeg -version)",
+      "Bash(xxd /Users/wangxuyang/Downloads/01_GitHub/docker/BiliNote/BillNote_frontend/src/components/Form/modelForm/Form.tsx)",
+      "Bash(npx tsc *)",
+      "mcp__chrome__close_page",
+      "mcp__chrome__press_key",
+      "Bash(pip3 install *)",
+      "Bash(yt-dlp --simulate \"https://www.bilibili.com/video/BV1QedwBAEbb/\")",
+      "Bash(yt-dlp --simulate --cookie config/downloader.json \"https://www.bilibili.com/video/BV1QedwBAEbb/\")",
+      "mcp__chrome__fill_form"
     ]
   }
 }

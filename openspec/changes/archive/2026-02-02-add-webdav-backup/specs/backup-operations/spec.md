@@ -80,7 +80,7 @@
 **Given** 系统已收集所有备份文件
 **When** 系统创建压缩包
 **Then** 系统使用 ZIP 格式压缩
-**And** 压缩包命名为 `bilinote_backup_{timestamp}.zip`
+**And** 压缩包命名为 `videonote_backup_{timestamp}.zip`
 **And** 时间戳格式为 `YYYYMMDD_HHMMSS`
 
 #### Scenario: 备份文件上传
@@ -156,7 +156,7 @@ Then** 系统下载备份文件
 **Given** 用户触发恢复操作
 **When** 系统开始恢复流程
 **Then** 系统自动创建当前状态备份
-**And** 备份命名为 `bilinote_pre_restore_{timestamp}.zip`
+**And** 备份命名为 `videonote_pre_restore_{timestamp}.zip`
 **And** 系统在恢复成功后保留此备份
 
 #### Scenario: 备份文件验证失败

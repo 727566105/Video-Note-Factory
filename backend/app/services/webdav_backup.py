@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 # 笔记输出目录
 NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
 # 数据库文件
-DB_FILE = Path(__file__).parent.parent.parent / "bilinote.db"
+DB_FILE = Path(__file__).parent.parent.parent / "videonote.db"
 # 临时备份目录
 BACKUP_TEMP_DIR = Path(__file__).parent.parent.parent / ".backup_temp"
 
@@ -94,7 +94,7 @@ class WebDAVBackup:
             except Exception:
                 # 如果列出根目录失败，尝试创建测试目录
                 try:
-                    test_path = f"{test_base}/bilinote_test" if test_base else "bilinote_test"
+                    test_path = f"{test_base}/videonote_test" if test_base else "videonote_test"
                     client.mkdir(test_path)
                     client.rmdir(test_path)
                     _current_message = "连接成功，有写入权限"
@@ -142,7 +142,7 @@ class WebDAVBackup:
 
         # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_filename = f"bilinote_backup_{timestamp}.zip"
+        zip_filename = f"videonote_backup_{timestamp}.zip"
         zip_path = BACKUP_TEMP_DIR / zip_filename
 
         if progress:
@@ -163,7 +163,7 @@ class WebDAVBackup:
             for i, file_path in enumerate(files):
                 # 计算相对路径
                 if file_path == DB_FILE:
-                    arcname = f"bilinote.db"
+                    arcname = f"videonote.db"
                 else:
                     try:
                         rel_path = file_path.relative_to(NOTE_OUTPUT_DIR)
@@ -202,7 +202,7 @@ class WebDAVBackup:
         # 如果 config.path 是 /，我们使用空字符串（表示 hostname 路径本身）
         # 否则去掉前导斜杠，使其成为相对路径
         if self.config.path == '/':
-            webdav_backup_path = "bilinote_backups"
+            webdav_backup_path = "videonote_backups"
         else:
             user_path = self.config.path.lstrip('/')
             # 先确保用户路径目录存在
@@ -210,7 +210,7 @@ class WebDAVBackup:
                 self.client.mkdir(user_path)
             except Exception:
                 pass  # 目录可能已存在
-            webdav_backup_path = f"{user_path}/bilinote_backups"
+            webdav_backup_path = f"{user_path}/videonote_backups"
 
         try:
             self.client.mkdir(webdav_backup_path)
@@ -331,10 +331,10 @@ class WebDAVBackup:
 
         # 使用相对路径（相对于 hostname 中的路径）
         if self.config.path == '/':
-            backup_path = "bilinote_backups"
+            backup_path = "videonote_backups"
         else:
             user_path = self.config.path.lstrip('/')
-            backup_path = f"{user_path}/bilinote_backups"
+            backup_path = f"{user_path}/videonote_backups"
 
         try:
             items = self.client.list(backup_path)
@@ -402,10 +402,10 @@ class WebDAVBackup:
 
             # 1. 下载备份文件（使用相对路径）
             if self.config.path == '/':
-                backup_path = f"bilinote_backups/{backup_name}"
+                backup_path = f"videonote_backups/{backup_name}"
             else:
                 user_path = self.config.path.lstrip('/')
-                backup_path = f"{user_path}/bilinote_backups/{backup_name}"
+                backup_path = f"{user_path}/videonote_backups/{backup_name}"
             local_zip_path = restore_temp_dir / backup_name
 
             if progress:
@@ -432,12 +432,12 @@ class WebDAVBackup:
                 progress.update(60, "正在恢复数据库...")
 
             # 4. 恢复数据库
-            restored_db = restore_temp_dir / "bilinote.db"
+            restored_db = restore_temp_dir / "videonote.db"
             if restored_db.exists():
                 # 备份当前数据库
                 if DB_FILE.exists():
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    backup_db_path = DB_FILE.parent / f"bilinote_pre_restore_{timestamp}.db"
+                    backup_db_path = DB_FILE.parent / f"videonote_pre_restore_{timestamp}.db"
                     shutil.copy2(DB_FILE, backup_db_path)
 
                 # 替换数据库
@@ -494,10 +494,10 @@ class WebDAVBackup:
 
         # 使用相对路径（相对于 hostname 中的路径）
         if self.config.path == '/':
-            backup_path = f"bilinote_backups/{backup_name}"
+            backup_path = f"videonote_backups/{backup_name}"
         else:
             user_path = self.config.path.lstrip('/')
-            backup_path = f"{user_path}/bilinote_backups/{backup_name}"
+            backup_path = f"{user_path}/videonote_backups/{backup_name}"
 
         try:
             self.client.clean(backup_path)
@@ -561,7 +561,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
             zip_ref.extractall(restore_temp_dir)
 
         # 2. 验证备份内容
-        extracted_db = restore_temp_dir / "bilinote.db"
+        extracted_db = restore_temp_dir / "videonote.db"
         if not extracted_db.exists():
             raise Exception("备份文件中缺少数据库文件")
 
@@ -575,7 +575,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
 
         # 备份当前数据库
         if DB_FILE.exists():
-            shutil.copy2(DB_FILE, pre_restore_backup_dir / "bilinote.db")
+            shutil.copy2(DB_FILE, pre_restore_backup_dir / "videonote.db")
 
         # 备份当前笔记目录
         if NOTE_OUTPUT_DIR.exists():
@@ -761,7 +761,7 @@ def _rollback_restore(backup_dir: Path):
             return
 
         # 恢复数据库
-        backup_db = backup_dir / "bilinote.db"
+        backup_db = backup_dir / "videonote.db"
         if backup_db.exists():
             # 关闭数据库连接
             from app.db.database import SessionLocal

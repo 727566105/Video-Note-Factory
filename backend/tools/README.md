@@ -1,4 +1,4 @@
-# 🛠️ BiliNote 工具集
+# 🛠️ videoNote 工具集
 
 抖音下载器配置和诊断工具集合
 
@@ -542,6 +542,6 @@ cat diagnosis.txt
 
 ---
 
-**维护者**: BiliNote Team  
+**维护者**: videoNote Team  
 **最后更新**: 2026-02-01  
 **版本**: 1.0.0

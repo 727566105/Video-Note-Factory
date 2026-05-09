@@ -20,7 +20,7 @@ export default function AboutPage() {
               height={50}
               className="rounded-lg"
             />
-            <h1 className="text-4xl font-bold">videoNote v2.0.0</h1>
+            <h1 className="text-4xl font-bold">videoNote v2.5.0</h1>
           </div>
           <p className="text-muted-foreground mb-6 text-xl italic">
             AI 视频笔记生成工具 让 AI 为你的视频做笔记
@@ -36,19 +36,19 @@ export default function AboutPage() {
 
           <div className="flex flex-wrap justify-center gap-4">
             <Button asChild>
-              <a href="https://www.bilinote.app" target="_blank">
+              <a href="https://www.videonote.app" target="_blank">
                 <ExternalLink className="mr-2 h-4 w-4" />
                 体验 videoNote
               </a>
             </Button>
             <Button variant="outline" asChild>
-              <a href="https://github.com/JefferyHcool/BiliNote" target="_blank">
+              <a href="https://github.com/JefferyHcool/videoNote" target="_blank">
                 <Github className="mr-2 h-4 w-4" />
                 GitHub 仓库
               </a>
             </Button>
             <Button variant="outline" asChild>
-              <a href="https://github.com/JefferyHcool/BiliNote/releases" target="_blank">
+              <a href="https://github.com/JefferyHcool/videoNote/releases" target="_blank">
                 <Download className="mr-2 h-4 w-4" />
                 下载桌面版
               </a>
@@ -129,7 +129,7 @@ export default function AboutPage() {
               <div>
                 <h3 className="mb-3 text-xl font-semibold">3. 启动前端（Vite + React）</h3>
                 <div className="bg-muted rounded-md p-4 font-mono text-sm">
-                  cd BiliNote_frontend
+                  cd videoNote_frontend
                   <br />
                   pnpm install
                   <br />
