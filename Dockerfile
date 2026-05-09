@@ -4,10 +4,8 @@ FROM node:18-alpine AS frontend-builder
 RUN npm install -g pnpm
 RUN pnpm config set registry https://registry.npmmirror.com
 
-WORKDIR /build
-COPY ./videoNote_frontend/package.json ./frontend/
-COPY ./.env.example ./.env
-WORKDIR /build/frontend
+WORKDIR /app/frontend
+COPY ./videoNote_frontend/package.json ./
 RUN pnpm install
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
@@ -47,7 +45,7 @@ ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages
 
 COPY --from=backend-builder /app/models /app/models
 
-COPY --from=frontend-builder /build/frontend/dist /var/www/html
+COPY --from=frontend-builder /app/frontend/dist /var/www/html
 
 COPY ./deploy/nginx.conf /etc/nginx/sites-available/default
 RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
