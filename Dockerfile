@@ -1,9 +1,7 @@
 # === 阶段1：前端构建 ===
 FROM node:22 AS frontend-builder
 
-RUN npm config set registry https://registry.npmmirror.com
 RUN npm install -g pnpm
-RUN pnpm config set registry https://registry.npmmirror.com
 
 WORKDIR /app/frontend
 COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-workspace.yaml ./
