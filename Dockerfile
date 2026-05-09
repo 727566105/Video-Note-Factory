@@ -34,6 +34,10 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r re
 # 降级 bcrypt 版本以兼容 passlib
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple bcrypt==4.0.1
 
+# 下载 Whisper base 模型
+RUN mkdir -p /app/models/whisper && \
+    python -c "from faster_whisper import WhisperModel; WhisperModel('base', download_root='/app/models/whisper', device='cpu', compute_type='int8')"
+
 # === 阶段3：最终镜像 ===
 FROM python:3.11-slim
 
@@ -60,8 +64,8 @@ COPY ./backend /app/backend
 # 复制 Python 解释器路径
 ENV PYTHONPATH=/usr/local/lib/python3.11/site-packages
 
-# 复制模型（使用本地已有的模型）
-COPY ./backend/models/whisper/whisper-base /app/models/whisper/whisper-base
+# 复制模型（从构建阶段）
+COPY --from=backend-builder /app/models /app/models
 
 # 复制前端构建产物
 COPY --from=frontend-builder /app/frontend/dist /var/www/html
