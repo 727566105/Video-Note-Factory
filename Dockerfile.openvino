@@ -23,7 +23,7 @@ FROM openvino/ubuntu22_runtime:2024.4.0 AS backend-builder
 USER root
 
 RUN apt-get update && \
-    apt-get install -y ffmpeg curl python3-pip && \
+    apt-get install -y ffmpeg curl python3-pip python3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
@@ -46,8 +46,8 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages 2>/dev/null || true
-COPY --from=backend-builder /opt/intel/openvino /opt/intel/openvino
+COPY --from=backend-builder /usr/local/lib/python3.10/dist-packages /usr/local/lib/python3.10/dist-packages
+COPY --from=backend-builder /usr/lib/python3/dist-packages /usr/lib/python3/dist-packages
 COPY ./backend /app/backend
 
 COPY --from=backend-builder /app/backend/models /app/backend/models
@@ -77,7 +77,6 @@ ENV WHISPER_MODEL_SIZE=base
 ENV WHISPER_DEVICE=openvino
 ENV DATABASE_URL=sqlite:////app/data/video_note.db
 ENV HF_ENDPOINT=https://hf-mirror.com
-ENV WEBDAV_ENCRYPTION_KEY=
 
 EXPOSE 80 8483
 
