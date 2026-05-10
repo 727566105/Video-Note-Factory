@@ -86,6 +86,7 @@ def get_mlx_whisper_transcriber(model_size="base"):
     return _init_transcriber(TranscriberType.MLX_WHISPER, MLXWhisperTranscriber, model_size=model_size)
 
 def get_openvino_whisper_transcriber(model_size="base"):
+    global OPENVINO_WHISPER_AVAILABLE
     if not OPENVINO_WHISPER_AVAILABLE:
         try:
             from app.transcriber.openvino_whisper import OpenVINOWhisperTranscriber
