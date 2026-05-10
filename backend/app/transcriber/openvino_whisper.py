@@ -35,7 +35,7 @@ class OpenVINOWhisperTranscriber(Transcriber):
 
     def _load_model(self):
         try:
-            from optimum.intel import OVWhisperForConditionalGeneration
+            from optimum.intel.openvino import OVModelForSpeechSeq2Seq
             from transformers import WhisperProcessor, AutoProcessor
             
             model_name = f"openai/whisper-{self.model_size}"
@@ -43,25 +43,29 @@ class OpenVINOWhisperTranscriber(Transcriber):
             
             if Path(model_path).exists() and any(Path(model_path).iterdir()):
                 logger.info(f"从本地加载 OpenVINO Whisper 模型: {model_path}")
-                self.ov_model = OVWhisperForConditionalGeneration.from_pretrained(
+                self.ov_model = OVModelForSpeechSeq2Seq.from_pretrained(
                     model_path,
-                    device=self.device
+                    compile=False
                 )
                 self.processor = WhisperProcessor.from_pretrained(model_path)
             else:
                 logger.info(f"下载并转换 OpenVINO Whisper 模型: {model_name}")
                 os.makedirs(model_path, exist_ok=True)
                 
-                self.ov_model = OVWhisperForConditionalGeneration.from_pretrained(
+                self.ov_model = OVModelForSpeechSeq2Seq.from_pretrained(
                     model_name,
                     export=True,
-                    device=self.device
+                    compile=False
                 )
                 self.processor = WhisperProcessor.from_pretrained(model_name)
                 
                 self.ov_model.save_pretrained(model_path)
                 self.processor.save_pretrained(model_path)
                 logger.info(f"模型已保存到: {model_path}")
+            
+            logger.info(f"编译模型到设备: {self.device}")
+            self.ov_model.to(self.device)
+            self.ov_model.compile()
             
             logger.info(f"OpenVINO Whisper 模型加载完成，设备: {self.device}")
             
