@@ -12,6 +12,7 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# 预热状态
 _warm_up_status = {
     "in_progress": False,
     "completed": False,
@@ -22,11 +23,11 @@ _warm_up_status = {
 class TranscriberType(str, Enum):
     FAST_WHISPER = "fast-whisper"
     MLX_WHISPER = "mlx-whisper"
-    OPENVINO_WHISPER = "openvino-whisper"
     BCUT = "bcut"
     KUAISHOU = "kuaishou"
     GROQ = "groq"
 
+# 仅在 Apple 平台启用 MLX Whisper
 MLX_WHISPER_AVAILABLE = False
 if platform.system() == "Darwin" and os.environ.get("TRANSCRIBER_TYPE") == "mlx-whisper":
     try:
@@ -36,28 +37,18 @@ if platform.system() == "Darwin" and os.environ.get("TRANSCRIBER_TYPE") == "mlx-
     except ImportError:
         logger.warning("MLX Whisper 导入失败，可能未安装或平台不支持")
 
-OPENVINO_WHISPER_AVAILABLE = False
-OpenVINOWhisperTranscriber = None
-if os.environ.get("TRANSCRIBER_TYPE") == "openvino-whisper":
-    try:
-        from app.transcriber.openvino_whisper import OpenVINOWhisperTranscriber as _OpenVINOWhisperTranscriber
-        OpenVINOWhisperTranscriber = _OpenVINOWhisperTranscriber
-        OPENVINO_WHISPER_AVAILABLE = True
-        logger.info("OpenVINO Whisper 可用，已导入")
-    except ImportError as e:
-        logger.warning(f"OpenVINO Whisper 导入失败: {e}")
-
 logger.info('初始化转录服务提供器')
 
+# 转录器单例缓存
 _transcribers = {
     TranscriberType.FAST_WHISPER: None,
     TranscriberType.MLX_WHISPER: None,
-    TranscriberType.OPENVINO_WHISPER: None,
     TranscriberType.BCUT: None,
     TranscriberType.KUAISHOU: None,
     TranscriberType.GROQ: None,
 }
 
+# 公共实例初始化函数
 def _init_transcriber(key: TranscriberType, cls, *args, **kwargs):
     if _transcribers[key] is None:
         logger.info(f'创建 {cls.__name__} 实例: {key}')
@@ -69,10 +60,11 @@ def _init_transcriber(key: TranscriberType, cls, *args, **kwargs):
             raise
     return _transcribers[key]
 
+# 各类型获取方法
 def get_groq_transcriber():
     return _init_transcriber(TranscriberType.GROQ, GroqTranscriber)
 
-def get_whisper_transcriber(model_size="base", device="cpu"):
+def get_whisper_transcriber(model_size="base", device="cuda"):
     return _init_transcriber(TranscriberType.FAST_WHISPER, WhisperTranscriber, model_size=model_size, device=device)
 
 def get_bcut_transcriber():
@@ -87,26 +79,15 @@ def get_mlx_whisper_transcriber(model_size="base"):
         raise ImportError("MLX Whisper 不可用")
     return _init_transcriber(TranscriberType.MLX_WHISPER, MLXWhisperTranscriber, model_size=model_size)
 
-def get_openvino_whisper_transcriber(model_size="base"):
-    global OPENVINO_WHISPER_AVAILABLE, OpenVINOWhisperTranscriber
-    if not OPENVINO_WHISPER_AVAILABLE or OpenVINOWhisperTranscriber is None:
-        try:
-            from app.transcriber.openvino_whisper import OpenVINOWhisperTranscriber as _OpenVINOWhisperTranscriber
-            OpenVINOWhisperTranscriber = _OpenVINOWhisperTranscriber
-            OPENVINO_WHISPER_AVAILABLE = True
-        except ImportError as e:
-            logger.warning(f"OpenVINO Whisper 不可用: {e}")
-            raise ImportError("OpenVINO Whisper 不可用，请使用 openvino 镜像")
-    return _init_transcriber(TranscriberType.OPENVINO_WHISPER, OpenVINOWhisperTranscriber, model_size=model_size)
-
-def get_transcriber(transcriber_type="fast-whisper", model_size="base", device=None):
+# 通用入口
+def get_transcriber(transcriber_type="fast-whisper", model_size="base", device="cuda"):
     """
     获取指定类型的转录器实例
 
     参数:
-        transcriber_type: 支持 "fast-whisper", "mlx-whisper", "openvino-whisper", "bcut", "kuaishou", "groq"
+        transcriber_type: 支持 "fast-whisper", "mlx-whisper", "bcut", "kuaishou", "groq"
         model_size: 模型大小，适用于 whisper 类
-        device: 设备类型（cuda / cpu），仅 fast-whisper 使用
+        device: 设备类型（如 cuda / cpu），仅 whisper 使用
 
     返回:
         对应类型的转录器实例
@@ -120,19 +101,15 @@ def get_transcriber(transcriber_type="fast-whisper", model_size="base", device=N
         transcriber_enum = TranscriberType.FAST_WHISPER
 
     whisper_model_size = os.environ.get("WHISPER_MODEL_SIZE", model_size)
-    whisper_device = device or os.environ.get("WHISPER_DEVICE", "cpu")
 
     if transcriber_enum == TranscriberType.FAST_WHISPER:
-        return get_whisper_transcriber(whisper_model_size, device=whisper_device)
+        return get_whisper_transcriber(whisper_model_size, device=device)
 
     elif transcriber_enum == TranscriberType.MLX_WHISPER:
         if not MLX_WHISPER_AVAILABLE:
             logger.warning("MLX Whisper 不可用，回退到 fast-whisper")
-            return get_whisper_transcriber(whisper_model_size, device=whisper_device)
+            return get_whisper_transcriber(whisper_model_size, device=device)
         return get_mlx_whisper_transcriber(whisper_model_size)
-
-    elif transcriber_enum == TranscriberType.OPENVINO_WHISPER:
-        return get_openvino_whisper_transcriber(whisper_model_size)
 
     elif transcriber_enum == TranscriberType.BCUT:
         return get_bcut_transcriber()
@@ -143,22 +120,25 @@ def get_transcriber(transcriber_type="fast-whisper", model_size="base", device=N
     elif transcriber_enum == TranscriberType.GROQ:
         return get_groq_transcriber()
 
+    # fallback
     logger.warning(f'未识别转录器类型 "{transcriber_type}"，使用 fast-whisper 作为默认')
-    return get_whisper_transcriber(whisper_model_size, device=whisper_device)
+    return get_whisper_transcriber(whisper_model_size, device=device)
 
 
-def _do_warm_up(transcriber_type: str, model_size: str = "base", device: str = None):
+def _do_warm_up(transcriber_type: str, model_size: str = "base", device: str = "cuda"):
     """在后台线程中执行预热"""
     global _warm_up_status
-    whisper_device = device or os.environ.get("WHISPER_DEVICE", "cpu")
     try:
         _warm_up_status["in_progress"] = True
         _warm_up_status["transcriber_type"] = transcriber_type
         logger.info(f"[预热] 开始预热转写器: {transcriber_type}")
 
-        transcriber = get_transcriber(transcriber_type, model_size=model_size, device=whisper_device)
+        # 获取转写器实例（这会触发模型加载）
+        transcriber = get_transcriber(transcriber_type, model_size=model_size, device=device)
 
-        if transcriber_type in [TranscriberType.FAST_WHISPER.value, TranscriberType.MLX_WHISPER.value, TranscriberType.OPENVINO_WHISPER.value]:
+        # 对于 Whisper 类型，可以尝试转写一个空的或小的测试音频来完全预热模型
+        # 这里只初始化模型，不进行实际转写，避免创建测试文件
+        if transcriber_type in [TranscriberType.FAST_WHISPER.value, TranscriberType.MLX_WHISPER.value]:
             logger.info(f"[预热] 模型 {model_size} 已加载完成")
 
         _warm_up_status["completed"] = True
@@ -176,17 +156,26 @@ def _do_warm_up(transcriber_type: str, model_size: str = "base", device: str = N
 async def warm_up_transcriber_async(
     transcriber_type: str = None,
     model_size: str = "base",
-    device: str = None
+    device: str = "cuda"
 ):
-    """异步预热转写器，不阻塞应用启动"""
+    """
+    异步预热转写器，不阻塞应用启动
+
+    参数:
+        transcriber_type: 转写器类型，默认从环境变量读取
+        model_size: 模型大小，仅 whisper 类型使用
+        device: 设备类型，仅 whisper 类型使用
+    """
     global _warm_up_status
 
+    # 从环境变量获取默认类型
     if transcriber_type is None:
         transcriber_type = os.getenv("TRANSCRIBER_TYPE", "fast-whisper")
 
+    # 从环境变量获取默认模型大小
     whisper_model_size = os.environ.get("WHISPER_MODEL_SIZE", model_size)
-    whisper_device = device or os.environ.get("WHISPER_DEVICE", "cpu")
 
+    # API 类型的转写器不需要预热（模型在远程服务器）
     api_based_transcribers = [
         TranscriberType.GROQ.value,
         TranscriberType.BCUT.value,
@@ -199,6 +188,7 @@ async def warm_up_transcriber_async(
         _warm_up_status["transcriber_type"] = transcriber_type
         return
 
+    # MLX Whisper 预热检查
     if transcriber_type == TranscriberType.MLX_WHISPER.value:
         if not MLX_WHISPER_AVAILABLE:
             logger.warning("[预热] MLX Whisper 不可用，跳过预热")
@@ -206,6 +196,7 @@ async def warm_up_transcriber_async(
 
     logger.info(f"[预热] 开始后台预热转写器: {transcriber_type} (模型大小: {whisper_model_size})")
 
+    # 在后台线程执行预热
     loop = asyncio.get_event_loop()
     executor = ThreadPoolExecutor(max_workers=1)
 
@@ -214,7 +205,7 @@ async def warm_up_transcriber_async(
         _do_warm_up,
         transcriber_type,
         whisper_model_size,
-        whisper_device
+        device
     )
 
     executor.shutdown(wait=False)
@@ -230,9 +221,11 @@ def is_transcriber_ready() -> bool:
     if _warm_up_status["completed"]:
         return True
 
+    # 尝试获取当前配置的转写器类型
     transcriber_type_str = os.getenv("TRANSCRIBER_TYPE", "fast-whisper")
     try:
         transcriber_enum = TranscriberType(transcriber_type_str)
         return _transcribers.get(transcriber_enum) is not None
     except ValueError:
+        # 如果环境变量值无效，检查默认的 fast-whisper
         return _transcribers.get(TranscriberType.FAST_WHISPER) is not None

@@ -15,7 +15,7 @@ from modelscope import snapshot_download
 
 
 '''
- Size of the model to use (tiny, tiny.en, base, base.en, small, small.en, distil-small.en, medium, medium.en, distil-medium.en, large-v1, large-v2, large-v3, large, distil-large-v2, distil-large-v3, large-v3-turbo, or turbo)
+ Size of the model to use (tiny, tiny.en, base, base.en, small, small.en, distil-small.en, medium, medium.en, distil-medium.en, large-v1, large-v2, large-v3, large, distil-large-v2, distil-large-v3, large-v3-turbo, or turbo
 '''
 logger=get_logger(__name__)
 
@@ -31,6 +31,7 @@ MODEL_MAP={
 }
 
 class WhisperTranscriber(Transcriber):
+    # TODO:修改为可配置
     def __init__(
             self,
             model_size: str = "base",
@@ -38,9 +39,15 @@ class WhisperTranscriber(Transcriber):
             compute_type: str = None,
             cpu_threads: int = 1,
     ):
-        self.device = self._determine_device(device)
+        if device == 'cpu' or device is None:
+            self.device = 'cpu'
+        else:
+            self.device = "cuda" if self.is_cuda() else "cpu"
+            if device == 'cuda' and self.device == 'cpu':
+                logger.warning('没有 cuda 使用 cpu进行计算')
+
         self.compute_type = compute_type or ("float16" if self.device == "cuda" else "int8")
-        
+
         model_dir = get_model_dir("whisper")
         model_path = os.path.join(model_dir, f"whisper-{model_size}")
         if not Path(model_path).exists():
@@ -48,29 +55,17 @@ class WhisperTranscriber(Transcriber):
             repo_id = MODEL_MAP[model_size]
             model_path = snapshot_download(
                 repo_id,
+
                 local_dir=model_path,
             )
             logger.info("模型下载完成")
 
-        logger.info(f"初始化 WhisperModel: device={self.device}, compute_type={self.compute_type}")
         self.model = WhisperModel(
             model_size_or_path=model_path,
             device=self.device,
             compute_type=self.compute_type,
-            download_root=model_dir,
-            cpu_threads=cpu_threads if self.device == 'cpu' else None,
+            download_root=model_dir
         )
-
-    def _determine_device(self, device: str) -> str:
-        if device == 'cuda':
-            if is_cuda_available():
-                logger.info("CUDA 可用，使用 GPU")
-                return 'cuda'
-            else:
-                logger.warning('CUDA 不可用，回退到 CPU')
-                return 'cpu'
-        return 'cpu'
-
     @staticmethod
     def is_torch_installed() -> bool:
         try:
@@ -91,6 +86,7 @@ class WhisperTranscriber(Transcriber):
             else:
                 logger.warning("还没有安装 torch，请先安装")
                 return False
+
         except ImportError:
             return False
 
@@ -118,6 +114,7 @@ class WhisperTranscriber(Transcriber):
                 segments=segments,
                 raw=info
             )
+            # self.on_finish(file_path, result)
             return result
         except Exception as e:
             logger.error(f"转写失败：{e}")
@@ -128,3 +125,4 @@ class WhisperTranscriber(Transcriber):
         transcription_finished.send({
             "file_path": video_path,
         })
+

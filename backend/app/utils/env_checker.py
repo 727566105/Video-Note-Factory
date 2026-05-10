@@ -4,7 +4,6 @@ def is_cuda_available() -> bool:
         return torch.cuda.is_available()
     except ImportError:
         return False
-
 def is_torch_installed() -> bool:
     try:
         import torch

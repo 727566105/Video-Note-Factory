@@ -317,6 +317,7 @@ cython_debug/
 /backend/models
 /backend/.idea/*
 /backend/bili_note.db
+/backend/video_note.db
 /backend/uploads/*
 /backend/.idea/*
 /backend/config/*
