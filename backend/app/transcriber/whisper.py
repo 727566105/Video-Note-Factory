@@ -3,7 +3,7 @@ from faster_whisper import WhisperModel
 from app.decorators.timeit import timeit
 from app.models.transcriber_model import TranscriptSegment, TranscriptResult
 from app.transcriber.base import Transcriber
-from app.utils.env_checker import is_cuda_available, is_torch_installed
+from app.utils.env_checker import is_cuda_available, is_torch_installed, is_openvino_available, is_intel_gpu_available
 from app.utils.logger import get_logger
 from app.utils.path_helper import get_model_dir
 
@@ -31,7 +31,6 @@ MODEL_MAP={
 }
 
 class WhisperTranscriber(Transcriber):
-    # TODO:修改为可配置
     def __init__(
             self,
             model_size: str = "base",
@@ -39,15 +38,10 @@ class WhisperTranscriber(Transcriber):
             compute_type: str = None,
             cpu_threads: int = 1,
     ):
-        if device == 'cpu' or device is None:
-            self.device = 'cpu'
-        else:
-            self.device = "cuda" if self.is_cuda() else "cpu"
-            if device == 'cuda' and self.device == 'cpu':
-                logger.warning('没有 cuda 使用 cpu进行计算')
-
-        self.compute_type = compute_type or ("float16" if self.device == "cuda" else "int8")
-
+        self.original_device = device
+        self.device = self._determine_device(device)
+        self.compute_type = self._determine_compute_type(compute_type)
+        
         model_dir = get_model_dir("whisper")
         model_path = os.path.join(model_dir, f"whisper-{model_size}")
         if not Path(model_path).exists():
@@ -55,17 +49,48 @@ class WhisperTranscriber(Transcriber):
             repo_id = MODEL_MAP[model_size]
             model_path = snapshot_download(
                 repo_id,
-
                 local_dir=model_path,
             )
             logger.info("模型下载完成")
 
+        logger.info(f"初始化 WhisperModel: device={self.device}, compute_type={self.compute_type}")
         self.model = WhisperModel(
             model_size_or_path=model_path,
             device=self.device,
             compute_type=self.compute_type,
-            download_root=model_dir
+            download_root=model_dir,
+            cpu_threads=cpu_threads if self.device == 'cpu' else None,
         )
+
+    def _determine_device(self, device: str) -> str:
+        if device == 'openvino':
+            if is_openvino_available() and is_intel_gpu_available():
+                logger.info("检测到 Intel GPU，使用 OpenVINO 加速")
+                return 'openvino'
+            else:
+                logger.warning("OpenVINO 或 Intel GPU 不可用，回退到 CPU")
+                return 'cpu'
+        elif device == 'cuda':
+            if is_cuda_available():
+                logger.info("CUDA 可用，使用 GPU")
+                return 'cuda'
+            else:
+                logger.warning('CUDA 不可用，回退到 CPU')
+                return 'cpu'
+        else:
+            return 'cpu'
+
+    def _determine_compute_type(self, compute_type: str = None) -> str:
+        if compute_type:
+            return compute_type
+        
+        if self.device == 'cuda':
+            return 'float16'
+        elif self.device == 'openvino':
+            return 'int8'
+        else:
+            return 'int8'
+
     @staticmethod
     def is_torch_installed() -> bool:
         try:
@@ -86,7 +111,6 @@ class WhisperTranscriber(Transcriber):
             else:
                 logger.warning("还没有安装 torch，请先安装")
                 return False
-
         except ImportError:
             return False
 
@@ -114,7 +138,6 @@ class WhisperTranscriber(Transcriber):
                 segments=segments,
                 raw=info
             )
-            # self.on_finish(file_path, result)
             return result
         except Exception as e:
             logger.error(f"转写失败：{e}")
@@ -125,4 +148,3 @@ class WhisperTranscriber(Transcriber):
         transcription_finished.send({
             "file_path": video_path,
         })
-
