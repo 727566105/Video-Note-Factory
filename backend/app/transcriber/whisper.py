@@ -3,7 +3,7 @@ from faster_whisper import WhisperModel
 from app.decorators.timeit import timeit
 from app.models.transcriber_model import TranscriptSegment, TranscriptResult
 from app.transcriber.base import Transcriber
-from app.utils.env_checker import is_cuda_available, is_torch_installed, is_openvino_available, is_intel_gpu_available
+from app.utils.env_checker import is_cuda_available, is_torch_installed
 from app.utils.logger import get_logger
 from app.utils.path_helper import get_model_dir
 
@@ -15,7 +15,7 @@ from modelscope import snapshot_download
 
 
 '''
- Size of the model to use (tiny, tiny.en, base, base.en, small, small.en, distil-small.en, medium, medium.en, distil-medium.en, large-v1, large-v2, large-v3, large, distil-large-v2, distil-large-v3, large-v3-turbo, or turbo
+ Size of the model to use (tiny, tiny.en, base, base.en, small, small.en, distil-small.en, medium, medium.en, distil-medium.en, large-v1, large-v2, large-v3, large, distil-large-v2, distil-large-v3, large-v3-turbo, or turbo)
 '''
 logger=get_logger(__name__)
 
@@ -38,9 +38,8 @@ class WhisperTranscriber(Transcriber):
             compute_type: str = None,
             cpu_threads: int = 1,
     ):
-        self.original_device = device
         self.device = self._determine_device(device)
-        self.compute_type = self._determine_compute_type(compute_type)
+        self.compute_type = compute_type or ("float16" if self.device == "cuda" else "int8")
         
         model_dir = get_model_dir("whisper")
         model_path = os.path.join(model_dir, f"whisper-{model_size}")
@@ -63,33 +62,14 @@ class WhisperTranscriber(Transcriber):
         )
 
     def _determine_device(self, device: str) -> str:
-        if device == 'openvino':
-            if is_openvino_available() and is_intel_gpu_available():
-                logger.info("检测到 Intel GPU，使用 OpenVINO 加速")
-                return 'openvino'
-            else:
-                logger.warning("OpenVINO 或 Intel GPU 不可用，回退到 CPU")
-                return 'cpu'
-        elif device == 'cuda':
+        if device == 'cuda':
             if is_cuda_available():
                 logger.info("CUDA 可用，使用 GPU")
                 return 'cuda'
             else:
                 logger.warning('CUDA 不可用，回退到 CPU')
                 return 'cpu'
-        else:
-            return 'cpu'
-
-    def _determine_compute_type(self, compute_type: str = None) -> str:
-        if compute_type:
-            return compute_type
-        
-        if self.device == 'cuda':
-            return 'float16'
-        elif self.device == 'openvino':
-            return 'int8'
-        else:
-            return 'int8'
+        return 'cpu'
 
     @staticmethod
     def is_torch_installed() -> bool:
