@@ -30,16 +30,29 @@ jobs:
           VERSION=$(date +'%Y%m%d-%H%M%S')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build Docker image
+      - name: Build standard Docker image
         run: |
           docker build \
             --progress=plain \
             --no-cache \
             -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest \
             -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }} \
+            -f Dockerfile \
             .
 
-      - name: Push Docker image
+      - name: Build OpenVINO Docker image (for Intel GPU)
+        run: |
+          docker build \
+            --progress=plain \
+            --no-cache \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:openvino \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:openvino-${{ steps.version.outputs.version }} \
+            -f Dockerfile.openvino \
+            .
+
+      - name: Push Docker images
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:openvino
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:openvino-${{ steps.version.outputs.version }}
