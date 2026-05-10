@@ -1,0 +1,36 @@
+services:
+  videonote:
+    # 本地开发构建: docker compose build
+    # 使用预构建镜像: docker compose pull && docker compose up -d
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: videonote
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3015}:80"
+    volumes:
+      - ./data:/app/data
+      - ./note_results:/app/note_results
+      - ./static:/app/static
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    environment:
+      - BACKEND_PORT=8483
+      - BACKEND_HOST=0.0.0.0
+      - ENV=production
+      - STATIC=/static
+      - OUT_DIR=./static/screenshots
+      - NOTE_OUTPUT_DIR=note_results
+      - IMAGE_BASE_URL=/static/screenshots
+      - DATA_DIR=data
+      - TRANSCRIBER_TYPE=${TRANSCRIBER_TYPE:-fast-whisper}
+      - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - WEBDAV_ENCRYPTION_KEY=${WEBDAV_ENCRYPTION_KEY:-}
+      - DATABASE_URL=sqlite:////app/data/video_note.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
