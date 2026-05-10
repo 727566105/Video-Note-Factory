@@ -32,7 +32,9 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 RUN pip3 install --no-cache-dir bcrypt==4.0.1
 
-RUN pip3 install --no-cache-dir optimum-intel transformers librosa torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip3 install --no-cache-dir optimum-intel transformers librosa
+
+RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 # === 阶段3：最终镜像 ===
 FROM openvino/ubuntu22_runtime:2024.4.0
