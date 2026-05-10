@@ -37,9 +37,11 @@ if platform.system() == "Darwin" and os.environ.get("TRANSCRIBER_TYPE") == "mlx-
         logger.warning("MLX Whisper 导入失败，可能未安装或平台不支持")
 
 OPENVINO_WHISPER_AVAILABLE = False
+OpenVINOWhisperTranscriber = None
 if os.environ.get("TRANSCRIBER_TYPE") == "openvino-whisper":
     try:
-        from app.transcriber.openvino_whisper import OpenVINOWhisperTranscriber
+        from app.transcriber.openvino_whisper import OpenVINOWhisperTranscriber as _OpenVINOWhisperTranscriber
+        OpenVINOWhisperTranscriber = _OpenVINOWhisperTranscriber
         OPENVINO_WHISPER_AVAILABLE = True
         logger.info("OpenVINO Whisper 可用，已导入")
     except ImportError as e:
@@ -86,10 +88,11 @@ def get_mlx_whisper_transcriber(model_size="base"):
     return _init_transcriber(TranscriberType.MLX_WHISPER, MLXWhisperTranscriber, model_size=model_size)
 
 def get_openvino_whisper_transcriber(model_size="base"):
-    global OPENVINO_WHISPER_AVAILABLE
-    if not OPENVINO_WHISPER_AVAILABLE:
+    global OPENVINO_WHISPER_AVAILABLE, OpenVINOWhisperTranscriber
+    if not OPENVINO_WHISPER_AVAILABLE or OpenVINOWhisperTranscriber is None:
         try:
-            from app.transcriber.openvino_whisper import OpenVINOWhisperTranscriber
+            from app.transcriber.openvino_whisper import OpenVINOWhisperTranscriber as _OpenVINOWhisperTranscriber
+            OpenVINOWhisperTranscriber = _OpenVINOWhisperTranscriber
             OPENVINO_WHISPER_AVAILABLE = True
         except ImportError as e:
             logger.warning(f"OpenVINO Whisper 不可用: {e}")
