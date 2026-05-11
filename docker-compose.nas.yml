@@ -19,7 +19,7 @@ services:
       - ENV=production
       - STATIC=/static
       - OUT_DIR=./static/screenshots
-      - NOTE_OUTPUT_DIR=note_results
+      - NOTE_OUTPUT_DIR=/app/note_results
       - IMAGE_BASE_URL=/static/screenshots
       - DATA_DIR=data
       - TRANSCRIBER_TYPE=${TRANSCRIBER_TYPE:-fast-whisper}
