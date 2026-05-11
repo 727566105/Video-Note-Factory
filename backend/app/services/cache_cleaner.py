@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 缓存目录配置
-NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "note_results"))
+NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "/app/note_results"))
 # 缓存 TTL 配置（天数）
 CACHE_TTL_DAYS = int(os.getenv("CACHE_TTL_DAYS", "7"))
 

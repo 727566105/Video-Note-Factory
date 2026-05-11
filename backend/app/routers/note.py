@@ -72,7 +72,7 @@ class VideoRequest(BaseModel):
         return v
 
 
-NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
+NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "/app/note_results")
 UPLOAD_DIR = "uploads"
 
 # 文件上传安全配置

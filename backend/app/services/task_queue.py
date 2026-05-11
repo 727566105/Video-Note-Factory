@@ -9,7 +9,7 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
+NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "/app/note_results")
 
 
 class TaskQueueManager:
