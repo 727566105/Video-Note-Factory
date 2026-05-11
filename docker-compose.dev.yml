@@ -27,8 +27,9 @@ services:
       - TRANSCRIBER_TYPE=${TRANSCRIBER_TYPE:-fast-whisper}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
-      - WEBDAV_ENCRYPTION_KEY=${WEBDAV_ENCRYPTION_KEY:-}
+      - WEBDAV_ENCRYPTION_KEY=${WEBDAV_ENCRYPTION_KEY:-j9dqv8EUtjW7jCThSBcij6mt7pa9/Wp0AmRnXYhGRTU=}
       - DATABASE_URL=sqlite:////app/data/video_note.db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-jwt-secret-key-change-this-in-production}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
