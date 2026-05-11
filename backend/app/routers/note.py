@@ -234,6 +234,40 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
 
 
 
+@router.post('/stop_task')
+def stop_task(data: RecordRequest, current_user=Depends(get_current_user)):
+    """停止正在执行或排队的任务"""
+    try:
+        if not data.task_id:
+            return R.error(msg='task_id 不能为空')
+
+        task_id = data.task_id
+
+        # 从队列中移除任务
+        task_queue.remove(task_id)
+
+        # 更新状态文件为已停止
+        status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
+        os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
+        status_data = {
+            "status": "FAILED",
+            "message": "任务已手动停止",
+        }
+        with open(status_path, "w", encoding="utf-8") as f:
+            json.dump(status_data, f, ensure_ascii=False)
+
+        # 清理排队任务文件
+        queue_file = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.queue.json")
+        if os.path.exists(queue_file):
+            os.remove(queue_file)
+
+        logger.info(f"任务 {task_id} 已停止")
+        return R.success(msg='任务已停止')
+    except Exception as e:
+        logger.error(f"停止任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post('/delete_task')
 def delete_task(data: RecordRequest, current_user=Depends(get_current_user)):
     try:

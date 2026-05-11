@@ -2,10 +2,11 @@ import { useTaskStore } from '@/store/taskStore'
 import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
 import Fuse from 'fuse.js'
-import { ArrowUpDown, XIcon, Filter, Trash2 } from 'lucide-react'
+import { ArrowUpDown, XIcon, Filter, Trash2, Square } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform.tsx'
 import { noteStyles } from '@/constant/note.ts'
+import { stop_task } from '@/services/note.ts'
 
 import {
   Tooltip,
@@ -102,12 +103,26 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
       return sortOrder === 'newest' ? timeB - timeA : timeA - timeB
     }), [search, fuse, tasks, platformFilter, styleFilter, sortOrder])
 
+  const isInProgress = (status: string) => {
+    return status !== 'SUCCESS' && status !== 'FAILED'
+  }
+
   const handleDelete = async (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()
     try {
       await removeTask(taskId)
     } catch (error) {
       console.error('删除任务失败:', error)
+    }
+  }
+
+  const handleStop = async (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation()
+    try {
+      await stop_task(taskId)
+      await removeTask(taskId)
+    } catch (error) {
+      console.error('停止任务失败:', error)
     }
   }
 
@@ -295,6 +310,16 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                  {isInProgress(task.status) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-neutral-400 hover:text-orange-500 hover:bg-orange-50"
+                      onClick={(e) => handleStop(e, task.id)}
+                    >
+                      <Square className="h-3 w-3" />
+                    </Button>
+                  )}
                   {task.status === 'FAILED' && (
                     <Button
                       variant="ghost"

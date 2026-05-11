@@ -43,6 +43,11 @@ export const delete_task = async ({ task_id, video_id, platform }: { task_id?: s
   return res
 }
 
+export const stop_task = async (task_id: string) => {
+  const res = await request.post('/stop_task', { task_id })
+  return res
+}
+
 export const get_task_status = async (task_id: string) => {
   try {
     // 成功提示
