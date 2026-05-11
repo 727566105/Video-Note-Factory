@@ -12,7 +12,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 
-import { Info, Loader2, Plus } from 'lucide-react'
+import { Info, Loader2, Plus, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert.tsx'
 import { generateNote } from '@/services/note.ts'
@@ -134,6 +134,13 @@ const NoteForm = () => {
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [showHint, setShowHint] = useState(true)
+  const [hintVisible, setHintVisible] = useState(true)
+
+  const dismissHint = () => {
+    setHintVisible(false)
+    setTimeout(() => setShowHint(false), 300)
+  }
   /* ---- 全局状态 ---- */
   const { addPendingTask, currentTaskId, setCurrentTask, retryTask } = useTaskStore()
   const currentTask = useTaskStore(state => {
@@ -171,6 +178,8 @@ const NoteForm = () => {
   useEffect(() => {
     loadEnabledModels()
     fetchProviderList()
+    const timer = setTimeout(dismissHint, 5000)
+    return () => clearTimeout(timer)
   }, [])
   // 模型列表加载完后，同步 model_name 到表单（新建模式）
   useEffect(() => {
@@ -613,11 +622,20 @@ const NoteForm = () => {
                 )}
               />
             </div>
-            <Alert variant="destructive">
-              <AlertDescription>
-                <strong>提示：</strong>视频理解功能必须使用多模态模型。
-              </AlertDescription>
-            </Alert>
+            {showHint && (
+              <Alert variant="destructive" className={`relative transition-all duration-300 ease-out ${hintVisible ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0 -mt-2 overflow-hidden'}`}>
+                <AlertDescription>
+                  <strong>提示：</strong>视频理解功能必须使用多模态模型。
+                </AlertDescription>
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                  onClick={dismissHint}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </Alert>
+            )}
           </div>
 
           {/* 笔记格式 */}

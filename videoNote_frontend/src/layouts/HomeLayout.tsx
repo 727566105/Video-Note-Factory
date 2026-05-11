@@ -46,7 +46,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
           <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg md:h-8 md:w-8">
             <img src={logo} alt="logo" className="h-full w-full object-contain" />
           </div>
-          <div className="text-base font-bold text-gray-800 md:text-lg">videoNote <span className="text-xs font-normal text-gray-400">v2.5.1</span></div>
+          <div className="text-base font-bold text-gray-800 md:text-lg">videoNote <span className="text-xs font-normal text-gray-400">v2.5.2</span></div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

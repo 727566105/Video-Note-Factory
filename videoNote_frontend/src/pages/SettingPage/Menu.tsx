@@ -19,19 +19,19 @@ const Menu = () => {
     {
       id: 'siyuan',
       name: '思源笔记',
-      icon: <BookOpen />,
+      icon: <BookOpen size={20} />,
       path: '/settings/siyuan',
     },
     {
       id: 'webdav',
       name: 'WebDAV 备份',
-      icon: <Cloud />,
+      icon: <Cloud size={20} />,
       path: '/settings/webdav',
     },
     {
       id: 'about',
       name: '关于',
-      icon: <Info />,
+      icon: <Info size={20} />,
       path: '/settings/about',
     },
   ]
@@ -40,19 +40,19 @@ const Menu = () => {
     {
       id: 'model',
       name: 'AI 模型设置',
-      icon: <BotMessageSquare />,
+      icon: <BotMessageSquare size={20} />,
       path: '/settings/model',
     },
     {
       id: 'taskqueue',
       name: '任务队列',
-      icon: <ListOrdered />,
+      icon: <ListOrdered size={20} />,
       path: '/settings/taskqueue',
     },
     {
       id: 'download',
       name: '下载配置',
-      icon: <HardDriveDownload />,
+      icon: <HardDriveDownload size={20} />,
       path: '/settings/download',
     },
   ]
@@ -61,7 +61,7 @@ const Menu = () => {
     {
       id: 'users',
       name: '用户管理',
-      icon: <Users />,
+      icon: <Users size={20} />,
       path: '/settings/users',
     },
   ]
