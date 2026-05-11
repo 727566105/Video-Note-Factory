@@ -1,9 +1,6 @@
-name: Docker Build and Push (Main)
+name: Docker Build and Push (Dev)
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
@@ -13,6 +10,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: dev
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -26,7 +25,7 @@ jobs:
       - name: Generate version tag
         id: version
         run: |
-          VERSION=$(date +'%Y%m%d-%H%M%S')
+          VERSION=$(date +'%Y%m%d-%H%M%S')-dev
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build Docker image
@@ -34,11 +33,11 @@ jobs:
           docker build \
             --progress=plain \
             --no-cache \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:dev \
             -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }} \
             .
 
       - name: Push Docker image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:dev
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }}
