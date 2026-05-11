@@ -66,7 +66,6 @@ interface NoteHistoryProps {
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
-  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
   const [rawSearch, setRawSearch] = useState('')
   const [search, setSearch] = useState('')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
@@ -252,7 +251,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     const url = isLocal
                       ? task.audioMeta.cover_url || defaultCover
                       : task.audioMeta.cover_url
-                        ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                        ? `/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
                         : '/placeholder.png'
                     setPreviewImageUrl(url)
                     setPreviewTitle(getTaskTitle(task))
@@ -274,7 +273,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     <LazyImage
                       src={
                         task.audioMeta.cover_url
-                          ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                          ? `/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
                           : '/placeholder.png'
                       }
                       alt="封面"

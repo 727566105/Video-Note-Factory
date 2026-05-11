@@ -7,7 +7,7 @@ WORKDIR /app/frontend
 COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-workspace.yaml ./
 RUN pnpm install
 COPY ./videoNote_frontend .
-ENV VITE_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
 RUN pnpm run build 2>&1 | tee /tmp/build.log; \
     exit_code=$?; \
