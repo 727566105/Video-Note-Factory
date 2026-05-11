@@ -1,10 +1,19 @@
-name: Docker Build and Push (Main)
+name: Docker Build and Push
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      branch:
+        description: '选择要构建的分支'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - main
+          - dev
 
 jobs:
   build-and-push:
@@ -13,6 +22,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -23,22 +34,35 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Generate version tag
-        id: version
+      - name: Determine branch and tags
+        id: determine
         run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            BRANCH="main"
+          else
+            BRANCH="${{ github.event.inputs.branch }}"
+          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          
           VERSION=$(date +'%Y%m%d-%H%M%S')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [ "$BRANCH" = "main" ]; then
+            echo "primary_tag=latest" >> $GITHUB_OUTPUT
+            echo "version_tag=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "primary_tag=dev" >> $GITHUB_OUTPUT
+            echo "version_tag=$VERSION-dev" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build Docker image
         run: |
           docker build \
             --progress=plain \
             --no-cache \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.version_tag }} \
             .
 
       - name: Push Docker image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.version_tag }}
