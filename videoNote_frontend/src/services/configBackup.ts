@@ -14,7 +14,9 @@ export const exportConfigs = async () => {
  */
 export const exportConfigsFile = async () => {
   // 获取 baseURL
-  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const baseURL = import.meta.env.VITE_API_BASE_URL
+    ? `${import.meta.env.VITE_API_BASE_URL}/api`
+    : '/api'
 
   const response = await fetch(`${baseURL}/configs/export/file`, {
     method: 'GET',

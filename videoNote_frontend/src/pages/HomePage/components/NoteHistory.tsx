@@ -188,7 +188,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     const url = isLocal
                       ? task.audioMeta.cover_url || defaultCover
                       : task.audioMeta.cover_url
-                        ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                        ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
                         : '/placeholder.png'
                     setPreviewImageUrl(url)
                     setPreviewTitle(getTaskTitle(task))
@@ -210,7 +210,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     <LazyImage
                       src={
                         task.audioMeta.cover_url
-                          ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                          ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
                           : '/placeholder.png'
                       }
                       alt="封面"

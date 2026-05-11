@@ -35,22 +35,10 @@ export default function AboutPage() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-4">
-            <Button asChild>
-              <a href="https://www.videonote.app" target="_blank">
-                <ExternalLink className="mr-2 h-4 w-4" />
-                体验 videoNote
-              </a>
-            </Button>
             <Button variant="outline" asChild>
-              <a href="https://github.com/JefferyHcool/videoNote" target="_blank">
+              <a href="https://github.com/727566105/Video-Note-Factory" target="_blank">
                 <Github className="mr-2 h-4 w-4" />
                 GitHub 仓库
-              </a>
-            </Button>
-            <Button variant="outline" asChild>
-              <a href="https://github.com/JefferyHcool/videoNote/releases" target="_blank">
-                <Download className="mr-2 h-4 w-4" />
-                下载桌面版
               </a>
             </Button>
           </div>

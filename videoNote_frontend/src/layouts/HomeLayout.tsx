@@ -1,6 +1,6 @@
 import React, { FC, useState } from 'react'
-import { LogOut, SlidersHorizontal } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { LogOut, Settings, User } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import TaskStatusBar from '@/components/TaskStatusBar.tsx'
 import logo from '@/assets/logo.png'
@@ -14,6 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface IProps {
   NoteForm: React.ReactNode
@@ -42,15 +48,26 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
           </div>
           <div className="text-base font-bold text-gray-800 md:text-lg">videoNote <span className="text-xs font-normal text-gray-400">v2.5.1</span></div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden text-xs text-gray-500 md:inline">{user?.username}</span>
-          <Link to={'/settings'}>
-            <SlidersHorizontal className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
-          </Link>
-          <button onClick={() => setLogoutDialogOpen(true)} title="退出登录">
-            <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
-          </button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <User className="h-4 w-4" />
+              </div>
+              <span className="hidden md:inline">{user?.username}</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={() => navigate('/settings')}>
+              <Settings className="mr-2 h-4 w-4" />
+              个人设置
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setLogoutDialogOpen(true)} className="text-red-600 focus:text-red-600">
+              <LogOut className="mr-2 h-4 w-4" />
+              退出登录
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {/* 三栏布局 */}

@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom'
-import { ArrowLeft, LogOut, Menu as MenuIcon, X } from 'lucide-react'
+import { ArrowLeft, LogOut, Menu as MenuIcon, Settings, User, X } from 'lucide-react'
 import React, { useState } from 'react'
 import logo from '@/assets/logo.png'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface ISettingLayoutProps {
   Menu: React.ReactNode
@@ -20,6 +26,7 @@ interface ISettingLayoutProps {
 const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+  const user = useAuthStore(state => state.user)
   const logout = useAuthStore(state => state.logout)
   const navigate = useNavigate()
 
@@ -46,13 +53,30 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           </div>
           <div className="text-base font-bold text-gray-800 md:text-lg">设置</div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Link to={'/'}>
             <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
           </Link>
-          <button onClick={() => setLogoutDialogOpen(true)} title="退出登录">
-            <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <User className="h-4 w-4" />
+                </div>
+                <span className="hidden md:inline">{user?.username}</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                <Settings className="mr-2 h-4 w-4" />
+                个人设置
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLogoutDialogOpen(true)} className="text-red-600 focus:text-red-600">
+                <LogOut className="mr-2 h-4 w-4" />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
