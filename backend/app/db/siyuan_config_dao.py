@@ -2,8 +2,15 @@ import requests
 from app.db.engine import get_db
 from app.utils.logger import get_logger
 from app.db.models.siyuan_config import SiyuanConfig
+from cryptography.fernet import Fernet
+import os
 
 logger = get_logger(__name__)
+
+ENCRYPTION_KEY = os.getenv('WEBDAV_ENCRYPTION_KEY')
+if not ENCRYPTION_KEY:
+    raise RuntimeError("WEBDAV_ENCRYPTION_KEY 环境变量必须设置，请参考 .env.example")
+cipher_suite = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
 
 
 def get_config():
@@ -20,21 +27,24 @@ def get_config():
 
 
 def upsert_config(api_url: str, api_token: str, default_notebook: str = None):
-    """插入或更新思源笔记配置"""
+    """插入或更新思源笔记配置（API Token 加密存储）"""
     db = next(get_db())
     try:
+        # 加密 Token
+        encrypted_token = cipher_suite.encrypt(api_token.encode()).decode()
+
         config = db.query(SiyuanConfig).order_by(SiyuanConfig.id.desc()).first()
         if config:
             # 更新现有配置
             config.api_url = api_url
-            config.api_token = api_token
+            config.api_token = encrypted_token
             config.default_notebook = default_notebook
             config.enabled = 1
         else:
             # 创建新配置
             config = SiyuanConfig(
                 api_url=api_url,
-                api_token=api_token,
+                api_token=encrypted_token,
                 default_notebook=default_notebook,
                 enabled=1
             )
@@ -48,6 +58,32 @@ def upsert_config(api_url: str, api_token: str, default_notebook: str = None):
         raise
     finally:
         db.close()
+
+
+def get_decrypted_token() -> str | None:
+    """获取解密后的 API Token"""
+    config = get_config()
+    if not config:
+        return None
+    try:
+        return cipher_suite.decrypt(config.api_token.encode()).decode()
+    except Exception as e:
+        logger.error(f"Failed to decrypt siyuan token: {e}")
+        return None
+
+
+def get_decrypted_config():
+    """获取解密后的配置对象（用于 SiyuanExporter）"""
+    config = get_config()
+    if not config:
+        return None
+    try:
+        decrypted_token = cipher_suite.decrypt(config.api_token.encode()).decode()
+        config._decrypted_token = decrypted_token
+        return config
+    except Exception as e:
+        logger.error(f"Failed to decrypt siyuan token: {e}")
+        return None
 
 
 def test_connection(api_url: str, api_token: str) -> tuple[bool, str]:

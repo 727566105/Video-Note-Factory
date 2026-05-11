@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Depends
 from pydantic import BaseModel
 import os
 import uuid
@@ -10,6 +10,7 @@ from app.services.model import ModelService
 from app.utils.response import ResponseWrapper as R
 from app.services.provider import ProviderService
 from app.utils.logger import get_logger
+from app.auth.dependencies import require_admin
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -36,7 +37,7 @@ class ProviderUpdateRequest(BaseModel):
     enabled:Optional[int] = None
 
 @router.post("/add_provider")
-def add_provider(data: ProviderRequest):
+def add_provider(data: ProviderRequest, current_user=Depends(require_admin)):
     try:
         res = ProviderService.add_provider(
             name=data.name,
@@ -51,7 +52,7 @@ def add_provider(data: ProviderRequest):
         return R.error(msg=e)
 
 @router.get("/get_all_providers")
-def get_all_providers():
+def get_all_providers(current_user=Depends(require_admin)):
     try:
         res = ProviderService.get_all_providers_safe()
         return R.success(data=res)
@@ -59,7 +60,7 @@ def get_all_providers():
         return R.error(msg=e)
 
 @router.get("/get_provider_by_id/{id}")
-def get_provider_by_id(id: str):
+def get_provider_by_id(id: str, current_user=Depends(require_admin)):
     try:
         res = ProviderService.get_provider_by_id_safe(id)
         return R.success(data=res)
@@ -76,7 +77,7 @@ def get_provider_by_id(id: str):
 
 
 @router.post("/update_provider")
-def update_provider(data: ProviderUpdateRequest):
+def update_provider(data: ProviderUpdateRequest, current_user=Depends(require_admin)):
     try:
         if all(
             field is None
@@ -94,13 +95,13 @@ def update_provider(data: ProviderUpdateRequest):
         return R.error(msg=str(e))
 
 @router.post('/connect_test')
-def gpt_connect_test(data: TestRequest):
+def gpt_connect_test(data: TestRequest, current_user=Depends(require_admin)):
     ModelService().connect_test(data.id)
     return R.success(msg='连接成功')
 
 
 @router.delete("/delete_provider/{id}")
-def delete_provider(id: str):
+def delete_provider(id: str, current_user=Depends(require_admin)):
     """删除模型供应商"""
     try:
         from app.db.provider_dao import delete_provider as dao_delete_provider
@@ -115,7 +116,7 @@ ICON_ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "svg"}
 ICON_MAX_SIZE = 2 * 1024 * 1024  # 2MB
 
 @router.post("/upload_icon")
-async def upload_icon(file: UploadFile = File(...)):
+async def upload_icon(file: UploadFile = File(...), current_user=Depends(require_admin)):
     """上传供应商图标"""
     ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
     if ext not in ICON_ALLOWED_EXTENSIONS:

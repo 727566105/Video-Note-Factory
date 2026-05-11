@@ -1,18 +1,24 @@
 import os
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# 最先加载 .env（必须在任何 app import 之前）
+from dotenv import load_dotenv
+_root_env = Path(__file__).parent.parent / ".env"
+if _root_env.exists():
+    load_dotenv(_root_env)
+else:
+    load_dotenv()
 
 import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
-from dotenv import load_dotenv
 
 from app.db.init_db import init_db
 from app.db.provider_dao import seed_default_providers
 from app.exceptions.exception_handlers import register_exception_handlers
-# from app.db.model_dao import init_model_table
-# from app.db.provider_dao import init_provider_table
 from app.utils.logger import get_logger
 from app import create_app
 from app.transcriber.transcriber_provider import warm_up_transcriber_async, get_warm_up_status
@@ -20,7 +26,6 @@ from events import register_handler
 from ffmpeg_helper import ensure_ffmpeg_or_raise
 
 logger = get_logger(__name__)
-load_dotenv()
 
 # 读取 .env 中的路径
 static_path = os.getenv('STATIC', '/static')
@@ -77,25 +82,30 @@ origins = [
     "http://127.0.0.1:5173",
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    # 支持私有化部署：允许任意 HTTP/HTTPS 原源 + 浏览器扩展
-    allow_origin_regex=r"https?://.*|chrome-extension://.*",
-)
+env_mode = os.getenv("ENV", "development")
+if env_mode == "production":
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if allowed_origins:
+        origins = [o.strip() for o in allowed_origins.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_origin_regex=r"https?://.*|chrome-extension://.*",
+    )
 register_exception_handlers(app)
 app.mount(static_path, StaticFiles(directory=static_dir), name="static")
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":

@@ -360,17 +360,48 @@ class NoteGenerator:
             try:
                 data = json.loads(audio_cache_file.read_text(encoding="utf-8"))
                 audio_meta = AudioDownloadResult(**data)
-                # 如果需要视频且缓存中有视频路径，直接返回
-                if need_video and audio_meta.file_path:
-                    # 检查视频是否已下载（从缓存元信息推断）
-                    if self._check_video_cached(task_id):
-                        logger.info("视频已缓存，跳过下载")
-                        return audio_meta
+
+                # 不需要视频，直接返回缓存的音频
+                if not need_video:
+                    return audio_meta
+
+                # 需要视频，检查视频是否已缓存
+                if self._check_video_cached(task_id):
+                    logger.info("视频已缓存，跳过下载")
+                    self._restore_cached_video(task_id, grid_size, video_interval)
+                    return audio_meta
+
+                # 音频有缓存但视频没有，只下载视频
+                logger.info("音频已缓存，仅下载视频")
+                try:
+                    video_result = downloader.download_video(video_url, None)
+                    if video_result:
+                        self.video_path = Path(video_result)
+                        logger.info(f"视频下载完成：{self.video_path}")
+                        if grid_size:
+                            try:
+                                self.video_img_urls = VideoReader(
+                                    video_path=str(self.video_path),
+                                    grid_size=tuple(grid_size),
+                                    frame_interval=video_interval,
+                                    unit_width=1280,
+                                    unit_height=720,
+                                    save_quality=90,
+                                ).run()
+                            except Exception as exc:
+                                logger.warning(f"缩略图生成失败：{exc}")
+                                self.video_img_urls = []
+                    else:
+                        logger.warning("视频下载返回为空")
+                except Exception as exc:
+                    logger.warning(f"视频下载失败（不影响音频缓存）：{exc}")
+
                 return audio_meta
+
             except Exception as e:
                 logger.warning(f"读取音频缓存失败，将重新下载：{e}")
 
-        # 并行下载视频和音频
+        # 无缓存，并行下载视频和音频
         if need_video:
             return self._parallel_download(
                 downloader=downloader,
@@ -412,6 +443,33 @@ class NoteGenerator:
             Path(os.getenv("DATA_DIR", "data")) / f"{task_id}.mp4",
         ]
         return any(p.exists() for p in video_patterns)
+
+    def _restore_cached_video(self, task_id: str, grid_size: List[int], video_interval: int):
+        """从缓存中恢复视频路径和缩略图"""
+        video_patterns = [
+            NOTE_OUTPUT_DIR / f"{task_id}.mp4",
+            NOTE_OUTPUT_DIR / f"{task_id}.mkv",
+            NOTE_OUTPUT_DIR / f"{task_id}.webm",
+            Path(os.getenv("DATA_DIR", "data")) / f"{task_id}.mp4",
+        ]
+        for p in video_patterns:
+            if p.exists():
+                self.video_path = p
+                logger.info(f"恢复视频缓存路径：{self.video_path}")
+                break
+        if grid_size and self.video_path:
+            try:
+                self.video_img_urls = VideoReader(
+                    video_path=str(self.video_path),
+                    grid_size=tuple(grid_size),
+                    frame_interval=video_interval,
+                    unit_width=1280,
+                    unit_height=720,
+                    save_quality=90,
+                ).run()
+            except Exception as exc:
+                logger.warning(f"缩略图生成失败：{exc}")
+                self.video_img_urls = []
 
     def _parallel_download(
         self,
@@ -686,8 +744,7 @@ class NoteGenerator:
                 markdown = markdown.replace(marker, f"![]({img_url})", 1)
             except Exception as exc:
                 logger.error(f"生成截图失败 (timestamp={ts})：{exc}")
-                # self._handle_exception(task_id, exc)
-                return None
+                continue
         return markdown
 
     @staticmethod
@@ -699,11 +756,11 @@ class NoteGenerator:
         :param markdown: 原始 Markdown 文本
         :return: 标记与对应时间戳秒数的列表
         """
-        pattern = r"(?:\*Screenshot-(\d{2}):(\d{2})|Screenshot-\[(\d{2}):(\d{2})\])"
+        pattern = r"\*Screenshot-\[?(\d{2}):(\d{2})\]?"
         results: List[Tuple[str, int]] = []
         for match in re.finditer(pattern, markdown):
-            mm = match.group(1) or match.group(3)
-            ss = match.group(2) or match.group(4)
+            mm = match.group(1)
+            ss = match.group(2)
             total_seconds = int(mm) * 60 + int(ss)
             results.append((match.group(0), total_seconds))
         return results

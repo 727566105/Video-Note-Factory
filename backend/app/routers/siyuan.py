@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
 from pathlib import Path
@@ -9,6 +9,7 @@ from app.db.siyuan_config_dao import upsert_config, test_connection as dao_test_
 from app.db.siyuan_export_history_dao import get_export_history, get_task_export_history
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
+from app.auth.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
@@ -35,7 +36,7 @@ class TestConnectionRequest(BaseModel):
 
 
 @router.get("/config")
-def get_config():
+def get_config(current_user=Depends(get_current_user)):
     """获取思源笔记配置"""
     try:
         config = dao_get_config()
@@ -57,7 +58,7 @@ def get_config():
 
 
 @router.post("/config")
-def save_config(data: SiyuanConfigRequest):
+def save_config(data: SiyuanConfigRequest, current_user=Depends(get_current_user)):
     """保存思源笔记配置"""
     try:
         config_id = upsert_config(
@@ -72,7 +73,7 @@ def save_config(data: SiyuanConfigRequest):
 
 
 @router.put("/config")
-def update_config(data: SiyuanConfigRequest):
+def update_config(data: SiyuanConfigRequest, current_user=Depends(get_current_user)):
     """更新思源笔记配置"""
     try:
         # 检查是否为脱敏 Token，是则保留原 Token
@@ -96,27 +97,25 @@ def update_config(data: SiyuanConfigRequest):
 
 
 @router.get("/notebooks")
-def get_notebooks(api_url: str = None, api_token: str = None):
+def get_notebooks(api_url: str = None, api_token: str = None, current_user=Depends(get_current_user)):
     """获取思源笔记本列表"""
     try:
-        # 如果提供了参数，使用参数；否则从数据库读取配置
         if api_url and api_token:
-            # 使用传入的参数创建临时配置对象
+            # 使用传入的参数创建临时配置对象（token 明文）
             from app.db.models.siyuan_config import SiyuanConfig
             config = SiyuanConfig(
                 api_url=api_url,
                 api_token=api_token,
                 enabled=1
             )
+            exporter = SiyuanExporter(config)
         else:
-            # 从数据库读取配置
-            config = dao_get_config()
-            if not config:
+            # 从数据库读取配置（exporter 会自动解密）
+            exporter = SiyuanExporter()
+            if not exporter.config:
                 return R.error(msg="请先配置思源笔记连接")
 
-        exporter = SiyuanExporter(config)
         notebooks = exporter.get_notebooks()
-
         return R.success(data=notebooks)
     except Exception as e:
         logger.error(f"获取笔记本列表失败: {e}")
@@ -124,7 +123,7 @@ def get_notebooks(api_url: str = None, api_token: str = None):
 
 
 @router.post("/test")
-def test_connection(data: TestConnectionRequest):
+def test_connection(data: TestConnectionRequest, current_user=Depends(get_current_user)):
     """测试思源笔记连接"""
     logger.info(f"收到测试连接请求: api_url={data.api_url}, token={data.api_token[:8]}...")
     try:
@@ -143,7 +142,7 @@ def test_connection(data: TestConnectionRequest):
 
 
 @router.post("/export/siyuan/{task_id}")
-def export_to_siyuan(task_id: str, title: str = None):
+def export_to_siyuan(task_id: str, title: str = None, current_user=Depends(get_current_user)):
     """导出笔记到思源笔记"""
     try:
         # 读取笔记标题（如果未提供）
@@ -158,12 +157,11 @@ def export_to_siyuan(task_id: str, title: str = None):
                 except:
                     pass
 
-        # 执行导出
-        config = dao_get_config()
-        if not config:
+        # 执行导出（exporter 会自动解密 Token）
+        exporter = SiyuanExporter()
+        if not exporter.config:
             return R.error(msg="请先配置思源笔记连接")
 
-        exporter = SiyuanExporter(config)
         result = exporter.export_note(task_id, title)
 
         return R.success(
@@ -182,7 +180,7 @@ def export_to_siyuan(task_id: str, title: str = None):
 
 
 @router.get("/history")
-def get_siyuan_export_history(limit: int = 50):
+def get_siyuan_export_history(limit: int = 50, current_user=Depends(get_current_user)):
     """获取思源笔记导出历史"""
     try:
         histories = get_export_history(limit)
@@ -206,7 +204,7 @@ def get_siyuan_export_history(limit: int = 50):
 
 
 @router.get("/history/{task_id}")
-def get_siyuan_task_export_history(task_id: str):
+def get_siyuan_task_export_history(task_id: str, current_user=Depends(get_current_user)):
     """获取指定任务的思源笔记导出历史"""
     try:
         histories = get_task_export_history(task_id)

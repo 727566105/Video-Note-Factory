@@ -235,7 +235,7 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
 
 
 @router.post('/delete_task')
-def delete_task(data: RecordRequest):
+def delete_task(data: RecordRequest, current_user=Depends(get_current_user)):
     try:
         # 优先使用 task_id 删除（更精确）
         if data.task_id:
@@ -268,7 +268,7 @@ def delete_task(data: RecordRequest):
 
 
 @router.post("/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(file: UploadFile = File(...), current_user=Depends(get_current_user)):
     # 1. 验证文件扩展名
     if file.filename:
         ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
@@ -335,7 +335,7 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
 
 
 @router.get("/task_status/{task_id}")
-def get_task_status(task_id: str):
+def get_task_status(task_id: str, current_user=Depends(get_current_user)):
     status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
     result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
 
@@ -687,7 +687,7 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
 # ==================== 缓存管理接口 ====================
 
 @router.get("/cache/stats")
-def cache_statistics():
+def cache_statistics(current_user=Depends(get_current_user)):
     """
     获取缓存统计信息
 
@@ -710,7 +710,7 @@ def cache_statistics():
 
 
 @router.post("/cache/clean")
-def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None):
+def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None, current_user=Depends(get_current_user)):
     """
     手动触发缓存清理
 
@@ -759,13 +759,13 @@ class QueueConfigRequest(BaseModel):
 
 
 @router.get("/task_queue/status")
-def get_queue_status():
+def get_queue_status(current_user=Depends(get_current_user)):
     """获取当前任务队列状态"""
     return R.success(task_queue.get_status())
 
 
 @router.post("/task_queue/config")
-def update_queue_config(data: QueueConfigRequest):
+def update_queue_config(data: QueueConfigRequest, current_user=Depends(get_current_user)):
     """更新任务队列配置"""
     try:
         task_queue.update_max_concurrent(data.max_concurrent)

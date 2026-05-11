@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from fastapi.responses import Response, FileResponse
 from pathlib import Path
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
+from app.auth.dependencies import get_current_user
 import io
 import re
 import json
@@ -401,7 +402,8 @@ def _build_pdf_response(pdf_content: bytes, title: str | None, task_id: str, sty
 @router.get("/pdf/{task_id}")
 async def export_pdf(
     task_id: str,
-    style: StyleType = Query(default="default", description="PDF 样式主题")
+    style: StyleType = Query(default="default", description="PDF 样式主题"),
+    current_user=Depends(get_current_user)
 ):
     """
     导出笔记为 PDF（带缓存和样式选择）
@@ -503,7 +505,7 @@ async def export_pdf(
 
 
 @router.get("/styles")
-async def list_styles():
+async def list_styles(current_user=Depends(get_current_user)):
     """获取可用的 PDF 样式列表"""
     return {
         "styles": [
@@ -518,7 +520,8 @@ async def list_styles():
 @router.post("/batch")
 async def batch_export_pdf(
     task_ids: list[str] = Body(..., embed=True),
-    style: StyleType = Query(default="default", description="PDF 样式主题")
+    style: StyleType = Query(default="default", description="PDF 样式主题"),
+    current_user=Depends(get_current_user)
 ):
     """
     批量导出笔记为 PDF 打包下载
@@ -627,7 +630,7 @@ async def batch_export_pdf(
 
 
 @router.get("/history")
-async def get_export_history(limit: int = Query(default=50, ge=1, le=200)):
+async def get_export_history(limit: int = Query(default=50, ge=1, le=200), current_user=Depends(get_current_user)):
     """获取导出历史记录"""
     history = _get_export_history(limit)
     return {
@@ -637,7 +640,7 @@ async def get_export_history(limit: int = Query(default=50, ge=1, le=200)):
 
 
 @router.get("/history/{task_id}")
-async def get_task_history(task_id: str):
+async def get_task_history(task_id: str, current_user=Depends(get_current_user)):
     """获取指定任务的导出历史"""
     history = _get_export_history(1000)
     task_history = [h for h in history if h.get("task_id") == task_id]
@@ -651,7 +654,8 @@ async def get_task_history(task_id: str):
 @router.get("/redownload/{task_id}")
 async def redownload_pdf(
     task_id: str,
-    style: StyleType = Query(default="default", description="PDF 样式主题")
+    style: StyleType = Query(default="default", description="PDF 样式主题"),
+    current_user=Depends(get_current_user)
 ):
     """重新下载历史 PDF（优先使用缓存）"""
     pdf_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_{style}.pdf"
@@ -669,7 +673,7 @@ async def redownload_pdf(
 # ==================== 图文导出 API ====================
 
 @router.get("/image/templates")
-async def list_image_templates():
+async def list_image_templates(current_user=Depends(get_current_user)):
     """获取可用的图文模板列表"""
     from app.utils.image_export import get_available_templates
 
@@ -681,7 +685,7 @@ async def list_image_templates():
 
 
 @router.get("/image/history/{task_id}")
-async def get_image_history(task_id: str):
+async def get_image_history(task_id: str, current_user=Depends(get_current_user)):
     """获取指定任务的图文导出历史"""
     history = _get_export_history(1000)
     image_history = [h for h in history if h.get("style", "").startswith("image_")]
@@ -698,7 +702,8 @@ async def export_image(
     task_id: str,
     template: ImageTemplate = Query(default="xiaohongshu", description="图文模板"),
     width: int = Query(default=1080, ge=400, le=1920, description="图片宽度"),
-    format: ImageFormat = Query(default="png", description="图片格式")
+    format: ImageFormat = Query(default="png", description="图片格式"),
+    current_user=Depends(get_current_user)
 ):
     """
     导出笔记为图文（多张图片打包为 ZIP）
