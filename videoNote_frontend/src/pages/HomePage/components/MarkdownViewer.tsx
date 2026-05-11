@@ -22,6 +22,7 @@ import { noteStyles } from '@/constant/note.ts'
 import { MarkdownHeader } from '@/pages/HomePage/components/MarkdownHeader.tsx'
 import TranscriptViewer from '@/pages/HomePage/components/transcriptViewer.tsx'
 import MarkmapEditor from '@/pages/HomePage/components/MarkmapComponent.tsx'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface VersionNote {
   ver_id: string
@@ -61,6 +62,9 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
   const [showTranscribe, setShowTranscribe] = useState(false)
   const [viewMode, setViewMode] = useState<'map' | 'preview'>('preview')
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // 删除确认弹窗
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // 合并为单个状态对象，避免多次 setState 导致多次渲染
   const [versionState, setVersionState] = useState({
@@ -170,13 +174,11 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
 
   const handleDelete = async () => {
     if (!currentTask?.id) return
-    if (!window.confirm('确定要删除这条笔记吗？此操作不可恢复。')) return
 
     try {
       await removeTask(currentTask.id)
       toast.success('删除成功')
     } catch (e) {
-      // 错误已在 store 中提示
       console.error('删除失败:', e)
     }
   }
@@ -235,7 +237,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
         noteStyles={noteStyles}
         onCopy={handleCopy}
         onDownload={handleDownload}
-        onDelete={handleDelete}
+        onDelete={() => setDeleteDialogOpen(true)}
         createAt={versionState.createTime}
         showTranscribe={showTranscribe}
         setShowTranscribe={setShowTranscribe}
@@ -531,6 +533,16 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="删除笔记"
+        description="确定要删除这条笔记吗？此操作不可恢复。"
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

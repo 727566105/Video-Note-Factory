@@ -4,6 +4,14 @@ import React, { useState } from 'react'
 import logo from '@/assets/logo.png'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/authStore'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface ISettingLayoutProps {
   Menu: React.ReactNode
@@ -11,6 +19,7 @@ interface ISettingLayoutProps {
 
 const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
   const logout = useAuthStore(state => state.logout)
   const navigate = useNavigate()
 
@@ -41,7 +50,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           <Link to={'/'}>
             <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
           </Link>
-          <button onClick={handleLogout} title="退出登录">
+          <button onClick={() => setLogoutDialogOpen(true)} title="退出登录">
             <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
           </button>
         </div>
@@ -75,6 +84,19 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           <Outlet />
         </main>
       </div>
+
+      <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <DialogContent showCloseButton={false} className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>退出登录</DialogTitle>
+            <DialogDescription>确定要退出登录吗？</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogoutDialogOpen(false)}>取消</Button>
+            <Button variant="destructive" onClick={() => { setLogoutDialogOpen(false); handleLogout() }}>确认退出</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

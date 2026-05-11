@@ -5,12 +5,20 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'react-hot-toast'
 import { Trash2, Edit2, Plus } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface User {
   id: number
   username: string
   role: string
   created_at: string
+}
+
+const formatTime = (iso: string) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 const Users = () => {
@@ -20,6 +28,10 @@ const Users = () => {
   const [editForm, setEditForm] = useState({ username: '', password: '', role: 'user' })
   const [adding, setAdding] = useState(false)
   const [addForm, setAddForm] = useState({ username: '', password: '', role: 'user' })
+
+  // 删除确认弹窗
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
   // 普通用户修改密码
   const [oldPassword, setOldPassword] = useState('')
@@ -80,7 +92,6 @@ const Users = () => {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除该用户？')) return
     try {
       await request.delete(`/auth/users/${id}`)
       toast.success('用户删除成功')
@@ -258,7 +269,7 @@ const Users = () => {
                         <option value="admin">管理员</option>
                       </select>
                     </td>
-                    <td className="px-4 py-2">{user.created_at}</td>
+                    <td className="px-4 py-2">{formatTime(user.created_at)}</td>
                     <td className="px-4 py-2 text-right">
                       <Button size="sm" onClick={() => handleUpdate(user.id)}>保存</Button>
                       <Button size="sm" variant="outline" className="ml-1" onClick={() => setEditing(null)}>取消</Button>
@@ -270,13 +281,21 @@ const Users = () => {
                     <td className="px-4 py-2">{user.username}</td>
                     <td className="px-4 py-2 text-gray-400">******</td>
                     <td className="px-4 py-2">{user.role === 'admin' ? '管理员' : '普通用户'}</td>
-                    <td className="px-4 py-2">{user.created_at}</td>
+                    <td className="px-4 py-2">{formatTime(user.created_at)}</td>
                     <td className="px-4 py-2 text-right">
                       <Button size="sm" variant="ghost" onClick={() => startEdit(user)}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
                       {user.username !== 'admin' && (
-                        <Button size="sm" variant="ghost" className="ml-1 text-red-500" onClick={() => handleDelete(user.id)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="ml-1 text-red-500"
+                          onClick={() => {
+                            setPendingDeleteId(user.id)
+                            setDeleteDialogOpen(true)
+                          }}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
@@ -288,6 +307,16 @@ const Users = () => {
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="删除用户"
+        description="确定删除该用户？"
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={() => pendingDeleteId && handleDelete(pendingDeleteId)}
+      />
     </div>
   )
 }
