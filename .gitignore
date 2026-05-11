@@ -319,6 +319,7 @@ cython_debug/
 /backend/bili_note.db
 /backend/video_note.db
 /backend/uploads/*
+/data/
 /backend/.idea/*
 /backend/config/*
 /BiliNote_frontend/.idea/*docs/superpowers/
