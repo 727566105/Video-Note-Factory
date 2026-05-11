@@ -4,8 +4,26 @@ on:
   push:
     branches:
       - main
-      - docker-v1
   workflow_dispatch:
+    inputs:
+      branch:
+        description: '选择要构建的分支'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - main
+          - dev
+      version:
+        description: '版本号（如 v1.0.0）'
+        required: false
+        default: ''
+        type: string
+      changelog:
+        description: '更新内容说明'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build-and-push:
@@ -14,6 +32,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -24,22 +44,61 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Generate version tag
-        id: version
+      - name: Determine branch and tags
+        id: determine
         run: |
-          VERSION=$(date +'%Y%m%d-%H%M%S')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "push" ]; then
+            BRANCH="main"
+          else
+            BRANCH="${{ github.event.inputs.branch }}"
+          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+
+          if [ "$BRANCH" = "main" ]; then
+            echo "primary_tag=latest" >> $GITHUB_OUTPUT
+            if [ -n "$INPUT_VERSION" ]; then
+              echo "version_tag=$INPUT_VERSION" >> $GITHUB_OUTPUT
+            else
+              echo "version_tag=$TIMESTAMP" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "primary_tag=dev" >> $GITHUB_OUTPUT
+            if [ -n "$INPUT_VERSION" ]; then
+              echo "version_tag=$INPUT_VERSION-dev" >> $GITHUB_OUTPUT
+            else
+              echo "version_tag=$TIMESTAMP-dev" >> $GITHUB_OUTPUT
+            fi
+          fi
 
       - name: Build Docker image
         run: |
           docker build \
             --progress=plain \
             --no-cache \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.version_tag }} \
             .
 
       - name: Push Docker image
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.version.outputs.version }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.version_tag }}
+
+      - name: Print build info
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "=========================================="
+          echo "构建信息:"
+          echo "  分支: ${{ steps.determine.outputs.branch }}"
+          echo "  镜像标签: ${{ steps.determine.outputs.primary_tag }}"
+          echo "  版本标签: ${{ steps.determine.outputs.version_tag }}"
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "  版本号: ${{ github.event.inputs.version }}"
+          fi
+          if [ -n "${{ github.event.inputs.changelog }}" ]; then
+            echo "  更新内容: ${{ github.event.inputs.changelog }}"
+          fi
+          echo "=========================================="

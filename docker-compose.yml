@@ -16,6 +16,7 @@ services:
       - BACKEND_PORT=8483
       - BACKEND_HOST=0.0.0.0
       - ENV=production
+      - TZ=Asia/Shanghai
       - STATIC=/static
       - OUT_DIR=./static/screenshots
       - NOTE_OUTPUT_DIR=note_results
@@ -25,6 +26,7 @@ services:
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
       - WEBDAV_ENCRYPTION_KEY=${WEBDAV_ENCRYPTION_KEY:-}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
       - DATABASE_URL=sqlite:////app/data/video_note.db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
