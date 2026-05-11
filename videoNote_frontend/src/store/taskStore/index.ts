@@ -288,7 +288,9 @@ export const useTaskStore = create<TaskStore>()(
 
             set({
               tasks: mergedTasks,
-              currentTaskId: currentTaskExists ? currentTaskId : (mergedTasks.length > 0 ? mergedTasks[0].id : null)
+              currentTaskId: currentTaskId === null
+                ? null
+                : (currentTaskExists ? currentTaskId : (mergedTasks.length > 0 ? mergedTasks[0].id : null))
             })
           }
         } catch (e) {
