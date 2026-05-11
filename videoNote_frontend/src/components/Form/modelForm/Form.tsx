@@ -22,6 +22,7 @@ import { Tag } from 'antd'
 import AILogo from '@/components/Form/modelForm/Icons'
 import NewApiLogo from '@/assets/newapi.svg'
 import { ModelSelector } from '@/components/Form/modelForm/ModelSelector.tsx'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 // 预设供应商列表
 const PRESET_PROVIDERS = [
@@ -86,6 +87,11 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isNewApi = selectedPreset?.id === 'newapi'
+
+  // 删除确认弹窗
+  const [deleteModelDialogOpen, setDeleteModelDialogOpen] = useState(false)
+  const [pendingDeleteModelId, setPendingDeleteModelId] = useState<string | null>(null)
+  const [deleteProviderDialogOpen, setDeleteProviderDialogOpen] = useState(false)
 
   const providerForm = useForm<ProviderFormValues>({
     resolver: zodResolver(ProviderSchema),
@@ -342,7 +348,6 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
   // 删除模型
   const handleDeleteModel = async (modelId: string) => {
-    if (!window.confirm('确定要删除这个模型吗？')) return
     try {
       await deleteModelById(modelId)
       toast.success('删除成功')
@@ -358,7 +363,6 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   // 删除供应商
   const handleDeleteProvider = async () => {
     if (!id) return
-    if (!window.confirm('确定要删除这个供应商吗？此操作不可恢复！')) return
     try {
       await deleteProvider(id!)
       toast.success('删除供应商成功')
@@ -765,7 +769,10 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
         <ModelSelector
           providerId={id!}
           existingModels={models.map(m => ({ id: m.id, model_name: m.model_name }))}
-          onDeleteModel={handleDeleteModel}
+          onDeleteModel={(modelId: string) => {
+            setPendingDeleteModelId(modelId)
+            setDeleteModelDialogOpen(true)
+          }}
           onModelsAdded={handleModelsAdded}
         />
       )}
@@ -776,7 +783,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
           <Button
             type="button"
             variant="destructive"
-            onClick={handleDeleteProvider}
+            onClick={() => setDeleteProviderDialogOpen(true)}
             disabled={saving}
           >
             删除供应商
@@ -789,6 +796,26 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
           请先测试连通性后再添加模型
         </p>
       )}
+
+      <ConfirmDialog
+        open={deleteModelDialogOpen}
+        onOpenChange={setDeleteModelDialogOpen}
+        title="删除模型"
+        description="确定要删除这个模型吗？"
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={() => pendingDeleteModelId && handleDeleteModel(pendingDeleteModelId)}
+      />
+
+      <ConfirmDialog
+        open={deleteProviderDialogOpen}
+        onOpenChange={setDeleteProviderDialogOpen}
+        title="删除供应商"
+        description="确定要删除这个供应商吗？此操作不可恢复！"
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={handleDeleteProvider}
+      />
     </div>
   )
 }

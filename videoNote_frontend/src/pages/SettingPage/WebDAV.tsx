@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dialog'
 import { exportConfigsFile } from '@/services/configBackup'
 import ConfigImportDialog from './components/ConfigImportDialog'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 // 表单 schema
 const WebDAVConfigSchema = z.object({
@@ -95,6 +96,11 @@ const WebDAVSettings = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showDetailedInfo, setShowDetailedInfo] = useState(false)
+
+  // 删除确认弹窗
+  const [deleteConfigDialogOpen, setDeleteConfigDialogOpen] = useState(false)
+  const [deleteBackupDialogOpen, setDeleteBackupDialogOpen] = useState(false)
+  const [pendingDeleteBackupName, setPendingDeleteBackupName] = useState<string | null>(null)
 
   const form = useForm<WebDAVConfigFormValues>({
     resolver: zodResolver(WebDAVConfigSchema),
@@ -227,10 +233,6 @@ const WebDAVSettings = () => {
 
   // 删除配置
   const handleDeleteConfig = async () => {
-    if (!confirm('确定要删除 WebDAV 配置吗？这将停止所有自动备份任务。')) {
-      return
-    }
-
     try {
       await deleteConfig()
       toast.success('配置已删除')
@@ -260,10 +262,6 @@ const WebDAVSettings = () => {
 
   // 删除备份文件
   const handleDeleteBackup = async (backupName: string) => {
-    if (!confirm(`确定要删除备份文件 "${backupName}" 吗？`)) {
-      return
-    }
-
     try {
       await deleteBackup(backupName)
       toast.success('备份已删除')
@@ -534,7 +532,7 @@ const WebDAVSettings = () => {
                 <Button
                   type="button"
                   variant="destructive"
-                  onClick={handleDeleteConfig}
+                  onClick={() => setDeleteConfigDialogOpen(true)}
                   className="w-full min-w-[120px] sm:w-auto"
                 >
                   删除配置
@@ -718,7 +716,10 @@ const WebDAVSettings = () => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteBackup(backup.name)}
+                            onClick={() => {
+                              setPendingDeleteBackupName(backup.name)
+                              setDeleteBackupDialogOpen(true)
+                            }}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -892,6 +893,28 @@ const WebDAVSettings = () => {
       <ConfigImportDialog
         open={configImportDialogOpen}
         onOpenChange={setConfigImportDialogOpen}
+      />
+
+      {/* 删除配置确认 */}
+      <ConfirmDialog
+        open={deleteConfigDialogOpen}
+        onOpenChange={setDeleteConfigDialogOpen}
+        title="删除 WebDAV 配置"
+        description="确定要删除 WebDAV 配置吗？这将停止所有自动备份任务。"
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={handleDeleteConfig}
+      />
+
+      {/* 删除备份文件确认 */}
+      <ConfirmDialog
+        open={deleteBackupDialogOpen}
+        onOpenChange={setDeleteBackupDialogOpen}
+        title="删除备份文件"
+        description={`确定要删除备份文件 "${pendingDeleteBackupName}" 吗？`}
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={() => pendingDeleteBackupName && handleDeleteBackup(pendingDeleteBackupName)}
       />
     </div>
   )

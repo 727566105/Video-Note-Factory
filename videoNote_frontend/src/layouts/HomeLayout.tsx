@@ -1,10 +1,19 @@
-import React, { FC } from 'react'
+import React, { FC, useState } from 'react'
 import { LogOut, SlidersHorizontal } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import TaskStatusBar from '@/components/TaskStatusBar.tsx'
 import logo from '@/assets/logo.png'
 import { useAuthStore } from '@/store/authStore'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface IProps {
   NoteForm: React.ReactNode
@@ -16,6 +25,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
   const user = useAuthStore(state => state.user)
   const logout = useAuthStore(state => state.logout)
   const navigate = useNavigate()
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -37,7 +47,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
           <Link to={'/settings'}>
             <SlidersHorizontal className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
           </Link>
-          <button onClick={handleLogout} title="退出登录">
+          <button onClick={() => setLogoutDialogOpen(true)} title="退出登录">
             <LogOut className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-red-500 md:h-5 md:w-5" />
           </button>
         </div>
@@ -63,6 +73,19 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
           <div className="flex-1 min-h-0 overflow-hidden">{Preview}</div>
         </div>
       </div>
+
+      <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <DialogContent showCloseButton={false} className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>退出登录</DialogTitle>
+            <DialogDescription>确定要退出登录吗？</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogoutDialogOpen(false)}>取消</Button>
+            <Button variant="destructive" onClick={() => { setLogoutDialogOpen(false); handleLogout() }}>确认退出</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
