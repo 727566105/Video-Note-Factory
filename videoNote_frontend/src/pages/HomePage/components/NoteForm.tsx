@@ -314,7 +314,7 @@ const NoteForm = () => {
     const label = generating ? '正在生成…' : editing ? '重新生成' : '生成笔记'
 
     return (
-      <div className="flex gap-2">
+      <div className="flex gap-2 relative z-10">
         <Button
           type="submit"
           className={`bg-primary ${!editing && !generating ? 'w-full' : 'flex-1'}`}
@@ -325,7 +325,7 @@ const NoteForm = () => {
         </Button>
 
         {(editing || generating) && (
-          <Button type="button" variant="outline" className="flex-1 min-w-[100px]" onClick={handleCreateNew}>
+          <Button type="button" variant="outline" className="flex-1 min-w-[100px] shrink-0" onClick={handleCreateNew}>
             <Plus className="mr-2 h-4 w-4" />
             新建笔记
           </Button>
