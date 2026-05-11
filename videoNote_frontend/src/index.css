@@ -53,6 +53,46 @@ html, body, #root {
   }
 }
 
+/* 移动端专用样式 */
+@media (max-width: 768px) {
+  /* 表单优化 */
+  .form-section {
+    padding: 0.75rem;
+  }
+  
+  /* 按钮尺寸 - 符合触摸规范 */
+  .mobile-button {
+    min-height: 44px;
+  }
+  
+  /* 输入框尺寸 - 防止 iOS 自动缩放 */
+  .mobile-input {
+    font-size: 16px;
+  }
+  
+  /* 表单字段标签 */
+  .form-label-mobile {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  
+  /* 卡片内边距 */
+  .card-mobile {
+    padding: 1rem;
+  }
+  
+  /* 表格响应式 */
+  .table-mobile {
+    font-size: 12px;
+  }
+  
+  /* 防止文本选择 */
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

@@ -5,9 +5,15 @@ import NoteForm from '@/pages/HomePage/components/NoteForm.tsx'
 import MarkdownViewer from '@/pages/HomePage/components/MarkdownViewer.tsx'
 import { useTaskStore } from '@/store/taskStore'
 import History from '@/pages/HomePage/components/History.tsx'
+import { TaskStatus } from '@/store/taskStore'
+
 type ViewStatus = 'idle' | 'loading' | 'success' | 'failed'
+
+const isInProgress = (status: TaskStatus) => {
+  return status !== 'SUCCESS' && status !== 'FAILED'
+}
+
 export const HomePage: FC = () => {
-  // 用正确的 selector 直接获取 currentTask，避免订阅整个 tasks 数组
   const currentTask = useTaskStore(state => {
     const task = state.tasks.find(t => t.id === state.currentTaskId)
     return task || null
@@ -15,28 +21,24 @@ export const HomePage: FC = () => {
 
   const [status, setStatus] = useState<ViewStatus>('idle')
 
-  // 处理浏览器插件通过 URL 参数提交的 task_id
   const [searchParams] = useSearchParams()
   useEffect(() => {
     const taskId = searchParams.get('task_id')
     if (!taskId) return
 
     const { tasks, addPendingTask, setCurrentTask, loadTasksFromBackend } = useTaskStore.getState()
-    // 如果任务已在列表中，直接选中
     const existingTask = tasks.find(t => t.id === taskId)
     if (existingTask) {
       setCurrentTask(taskId)
       return
     }
 
-    // 先尝试从后端加载任务详情
     loadTasksFromBackend().then(() => {
       const updatedTasks = useTaskStore.getState().tasks
       const loadedTask = updatedTasks.find(t => t.id === taskId)
       if (loadedTask) {
         setCurrentTask(taskId)
       } else {
-        // 后端还没同步到，先添加为 PENDING
         addPendingTask(taskId, '', {})
         setCurrentTask(taskId)
       }
@@ -46,7 +48,7 @@ export const HomePage: FC = () => {
   useEffect(() => {
     if (!currentTask) {
       setStatus('idle')
-    } else if (currentTask.status === 'PENDING') {
+    } else if (isInProgress(currentTask.status)) {
       setStatus('loading')
     } else if (currentTask.status === 'SUCCESS') {
       setStatus('success')

@@ -3,6 +3,7 @@ import { LogOut, Settings, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import TaskStatusBar from '@/components/TaskStatusBar.tsx'
+import MobileTabNav, { TabType } from '@/components/MobileTabNav.tsx'
 import logo from '@/assets/logo.png'
 import { useAuthStore } from '@/store/authStore'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
   const logout = useAuthStore(state => state.logout)
   const navigate = useNavigate()
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabType>('form')
 
   const handleLogout = () => {
     logout()
@@ -40,7 +42,6 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      {/* 移动端顶部导航栏 */}
       <header className="flex h-12 items-center justify-between border-b border-neutral-200 bg-white px-3 md:h-14 md:px-4">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg md:h-8 md:w-8">
@@ -70,26 +71,36 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
         </DropdownMenu>
       </header>
 
-      {/* 三栏布局 */}
       <TaskStatusBar />
-      <div className="flex flex-1 overflow-hidden">
-        {/* 左侧面板 - 笔记表单 */}
-        <div className="shrink-0 flex flex-col border-r border-neutral-200 bg-white w-full md:w-80 lg:w-96">
+      <div className="flex flex-1 overflow-hidden pb-14 md:pb-0">
+        <div
+          className={`shrink-0 flex flex-col border-r border-neutral-200 bg-white ${
+            activeTab === 'form' ? 'flex' : 'hidden'
+          } md:flex w-full md:w-80 lg:w-96`}
+        >
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="p-3 md:p-4">{NoteForm}</div>
           </div>
         </div>
 
-        {/* 中间面板 - 历史记录 */}
-        <div className="shrink-0 flex flex-col border-r border-neutral-200 bg-white w-full md:w-64 lg:w-80">
+        <div
+          className={`shrink-0 flex flex-col border-r border-neutral-200 bg-white ${
+            activeTab === 'history' ? 'flex' : 'hidden'
+          } md:flex w-full md:w-64 lg:w-80`}
+        >
           <div className="flex-1 min-h-0 overflow-hidden">{History}</div>
         </div>
 
-        {/* 右侧面板 - 预览 */}
-        <div className="flex flex-1 flex-col bg-white">
+        <div
+          className={`flex flex-1 flex-col bg-white ${
+            activeTab === 'preview' ? 'flex' : 'hidden'
+          } md:flex`}
+        >
           <div className="flex-1 min-h-0 overflow-hidden">{Preview}</div>
         </div>
       </div>
+
+      <MobileTabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
         <DialogContent showCloseButton={false} className="max-w-sm">

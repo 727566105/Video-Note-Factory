@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button.tsx'
-import { Copy, Download, ArrowRight, Play, ExternalLink } from 'lucide-react'
+import { Copy, Download, ArrowRight, Play, ExternalLink, X } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import Error from '@/components/Lottie/error.tsx'
 import Loading from '@/components/Lottie/Loading.tsx'
@@ -515,9 +515,24 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                 </div>
               </div>
               {showTranscribe && (
-                <div className={'ml-2 w-2/4'}>
-                  <TranscriptViewer />
-                </div>
+                <>
+                  {/* 桌面端侧边栏 */}
+                  <div className="hidden ml-2 w-2/4 md:block">
+                    <TranscriptViewer />
+                  </div>
+                  {/* 移动端全屏弹出 */}
+                  <div className="fixed inset-0 z-50 bg-white md:hidden">
+                    <div className="flex h-12 items-center justify-between border-b border-neutral-200 px-3">
+                      <span className="text-base font-medium">原文参照</span>
+                      <Button variant="ghost" size="sm" onClick={() => setShowTranscribe(false)}>
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <div className="h-[calc(100vh-48px)] overflow-auto">
+                      <TranscriptViewer />
+                    </div>
+                  </div>
+                </>
               )}
             </>
           ) : (

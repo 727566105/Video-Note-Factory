@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Copy, Download, BrainCircuit, FileText, MoreHorizontal, FileDown, Image, BookOpen, Trash, Settings } from 'lucide-react'
+import { Copy, Download, BrainCircuit, FileText, MoreHorizontal, FileDown, Image, BookOpen, Trash, Settings, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -107,12 +107,12 @@ export function MarkdownHeader({
   }
 
   return (
-    <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-white/95 px-4 py-2 backdrop-blur-sm">
+    <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b bg-white/95 px-3 py-2 backdrop-blur-sm md:gap-3 md:px-4">
       {/* 左侧区域：版本 + 标签 + 创建时间 */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3">
         {isMultiVersion && (
           <Select value={currentVerId} onValueChange={setCurrentVerId}>
-            <SelectTrigger className="h-8 w-[160px] text-sm">
+            <SelectTrigger className="h-8 w-[120px] text-sm md:w-[160px]">
               <SelectValue>
                 {(() => {
                   const idx = currentTask?.markdown.findIndex(v => v.ver_id === currentVerId)
@@ -142,12 +142,12 @@ export function MarkdownHeader({
         </Badge>
 
         {createAt && (
-          <div className="text-muted-foreground text-sm">创建时间: {formatDate(createAt)}</div>
+          <div className="hidden text-muted-foreground text-sm md:block">创建时间: {formatDate(createAt)}</div>
         )}
       </div>
 
-      {/* 右侧操作按钮 */}
-      <div className="flex items-center gap-1">
+      {/* 右侧操作按钮 - 桌面端 */}
+      <div className="hidden items-center gap-1 md:flex">
         {/* 外部显示的按钮 */}
         {toolbarConfig.externalButtons.includes('mindMap') && (
           <TooltipProvider>
@@ -352,6 +352,85 @@ export function MarkdownHeader({
             <TooltipContent>工具栏设置</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+
+        <ToolbarConfigDialog open={configDialogOpen} onOpenChange={setConfigDialogOpen} />
+      </div>
+
+      {/* 右侧操作按钮 - 移动端 */}
+      <div className="flex items-center gap-1 md:hidden">
+        {/* 复制按钮 */}
+        <Button onClick={handleCopy} variant="ghost" size="sm" className="h-8 px-2">
+          <Copy className="h-4 w-4" />
+        </Button>
+
+        {/* 下拉菜单（包含所有其他功能） */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-2">
+              <Menu className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => setViewMode?.(viewMode == 'preview' ? 'map' : 'preview')}>
+              <BrainCircuit className="mr-2 h-4 w-4" />
+              {viewMode == 'preview' ? '思维导图' : 'Markdown'}
+            </DropdownMenuItem>
+            {currentTask?.id && (
+              <>
+                <DropdownMenuItem onClick={() => pdfBtnRef.current?.click()}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  导出 PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => imageBtnRef.current?.click()}>
+                  <Image className="mr-2 h-4 w-4" />
+                  导出图文
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => siyuanBtnRef.current?.click()}>
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  导出到思源
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuItem onClick={onDownload}>
+              <Download className="mr-2 h-4 w-4" />
+              导出 Markdown
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowTranscribe?.(!showTranscribe)}>
+              <FileText className="mr-2 h-4 w-4" />
+              原文参照
+            </DropdownMenuItem>
+            {onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDelete} className="text-red-600 focus:text-red-600">
+                  <Trash className="mr-2 h-4 w-4" />
+                  删除笔记
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* 设置按钮 */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2"
+          onClick={() => setConfigDialogOpen(true)}
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
+
+        {/* 隐藏的导出按钮，用于触发点击 */}
+        <div className="hidden">
+          {currentTask?.id && (
+            <>
+              <ExportPDFButton ref={pdfBtnRef} taskId={currentTask.id} variant="ghost" size="sm" />
+              <ExportImageButton ref={imageBtnRef} taskId={currentTask.id} variant="ghost" size="sm" />
+              <ExportSiyuanButton ref={siyuanBtnRef} taskId={currentTask.id} variant="ghost" size="sm" />
+            </>
+          )}
+        </div>
 
         <ToolbarConfigDialog open={configDialogOpen} onOpenChange={setConfigDialogOpen} />
       </div>

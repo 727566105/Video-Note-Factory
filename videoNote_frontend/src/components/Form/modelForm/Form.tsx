@@ -423,17 +423,17 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
         </div>
 
         {/* 预设供应商卡片网格 */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {PRESET_PROVIDERS.map(preset => (
             <button
               key={preset.id}
               onClick={() => handleSelectPreset(preset)}
-              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
+              className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
             >
-              <div className="flex h-12 w-12 items-center justify-center">
-                <AILogo name={preset.logo} size={48} />
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center">
+                <AILogo name={preset.logo} size={40} />
               </div>
-              <span className="font-medium text-gray-900">{preset.name}</span>
+              <span className="text-sm sm:font-medium text-gray-900">{preset.name}</span>
             </button>
           ))}
 
@@ -624,9 +624,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               control={providerForm.control}
               name="name"
               render={({ field }) => (
-                <FormItem className="grid grid-cols-4 items-center gap-4">
-                  <FormLabel className="text-right">名称</FormLabel>
-                  <div className="col-span-3">
+                <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <FormLabel className="sm:text-right">名称</FormLabel>
+                  <div className="sm:col-span-3">
                     <FormControl>
                       <Input
                         {...field}
@@ -645,9 +645,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               control={providerForm.control}
               name="apiKey"
               render={({ field }) => (
-                <FormItem className="grid grid-cols-4 items-start gap-4">
-                  <FormLabel className="pt-2 text-right">API Key</FormLabel>
-                  <div className="col-span-3 flex flex-col gap-2">
+                <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-start sm:gap-4">
+                  <FormLabel className="sm:pt-2 sm:text-right">API Key</FormLabel>
+                  <div className="sm:col-span-3 flex flex-col gap-2">
                     <div className="relative">
                       <FormControl>
                         <Input
@@ -677,9 +677,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               control={providerForm.control}
               name="baseUrl"
               render={({ field }) => (
-                <FormItem className="grid grid-cols-4 items-start gap-4">
-                  <FormLabel className="pt-2 text-right">API地址</FormLabel>
-                  <div className="col-span-3 flex flex-col gap-2">
+                <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-start sm:gap-4">
+                  <FormLabel className="sm:pt-2 sm:text-right">API地址</FormLabel>
+                  <div className="sm:col-span-3 flex flex-col gap-2">
                     <FormControl>
                       <Input
                         {...field}

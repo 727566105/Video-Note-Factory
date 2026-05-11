@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import type { BackendTask } from '@/types/api'
 
 
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'QUEUED' | 'SUCCESS' | 'FAILD'
+export type TaskStatus = 'PENDING' | 'RUNNING' | 'QUEUED' | 'SUCCESS' | 'FAILED'
 
 export interface AudioMeta {
   cover_url: string
@@ -40,13 +40,13 @@ export interface Markdown {
 
 export interface Task {
   id: string
-  markdown: string|Markdown [] //为了兼容之前的笔记
+  markdown: string|Markdown []
   transcript: Transcript
   status: TaskStatus
   audioMeta: AudioMeta
   createdAt: string
   platform: string
-  message?: string  // 错误信息，用于展示失败原因
+  message?: string
   formData: {
     video_url: string
     link: undefined | boolean
@@ -62,14 +62,19 @@ export interface Task {
 interface TaskStore {
   tasks: Task[]
   currentTaskId: string | null
-  addPendingTask: (taskId: string, platform: string) => void
+  addPendingTask: (taskId: string, platform: string, formData?: Record<string, unknown>) => void
   updateTaskContent: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt'>>) => void
   removeTask: (id: string) => void
   clearTasks: () => void
   setCurrentTask: (taskId: string | null) => void
   getCurrentTask: () => Task | null
-  retryTask: (id: string) => void
+  retryTask: (id: string, payload?: Record<string, unknown>) => void
   loadTasksFromBackend: () => Promise<void>
+  getInProgressTaskIds: () => string[]
+}
+
+const isInProgress = (status: TaskStatus) => {
+  return status !== 'SUCCESS' && status !== 'FAILED'
 }
 
 export const useTaskStore = create<TaskStore>()(
@@ -78,7 +83,7 @@ export const useTaskStore = create<TaskStore>()(
       tasks: [],
       currentTaskId: null,
 
-      addPendingTask: (taskId: string, platform: string, formData: Record<string, unknown>) =>
+      addPendingTask: (taskId: string, platform: string, formData: Record<string, unknown> = {}) =>
 
         set(state => ({
           tasks: [
@@ -107,7 +112,7 @@ export const useTaskStore = create<TaskStore>()(
             },
             ...state.tasks,
           ],
-          currentTaskId: taskId, // 默认设置为当前任务
+          currentTaskId: taskId,
         })),
 
       updateTaskContent: (id, data) =>
@@ -117,7 +122,6 @@ export const useTaskStore = create<TaskStore>()(
 
               if (task.status === 'SUCCESS' && data.status === 'SUCCESS') return task
 
-              // 如果是 markdown 字符串，封装为版本
               if (typeof data.markdown === 'string') {
                 const prev = task.markdown
                 const newVersion: Markdown = {
@@ -157,13 +161,16 @@ export const useTaskStore = create<TaskStore>()(
             }),
           })),
 
+      getInProgressTaskIds: () => {
+        return get().tasks.filter(t => isInProgress(t.status)).map(t => t.id)
+      },
 
       getCurrentTask: () => {
         const currentTaskId = get().currentTaskId
         return get().tasks.find(task => task.id === currentTaskId) || null
       },
-      retryTask: async (id: string, payload?: Record<string, unknown>) => {
 
+      retryTask: async (id: string, payload?: Record<string, unknown>) => {
         if (!id){
           toast.error('任务不存在')
           return
@@ -182,7 +189,7 @@ export const useTaskStore = create<TaskStore>()(
               t.id === id
                   ? {
                     ...t,
-                    formData: newFormData, // ✅ 显式更新 formData
+                    formData: newFormData,
                     status: 'PENDING',
                   }
                   : t
@@ -190,20 +197,17 @@ export const useTaskStore = create<TaskStore>()(
         }))
       },
 
-
       removeTask: async id => {
         const task = get().tasks.find(t => t.id === id)
         if (!task) return
 
         try {
-          // 先调用后端 API，确保后端删除成功
           await delete_task({
             task_id: task.id,
             video_id: task.audioMeta.video_id,
             platform: task.platform,
           })
 
-          // API 成功后再更新本地状态
           set(state => ({
             tasks: state.tasks.filter(task => task.id !== id),
             currentTaskId: state.currentTaskId === id ? null : state.currentTaskId,
@@ -222,19 +226,13 @@ export const useTaskStore = create<TaskStore>()(
         try {
           const response = await getTasks(100)
           if (response?.tasks) {
-            // 保留本地正在进行的任务（避免被后端数据覆盖）
-            const localPendingTasks = get().tasks.filter(
-              t => t.status !== 'SUCCESS' && t.status !== 'FAILED'
-            )
+            const localInProgressTasks = get().tasks.filter(t => isInProgress(t.status))
 
             const backendTasks = response.tasks.map((t: BackendTask) => {
-              // 使用后端返回的 status，如果没有则根据 note 是否存在判断
               const taskStatus = (t.status || (t.note ? 'SUCCESS' : 'PENDING')) as TaskStatus
 
-              // 处理 markdown 数据
               let markdownValue: string | Markdown[] = ''
               if (t.note) {
-                // 优先使用 versions 数组，否则使用 markdown 字符串（兼容旧数据）
                 markdownValue = t.note.versions && t.note.versions.length > 0
                   ? t.note.versions
                   : (t.note.markdown || '')
@@ -274,20 +272,24 @@ export const useTaskStore = create<TaskStore>()(
               }
             })
 
-            // 合并策略：本地 pending 任务优先（状态更实时），再去重合并后端任务
             const mergedTasks = [
-              ...localPendingTasks,
+              ...localInProgressTasks,
               ...backendTasks.filter(
-                bt => !localPendingTasks.some(lt => lt.id === bt.id)
+                bt => !localInProgressTasks.some(lt => lt.id === bt.id)
               ),
             ]
 
-            // 按 createdAt 排序（最新的在前）
             mergedTasks.sort(
               (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             )
 
-            set({ tasks: mergedTasks })
+            const currentTaskId = get().currentTaskId
+            const currentTaskExists = mergedTasks.some(t => t.id === currentTaskId)
+
+            set({
+              tasks: mergedTasks,
+              currentTaskId: currentTaskExists ? currentTaskId : (mergedTasks.length > 0 ? mergedTasks[0].id : null)
+            })
           }
         } catch (e) {
           console.error('加载历史任务失败:', e)
@@ -296,6 +298,10 @@ export const useTaskStore = create<TaskStore>()(
     }),
     {
       name: 'task-storage',
+      partialize: (state) => ({
+        tasks: state.tasks,
+        currentTaskId: state.currentTaskId,
+      }),
     }
   )
 )

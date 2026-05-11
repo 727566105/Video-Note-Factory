@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useTaskStore } from '@/store/taskStore'
 import { get_task_status } from '@/services/note.ts'
 import toast from 'react-hot-toast'
@@ -10,55 +10,66 @@ export const useTaskPolling = (interval = 3000) => {
 
   const tasksRef = useRef(tasks)
 
-  // 每次 tasks 更新，把最新的 tasks 同步进去
   useEffect(() => {
     tasksRef.current = tasks
   }, [tasks])
 
-  // 定期从后端同步新任务（如从浏览器扩展提交的任务）
+  const pollTask = useCallback(async (taskId: string) => {
+    try {
+      const res = await get_task_status(taskId)
+      const { status } = res
+      const task = tasksRef.current.find(t => t.id === taskId)
+
+      if (status && task && status !== task.status) {
+        if (status === 'SUCCESS') {
+          const { markdown, transcript, audio_meta } = res.result
+          toast.success('笔记生成成功')
+          updateTaskContent(taskId, {
+            status,
+            markdown,
+            transcript,
+            audioMeta: audio_meta,
+          })
+        } else if (status === 'FAILED') {
+          updateTaskContent(taskId, { status, message: res?.message })
+        } else {
+          updateTaskContent(taskId, { status })
+        }
+      }
+    } catch (e: any) {
+      console.error('任务轮询失败：', e)
+      const message = e?.msg || ''
+      updateTaskContent(taskId, { status: 'FAILED', message })
+    }
+  }, [updateTaskContent])
+
   useEffect(() => {
     const syncTimer = setInterval(async () => {
       await loadTasksFromBackend()
-    }, 10000) // 10 秒同步一次
+    }, 10000)
 
     return () => clearInterval(syncTimer)
   }, [loadTasksFromBackend])
 
   useEffect(() => {
+    const pendingTasks = tasksRef.current.filter(
+      task => task.status !== 'SUCCESS' && task.status !== 'FAILED'
+    )
+
+    if (pendingTasks.length > 0) {
+      pendingTasks.forEach(task => pollTask(task.id))
+    }
+
     const timer = setInterval(async () => {
-      const pendingTasks = tasksRef.current.filter(
-        task => task.status != 'SUCCESS' && task.status != 'FAILED'
+      const currentPendingTasks = tasksRef.current.filter(
+        task => task.status !== 'SUCCESS' && task.status !== 'FAILED'
       )
 
-      for (const task of pendingTasks) {
-        try {
-          const res = await get_task_status(task.id)
-          const { status } = res
-
-          if (status && status !== task.status) {
-            if (status === 'SUCCESS') {
-              const { markdown, transcript, audio_meta } = res.result
-              toast.success('笔记生成成功')
-              updateTaskContent(task.id, {
-                status,
-                markdown,
-                transcript,
-                audioMeta: audio_meta,
-              })
-            } else if (status === 'FAILED') {
-              updateTaskContent(task.id, { status, message: res?.message })
-            } else {
-              updateTaskContent(task.id, { status })
-            }
-          }
-        } catch (e: any) {
-          console.error('❌ 任务轮询失败：', e)
-          const message = e?.msg || ''
-          updateTaskContent(task.id, { status: 'FAILED', message })
-        }
+      for (const task of currentPendingTasks) {
+        await pollTask(task.id)
       }
     }, interval)
 
     return () => clearInterval(timer)
-  }, [interval])
+  }, [interval, pollTask])
 }

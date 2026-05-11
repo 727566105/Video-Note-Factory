@@ -2,7 +2,7 @@ import { useTaskStore } from '@/store/taskStore'
 import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
 import Fuse from 'fuse.js'
-import { ArrowUpDown, XIcon } from 'lucide-react'
+import { ArrowUpDown, XIcon, Filter, Trash2 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform.tsx'
 import { noteStyles } from '@/constant/note.ts'
@@ -65,6 +65,7 @@ interface NoteHistoryProps {
 
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
+  const removeTask = useTaskStore(state => state.removeTask)
   const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
   const [rawSearch, setRawSearch] = useState('')
   const [search, setSearch] = useState('')
@@ -74,6 +75,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewImageUrl, setPreviewImageUrl] = useState('')
   const [previewTitle, setPreviewTitle] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
   const fuse = useMemo(() => new Fuse(tasks, {
     keys: ['audioMeta.title'],
     threshold: 0.4
@@ -101,10 +103,19 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
       return sortOrder === 'newest' ? timeB - timeA : timeA - timeB
     }), [search, fuse, tasks, platformFilter, styleFilter, sortOrder])
 
+  const handleDelete = async (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation()
+    try {
+      await removeTask(taskId)
+    } catch (error) {
+      console.error('删除任务失败:', error)
+    }
+  }
+
   return (
     <>
-      {/* 筛选栏 */}
-      <div className="mb-2 flex flex-wrap items-center gap-2 pt-2.5">
+      {/* 筛选栏 - 桌面端 */}
+      <div className="mb-2 hidden flex-wrap items-center gap-2 pt-2.5 md:flex">
         <Button
           variant="outline"
           size="xs"
@@ -139,6 +150,59 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
           </SelectContent>
         </Select>
       </div>
+
+      {/* 筛选栏 - 移动端 */}
+      <div className="mb-2 flex items-center gap-2 pt-2.5 md:hidden">
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => setShowFilters(!showFilters)}
+          className="gap-1"
+        >
+          <Filter className="h-3 w-3" />
+          筛选
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+          className="gap-1"
+        >
+          <ArrowUpDown className="h-3 w-3" />
+          {sortOrder === 'newest' ? '最新' : '最早'}
+        </Button>
+      </div>
+
+      {/* 移动端筛选展开区域 */}
+      {showFilters && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 md:hidden">
+          <Select value={platformFilter} onValueChange={setPlatformFilter}>
+            <SelectTrigger size="sm" className="w-full text-xs">
+              <SelectValue placeholder="平台" />
+            </SelectTrigger>
+            <SelectContent>
+              {PLATFORMS.map(p => (
+                <SelectItem key={p.value} value={p.value} className="text-xs">
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={styleFilter} onValueChange={setStyleFilter}>
+            <SelectTrigger size="sm" className="w-full text-xs">
+              <SelectValue placeholder="风格" />
+            </SelectTrigger>
+            <SelectContent>
+              {STYLES.map(s => (
+                <SelectItem key={s.value} value={s.value} className="text-xs">
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* 搜索框 */}
       <div className="mb-2">
         <div className="relative">
@@ -218,7 +282,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                   )}
                 </div>
 
-                {/* 标题 + 状态 */}
+                {/* 标题 + 删除按钮 */}
                 <div className="flex w-full items-center justify-between gap-2">
                   <TooltipProvider>
                     <Tooltip>
@@ -232,6 +296,16 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                  {task.status === 'FAILED' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-neutral-400 hover:text-red-500 hover:bg-red-50"
+                      onClick={(e) => handleDelete(e, task.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className={'mt-2 flex items-center gap-1 text-[10px]'}>

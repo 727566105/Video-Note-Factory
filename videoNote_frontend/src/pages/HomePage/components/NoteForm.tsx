@@ -344,7 +344,7 @@ const NoteForm = () => {
 
           {/* 视频链接 & 平台 */}
           <SectionHeader title="视频链接" tip="支持 B 站、YouTube 等平台" />
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 md:flex-row md:gap-2">
             {/* 平台选择 */}
 
             <FormField
@@ -360,7 +360,7 @@ const NoteForm = () => {
                     }}
                   >
                     <FormControl>
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-full md:w-32">
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
@@ -485,7 +485,7 @@ const NoteForm = () => {
               </FormItem>
             )}
           />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 md:gap-2">
             {/* 模型选择 */}
             <FormField
               className="w-full"
@@ -580,7 +580,7 @@ const NoteForm = () => {
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {/* 采样间隔 */}
               <FormField
                 control={form.control}
