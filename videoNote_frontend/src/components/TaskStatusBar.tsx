@@ -20,11 +20,11 @@ const TaskStatusBar: FC = () => {
 
   return (
     <div className="fixed left-0 right-0 top-12 md:top-14 z-50 flex justify-center px-4 py-2">
-      <div className="flex items-center gap-3 rounded-full bg-blue-500/90 px-4 py-1.5 text-xs text-white shadow-lg backdrop-blur-sm">
+      <div className="flex items-center gap-3 rounded-full bg-primary/90 px-4 py-1.5 text-xs text-white shadow-lg backdrop-blur-sm">
         <span>执行中 <b>{stats.running}</b></span>
         {stats.queued > 0 && (
           <>
-            <span className="text-blue-200">|</span>
+            <span className="text-primary/60">|</span>
             <span>排队中 <b>{stats.queued}</b></span>
           </>
         )}

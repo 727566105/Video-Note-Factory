@@ -328,17 +328,17 @@ const WebDAVSettings = () => {
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       {/* 配置表单 */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
         <div className="mb-6 border-b pb-4">
-          <h2 className="text-xl font-bold text-gray-900">WebDAV 备份配置</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-xl font-bold text-foreground">WebDAV 备份配置</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             配置 WebDAV 服务器连接信息，用于自动备份笔记数据和数据库
           </p>
         </div>
 
-        <Alert className="mb-6 border-blue-200 bg-blue-50">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-sm text-blue-800">
+        <Alert className="mb-6 border-primary/30 bg-primary/10">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-sm text-primary">
             <div 
               className="flex items-center justify-between cursor-pointer"
               onClick={() => setShowDetailedInfo(!showDetailedInfo)}
@@ -353,7 +353,7 @@ const WebDAVSettings = () => {
               )}
             </div>
             {showDetailedInfo && (
-              <div className="mt-3 space-y-3 pt-3 border-t border-blue-300">
+              <div className="mt-3 space-y-3 pt-3 border-t border-primary/40">
                 <div>
                   <strong className="block mb-1">支持的 WebDAV 服务：</strong>
                   <ul className="ml-4 list-disc space-y-1 text-xs">
@@ -385,7 +385,7 @@ const WebDAVSettings = () => {
               name="url"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                  <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     WebDAV 地址
                   </FormLabel>
                   <div className="sm:col-span-3">
@@ -409,7 +409,7 @@ const WebDAVSettings = () => {
               name="username"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                  <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     用户名
                   </FormLabel>
                   <div className="sm:col-span-3">
@@ -430,7 +430,7 @@ const WebDAVSettings = () => {
               name="password"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                  <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     密码
                   </FormLabel>
                   <div className="sm:col-span-3">
@@ -445,7 +445,7 @@ const WebDAVSettings = () => {
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
                           {showPassword ? (
                             <EyeOff className="h-4 w-4" />
@@ -466,7 +466,7 @@ const WebDAVSettings = () => {
               name="path"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                  <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     备份路径
                   </FormLabel>
                   <div className="sm:col-span-3">
@@ -544,7 +544,7 @@ const WebDAVSettings = () => {
             {isConfigured && (
               <>
                 <div className="border-t pt-4 mt-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">自动备份设置</h3>
+                  <h3 className="text-lg font-semibold text-foreground mb-4">自动备份设置</h3>
                 </div>
 
                 <FormField
@@ -552,7 +552,7 @@ const WebDAVSettings = () => {
                   name="auto_backup_enabled"
                   render={({ field }) => (
                     <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                      <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                      <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                         启用自动备份
                       </FormLabel>
                       <div className="sm:col-span-3">
@@ -585,7 +585,7 @@ const WebDAVSettings = () => {
                     name="auto_backup_schedule"
                     render={({ field }) => (
                       <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                        <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                        <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                           备份计划
                         </FormLabel>
                         <div className="sm:col-span-3">
@@ -635,11 +635,11 @@ const WebDAVSettings = () => {
 
       {/* 备份文件管理 */}
       {isConfigured && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between border-b pb-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">备份文件</h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <h2 className="text-xl font-bold text-foreground">备份文件</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
                 管理 WebDAV 服务器上的备份文件，或从本地导入备份
               </p>
             </div>
@@ -678,7 +678,7 @@ const WebDAVSettings = () => {
           {backups.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-700">
+                <thead className="bg-muted text-xs uppercase text-foreground">
                   <tr>
                     <th className="px-4 py-3">文件名</th>
                     <th className="px-4 py-3">大小</th>
@@ -689,12 +689,12 @@ const WebDAVSettings = () => {
                   {backups.map((backup) => (
                     <tr
                       key={backup.name}
-                      className="border-b hover:bg-gray-50"
+                      className="border-b hover:bg-muted"
                     >
                       <td className="px-4 py-3 font-mono text-xs">
                         {backup.name}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {formatFileSize(backup.size)}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -731,10 +731,10 @@ const WebDAVSettings = () => {
               </table>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
-              <Upload className="mb-4 h-16 w-16 text-gray-300" />
-              <p className="text-base font-medium text-gray-900">暂无备份文件</p>
-              <p className="mt-2 text-sm text-gray-500">
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted p-12 text-center">
+              <Upload className="mb-4 h-16 w-16 text-muted-foreground" />
+              <p className="text-base font-medium text-foreground">暂无备份文件</p>
+              <p className="mt-2 text-sm text-muted-foreground">
                 执行备份后，文件将显示在此处
               </p>
             </div>
@@ -743,13 +743,13 @@ const WebDAVSettings = () => {
       )}
 
       {/* 配置管理 */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
         <div className="mb-6 border-b pb-4">
           <div className="flex items-center gap-3">
-            <Settings className="h-6 w-6 text-gray-700" />
+            <Settings className="h-6 w-6 text-foreground" />
             <div>
-              <h2 className="text-xl font-bold text-gray-900">配置管理</h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <h2 className="text-xl font-bold text-foreground">配置管理</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
                 导出或导入系统配置（AI 模型、下载器、思源笔记、WebDAV 备份）
               </p>
             </div>
@@ -846,7 +846,7 @@ const WebDAVSettings = () => {
                 className="cursor-pointer"
               />
               {selectedFile && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   已选择: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                 </p>
               )}

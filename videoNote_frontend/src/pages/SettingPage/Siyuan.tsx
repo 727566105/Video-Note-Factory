@@ -182,17 +182,17 @@ const SiyuanSettings = () => {
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       {/* 配置表单 */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
         <div className="mb-6 border-b pb-4">
-          <h2 className="text-xl font-bold text-gray-900">思源笔记配置</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-xl font-bold text-foreground">思源笔记配置</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             配置思源笔记 API 连接信息，用于将生成的笔记导出到思源笔记
           </p>
         </div>
 
-        <Alert className="mb-6 border-blue-200 bg-blue-50">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-sm text-blue-800">
+        <Alert className="mb-6 border-primary/30 bg-primary/10">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-sm text-primary">
             <strong>配置说明：</strong>
             <ul className="mt-2 ml-4 list-disc space-y-1">
               <li>API 地址格式示例：http://localhost:6806</li>
@@ -230,7 +230,7 @@ const SiyuanSettings = () => {
               name="api_url"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                  <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     API 地址
                   </FormLabel>
                   <div className="sm:col-span-3">
@@ -254,7 +254,7 @@ const SiyuanSettings = () => {
               name="api_token"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                  <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     API Token
                   </FormLabel>
                   <div className="sm:col-span-3">
@@ -269,7 +269,7 @@ const SiyuanSettings = () => {
                         <button
                           type="button"
                           onClick={() => setShowApiToken(!showApiToken)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
                           {showApiToken ? (
                             <EyeOff className="h-4 w-4" />
@@ -290,7 +290,7 @@ const SiyuanSettings = () => {
               name="default_notebook"
               render={({ field }) => (
                 <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
-                  <FormLabel className="text-sm font-medium text-gray-700 sm:text-right">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     默认笔记本
                   </FormLabel>
                   <div className="flex flex-col gap-2 sm:col-span-3">
@@ -393,11 +393,11 @@ const SiyuanSettings = () => {
       </div>
 
       {/* 导出历史 */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between border-b pb-4">
-          <h2 className="text-xl font-bold text-gray-900">导出历史</h2>
+          <h2 className="text-xl font-bold text-foreground">导出历史</h2>
           {exportHistory.length > 0 && (
-            <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+            <span className="rounded-full bg-primary/20 px-2.5 py-0.5 text-xs font-medium text-primary">
               {exportHistory.length} 条记录
             </span>
           )}
@@ -406,7 +406,7 @@ const SiyuanSettings = () => {
         {exportHistory.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-700">
+              <thead className="bg-muted text-xs uppercase text-foreground">
                 <tr>
                   <th className="px-4 py-3">状态</th>
                   <th className="px-4 py-3">任务 ID</th>
@@ -418,7 +418,7 @@ const SiyuanSettings = () => {
                 {exportHistory.map(record => (
                   <tr
                     key={record.id}
-                    className="border-b hover:bg-gray-50"
+                    className="border-b hover:bg-muted"
                   >
                     <td className="px-4 py-3">
                       {record.status === 'success' ? (
@@ -437,7 +437,7 @@ const SiyuanSettings = () => {
                       {record.task_id.slice(0, 8)}...
                     </td>
                     <td className="px-4 py-3">{record.notebook_name}</td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {formatDate(record.created_at)}
                     </td>
                   </tr>
@@ -446,10 +446,10 @@ const SiyuanSettings = () => {
             </table>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
-            <History className="mb-4 h-16 w-16 text-gray-300" />
-            <p className="text-base font-medium text-gray-900">暂无导出历史</p>
-            <p className="mt-2 text-sm text-gray-500">
+          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted p-12 text-center">
+            <History className="mb-4 h-16 w-16 text-muted-foreground" />
+            <p className="text-base font-medium text-foreground">暂无导出历史</p>
+            <p className="mt-2 text-sm text-muted-foreground">
               配置完成后，导出笔记时会在此显示历史记录
             </p>
           </div>

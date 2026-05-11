@@ -244,7 +244,7 @@ export default function MarkmapEditor({
   // }
 
   return (
-    <div className="relative flex h-full flex-col bg-white">
+    <div className="relative flex h-full flex-col bg-background">
       {/* 全屏/退出全屏 按钮 */}
       <TooltipProvider>
         <div className="absolute top-2 right-2 z-20 flex space-x-2">
@@ -253,7 +253,7 @@ export default function MarkmapEditor({
             <TooltipTrigger asChild>
               <button
                 onClick={exportPng}
-                className="rounded p-1 hover:bg-gray-200"
+                className="rounded p-1 hover:bg-muted"
               >
                 <Download className="h-5 w-5" />
               </button>
@@ -268,7 +268,7 @@ export default function MarkmapEditor({
             <TooltipTrigger asChild>
               <button
                 onClick={exportHtml}
-                className="rounded p-1 hover:bg-gray-200"
+                className="rounded p-1 hover:bg-muted"
               >
                 <FileImage className="h-5 w-5" />
               </button>
@@ -283,7 +283,7 @@ export default function MarkmapEditor({
             <TooltipTrigger asChild>
               <button
                 onClick={isFullscreen ? exitFullscreen : enterFullscreen}
-                className="rounded p-1 hover:bg-gray-200"
+                className="rounded p-1 hover:bg-muted"
               >
                 {isFullscreen ? (
                   <Minimize className="h-5 w-5" />

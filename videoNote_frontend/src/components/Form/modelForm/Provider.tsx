@@ -21,7 +21,7 @@ const Provider = () => {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-gray-700">模型供应商</h3>
+        <h3 className="text-sm font-semibold text-foreground">模型供应商</h3>
         <Button
           type="button"
           onClick={handleClick}
@@ -33,7 +33,7 @@ const Provider = () => {
       </div>
       
       <div className="flex flex-col gap-2">
-        <div className="text-xs font-medium text-gray-500">已添加的供应商</div>
+        <div className="text-xs font-medium text-muted-foreground">已添加的供应商</div>
         <div className="flex flex-col gap-1">
           {sortedProviders && sortedProviders.length > 0 ? (
             sortedProviders.map((provider, index) => (
@@ -48,8 +48,8 @@ const Provider = () => {
               />
             ))
           ) : (
-            <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-4 text-center">
-              <p className="text-xs text-gray-500">暂无供应商</p>
+            <div className="rounded-lg border-2 border-dashed border-border bg-muted p-4 text-center">
+              <p className="text-xs text-muted-foreground">暂无供应商</p>
             </div>
           )}
         </div>

@@ -406,8 +406,8 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
     return (
       <div className="flex h-full items-center justify-center p-4">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-2" />
-          <div className="text-sm text-gray-500">正在加载...</div>
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+          <div className="text-sm text-muted-foreground">正在加载...</div>
         </div>
       </div>
     )
@@ -418,8 +418,8 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
     return (
       <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-gray-900">选择供应商类型</h2>
-          <p className="mt-1 text-sm text-gray-500">选择一个预设供应商或创建自定义供应商</p>
+          <h2 className="text-xl font-bold text-foreground">选择供应商类型</h2>
+          <p className="mt-1 text-sm text-muted-foreground">选择一个预设供应商或创建自定义供应商</p>
         </div>
 
         {/* 预设供应商卡片网格 */}
@@ -428,12 +428,12 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
             <button
               key={preset.id}
               onClick={() => handleSelectPreset(preset)}
-              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
+              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
             >
               <div className="flex h-12 w-12 items-center justify-center">
                 <AILogo name={preset.logo} size={48} />
               </div>
-              <span className="font-medium text-gray-900">{preset.name}</span>
+              <span className="font-medium text-foreground">{preset.name}</span>
             </button>
           ))}
 
@@ -451,24 +451,24 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               setTestSuccess(false)
               setModelSelectorVisible(false)
             }}
-            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
+            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
               <img src={NewApiLogo} alt="NewAPI" className="h-8 w-8 object-contain" />
             </div>
-            <span className="font-medium text-gray-900">NewAPI</span>
-            <span className="text-xs text-gray-400">一键接入</span>
+            <span className="font-medium text-foreground">NewAPI</span>
+            <span className="text-xs text-muted-foreground">一键接入</span>
           </button>
 
           {/* 自定义卡片 */}
           <button
             onClick={handleSelectCustom}
-            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer"
+            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <Plus className="h-6 w-6 text-gray-500" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Plus className="h-6 w-6 text-muted-foreground" />
             </div>
-            <span className="font-medium text-gray-900">自定义</span>
+            <span className="font-medium text-foreground">自定义</span>
           </button>
         </div>
       </div>
@@ -480,14 +480,14 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
     return (
       <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
         <div className="text-center">
-          <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-gray-100 mb-2">
+          <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-muted mb-2">
             <img src={NewApiLogo} alt="NewAPI" className="h-8 w-8 object-contain" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">接入 NewAPI</h2>
-          <p className="mt-1 text-sm text-gray-500">输入 API 地址和 Key，一键完成配置</p>
+          <h2 className="text-xl font-bold text-foreground">接入 NewAPI</h2>
+          <p className="mt-1 text-sm text-muted-foreground">输入 API 地址和 Key，一键完成配置</p>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
           <Form {...providerForm}>
             <form className="flex flex-col gap-5">
               {/* 名称 */}
@@ -550,7 +550,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                         <button
                           type="button"
                           onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
                           {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
@@ -588,7 +588,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       {/* 供应商信息 */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
         <Form {...providerForm}>
           <form className="flex flex-col gap-5">
             <div className="border-b pb-4">
@@ -604,16 +604,16 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                   </div>
                 )}
                 {isCustom && !customLogoUrl && (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
-                    <Plus className="h-5 w-5 text-gray-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                    <Plus className="h-5 w-5 text-muted-foreground" />
                   </div>
                 )}
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <h2 className="text-xl font-bold text-foreground">
                     {isEditMode ? '编辑供应商' : `配置 ${selectedPreset?.name || '自定义供应商'}`}
                   </h2>
                   {isBuiltIn && !isCreate && (
-                    <p className="text-sm text-gray-500">预设供应商</p>
+                    <p className="text-sm text-muted-foreground">预设供应商</p>
                   )}
                 </div>
               </div>
@@ -661,7 +661,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                       <button
                         type="button"
                         onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
                         {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -696,7 +696,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
             {/* 图标上传 - 仅自定义供应商 */}
             {(isCustom || (isEditMode && !isBuiltIn)) && (
               <div className="grid grid-cols-4 items-center gap-4">
-                <label className="text-right text-sm font-medium text-gray-700">图标</label>
+                <label className="text-right text-sm font-medium text-foreground">图标</label>
                 <div className="col-span-3">
                   <div className="flex items-center gap-3">
                     {customLogoUrl ? (
@@ -711,8 +711,8 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-gray-300 bg-gray-50">
-                        <Upload className="h-4 w-4 text-gray-400" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dashed border-input bg-muted">
+                        <Upload className="h-4 w-4 text-muted-foreground" />
                       </div>
                     )}
                     <input
@@ -726,11 +726,11 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                     />
                     <label
                       htmlFor="icon-upload"
-                      className={`inline-flex cursor-pointer items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${uploading ? 'text-gray-400 pointer-events-none' : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'}`}
+                      className={`inline-flex cursor-pointer items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${uploading ? 'text-muted-foreground pointer-events-none' : 'text-primary hover:text-primary hover:bg-primary/10'}`}
                     >
                       {uploading ? '上传中...' : customLogoUrl ? '更换图标' : '上传图标'}
                     </label>
-                    <span className="text-xs text-gray-400">JPG/PNG/WebP/SVG, 最大 2MB</span>
+                    <span className="text-xs text-muted-foreground">JPG/PNG/WebP/SVG, 最大 2MB</span>
                   </div>
                 </div>
               </div>
@@ -790,7 +790,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
         </div>
       )}
       {isCreate && !testSuccess && (
-        <p className="text-sm text-gray-500 flex items-center gap-1">
+        <p className="text-sm text-muted-foreground flex items-center gap-1">
           <AlertCircle className="h-4 w-4" />
           请先测试连通性后再添加模型
         </p>

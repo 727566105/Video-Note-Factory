@@ -43,7 +43,7 @@ export default function TaskQueueSettings() {
   }
 
   return (
-    <ScrollArea className="h-full overflow-y-auto bg-white">
+    <ScrollArea className="h-full overflow-y-auto bg-background">
       <div className="container mx-auto max-w-2xl px-4 py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold">任务队列配置</h1>
@@ -61,7 +61,7 @@ export default function TaskQueueSettings() {
                   <div className="text-xs text-muted-foreground">执行中</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{currentStatus.max_concurrent}</div>
+                  <div className="text-2xl font-bold text-primary">{currentStatus.max_concurrent}</div>
                   <div className="text-xs text-muted-foreground">最大并发</div>
                 </div>
                 <div className="text-center">

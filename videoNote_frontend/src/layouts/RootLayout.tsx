@@ -1,6 +1,7 @@
 import type { ReactNode, FC } from 'react'
-// import "@/global.css"
 import { Toaster } from 'react-hot-toast'
+import { useTheme } from '@/hooks/useTheme'
+import { useThemeStore } from '@/store/themeStore'
 
 interface RootLayoutProps {
   children: ReactNode
@@ -12,14 +13,17 @@ export const metadata = {
 }
 
 const RootLayout: FC<RootLayoutProps> = ({ children }) => {
+  useTheme()
+  const theme = useThemeStore(state => state.theme)
+
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans text-neutral-900">
+    <div className="min-h-screen bg-background font-sans text-foreground">
       <Toaster
-        position="top-center" // 顶部居中显示
+        position="top-center"
         toastOptions={{
           style: {
             borderRadius: '8px',
-            background: '#333',
+            background: theme === 'dark' ? '#333' : '#333',
             color: '#fff',
           },
         }}

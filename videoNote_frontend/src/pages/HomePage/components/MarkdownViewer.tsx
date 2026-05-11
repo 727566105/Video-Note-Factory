@@ -246,7 +246,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
       />
 
       {viewMode === 'map' ? (
-        <div className="flex w-full flex-1 overflow-hidden bg-white">
+        <div className="flex w-full flex-1 overflow-hidden bg-background">
           <div className={'w-full'}>
             <MarkmapEditor
               value={versionState.selectedContent}
@@ -257,7 +257,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 flex-col bg-white">
+        <div className="flex flex-1 min-h-0 flex-col bg-background">
           {versionState.selectedContent && versionState.selectedContent !== 'loading' && versionState.selectedContent !== 'empty' ? (
             <>
               <div className="flex-1 overflow-y-auto p-3 md:p-6">
@@ -323,7 +323,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                                 href={href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
                                 {...props}
                               >
                                 <Play className="h-3.5 w-3.5" />

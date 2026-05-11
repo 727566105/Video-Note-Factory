@@ -3,6 +3,7 @@ import { ArrowLeft, LogOut, Menu as MenuIcon, Settings, User, X } from 'lucide-r
 import React, { useState } from 'react'
 import logo from '@/assets/logo.png'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuthStore } from '@/store/authStore'
 import {
   Dialog,
@@ -36,9 +37,9 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col" style={{ backgroundColor: 'var(--color-muted)' }}>
+    <div className="flex h-screen w-full flex-col bg-muted">
       {/* 顶部导航栏 - 全平台可见 */}
-      <header className="flex h-12 items-center justify-between border-b border-neutral-200 bg-white px-3 md:h-14 md:px-4">
+      <header className="flex h-12 items-center justify-between border-b border-border bg-background px-3 md:h-14 md:px-4">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -51,15 +52,16 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg md:h-8 md:w-8">
             <img src={logo} alt="logo" className="h-full w-full object-contain" />
           </div>
-          <div className="text-base font-bold text-gray-800 md:text-lg">设置</div>
+          <div className="text-base font-bold text-foreground md:text-lg">设置</div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Link to={'/'}>
             <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
           </Link>
+          <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+              <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent transition-colors">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <User className="h-4 w-4" />
                 </div>
@@ -84,7 +86,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
         {/* 侧边栏 */}
         <aside
           className={`
-            shrink-0 w-[280px] border-r border-neutral-200 bg-white transition-all duration-300 ease-in-out
+            shrink-0 w-[280px] border-r border-border bg-background transition-all duration-300 ease-in-out
             lg:block lg:w-[375px]
             ${mobileMenuOpen ? 'block' : 'hidden'}
           `}
@@ -104,7 +106,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
         )}
 
         {/* 右侧内容区域 */}
-        <main className="flex-1 overflow-auto bg-white">
+        <main className="flex-1 overflow-auto bg-background">
           <Outlet />
         </main>
       </div>

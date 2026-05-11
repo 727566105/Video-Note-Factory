@@ -3,8 +3,8 @@ import { Outlet } from 'react-router-dom'
 
 const Model = () => {
   return (
-    <div className="flex h-full w-full bg-white">
-      <div className="w-[375px] shrink-0 border-r border-neutral-200 p-4">
+    <div className="flex h-full w-full bg-background">
+      <div className="w-[375px] shrink-0 border-r border-border p-4">
         <Provider />
       </div>
       <div className="flex-1 overflow-auto">

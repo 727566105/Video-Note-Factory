@@ -63,7 +63,7 @@ export function ToolbarConfigDialog({ open, onOpenChange }: ToolbarConfigDialogP
         <div className="space-y-4">
           {/* 工具栏按钮 */}
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">
+            <p className="mb-2 text-sm font-medium text-foreground">
               工具栏按钮（取消勾选移至更多菜单）
             </p>
             <div className="flex flex-wrap gap-2">
@@ -71,7 +71,7 @@ export function ToolbarConfigDialog({ open, onOpenChange }: ToolbarConfigDialogP
                 external.map(id => (
                   <label
                     key={id}
-                    className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm hover:bg-gray-50"
+                    className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm hover:bg-muted"
                   >
                     <Checkbox
                       checked={true}
@@ -81,14 +81,14 @@ export function ToolbarConfigDialog({ open, onOpenChange }: ToolbarConfigDialogP
                   </label>
                 ))
               ) : (
-                <p className="text-sm text-gray-400">暂无按钮</p>
+                <p className="text-sm text-muted-foreground">暂无按钮</p>
               )}
             </div>
           </div>
 
           {/* 更多菜单 */}
           <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">
+            <p className="mb-2 text-sm font-medium text-foreground">
               更多菜单（勾选移至工具栏）
             </p>
             <div className="flex flex-wrap gap-2">
@@ -96,7 +96,7 @@ export function ToolbarConfigDialog({ open, onOpenChange }: ToolbarConfigDialogP
                 menu.map(id => (
                   <label
                     key={id}
-                    className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm text-gray-500 hover:bg-gray-50"
+                    className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted"
                   >
                     <Checkbox
                       checked={false}
@@ -106,7 +106,7 @@ export function ToolbarConfigDialog({ open, onOpenChange }: ToolbarConfigDialogP
                   </label>
                 ))
               ) : (
-                <p className="text-sm text-gray-400">暂无按钮</p>
+                <p className="text-sm text-muted-foreground">暂无按钮</p>
               )}
             </div>
           </div>

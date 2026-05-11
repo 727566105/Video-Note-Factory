@@ -21,7 +21,7 @@ const ImagePreviewDialog: FC<ImagePreviewDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
-        className="max-w-4xl w-full bg-black/90 border-none p-0 flex items-center justify-center [&>[data-slot=dialog-close]]:rounded-full [&>[data-slot=dialog-close]]:bg-white/80 [&>[data-slot=dialog-close]]:p-2 [&>[data-slot=dialog-close]]:text-black [&>[data-slot=dialog-close]]:opacity-100 [&>[data-slot=dialog-close]]:hover:bg-white"
+        className="max-w-4xl w-full bg-black/90 border-none p-0 flex items-center justify-center [&>[data-slot=dialog-close]]:rounded-full [&>[data-slot=dialog-close]]:bg-background/80 [&>[data-slot=dialog-close]]:p-2 [&>[data-slot=dialog-close]]:text-black [&>[data-slot=dialog-close]]:opacity-100 [&>[data-slot=dialog-close]]:hover:bg-background"
         showCloseButton={true}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>

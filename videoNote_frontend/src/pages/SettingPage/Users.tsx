@@ -142,14 +142,14 @@ const Users = () => {
     return (
       <div className="flex flex-col gap-6">
         <h3 className="text-lg font-semibold">修改密码</h3>
-        <div className="max-w-md rounded-lg border bg-gray-50 p-6">
+        <div className="max-w-md rounded-lg border bg-muted p-6">
           <div className="flex flex-col gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">当前用户</label>
-              <div className="text-sm text-gray-600">{currentUser?.username}</div>
+              <label className="mb-1 block text-sm font-medium text-foreground">当前用户</label>
+              <div className="text-sm text-muted-foreground">{currentUser?.username}</div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">旧密码</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">旧密码</label>
               <Input
                 type="password"
                 value={oldPassword}
@@ -158,7 +158,7 @@ const Users = () => {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">新密码</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">新密码</label>
               <Input
                 type="password"
                 value={newPassword}
@@ -167,7 +167,7 @@ const Users = () => {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">确认新密码</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">确认新密码</label>
               <Input
                 type="password"
                 value={confirmPassword}
@@ -196,7 +196,7 @@ const Users = () => {
       </div>
 
       {adding && (
-        <div className="rounded-lg border bg-gray-50 p-4">
+        <div className="rounded-lg border bg-muted p-4">
           <div className="grid grid-cols-3 gap-4">
             <Input
               placeholder="用户名"
@@ -226,11 +226,11 @@ const Users = () => {
       )}
 
       {loading ? (
-        <div className="text-center text-gray-500">加载中...</div>
+        <div className="text-center text-muted-foreground">加载中...</div>
       ) : (
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-gray-50 text-left">
+            <tr className="border-b bg-muted text-left">
               <th className="px-4 py-2 font-medium">ID</th>
               <th className="px-4 py-2 font-medium">用户名</th>
               <th className="px-4 py-2 font-medium">密码</th>
@@ -279,7 +279,7 @@ const Users = () => {
                   <>
                     <td className="px-4 py-2">{user.id}</td>
                     <td className="px-4 py-2">{user.username}</td>
-                    <td className="px-4 py-2 text-gray-400">******</td>
+                    <td className="px-4 py-2 text-muted-foreground">******</td>
                     <td className="px-4 py-2">{user.role === 'admin' ? '管理员' : '普通用户'}</td>
                     <td className="px-4 py-2">{formatTime(user.created_at)}</td>
                     <td className="px-4 py-2 text-right">

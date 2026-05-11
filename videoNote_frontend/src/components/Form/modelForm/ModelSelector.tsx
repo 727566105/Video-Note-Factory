@@ -113,14 +113,14 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
       {/* 标题栏 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-            <Check className="h-4 w-4 text-blue-600" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20">
+            <Check className="h-4 w-4 text-primary" />
           </div>
-          <span className="font-medium text-gray-900">模型管理</span>
+          <span className="font-medium text-foreground">模型管理</span>
         </div>
         <Button
           variant="outline"
@@ -140,9 +140,9 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
         {/* 左侧：可选模型 */}
         <div className="flex flex-1 flex-col gap-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-gray-700">可选模型</span>
+            <span className="font-medium text-foreground">可选模型</span>
             {filteredModels.length > 0 && (
-              <button onClick={handleSelectAll} className="text-blue-600 hover:text-blue-800">
+              <button onClick={handleSelectAll} className="text-primary hover:text-primary">
                 {selectedModels.length === availableCount ? '取消全选' : '全选'}
               </button>
             )}
@@ -150,7 +150,7 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
 
           {/* 搜索框 */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="搜索模型名称..."
               value={search}
@@ -170,8 +170,8 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
                       key={model.id}
                       className={`flex items-center gap-2 py-1.5 px-2 rounded text-sm ${
                         isExisting
-                          ? 'bg-gray-50 cursor-not-allowed'
-                          : 'hover:bg-gray-50 cursor-pointer'
+                          ? 'bg-muted cursor-not-allowed'
+                          : 'hover:bg-muted cursor-pointer'
                       }`}
                       onClick={() => !isExisting && handleToggle(model.id)}
                     >
@@ -182,19 +182,19 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
                         className="shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className={`truncate ${isExisting ? 'text-gray-400' : 'text-gray-900'}`}>
+                        <div className={`truncate ${isExisting ? 'text-muted-foreground' : 'text-foreground'}`}>
                           {model.id}
                         </div>
                       </div>
                       {isExisting && (
-                        <span className="shrink-0 text-xs text-gray-400">已添加</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">已添加</span>
                       )}
                     </div>
                   )
                 })}
               </div>
             ) : (
-              <div className="flex min-h-[280px] items-center justify-center text-sm text-gray-500">
+              <div className="flex min-h-[280px] items-center justify-center text-sm text-muted-foreground">
                 {search ? '未找到匹配的模型' : '暂无可用模型'}
               </div>
             )}
@@ -204,8 +204,8 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
         {/* 右侧：已启用模型 */}
         <div className="flex flex-1 flex-col gap-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-gray-700">
-              已启用 <span className="text-blue-600">({existingModels.length})</span>
+            <span className="font-medium text-foreground">
+              已启用 <span className="text-primary">({existingModels.length})</span>
             </span>
           </div>
 
@@ -219,13 +219,13 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
                 {existingModels.map(model => (
                   <div
                     key={model.id}
-                    className="flex items-center justify-between gap-2 py-1.5 px-2 rounded text-sm hover:bg-gray-50 group"
+                    className="flex items-center justify-between gap-2 py-1.5 px-2 rounded text-sm hover:bg-muted group"
                   >
-                    <span className="truncate text-gray-900">{model.model_name}</span>
+                    <span className="truncate text-foreground">{model.model_name}</span>
                     {onDeleteModel && (
                       <button
                         onClick={() => onDeleteModel(model.id)}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -234,7 +234,7 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-[280px] items-center justify-center text-sm text-gray-500">
+              <div className="flex min-h-[280px] items-center justify-center text-sm text-muted-foreground">
                 暂无已启用模型
               </div>
             )}
@@ -244,8 +244,8 @@ export function ModelSelector({ providerId, existingModels = [], onDeleteModel, 
 
       {/* 底部操作 */}
       <div className="flex items-center justify-between border-t pt-3">
-        <span className="text-sm text-gray-600">
-          已选 <span className="font-semibold text-blue-600">{selectedModels.length}</span> 个模型
+        <span className="text-sm text-muted-foreground">
+          已选 <span className="font-semibold text-primary">{selectedModels.length}</span> 个模型
         </span>
         <Button
           onClick={handleAddModels}

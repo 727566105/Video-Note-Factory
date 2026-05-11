@@ -169,12 +169,12 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
             disabled={isProcessing}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
-          <div className="flex flex-col items-center justify-center w-64 h-40 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-            <Upload className={`w-12 h-12 ${isProcessing ? 'text-gray-400 animate-pulse' : 'text-gray-400'} mb-3`} />
-            <p className="text-sm font-medium text-gray-700">
+          <div className="flex flex-col items-center justify-center w-64 h-40 border-2 border-dashed border-input rounded-lg bg-muted hover:bg-accent transition-colors">
+            <Upload className={`w-12 h-12 ${isProcessing ? 'text-muted-foreground animate-pulse' : 'text-muted-foreground'} mb-3`} />
+            <p className="text-sm font-medium text-foreground">
               {isProcessing ? '正在解析...' : '点击或拖拽上传配置文件'}
             </p>
-            <p className="text-xs text-gray-500 mt-1">支持 JSON 格式</p>
+            <p className="text-xs text-muted-foreground mt-1">支持 JSON 格式</p>
           </div>
         </div>
 
@@ -187,9 +187,9 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
           </Alert>
         )}
 
-        <Alert className="w-full max-w-md mt-4 border-blue-200 bg-blue-50">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-sm text-blue-800">
+        <Alert className="w-full max-w-md mt-4 border-primary/30 bg-primary/10">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-sm text-primary">
             请选择从本系统或其他 videoNote 实例导出的配置文件（videonote_configs.json）
           </AlertDescription>
         </Alert>
@@ -204,10 +204,10 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
     return (
       <>
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="text-sm text-muted-foreground mb-2">
             配置版本：<span className="font-medium">{preview.version}</span>
           </p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             导出时间：<span className="font-medium">
               {new Date(preview.exported_at).toLocaleString('zh-CN')}
             </span>
@@ -215,15 +215,15 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
         </div>
 
         <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-900 mb-3">选择要导入的配置项：</h4>
+          <h4 className="text-sm font-medium text-foreground mb-3">选择要导入的配置项：</h4>
           <div className="space-y-2">
             {preview.available_items.map((item) => (
               <label
                 key={item.type}
                 className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
                   selectedItems.includes(item.type)
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:bg-muted'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -231,11 +231,11 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
                     type="checkbox"
                     checked={selectedItems.includes(item.type)}
                     onChange={() => handleToggleItem(item.type)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-primary border-input rounded focus:ring-ring"
                   />
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{item.name}</span>
+                      <span className="font-medium text-foreground">{item.name}</span>
                       {item.needs_credentials && (
                         <span className="flex items-center text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
                           <Key className="w-3 h-3 mr-1" />
@@ -243,11 +243,11 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{item.count} 项配置</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{item.count} 项配置</p>
                   </div>
                 </div>
                 {selectedItems.includes(item.type) && (
-                  <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
                 )}
               </label>
             ))}
@@ -276,7 +276,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
     return (
       <>
         <div className="mb-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             以下配置项需要补充敏感信息才能导入：
           </p>
         </div>
@@ -287,15 +287,15 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
               // Provider 配置
               const providers = configData?.configs?.providers || []
               return (
-                <div key={item.type} className="border border-gray-200 rounded-lg p-4">
-                  <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-gray-500" />
+                <div key={item.type} className="border border-border rounded-lg p-4">
+                  <h5 className="font-medium text-foreground mb-3 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" />
                     {item.name}
                   </h5>
                   <div className="space-y-3">
                     {providers.map((provider: any) => (
                       <div key={provider.id}>
-                        <label className="text-xs text-gray-600 block mb-1">
+                        <label className="text-xs text-muted-foreground block mb-1">
                           {provider.name} ({provider.id}) 的 API Key
                         </label>
                         <input
@@ -303,7 +303,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
                           value={credentials.providers[provider.id] || ''}
                           onChange={(e) => handleProviderKeyChange(provider.id, e.target.value)}
                           placeholder="输入 API Key"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 border border-input rounded-md text-sm focus:ring-ring focus:border-primary"
                         />
                       </div>
                     ))}
@@ -313,13 +313,13 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
             } else if (item.type === 'siyuan_config') {
               // 思源笔记配置
               return (
-                <div key={item.type} className="border border-gray-200 rounded-lg p-4">
-                  <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-gray-500" />
+                <div key={item.type} className="border border-border rounded-lg p-4">
+                  <h5 className="font-medium text-foreground mb-3 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" />
                     {item.name}
                   </h5>
                   <div>
-                    <label className="text-xs text-gray-600 block mb-1">
+                    <label className="text-xs text-muted-foreground block mb-1">
                       API Token
                     </label>
                     <input
@@ -327,9 +327,9 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
                       value={credentials.siyuan_config.api_token}
                       onChange={(e) => handleCredentialChange('siyuan_config', 'api_token', e.target.value)}
                       placeholder="输入思源笔记 API Token"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-input rounded-md text-sm focus:ring-ring focus:border-primary"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       API 地址：{configData?.configs?.siyuan_config?.api_url}
                     </p>
                   </div>
@@ -338,13 +338,13 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
             } else if (item.type === 'webdav_config') {
               // WebDAV 配置
               return (
-                <div key={item.type} className="border border-gray-200 rounded-lg p-4">
-                  <h5 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-gray-500" />
+                <div key={item.type} className="border border-border rounded-lg p-4">
+                  <h5 className="font-medium text-foreground mb-3 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" />
                     {item.name}
                   </h5>
                   <div>
-                    <label className="text-xs text-gray-600 block mb-1">
+                    <label className="text-xs text-muted-foreground block mb-1">
                       WebDAV 密码
                     </label>
                     <input
@@ -352,9 +352,9 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
                       value={credentials.webdav_config.password}
                       onChange={(e) => handleCredentialChange('webdav_config', 'password', e.target.value)}
                       placeholder="输入 WebDAV 密码"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-input rounded-md text-sm focus:ring-ring focus:border-primary"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       服务器：{configData?.configs?.webdav_config?.url}
                     </p>
                   </div>
@@ -365,9 +365,9 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
           })}
         </div>
 
-        <Alert className="mt-4 border-blue-200 bg-blue-50">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-sm text-blue-800">
+        <Alert className="mt-4 border-primary/30 bg-primary/10">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-sm text-primary">
             敏感信息仅用于本次导入，不会被保存
           </AlertDescription>
         </Alert>
@@ -392,9 +392,9 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
               </AlertDescription>
             </Alert>
           ) : (
-            <Alert className="border-blue-200 bg-blue-50">
-              <Info className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-sm text-blue-800">
+            <Alert className="border-primary/30 bg-primary/10">
+              <Info className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-sm text-primary">
                 导入完成：成功 {success.length} 项，失败 {failed.length} 项，跳过 {skipped.length} 项
               </AlertDescription>
             </Alert>
@@ -406,7 +406,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
             <h5 className="text-sm font-medium text-green-700 mb-2">成功导入</h5>
             <ul className="text-sm space-y-1">
               {success.map((item: any, idx: number) => (
-                <li key={idx} className="flex items-center gap-2 text-gray-700">
+                <li key={idx} className="flex items-center gap-2 text-foreground">
                   <CheckCircle2 className="w-4 h-4 text-green-600" />
                   {item.type === 'providers' && `AI 模型设置 (${item.count} 项)`}
                   {item.type === 'siyuan_config' && '思源笔记配置'}
@@ -422,7 +422,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
             <h5 className="text-sm font-medium text-amber-700 mb-2">已跳过</h5>
             <ul className="text-sm space-y-1">
               {skipped.map((item: any, idx: number) => (
-                <li key={idx} className="flex items-center gap-2 text-gray-700">
+                <li key={idx} className="flex items-center gap-2 text-foreground">
                   <XCircle className="w-4 h-4 text-amber-600" />
                   {item.type === 'providers' && `${item.id}: ${item.reason}`}
                   {item.type === 'siyuan_config' && `思源笔记: ${item.reason}`}
@@ -438,7 +438,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
             <h5 className="text-sm font-medium text-red-700 mb-2">导入失败</h5>
             <ul className="text-sm space-y-1">
               {failed.map((item: any, idx: number) => (
-                <li key={idx} className="flex items-center gap-2 text-gray-700">
+                <li key={idx} className="flex items-center gap-2 text-foreground">
                   <XCircle className="w-4 h-4 text-red-600" />
                   {item.type === 'providers' && `AI 模型设置: ${item.error}`}
                   {item.type === 'siyuan_config' && `思源笔记: ${item.error}`}
@@ -449,7 +449,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
           </div>
         )}
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+        <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-sm text-primary">
           <p>建议刷新页面以查看导入后的配置变更。</p>
         </div>
       </>
