@@ -317,7 +317,7 @@ const NoteForm = () => {
       <div className="flex gap-2">
         <Button
           type="submit"
-          className={!editing && !generating ? 'w-full' : 'w-2/3' + ' bg-primary'}
+          className={`bg-primary ${!editing && !generating ? 'w-full' : 'flex-1'}`}
           disabled={generating}
         >
           {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -325,7 +325,7 @@ const NoteForm = () => {
         </Button>
 
         {(editing || generating) && (
-          <Button type="button" variant="outline" className="w-1/3" onClick={handleCreateNew}>
+          <Button type="button" variant="outline" className="flex-1 min-w-[100px]" onClick={handleCreateNew}>
             <Plus className="mr-2 h-4 w-4" />
             新建笔记
           </Button>

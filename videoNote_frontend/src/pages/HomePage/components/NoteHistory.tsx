@@ -2,11 +2,12 @@ import { useTaskStore } from '@/store/taskStore'
 import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
 import Fuse from 'fuse.js'
-import { ArrowUpDown, XIcon, Filter, Trash2, Square } from 'lucide-react'
+import { ArrowUpDown, XIcon, Filter, Trash2, OctagonX } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform.tsx'
 import { noteStyles } from '@/constant/note.ts'
 import { stop_task } from '@/services/note.ts'
+import ConfirmDialog from '@/components/ConfirmDialog.tsx'
 
 import {
   Tooltip,
@@ -76,6 +77,9 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const [previewImageUrl, setPreviewImageUrl] = useState('')
   const [previewTitle, setPreviewTitle] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<'stop' | 'delete' | null>(null)
+  const [confirmTaskId, setConfirmTaskId] = useState<string | null>(null)
   const fuse = useMemo(() => new Fuse(tasks, {
     keys: ['audioMeta.title'],
     threshold: 0.4
@@ -107,22 +111,29 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     return status !== 'SUCCESS' && status !== 'FAILED'
   }
 
-  const handleDelete = async (e: React.MouseEvent, taskId: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()
-    try {
-      await removeTask(taskId)
-    } catch (error) {
-      console.error('删除任务失败:', error)
-    }
+    setConfirmAction('delete')
+    setConfirmTaskId(taskId)
+    setConfirmOpen(true)
   }
 
-  const handleStop = async (e: React.MouseEvent, taskId: string) => {
+  const handleStopClick = (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()
+    setConfirmAction('stop')
+    setConfirmTaskId(taskId)
+    setConfirmOpen(true)
+  }
+
+  const handleConfirm = async () => {
+    if (!confirmTaskId) return
     try {
-      await stop_task(taskId)
-      await removeTask(taskId)
+      if (confirmAction === 'stop') {
+        await stop_task(confirmTaskId)
+      }
+      await removeTask(confirmTaskId)
     } catch (error) {
-      console.error('停止任务失败:', error)
+      console.error(`${confirmAction === 'stop' ? '停止' : '删除'}任务失败:`, error)
     }
   }
 
@@ -315,9 +326,9 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-neutral-400 hover:text-orange-500 hover:bg-orange-50"
-                      onClick={(e) => handleStop(e, task.id)}
+                      onClick={(e) => handleStopClick(e, task.id)}
                     >
-                      <Square className="h-3 w-3" />
+                      <OctagonX className="h-3.5 w-3.5" />
                     </Button>
                   )}
                   {task.status === 'FAILED' && (
@@ -325,7 +336,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-neutral-400 hover:text-red-500 hover:bg-red-50"
-                      onClick={(e) => handleDelete(e, task.id)}
+                      onClick={(e) => handleDeleteClick(e, task.id)}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -369,6 +380,16 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
         onClose={() => setPreviewOpen(false)}
         imageUrl={previewImageUrl}
         title={previewTitle}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={confirmAction === 'stop' ? '停止任务' : '删除任务'}
+        description={confirmAction === 'stop' ? '确定要停止正在生成的任务吗？停止后任务将被删除。' : '确定要删除这个任务吗？删除后无法恢复。'}
+        confirmText={confirmAction === 'stop' ? '停止' : '删除'}
+        variant="destructive"
+        onConfirm={handleConfirm}
       />
     </>
   )
