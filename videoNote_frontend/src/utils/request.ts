@@ -48,6 +48,10 @@ request.interceptors.response.use(
     }
   },
   (error) => {
+    // 请求被取消（组件重渲染/卸载），静默跳过
+    if (error.code === 'ERR_CANCELED' || error.code === 'ECONNABORTED') {
+      return Promise.reject(error)
+    }
     // 401 未认证，清除 token 并跳转登录
     if (error.response?.status === 401) {
       try {

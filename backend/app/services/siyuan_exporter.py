@@ -2,7 +2,7 @@ import requests
 import re
 from pathlib import Path
 from app.utils.logger import get_logger
-from app.db.siyuan_config_dao import get_config
+from app.db.siyuan_config_dao import get_config, get_decrypted_config, get_decrypted_token
 from app.db.siyuan_export_history_dao import add_export_record
 
 logger = get_logger(__name__)
@@ -15,12 +15,24 @@ class SiyuanExporter:
     """思源笔记导出服务"""
 
     def __init__(self, config=None):
-        self.config = config or get_config()
+        """
+        Args:
+            config: 配置对象（可选）。不传时从数据库读取并自动解密 Token；
+                    传入时直接使用 config.api_token（视为明文）。
+        """
+        if config is None:
+            # 从数据库读取，自动解密
+            self.config = get_decrypted_config() or get_config()
+            self._token = getattr(self.config, '_decrypted_token', None) or self.config.api_token
+        else:
+            # 传入的 config（如测试连接时的临时对象），token 视为明文
+            self.config = config
+            self._token = config.api_token
 
     def _get_headers(self):
         """获取请求头"""
         return {
-            "Authorization": f"Token {self.config.api_token}",
+            "Authorization": f"Token {self._token}",
             "Content-Type": "application/json"
         }
 

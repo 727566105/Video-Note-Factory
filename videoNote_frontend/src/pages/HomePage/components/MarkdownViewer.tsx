@@ -298,11 +298,11 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
                         </h4>
                       ),
 
-                      // Paragraphs with better line height
+                      // Paragraphs - use div to avoid invalid nesting when containing block elements (img/Zoom)
                       p: ({ children, ...props }) => (
-                        <p className="leading-7 [&:not(:first-child)]:mt-6" {...props}>
+                        <div className="leading-7 [&:not(:first-child)]:mt-6" {...props}>
                           {children}
-                        </p>
+                        </div>
                       ),
 
                       // Enhanced links with special handling for "原片" links

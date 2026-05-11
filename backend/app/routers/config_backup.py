@@ -6,7 +6,7 @@
 - 思源笔记配置
 - WebDAV 备份配置
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 import json
@@ -15,6 +15,7 @@ import os
 from app.services.config_export import ConfigExporter, ConfigImporter
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
+from app.auth.dependencies import require_admin
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,7 @@ class ImportExecuteRequest(BaseModel):
 # ==================== 配置导出 ====================
 
 @router.get("/export")
-def export_configs():
+def export_configs(current_user=Depends(require_admin)):
     """导出当前配置为 JSON"""
     try:
         config_data = ConfigExporter.export_config()
@@ -48,7 +49,7 @@ def export_configs():
 
 
 @router.get("/export/file")
-def export_configs_file():
+def export_configs_file(current_user=Depends(require_admin)):
     """导出配置为 JSON 文件下载"""
     try:
         import tempfile
@@ -82,7 +83,7 @@ def export_configs_file():
 # ==================== 配置导入 ====================
 
 @router.post("/import/preview")
-async def preview_import(file: UploadFile = File(...)):
+async def preview_import(file: UploadFile = File(...), current_user=Depends(require_admin)):
     """
     预览配置导入文件
 
@@ -117,7 +118,7 @@ async def preview_import(file: UploadFile = File(...)):
 
 
 @router.post("/import/preview/json")
-def preview_import_json(request: ImportPreviewRequest):
+def preview_import_json(request: ImportPreviewRequest, current_user=Depends(require_admin)):
     """
     预览配置导入（JSON 数据）
 
@@ -143,7 +144,7 @@ def preview_import_json(request: ImportPreviewRequest):
 
 
 @router.post("/import/execute")
-def execute_import(request: ImportExecuteRequest):
+def execute_import(request: ImportExecuteRequest, current_user=Depends(require_admin)):
     """
     执行配置导入
 

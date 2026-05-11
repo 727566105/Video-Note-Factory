@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 from app.utils.response import ResponseWrapper as R
 
 from app.services.cookie_manager import CookieConfigManager
 from ffmpeg_helper import ensure_ffmpeg_or_raise
+from app.auth.dependencies import get_current_user
 
 router = APIRouter()
 cookie_manager = CookieConfigManager()
@@ -16,7 +17,7 @@ class CookieUpdateRequest(BaseModel):
 
 
 @router.get("/get_downloader_cookie/{platform}")
-def get_cookie(platform: str):
+def get_cookie(platform: str, current_user=Depends(get_current_user)):
     cookie = cookie_manager.get(platform)
     if not cookie:
         return R.success(msg='未找到Cookies')
@@ -26,7 +27,7 @@ def get_cookie(platform: str):
 
 
 @router.post("/update_downloader_cookie")
-def update_cookie(data: CookieUpdateRequest):
+def update_cookie(data: CookieUpdateRequest, current_user=Depends(get_current_user)):
     cookie_manager.set(data.platform, data.cookie)
     return R.success(
 

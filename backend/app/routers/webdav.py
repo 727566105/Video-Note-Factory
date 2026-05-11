@@ -1,5 +1,5 @@
 """WebDAV 备份 API 路由"""
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
 from pathlib import Path
@@ -20,6 +20,7 @@ from app.db.backup_history_dao import (
 )
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
+from app.auth.dependencies import get_current_user, require_admin
 
 logger = get_logger(__name__)
 
@@ -57,7 +58,7 @@ class UpdateScheduleRequest(BaseModel):
 # ==================== 配置管理 ====================
 
 @router.get("/config")
-def get_config():
+def get_config(current_user=Depends(get_current_user)):
     """获取 WebDAV 配置"""
     try:
         config = dao_get_config()
@@ -87,7 +88,7 @@ def get_config():
 
 
 @router.post("/config")
-def save_config(data: WebDAVConfigRequest):
+def save_config(data: WebDAVConfigRequest, current_user=Depends(get_current_user)):
     """保存 WebDAV 配置"""
     try:
         config_id = upsert_config(
@@ -105,7 +106,7 @@ def save_config(data: WebDAVConfigRequest):
 
 
 @router.put("/config")
-def update_config(data: WebDAVConfigRequest):
+def update_config(data: WebDAVConfigRequest, current_user=Depends(get_current_user)):
     """更新 WebDAV 配置"""
     try:
         # 检查是否为脱敏密码，是则保留原密码
@@ -132,7 +133,7 @@ def update_config(data: WebDAVConfigRequest):
 
 
 @router.delete("/config")
-def delete_config():
+def delete_config(current_user=Depends(get_current_user)):
     """删除 WebDAV 配置"""
     try:
         success = dao_delete_config()
@@ -145,7 +146,7 @@ def delete_config():
 
 
 @router.post("/test")
-def test_connection(data: TestConnectionRequest):
+def test_connection(data: TestConnectionRequest, current_user=Depends(get_current_user)):
     """测试 WebDAV 连接"""
     logger.info(f"收到测试连接请求: url={data.url}, username={data.username}")
     try:
@@ -164,7 +165,7 @@ def test_connection(data: TestConnectionRequest):
 # ==================== 备份操作 ====================
 
 @router.post("/backup")
-def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual"):
+def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual", current_user=Depends(get_current_user)):
     """手动触发备份"""
     try:
         config = dao_get_config()
@@ -189,7 +190,7 @@ def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual"
 
 
 @router.get("/backup/status")
-def get_status():
+def get_status(current_user=Depends(get_current_user)):
     """获取备份状态"""
     try:
         status = get_backup_status()
@@ -200,7 +201,7 @@ def get_status():
 
 
 @router.get("/backups")
-def list_backups():
+def list_backups(current_user=Depends(get_current_user)):
     """获取备份列表"""
     try:
         config = dao_get_config()
@@ -228,7 +229,7 @@ def list_backups():
 
 
 @router.delete("/backups/{backup_name}")
-def delete_backup(backup_name: str):
+def delete_backup(backup_name: str, current_user=Depends(get_current_user)):
     """删除备份文件"""
     try:
         config = dao_get_config()
@@ -258,7 +259,7 @@ def delete_backup(backup_name: str):
 # ==================== 恢复操作 ====================
 
 @router.post("/restore/{backup_name}")
-def restore_backup(backup_name: str):
+def restore_backup(backup_name: str, current_user=Depends(get_current_user)):
     """从备份恢复数据"""
     try:
         config = dao_get_config()
@@ -289,7 +290,7 @@ def restore_backup(backup_name: str):
 
 
 @router.post("/restore/upload")
-def restore_from_upload(file: UploadFile = UploadFile(...)):
+def restore_from_upload(file: UploadFile = UploadFile(...), current_user=Depends(get_current_user)):
     """从上传的备份文件恢复数据"""
     try:
         # 检查文件类型
@@ -333,7 +334,7 @@ def restore_from_upload(file: UploadFile = UploadFile(...)):
 # ==================== 定时任务 ====================
 
 @router.post("/schedule/enable")
-def enable_schedule(data: UpdateScheduleRequest):
+def enable_schedule(data: UpdateScheduleRequest, current_user=Depends(get_current_user)):
     """启用自动备份"""
     try:
         from app.db.webdav_config_dao import update_config
@@ -355,7 +356,7 @@ def enable_schedule(data: UpdateScheduleRequest):
 
 
 @router.put("/schedule")
-def update_schedule(data: UpdateScheduleRequest):
+def update_schedule(data: UpdateScheduleRequest, current_user=Depends(get_current_user)):
     """更新备份计划"""
     try:
         from app.db.webdav_config_dao import update_config
@@ -381,7 +382,7 @@ def update_schedule(data: UpdateScheduleRequest):
 
 
 @router.delete("/schedule")
-def disable_schedule():
+def disable_schedule(current_user=Depends(get_current_user)):
     """禁用自动备份"""
     try:
         from app.db.webdav_config_dao import update_config
@@ -403,7 +404,7 @@ def disable_schedule():
 
 
 @router.get("/schedule")
-def get_schedule():
+def get_schedule(current_user=Depends(get_current_user)):
     """获取备份计划"""
     try:
         config = dao_get_config()
@@ -427,7 +428,7 @@ def get_schedule():
 # ==================== 备份历史 ====================
 
 @router.get("/history")
-def get_history(limit: int = 50):
+def get_history(limit: int = 50, current_user=Depends(get_current_user)):
     """获取备份历史"""
     try:
         histories = get_backup_history(limit)
@@ -449,7 +450,7 @@ def get_history(limit: int = 50):
 
 
 @router.get("/stats")
-def get_stats():
+def get_stats(current_user=Depends(get_current_user)):
     """获取备份统计"""
     try:
         stats = get_backup_stats()
@@ -460,7 +461,7 @@ def get_stats():
 
 
 @router.delete("/history/{history_id}")
-def delete_history(history_id: int):
+def delete_history(history_id: int, current_user=Depends(get_current_user)):
     """删除单条备份历史记录"""
     try:
         success = delete_backup_record(history_id)
@@ -473,7 +474,7 @@ def delete_history(history_id: int):
 
 
 @router.delete("/history")
-def delete_all_history():
+def delete_all_history(current_user=Depends(get_current_user)):
     """删除所有备份历史记录"""
     try:
         count = delete_all_backup_records()
