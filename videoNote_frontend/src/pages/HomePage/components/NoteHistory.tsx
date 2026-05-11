@@ -111,6 +111,14 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
     return status !== 'SUCCESS' && status !== 'FAILED'
   }
 
+  const runningCount = useMemo(() => {
+    return tasks.filter(t => isInProgress(t.status) && t.status !== 'QUEUED').length
+  }, [tasks])
+
+  const queuedCount = useMemo(() => {
+    return tasks.filter(t => t.status === 'QUEUED').length
+  }, [tasks])
+
   const handleDeleteClick = (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()
     setConfirmAction('delete')
@@ -139,6 +147,19 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
 
   return (
     <>
+      {/* 执行中/排队中任务状态 */}
+      {(runningCount > 0 || queuedCount > 0) && (
+        <div className="mb-2 flex items-center justify-center gap-3 rounded-lg bg-blue-500/90 px-3 py-1.5 text-xs text-white">
+          <span>执行中 <b>{runningCount}</b></span>
+          {queuedCount > 0 && (
+            <>
+              <span className="text-blue-200">|</span>
+              <span>排队中 <b>{queuedCount}</b></span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* 筛选栏 - 桌面端 */}
       <div className="mb-2 hidden flex-wrap items-center gap-2 pt-2.5 md:flex">
         <Button

@@ -2,7 +2,6 @@ import React, { FC, useState } from 'react'
 import { LogOut, Settings, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
-import TaskStatusBar from '@/components/TaskStatusBar.tsx'
 import MobileTabNav, { TabType } from '@/components/MobileTabNav.tsx'
 import logo from '@/assets/logo.png'
 import { useAuthStore } from '@/store/authStore'
@@ -71,7 +70,6 @@ const HomeLayout: FC<IProps> = ({ NoteForm, Preview, History }) => {
         </DropdownMenu>
       </header>
 
-      <TaskStatusBar />
       <div className="flex flex-1 overflow-hidden pb-14 md:pb-0">
         <div
           className={`shrink-0 flex flex-col border-r border-neutral-200 bg-white ${
