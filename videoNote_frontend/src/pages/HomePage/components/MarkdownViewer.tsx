@@ -185,7 +185,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
 
   if (status === 'loading') {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center space-y-4 text-neutral-500">
+      <div className="flex h-full w-full flex-col items-center justify-center space-y-4 p-4 text-neutral-500">
         <StepBar steps={steps} currentStep={taskStatus} />
         <Loading className="h-5 w-5" />
         <div className="text-center text-sm">
@@ -198,7 +198,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
 
   if (status === 'idle') {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center space-y-3 text-neutral-500">
+      <div className="flex h-full w-full flex-col items-center justify-center space-y-3 text-neutral-500">
         <Idle />
         <div className="text-center">
           <p className="text-lg font-bold">输入视频链接并点击“生成笔记”</p>
@@ -211,7 +211,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
   if (status === 'failed' && !isMultiVersion) {
     const errorMessage = currentTask?.message || '请检查后台或稍后再试'
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center gap-4 space-y-3">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 space-y-3">
         <Error />
         <div className="text-center">
           <p className="text-lg font-bold text-red-500">笔记生成失败</p>

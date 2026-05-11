@@ -23,7 +23,6 @@ const StepBar: FC<StepBarProps> = ({ steps, currentStep }) => {
         {steps.map((step, index) => {
           const isActive = index <= currentIndex
           const isCurrent = index === currentIndex
-          const isLast = index === steps.length - 1
           return (
             <div key={step.key} className="relative flex flex-1 flex-col items-center">
               <div className="relative flex flex-col items-center justify-center">
@@ -48,24 +47,49 @@ const StepBar: FC<StepBarProps> = ({ steps, currentStep }) => {
       </div>
 
       {/* 移动端简化版本 */}
-      <div className="flex w-full items-center justify-center gap-3 md:hidden">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-            {currentIndex + 1}
+      <div className="flex w-full flex-col gap-3 px-4 md:hidden">
+        {/* 步骤标题和进度 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-sm font-bold text-white shadow-sm">
+              {currentIndex + 1}
+            </div>
+            <span className="text-base font-semibold text-gray-800">
+              {currentStepData?.label || '准备中'}
+            </span>
           </div>
-          <span className="text-sm font-medium text-gray-700">
-            {currentStepData?.label || '准备中'}
+          <span className="text-sm text-gray-500">
+            {currentIndex + 1}/{steps.length}
           </span>
         </div>
-        <div className="flex-1">
-          <div className="h-1.5 w-full rounded-full bg-gray-200">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+
+        {/* 进度条 */}
+        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-500 ease-out"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-        <span className="text-xs text-gray-500">{currentIndex + 1}/{steps.length}</span>
+
+        {/* 步骤点指示器 */}
+        <div className="flex items-center justify-between px-1">
+          {steps.map((step, index) => {
+            const isActive = index <= currentIndex
+            const isCurrent = index === currentIndex
+            return (
+              <div
+                key={step.key}
+                className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                  isCurrent
+                    ? 'bg-primary scale-125'
+                    : isActive
+                      ? 'bg-primary/60'
+                      : 'bg-gray-300'
+                }`}
+              />
+            )
+          })}
+        </div>
       </div>
     </>
   )
