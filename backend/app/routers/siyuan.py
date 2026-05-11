@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Body, Depends
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
 from pathlib import Path
+import os
 
 from app.services.siyuan_exporter import SiyuanExporter
 from app.db.siyuan_config_dao import get_config as dao_get_config
@@ -14,7 +15,7 @@ from app.auth.dependencies import get_current_user
 logger = get_logger(__name__)
 
 # 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "/app/note_results"))
 
 router = APIRouter()
 

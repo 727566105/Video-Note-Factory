@@ -1,5 +1,6 @@
 import requests
 import re
+import os
 from pathlib import Path
 from app.utils.logger import get_logger
 from app.db.siyuan_config_dao import get_config, get_decrypted_config, get_decrypted_token
@@ -8,7 +9,7 @@ from app.db.siyuan_export_history_dao import add_export_record
 logger = get_logger(__name__)
 
 # 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "/app/note_results"))
 
 
 class SiyuanExporter:

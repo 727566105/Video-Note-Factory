@@ -5,6 +5,7 @@
 import re
 import json
 import asyncio
+import os
 from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
@@ -15,7 +16,7 @@ from app.utils.response import ResponseWrapper as R
 logger = get_logger(__name__)
 
 # 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "/app/note_results"))
 
 # 图片格式类型
 ImageFormat = Literal["png", "jpg", "jpeg"]

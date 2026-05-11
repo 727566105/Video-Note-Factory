@@ -15,7 +15,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "/app/note_results"))
 # 数据库文件
 DB_FILE = Path(__file__).parent.parent.parent / "videonote.db"
 # 临时备份目录

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from fastapi.responses import Response, FileResponse
 from pathlib import Path
+import os
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
 from app.auth.dependencies import get_current_user
@@ -15,8 +16,8 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# 获取项目根目录的绝对路径
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+# 笔记输出目录
+NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "/app/note_results"))
 EXPORT_HISTORY_FILE = NOTE_OUTPUT_DIR / ".export_history.json"
 
 # PDF 样式主题
