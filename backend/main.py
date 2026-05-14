@@ -74,10 +74,12 @@ origins = [
     "http://127.0.0.1",
     "http://localhost:3000",
     "http://localhost:3015",
+    "http://localhost:3017",
     "http://localhost:3018",
     "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3015",
+    "http://127.0.0.1:3017",
     "http://127.0.0.1:3018",
     "http://127.0.0.1:5173",
 ]
@@ -97,11 +99,10 @@ if env_mode == "production":
 else:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|chrome-extension://.*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        allow_origin_regex=r"https?://.*|chrome-extension://.*",
     )
 register_exception_handlers(app)
 app.mount(static_path, StaticFiles(directory=static_dir), name="static")
