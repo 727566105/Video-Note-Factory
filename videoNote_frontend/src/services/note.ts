@@ -84,3 +84,12 @@ export const updateQueueConfig = async (maxConcurrent: number) => {
     throw e
   }
 }
+
+export const extractUrlFromText = async (text: string) => {
+  try {
+    return await request.post('/extract_url', { text })
+  } catch (e) {
+    console.error('❌ URL 提取失败', e)
+    throw e
+  }
+}

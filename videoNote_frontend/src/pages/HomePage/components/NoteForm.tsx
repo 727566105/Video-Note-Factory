@@ -15,7 +15,7 @@ import { z } from 'zod'
 import { Info, Loader2, Plus, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert.tsx'
-import { generateNote } from '@/services/note.ts'
+import { generateNote, extractUrlFromText } from '@/services/note.ts'
 import { uploadFile } from '@/services/upload.ts'
 import { useTaskStore } from '@/store/taskStore'
 import { useModelStore } from '@/store/modelStore'
@@ -37,7 +37,6 @@ import {
   SelectValue,
 } from '@/components/ui/select.tsx'
 import { Input } from '@/components/ui/input.tsx'
-import { ClearableInput } from '@/components/ui/clearable-input.tsx'
 import { Textarea } from '@/components/ui/textarea.tsx'
 import { noteStyles, noteFormats, videoPlatforms } from '@/constant/note.ts'
 import { fetchModels } from '@/services/model.ts'
@@ -310,6 +309,30 @@ const NoteForm = () => {
       video_understanding: false,
     })
   }
+
+  const handlePasteUrl = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData.getData('text')
+    if (!pastedText) return
+
+    if (pastedText.startsWith('http://') || pastedText.startsWith('https://')) {
+      return
+    }
+
+    if (pastedText.includes('douyin') || pastedText.includes('bilibili') || pastedText.includes('youtube') || pastedText.includes('kuaishou')) {
+      try {
+        const result = await extractUrlFromText(pastedText)
+        if (result && result.url) {
+          form.setValue('video_url', result.url, { shouldValidate: true })
+          if (result.platform) {
+            form.setValue('platform', result.platform, { shouldValidate: true })
+          }
+          toast.success('已自动识别并提取链接')
+        }
+      } catch (err) {
+        console.error('URL 提取失败:', err)
+      }
+    }
+  }
   const FormButton = () => {
     const label = generating ? '正在生成…' : editing ? '重新生成' : '生成笔记'
 
@@ -342,65 +365,59 @@ const NoteForm = () => {
           {/* 顶部按钮 */}
           <FormButton></FormButton>
 
-          {/* 视频链接 & 平台 */}
+          {/* 平台选择 */}
           <SectionHeader title="视频链接" tip="支持 B 站、YouTube 等平台" />
-          <div className="flex flex-col gap-2 md:flex-row md:gap-2">
-            {/* 平台选择 */}
-
-            <FormField
-              control={form.control}
-              name="platform"
-              render={({ field }) => (
-                <FormItem>
-                  <Select
-                    disabled={!!editing}
-                    value={field.value}
-                    onValueChange={(v) => {
-                      if (v) field.onChange(v)
-                    }}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full md:w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {videoPlatforms?.map(p => (
-                        <SelectItem key={p.value} value={p.value}>
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="h-4 w-4">{p.logo()}</div>
-                            <span>{p.label}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage style={{ display: 'none' }} />
-                </FormItem>
-              )}
-            />
-            {/* 链接输入 / 上传框 */}
+          <FormField
+            control={form.control}
+            name="platform"
+            render={({ field }) => (
+              <FormItem>
+                <Select
+                  disabled={!!editing}
+                  value={field.value}
+                  onValueChange={(v) => {
+                    if (v) field.onChange(v)
+                  }}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full md:w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {videoPlatforms?.map(p => (
+                      <SelectItem key={p.value} value={p.value}>
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="h-4 w-4">{p.logo()}</div>
+                          <span>{p.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage style={{ display: 'none' }} />
+              </FormItem>
+            )}
+          />
+          {/* 链接输入框 - 仅非本地平台显示 */}
+          {platform !== 'local' && platform !== 'local_audio' && (
             <FormField
               control={form.control}
               name="video_url"
               render={({ field }) => (
                 <FormItem className="flex-1">
-                  {platform === 'local' ? (
-                    <>
-                      <ClearableInput disabled={!!editing} placeholder="请输入本地视频路径" {...field} />
-                    </>
-                  ) : platform === 'local_audio' ? (
-                    <>
-                      <ClearableInput disabled={!!editing} placeholder="请输入本地音频路径" {...field} />
-                    </>
-                  ) : (
-                    <ClearableInput disabled={!!editing} placeholder="请输入视频网站链接" {...field} />
-                  )}
+                  <Textarea
+                    disabled={!!editing}
+                    placeholder="粘贴分享文本或输入链接，自动识别平台"
+                    className="min-h-[80px] resize-none"
+                    {...field}
+                    onPaste={handlePasteUrl}
+                  />
                   <FormMessage style={{ display: 'none' }} />
                 </FormItem>
               )}
             />
-          </div>
+          )}
 
           <FormField
             control={form.control}

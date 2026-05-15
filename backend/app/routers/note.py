@@ -24,7 +24,7 @@ from app.services.note import NoteGenerator, logger
 from app.services.task_queue import task_queue
 from app.services.cache_cleaner import clean_expired_cache, get_cache_stats, CACHE_TTL_DAYS
 from app.utils.response import ResponseWrapper as R
-from app.utils.url_parser import extract_video_id
+from app.utils.url_parser import extract_video_id, extract_url_from_share_text, detect_platform_from_url
 from app.validators.video_url_validator import is_supported_video_url
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse, FileResponse
@@ -813,6 +813,39 @@ def update_queue_config(data: QueueConfigRequest, current_user=Depends(get_curre
         return R.success(task_queue.get_status())
     except Exception as e:
         logger.error(f"更新队列配置失败: {e}")
+        return R.error(msg=str(e))
+
+
+class UrlExtractRequest(BaseModel):
+    text: str
+
+
+@router.post("/extract_url")
+def extract_url_from_text(data: UrlExtractRequest, current_user=Depends(get_current_user)):
+    """
+    从分享文本中智能提取 URL 和平台
+    
+    示例输入：
+    "6.46 07/17 b@N.jP Eus:/ :3pm https://v.douyin.com/CmDgdxUFsL0/ 复制此链接，打开Dou音搜索，直接观看视频！"
+    
+    返回：
+    {
+        "url": "https://v.douyin.com/CmDgdxUFsL0/",
+        "platform": "douyin"
+    }
+    """
+    try:
+        url = extract_url_from_share_text(data.text)
+        if not url:
+            return R.error(msg="未能从文本中识别出有效的视频链接")
+        
+        platform = detect_platform_from_url(url)
+        if not platform:
+            return R.error(msg="未能识别链接对应的平台")
+        
+        return R.success(data={"url": url, "platform": platform})
+    except Exception as e:
+        logger.error(f"URL 提取失败: {e}")
         return R.error(msg=str(e))
 
 

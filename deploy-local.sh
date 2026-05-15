@@ -213,7 +213,7 @@ if [ "$BUILD_MODE" = "full" ]; then
     stop_containers_by_port ${APP_PORT}
     
     # 创建必要的目录
-    mkdir -p data note_results static/screenshots uploads/icons logs
+    mkdir -p data note_results static/screenshots uploads/icons logs backend/config
     
     # 启动容器
     docker run -d \
@@ -225,6 +225,7 @@ if [ "$BUILD_MODE" = "full" ]; then
         -v ./static:/app/static \
         -v ./uploads:/app/uploads \
         -v ./logs:/app/logs \
+        -v ./backend/config:/app/backend/config \
         -e BACKEND_PORT=8483 \
         -e BACKEND_HOST=0.0.0.0 \
         -e ENV=production \

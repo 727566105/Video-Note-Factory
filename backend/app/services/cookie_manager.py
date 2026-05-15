@@ -1,12 +1,42 @@
 import json
+import os
 from pathlib import Path
 from typing import Optional, Dict
 import re
 
 
+def _get_default_config_path() -> Path:
+    """
+    获取默认的配置文件路径，确保使用绝对路径
+    
+    优先级：
+    1. 环境变量 DATA_DIR（Docker 部署时设置）
+    2. 当前工作目录下的 config/downloader.json
+    3. 模块所在目录的 config/downloader.json
+    """
+    data_dir = os.getenv("DATA_DIR")
+    if data_dir:
+        config_path = Path(data_dir) / "config" / "downloader.json"
+        if config_path.parent.exists():
+            return config_path
+    
+    cwd_path = Path.cwd() / "config" / "downloader.json"
+    if cwd_path.exists():
+        return cwd_path
+    
+    module_dir = Path(__file__).resolve().parent.parent.parent
+    return module_dir / "config" / "downloader.json"
+
+
 class CookieConfigManager:
-    def __init__(self, filepath: str = "config/downloader.json"):
-        self.path = Path(filepath)
+    def __init__(self, filepath: str = None):
+        if filepath:
+            self.path = Path(filepath)
+            if not self.path.is_absolute():
+                self.path = Path.cwd() / filepath
+        else:
+            self.path = _get_default_config_path()
+        
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():
             self._write({})

@@ -114,15 +114,13 @@ class BaseRequestModel(BaseModel):
 
 
 class DouyinDownloader(Downloader):
-    # 抖音 API 必需的 cookie 字段
     REQUIRED_COOKIE_FIELDS = ['ttwid', 'sessionid']
     
     def __init__(self, cookie=None):
         super().__init__()
         self.headers_config = DouyinConfig.HEADERS.copy()
         
-        # 获取并转换 cookie
-        cookie_str = cookie if cookie else cfm.get('douyin', auto_convert=True)
+        cookie_str = cookie if cookie else CookieConfigManager().get('douyin', auto_convert=True)
         
         if not cookie_str:
             logger.warning("抖音 cookie 未配置，API 请求可能失败")

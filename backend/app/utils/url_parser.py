@@ -1,6 +1,87 @@
 import re
-from typing import Optional
+from typing import Optional, Tuple
 import requests
+from urllib.parse import urlparse
+
+
+def extract_url_from_share_text(text: str) -> Optional[str]:
+    """
+    从分享文本中智能提取 URL
+    
+    抖音分享文本示例：
+    "6.46 07/17 b@N.jP Eus:/ :3pm https://v.douyin.com/CmDgdxUFsL0/ 复制此链接，打开Dou音搜索，直接观看视频！"
+    
+    支持的平台：
+    - 抖音：v.douyin.com, douyin.com
+    - B站：bilibili.com, b23.tv
+    - YouTube：youtube.com, youtu.be
+    - 快手：kuaishou.com
+    
+    Args:
+        text: 分享文本（可能包含 URL 和其他内容）
+        
+    Returns:
+        提取到的 URL 或 None
+    """
+    if not text or not text.strip():
+        return None
+    
+    text = text.strip()
+    
+    url_patterns = [
+        r'https?://v\.douyin\.com/[a-zA-Z0-9]+/',
+        r'https?://www\.douyin\.com/video/\d+',
+        r'https?://douyin\.com/video/\d+',
+        r'https?://www\.bilibili\.com/video/[a-zA-Z0-9]+',
+        r'https?://bilibili\.com/video/[a-zA-Z0-9]+',
+        r'https?://b23\.tv/[a-zA-Z0-9]+',
+        r'https?://www\.youtube\.com/watch\?v=[a-zA-Z0-9_-]+',
+        r'https?://youtu\.be/[a-zA-Z0-9_-]+',
+        r'https?://www\.kuaishou\.com/short-video/[a-zA-Z0-9]+',
+        r'https?://kuaishou\.com/short-video/[a-zA-Z0-9]+',
+        r'https?://v\.kuaishou\.com/[a-zA-Z0-9]+',
+    ]
+    
+    for pattern in url_patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(0)
+    
+    generic_url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+    match = re.search(generic_url_pattern, text)
+    if match:
+        url = match.group(0)
+        if any(domain in url for domain in ['douyin', 'bilibili', 'youtube', 'kuaishou', 'b23.tv', 'youtu.be']):
+            return url
+    
+    return None
+
+
+def detect_platform_from_url(url: str) -> Optional[str]:
+    """
+    从 URL 自动检测平台
+    
+    Args:
+        url: 视频链接
+        
+    Returns:
+        平台名称 或 None
+    """
+    if not url:
+        return None
+    
+    url_lower = url.lower()
+    
+    if 'douyin' in url_lower or 'v.douyin.com' in url_lower:
+        return 'douyin'
+    elif 'bilibili' in url_lower or 'b23.tv' in url_lower:
+        return 'bilibili'
+    elif 'youtube' in url_lower or 'youtu.be' in url_lower:
+        return 'youtube'
+    elif 'kuaishou' in url_lower:
+        return 'kuaishou'
+    
+    return None
 
 
 def extract_video_id(url: str, platform: str) -> Optional[str]:
