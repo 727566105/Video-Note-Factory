@@ -22,6 +22,9 @@ import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
 import HomeSkeleton from '@/components/HomeSkeleton'
 import { useTaskStore } from '@/store/taskStore/index.ts'
 import { useAuthStore } from '@/store/authStore'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
+import { useModelStore } from '@/store/modelStore'
+import { fetchUserPreferences } from '@/services/userPreferences'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 
@@ -50,6 +53,15 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     if (initialized) {
       systemCheck()
       loadTasksFromBackend()
+      // 从云端加载用户偏好
+      fetchUserPreferences().then(prefs => {
+        if (prefs.summary) {
+          useSummarySettingsStore.getState().loadFromServer(prefs.summary)
+        }
+        if (prefs.model) {
+          useModelStore.getState().loadFromServer(prefs.model)
+        }
+      }).catch(() => {})
     }
   }, [initialized, loadTasksFromBackend])
 

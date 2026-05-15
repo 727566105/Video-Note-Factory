@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 
-from .routers import note, provider, model, config, export, siyuan, webdav, config_backup, health, auth
+from .routers import note, provider, model, config, export, siyuan, webdav, config_backup, health, auth, user
 
 
 def create_app(lifespan) -> FastAPI:
     app = FastAPI(title="videoNote",lifespan=lifespan)
+    app.include_router(user.router, prefix="/api/user", tags=["user"])
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
     app.include_router(note.router, prefix="/api")

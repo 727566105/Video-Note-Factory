@@ -176,16 +176,16 @@ export function QuickAdd({ className }: QuickAddProps) {
 
           {/* 操作栏 */}
           <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <button
-                className="flex items-center gap-1.5 text-sm text-foreground hover:text-foreground transition-colors"
+                className="flex items-center justify-center gap-1.5 h-8 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={() => setSettingsOpen(true)}
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 总结设置
               </button>
               <button
-                className="flex items-center gap-1.5 text-sm text-foreground hover:text-foreground transition-colors"
+                className="flex items-center justify-center gap-1.5 h-8 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={() => setModelSelectOpen(true)}
               >
                 <Sparkles className="w-4 h-4" />
@@ -193,7 +193,7 @@ export function QuickAdd({ className }: QuickAddProps) {
               </button>
               {/* 平台选择下拉器 */}
               <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                <SelectTrigger className="w-auto h-auto border-0 bg-transparent p-0 gap-1.5 text-sm text-foreground hover:text-foreground focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
+                <SelectTrigger className="h-8 px-3 border-0 bg-transparent gap-1.5 text-sm text-foreground hover:bg-accent rounded-md focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
                   <SelectValue placeholder="平台选择" />
                 </SelectTrigger>
                 <SelectContent>
@@ -210,7 +210,7 @@ export function QuickAdd({ className }: QuickAddProps) {
             </div>
             <div className="flex items-center gap-2">
               <button
-                className="flex items-center gap-1.5 text-sm text-foreground hover:text-foreground transition-colors"
+                className="flex items-center justify-center gap-1.5 h-8 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={handleQuickPaste}
               >
                 <Clipboard className="w-4 h-4" />
@@ -237,12 +237,12 @@ export function QuickAdd({ className }: QuickAddProps) {
         </div>
 
         {/* 底部链接 */}
-        <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-          <button className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <button className="flex items-center justify-center gap-1.5 h-8 px-3 hover:bg-accent hover:text-foreground rounded-md transition-colors">
             <Zap className="w-4 h-4" />
             热门链接
           </button>
-          <button className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+          <button className="flex items-center justify-center gap-1.5 h-8 px-3 hover:bg-accent hover:text-foreground rounded-md transition-colors">
             <Link className="w-4 h-4" />
             批量链接
           </button>
