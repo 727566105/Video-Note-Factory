@@ -16,9 +16,7 @@ from app.enmus.note_enums import DownloadQuality
 from app.models.audio_model import AudioDownloadResult
 from app.services.cookie_manager import CookieConfigManager
 from app.utils.path_helper import get_data_dir
-from dotenv import load_dotenv
 
-load_dotenv()
 DOUYIN_DOMAIN = "https://www.douyin.com"
 
 # 配置日志
@@ -132,7 +130,7 @@ class DouyinDownloader(Downloader):
             else:
                 logger.info("抖音 cookie 验证成功")
         
-        self.headers_config["Cookie"] = cookie_str
+        self.headers_config["Cookie"] = cookie_str or ""
         logger.debug(f"抖音下载器初始化完成，Cookie 长度: {len(cookie_str) if cookie_str else 0}")
         
         self.proxies_config = DouyinConfig.PROXIES.copy()
@@ -233,7 +231,7 @@ class DouyinDownloader(Downloader):
             full_url = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/?{query_str}&a_bogus={a_bogus}"
             
             logger.debug(f"请求 URL: {full_url[:200]}...")
-            logger.debug(f"请求头 Cookie 长度: {len(kwargs.get('Cookie', ''))}")
+            logger.debug(f"请求头 Cookie 长度: {len(kwargs.get('Cookie') or '')}")
             
             # 发送请求
             response = requests.get(full_url, headers=kwargs, timeout=30)
@@ -335,7 +333,7 @@ class DouyinDownloader(Downloader):
                 title=video_data['aweme_detail']['item_title'],
                 duration=video_data['aweme_detail']['video']['duration'],
                 cover_url=video_data['aweme_detail']['video']['cover_original_scale']['url_list'][0] if
-                video_data['aweme_detail']['video']['cover'] else video_data['video']['big_thumbs']['img_url'],
+                video_data['aweme_detail']['video']['cover'] else video_data['aweme_detail']['video']['big_thumbs']['img_url'],
                 platform="douyin",
                 video_id=video_data['aweme_detail']['aweme_id'],
                 raw_info={
