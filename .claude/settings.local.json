@@ -107,7 +107,10 @@
       "mcp__chrome__fill_form",
       "Bash(git fetch *)",
       "Bash(git pull *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(npx shadcn *)",
+      "Bash(awk '{print $2}')"
     ]
   }
 }

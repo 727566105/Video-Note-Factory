@@ -74,17 +74,21 @@ origins = [
     "http://127.0.0.1",
     "http://localhost:3000",
     "http://localhost:3015",
+    "http://localhost:3016",
     "http://localhost:3017",
     "http://localhost:3018",
     "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3015",
+    "http://127.0.0.1:3016",
     "http://127.0.0.1:3017",
     "http://127.0.0.1:3018",
     "http://127.0.0.1:5173",
 ]
 
 env_mode = os.getenv("ENV", "development")
+logger.info(f"CORS origins: {origins}")
+logger.info(f"ENV mode: {env_mode}")
 if env_mode == "production":
     allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
     if allowed_origins:
@@ -99,7 +103,7 @@ if env_mode == "production":
 else:
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|chrome-extension://.*",
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

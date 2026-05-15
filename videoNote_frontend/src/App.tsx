@@ -15,12 +15,15 @@ import DownloaderForm from '@/components/Form/DownloaderForm/Form.tsx'
 import TaskQueueSettings from '@/pages/SettingPage/TaskQueue.tsx'
 import UsersPage from '@/pages/SettingPage/Users.tsx'
 import LoginPage from '@/pages/LoginPage'
+import { NoteListPage } from './pages/NoteListPage'
 import { useEffect, ReactNode } from 'react'
 import { systemCheck } from '@/services/system.ts'
 import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
 import HomeSkeleton from '@/components/HomeSkeleton'
 import { useTaskStore } from '@/store/taskStore/index.ts'
 import { useAuthStore } from '@/store/authStore'
+import { SidebarProvider } from '@/components/ui/sidebar'
+import { AppSidebar } from '@/components/app-sidebar'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated())
@@ -54,7 +57,16 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     return <HomeSkeleton />
   }
 
-  return <>{children}</>
+  return (
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex h-screen w-full overflow-hidden">
+        <AppSidebar />
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
+      </div>
+    </SidebarProvider>
+  )
 }
 
 function App() {
@@ -65,6 +77,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><AuthenticatedApp><Index /></AuthenticatedApp></ProtectedRoute>}>
             <Route index element={<HomePage />} />
+            <Route path="notes" element={<NoteListPage />} />
             <Route path="settings" element={<SettingPage />}>
               <Route index element={<Navigate to="about" replace />} />
               <Route path="model" element={<AdminRoute><Model /></AdminRoute>}>
