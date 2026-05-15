@@ -3,13 +3,25 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# 最先加载 .env（必须在任何 app import 之前）
+# ==================== 最先加载 .env（必须在任何 app import 之前） ====================
 from dotenv import load_dotenv
+
 _root_env = Path(__file__).parent.parent / ".env"
 if _root_env.exists():
     load_dotenv(_root_env)
 else:
     load_dotenv()
+
+# ==================== 统一 NOTE_OUTPUT_DIR 为绝对路径 ====================
+# 无论 .env 或 Docker ENV 中配置的是相对路径还是绝对路径，都在此处统一解析为绝对路径
+# 并写回 os.environ，确保后续所有模块读取到的都是正确的绝对路径
+_project_root = Path(__file__).parent.parent
+_note_output_dir = os.getenv("NOTE_OUTPUT_DIR", "").strip()
+if not _note_output_dir:
+    _note_output_dir = "/app/note_results"
+if not Path(_note_output_dir).is_absolute():
+    _note_output_dir = str((_project_root / _note_output_dir).resolve())
+os.environ["NOTE_OUTPUT_DIR"] = _note_output_dir
 
 import uvicorn
 from fastapi import FastAPI
@@ -30,6 +42,10 @@ logger = get_logger(__name__)
 # 读取 .env 中的路径
 static_path = os.getenv('STATIC', '/static')
 out_dir = os.getenv('OUT_DIR', './static/screenshots')
+
+logger.info(f"NOTE_OUTPUT_DIR = {os.environ['NOTE_OUTPUT_DIR']}")
+logger.info(f"OUT_DIR = {out_dir}")
+logger.info(f"STATIC = {static_path}")
 
 # 自动创建本地目录（static 和 static/screenshots）
 static_dir = "static"

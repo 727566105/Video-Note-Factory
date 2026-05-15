@@ -22,4 +22,6 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r re
 
 RUN mkdir -p /app/note_results /app/static/screenshots /app/static/covers /app/data/data
 
+ENV NOTE_OUTPUT_DIR=/app/note_results
+
 CMD ["python", "main.py"]
