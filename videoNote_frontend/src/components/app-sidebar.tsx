@@ -13,7 +13,6 @@ import {
   Activity,
   Rss,
   Flame,
-  MoreHorizontal,
   NotebookPen,
   LogOut,
   Settings,
@@ -71,9 +70,7 @@ function NavItem({ icon, label, active, hasDropdown, onClick }: NavItemProps) {
       </div>
       {hasDropdown ? (
         <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-      ) : (
-        <MoreHorizontal className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-      )}
+      ) : null}
     </button>
   )
 }

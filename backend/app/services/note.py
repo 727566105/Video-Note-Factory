@@ -181,6 +181,8 @@ class NoteGenerator:
             # 5. 保存记录到数据库
             self._update_status(task_id, TaskStatus.SAVING)
             self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id, video_url=str(video_url))
+            # 保存视频元数据到数据库
+            self._save_audio_metadata(task_id=task_id, audio_meta=audio_meta)
 
             # 6. 完成
             self._update_status(task_id, TaskStatus.SUCCESS)
@@ -779,3 +781,23 @@ class NoteGenerator:
             logger.info(f"已保存任务记录到数据库 (video_id={video_id}, platform={platform}, task_id={task_id})")
         except Exception as e:
             logger.error(f"保存任务记录失败：{e}")
+
+    @staticmethod
+    def _save_audio_metadata(task_id: str, audio_meta) -> None:
+        """将音频/视频元数据更新到数据库"""
+        try:
+            from app.db.video_task_dao import update_task_metadata
+            author = ""
+            if audio_meta.raw_info:
+                owner = audio_meta.raw_info.get("owner", {})
+                author = owner.get("name", "")
+            update_task_metadata(
+                task_id=task_id,
+                title=audio_meta.title,
+                cover_url=audio_meta.cover_url,
+                duration=audio_meta.duration,
+                author=author,
+            )
+            logger.info(f"已保存元数据到数据库 (task_id={task_id}, title={audio_meta.title})")
+        except Exception as e:
+            logger.error(f"保存元数据失败：{e}")

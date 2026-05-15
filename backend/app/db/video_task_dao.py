@@ -107,3 +107,29 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
         return []
     finally:
         db.close()
+
+
+def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
+                         duration: float = None, author: str = None):
+    """更新任务的元数据（标题、封面、时长、作者）"""
+    db = next(get_db())
+    try:
+        task = db.query(VideoTask).filter_by(task_id=task_id).first()
+        if task:
+            if title is not None:
+                task.title = title
+            if cover_url is not None:
+                task.cover_url = cover_url
+            if duration is not None:
+                task.duration = duration
+            if author is not None:
+                task.author = author
+            db.commit()
+            logger.info(f"Task metadata updated: {task_id}, title={title}")
+        else:
+            logger.warning(f"No task found for metadata update: {task_id}")
+    except Exception as e:
+        logger.error(f"Failed to update task metadata: {e}")
+        db.rollback()
+    finally:
+        db.close()

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, func
+from sqlalchemy import Column, Integer, String, DateTime, Float, func
 from sqlalchemy.orm import declarative_base
 
 from app.db.engine import Base
@@ -14,3 +14,8 @@ class VideoTask(Base):
     video_url = Column(String, nullable=True)  # 新增字段，nullable=True 兼容旧数据
     user_id = Column(Integer, nullable=True, default=1)  # 关联用户，默认 admin
     created_at = Column(DateTime, server_default=func.now())
+    # 视频元数据（从下载结果中提取并持久化）
+    title = Column(String, nullable=True)       # 视频标题
+    cover_url = Column(String, nullable=True)   # 封面图 URL
+    duration = Column(Float, nullable=True)     # 视频时长（秒）
+    author = Column(String, nullable=True)      # 作者名

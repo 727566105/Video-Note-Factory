@@ -7,8 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Lightbulb,
-  Square,
-  Eye,
   Trash2,
   FolderPlus,
   Search,
@@ -17,8 +15,21 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { getTasks, delete_task } from '@/services/note'
 import toast from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
+
+const getBaseURL = () => (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
+
+const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
+  if (!coverUrl) return ''
+  const isLocal = platform === 'local' || platform === 'local_audio'
+  if (isLocal) return coverUrl
+  return `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
+}
 
 // 表格数据类型
 interface NoteItem {
@@ -34,10 +45,13 @@ interface NoteItem {
 }
 
 export const NoteListPage: FC = () => {
+  const navigate = useNavigate()
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [notes, setNotes] = useState<NoteItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState('')
 
   // 获取笔记列表
   const fetchNotes = async () => {
@@ -50,10 +64,11 @@ export const NoteListPage: FC = () => {
         const formattedNotes = response.tasks.map((task: any) => ({
           id: task.task_id,
           task_id: task.task_id,
-          cover: task.note?.audio_meta?.cover_url || '',
+          // 优先使用数据库字段，兜底从 note.audio_meta 读取
+          cover: getProxiedCoverUrl(task.cover_url || task.note?.audio_meta?.cover_url || '', task.platform),
           platform: task.platform || 'unknown',
-          title: task.note?.title || '无标题',
-          author: task.note?.audio_meta?.title || '',
+          title: task.title || task.note?.audio_meta?.title || task.note?.title || '无标题',
+          author: task.author || task.note?.audio_meta?.raw_info?.owner?.name || '',
           note: task.note?.markdown || '',
           created_at: task.created_at || '',
           status: task.status || 'UNKNOWN'
@@ -90,15 +105,20 @@ export const NoteListPage: FC = () => {
   }
 
   // 删除笔记
-  const handleDelete = async (taskId: string) => {
+  const handleDelete = async () => {
     try {
-      await delete_task({ task_id: taskId })
+      await delete_task({ task_id: deleteTargetId })
       toast.success('删除成功')
-      fetchNotes() // 刷新列表
+      fetchNotes()
     } catch (error) {
       console.error('删除失败:', error)
       toast.error('删除失败')
     }
+  }
+
+  // 点击笔记跳转详情页
+  const handleNoteClick = (item: NoteItem) => {
+    navigate(`/notes/${item.id}`)
   }
 
   // 过滤笔记
@@ -200,21 +220,10 @@ export const NoteListPage: FC = () => {
         <div className="border border-border rounded-lg overflow-hidden">
           {/* 表头 */}
           <div className="flex items-center gap-4 px-4 py-3 bg-muted border-b border-border text-sm font-medium text-muted-foreground">
-            <div className="w-5">
-              <button
-                onClick={toggleSelectAll}
-                className={cn(
-                  "w-4 h-4 border rounded flex items-center justify-center transition-colors",
-                  selectedRows.length === filteredNotes.length && filteredNotes.length > 0
-                    ? "bg-primary border-primary text-primary-foreground"
-                    : "border-border hover:border-primary"
-                )}
-              >
-                {selectedRows.length === filteredNotes.length && filteredNotes.length > 0 && (
-                  <Square className="w-3 h-3 fill-current" />
-                )}
-              </button>
-            </div>
+            <Checkbox
+              checked={selectedRows.length === filteredNotes.length && filteredNotes.length > 0}
+              onCheckedChange={toggleSelectAll}
+            />
             <div className="w-32">封面</div>
             <div className="flex-1 min-w-0">标题</div>
             <div className="flex-1 min-w-0">笔记</div>
@@ -245,28 +254,22 @@ export const NoteListPage: FC = () => {
                 "flex items-center gap-4 px-4 py-4 border-b border-border last:border-b-0 cursor-pointer transition-all duration-200 hover:bg-accent hover:shadow-sm",
                 selectedRows.includes(item.id) && "bg-accent"
               )}
+              onClick={() => handleNoteClick(item)}
             >
-              <div className="w-5">
-                <button
-                  onClick={() => toggleSelectRow(item.id)}
-                  className={cn(
-                    "w-4 h-4 border rounded flex items-center justify-center transition-colors",
-                    selectedRows.includes(item.id)
-                      ? "bg-primary border-primary text-primary-foreground"
-                      : "border-border hover:border-primary"
-                  )}
-                >
-                  {selectedRows.includes(item.id) && (
-                    <Square className="w-3 h-3 fill-current" />
-                  )}
-                </button>
-              </div>
+              <Checkbox
+                checked={selectedRows.includes(item.id)}
+                onCheckedChange={() => toggleSelectRow(item.id)}
+                onClick={(e) => e.stopPropagation()}
+              />
               <div className="w-32">
                 <div className="aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
                   {item.cover ? (
                     <img src={item.cover} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="text-xs text-muted-foreground">{item.platform}</div>
+                    <div className="flex flex-col items-center justify-center gap-1">
+                      <PlatformIconSmall platform={item.platform} />
+                      <span className="text-xs text-muted-foreground capitalize">{item.platform}</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -278,12 +281,13 @@ export const NoteListPage: FC = () => {
                 <div className="text-sm text-muted-foreground truncate">{item.note}</div>
               </div>
               <div className="w-24 flex items-center justify-end gap-2">
-                <button className="p-1.5 hover:bg-accent rounded-md transition-colors">
-                  <Eye className="w-4 h-4 text-muted-foreground" />
-                </button>
-                <button 
+                <button
                   className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                  onClick={() => handleDelete(item.task_id)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDeleteTargetId(item.task_id)
+                    setDeleteDialogOpen(true)
+                  }}
                 >
                   <Trash2 className="w-4 h-4 text-destructive" />
                 </button>
@@ -292,8 +296,30 @@ export const NoteListPage: FC = () => {
           ))}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="删除笔记"
+        description="确定要删除这条笔记吗？此操作不可恢复。"
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }
 
 export default NoteListPage
+
+function PlatformIconSmall({ platform }: { platform: string }) {
+  const iconMap: Record<string, React.ReactNode> = {
+    bilibili: <BiliBiliLogo className="w-6 h-6" />,
+    youtube: <YoutubeLogo className="w-6 h-6" />,
+    douyin: <DouyinLogo className="w-6 h-6" />,
+    kuaishou: <KuaishouLogo className="w-6 h-6" />,
+    local: <LocalLogo className="w-6 h-6" />,
+    local_audio: <AudioLogo className="w-6 h-6" />,
+  }
+  return <>{iconMap[platform] || <LocalLogo className="w-6 h-6" />}</>
+}

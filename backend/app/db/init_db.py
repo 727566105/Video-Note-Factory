@@ -10,6 +10,8 @@ from app.db.models.user_preferences import UserPreference
 from app.db.engine import get_engine, Base, get_db
 from app.utils.logger import get_logger
 from sqlalchemy import text
+import json
+import os
 
 logger = get_logger(__name__)
 
@@ -35,8 +37,70 @@ def migrate_video_tasks_table():
             logger.info("user_id 列添加成功")
         else:
             logger.info("user_id 列已存在")
+
+        if 'title' not in columns:
+            logger.info("title 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN title VARCHAR"))
+            db.commit()
+            logger.info("title 列添加成功")
+
+        if 'cover_url' not in columns:
+            logger.info("cover_url 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN cover_url VARCHAR"))
+            db.commit()
+            logger.info("cover_url 列添加成功")
+
+        if 'duration' not in columns:
+            logger.info("duration 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN duration FLOAT"))
+            db.commit()
+            logger.info("duration 列添加成功")
+
+        if 'author' not in columns:
+            logger.info("author 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN author VARCHAR"))
+            db.commit()
+            logger.info("author 列添加成功")
     except Exception as e:
         logger.error(f"数据库迁移失败: {e}")
+    finally:
+        db.close()
+
+
+def backfill_task_metadata():
+    """从 JSON 文件回填已有任务的元数据到数据库"""
+    NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
+    db = next(get_db())
+    backfilled = 0
+    try:
+        tasks = db.query(VideoTask).all()
+        for task in tasks:
+            # 如果已有 title，跳过
+            if task.title:
+                continue
+            result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task.task_id}.json")
+            if os.path.exists(result_path):
+                try:
+                    with open(result_path, "r", encoding="utf-8") as f:
+                        note_data = json.load(f)
+                    audio_meta = note_data.get("audio_meta", {})
+                    if audio_meta:
+                        task.title = audio_meta.get("title")
+                        task.cover_url = audio_meta.get("cover_url")
+                        task.duration = audio_meta.get("duration")
+                        # 从 raw_info 提取作者
+                        raw_info = audio_meta.get("raw_info", {})
+                        owner = raw_info.get("owner", {})
+                        task.author = owner.get("name", "")
+                        backfilled += 1
+                except Exception as e:
+                    logger.warning(f"回填任务 {task.task_id} 元数据失败: {e}")
+        db.commit()
+        if backfilled > 0:
+            logger.info(f"已回填 {backfilled} 条任务元数据")
+    except Exception as e:
+        logger.error(f"元数据回填失败: {e}")
+        db.rollback()
     finally:
         db.close()
 
@@ -45,6 +109,8 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     # 执行数据库迁移检查
     migrate_video_tasks_table()
+    # 从 JSON 文件回填元数据
+    backfill_task_metadata()
     # 种子默认管理员用户
     from app.db.user_dao import seed_default_user
     seed_default_user()

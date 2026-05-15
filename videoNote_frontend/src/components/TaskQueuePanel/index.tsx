@@ -74,7 +74,8 @@ const TaskQueueItem: FC<{
   onViewSummary: () => void
   onViewTranscript: () => void
   onDelete: () => void
-}> = ({ task, onViewSummary, onViewTranscript, onDelete }) => {
+  onRetry: () => void
+}> = ({ task, onViewSummary, onViewTranscript, onDelete, onRetry }) => {
   const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
   const config = STATUS_CONFIG[task.status] || STATUS_CONFIG.PENDING
   const StatusIcon = config.icon
@@ -157,7 +158,7 @@ const TaskQueueItem: FC<{
         {task.status === 'FAILED' && (
           <button
             type="button"
-            onClick={onViewSummary}
+            onClick={onRetry}
             className="inline-flex items-center justify-center gap-1.5 h-8 flex-1 rounded-md border-0 bg-sky-500 text-xs text-white hover:bg-sky-600 transition-colors font-medium"
           >
             重试
@@ -181,8 +182,8 @@ export const TaskQueuePanel: FC = () => {
 
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
-  const currentTaskId = useTaskStore(state => state.currentTaskId)
   const setCurrentTask = useTaskStore(state => state.setCurrentTask)
+  const retryTask = useTaskStore(state => state.retryTask)
 
   const stats = useMemo(() => {
     const completed = tasks.filter(t => t.status === 'SUCCESS').length
@@ -254,7 +255,7 @@ export const TaskQueuePanel: FC = () => {
           ref={panelRef}
           className="fixed top-2 right-9 z-[60] w-80 animate-in fade-in-0 zoom-in-95 duration-200"
         >
-          <div className="flex flex-col rounded-xl border border-gray-200 bg-card text-card-foreground shadow-xl dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col rounded-xl border border-gray-200 bg-card text-card-foreground shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-4rem)] overflow-hidden">
             {/* 头部 */}
             <div className="px-4 py-3">
               <div className="flex items-center justify-between">
@@ -274,12 +275,12 @@ export const TaskQueuePanel: FC = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => {
-                        tasks.filter(t => t.status === 'SUCCESS').forEach(t => removeTask(t.id))
+                        Promise.all(tasks.filter(t => t.status === 'SUCCESS').map(t => removeTask(t.id).catch(() => {})))
                       }}>
                         清除已完成
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => {
-                        tasks.filter(t => t.status === 'FAILED').forEach(t => removeTask(t.id))
+                        Promise.all(tasks.filter(t => t.status === 'FAILED').map(t => removeTask(t.id).catch(() => {})))
                       }}>
                         清除失败任务
                       </DropdownMenuItem>
@@ -326,7 +327,7 @@ export const TaskQueuePanel: FC = () => {
 
             {/* 可滚动任务列表 */}
             <div className="px-4 pt-0">
-              <ScrollArea className="max-h-96">
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="flex flex-col gap-2 p-2">
                   {tasks.length === 0 ? (
                     <div className="py-8 text-center text-sm text-muted-foreground">
@@ -340,6 +341,7 @@ export const TaskQueuePanel: FC = () => {
                         onViewSummary={() => handleViewSummary(task.id)}
                         onViewTranscript={() => handleViewTranscript(task.id)}
                         onDelete={() => handleDelete(task.id)}
+                        onRetry={() => retryTask(task.id)}
                       />
                     ))
                   )}

@@ -675,7 +675,12 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
                 "created_at": task.created_at.isoformat() if task.created_at else None,
                 "status": status,
                 "message": message,
-                "note": note_data
+                "note": note_data,
+                # 元数据直接从数据库读取
+                "title": task.title,
+                "cover_url": task.cover_url,
+                "duration": task.duration,
+                "author": task.author,
             })
 
         return R.success({"tasks": result})

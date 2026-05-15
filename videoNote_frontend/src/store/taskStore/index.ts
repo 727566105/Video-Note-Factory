@@ -16,6 +16,7 @@ export interface AudioMeta {
   raw_info: Record<string, unknown>
   title: string
   video_id: string
+  author?: string  // 作者名
 }
 
 export interface Segment {
@@ -251,14 +252,16 @@ export const useTaskStore = create<TaskStore>()(
                   segments: [],
                 },
                 createdAt: t.created_at || new Date().toISOString(),
-                audioMeta: t.note?.audio_meta || {
-                  cover_url: '',
-                  duration: 0,
-                  file_path: '',
+                // 优先使用数据库元数据字段，兜底从 note.audio_meta 读取
+                audioMeta: {
+                  cover_url: t.cover_url || t.note?.audio_meta?.cover_url || '',
+                  duration: t.duration || t.note?.audio_meta?.duration || 0,
+                  file_path: t.note?.audio_meta?.file_path || '',
                   platform: t.platform,
-                  raw_info: null,
-                  title: t.note?.title || '',
+                  raw_info: t.note?.audio_meta?.raw_info || null,
+                  title: t.title || t.note?.audio_meta?.title || t.note?.title || '',
                   video_id: t.video_id,
+                  author: t.author || t.note?.audio_meta?.raw_info?.owner?.name || '',
                 },
                 platform: t.platform,
                 formData: {

@@ -16,6 +16,7 @@ import TaskQueueSettings from '@/pages/SettingPage/TaskQueue.tsx'
 import UsersPage from '@/pages/SettingPage/Users.tsx'
 import LoginPage from '@/pages/LoginPage'
 import { NoteListPage } from './pages/NoteListPage'
+import NoteDetailPage from '@/pages/NoteDetailPage'
 import { useEffect, ReactNode } from 'react'
 import { systemCheck } from '@/services/system.ts'
 import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
@@ -90,6 +91,7 @@ function App() {
           <Route path="/" element={<ProtectedRoute><AuthenticatedApp><Index /></AuthenticatedApp></ProtectedRoute>}>
             <Route index element={<HomePage />} />
             <Route path="notes" element={<NoteListPage />} />
+            <Route path="notes/:id" element={<NoteDetailPage />} />
             <Route path="settings" element={<SettingPage />}>
               <Route index element={<Navigate to="about" replace />} />
               <Route path="model" element={<AdminRoute><Model /></AdminRoute>}>
