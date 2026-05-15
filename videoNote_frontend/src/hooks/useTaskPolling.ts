@@ -9,6 +9,8 @@ export const useTaskPolling = (interval = 3000) => {
   const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
 
   const tasksRef = useRef(tasks)
+  // 使用 Set 记录已经提示过的任务 ID，避免重复提示
+  const notifiedTasksRef = useRef<Set<string>>(new Set())
 
   // 每次 tasks 更新，把最新的 tasks 同步进去
   useEffect(() => {
@@ -38,7 +40,11 @@ export const useTaskPolling = (interval = 3000) => {
           if (status && status !== task.status) {
             if (status === 'SUCCESS') {
               const { markdown, transcript, audio_meta } = res.result
-              toast.success('笔记生成成功')
+              // 只有未提示过的任务才显示成功提示
+              if (!notifiedTasksRef.current.has(task.id)) {
+                toast.success('笔记生成成功')
+                notifiedTasksRef.current.add(task.id)
+              }
               updateTaskContent(task.id, {
                 status,
                 markdown,

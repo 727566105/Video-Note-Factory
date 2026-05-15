@@ -11,27 +11,31 @@ export const generateNote = async (data: {
   format: Array<string>
   style: string
   extras?: string
-  video_understand?: boolean
+  video_understanding?: boolean
   video_interval?: number
   grid_size: Array<number>
+  screenshot?: boolean
+  link?: boolean
 }) => {
   try {
     const response = await request.post('/generate_note', data)
 
-    if (!response) {
-      if (response.data.msg) {
-        toast.error(response.data.msg)
-      }
-      return null
+    // axios 拦截器已经返回了 response.data
+    if (response && response.task_id) {
+      toast.success('笔记生成任务已提交！')
+      return response
     }
-    toast.success('笔记生成任务已提交！')
-
-    return response
+    
+    return null
   } catch (e: any) {
     console.error('❌ 请求出错', e)
-
-    // 错误提示
-    // toast.error('笔记生成失败，请稍后重试')
+    
+    // 显示后端返回的错误信息
+    if (e.msg) {
+      toast.error(e.msg)
+    } else {
+      toast.error('笔记生成失败，请稍后重试')
+    }
 
     throw e // 抛出错误以便调用方处理
   }

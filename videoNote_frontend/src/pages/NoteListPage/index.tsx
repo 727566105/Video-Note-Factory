@@ -1,4 +1,4 @@
-import { FC, useState } from 'react'
+import { FC, useState, useEffect } from 'react'
 import {
   Plus,
   Download,
@@ -8,57 +8,76 @@ import {
   ChevronRight,
   Lightbulb,
   Square,
-  FileText,
   Eye,
   Trash2,
   FolderPlus,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { getTasks, delete_task } from '@/services/note'
+import toast from 'react-hot-toast'
 
 // 表格数据类型
 interface NoteItem {
   id: string
+  task_id: string
   cover: string
-  platform: 'bilibili' | 'youtube' | 'douyin'
+  platform: string
   title: string
   author: string
   note: string
-  createdAt: string
+  created_at: string
+  status: string
 }
-
-const mockData: NoteItem[] = [
-  {
-    id: '1',
-    cover: '',
-    platform: 'bilibili',
-    title: '【硬核科普】深度讲解AI原理',
-    author: '科技前沿',
-    note: '这是一篇关于AI原理的详细笔记...',
-    createdAt: '2024-01-15'
-  },
-  {
-    id: '2',
-    cover: '',
-    platform: 'youtube',
-    title: 'React 19 新特性完全指南',
-    author: 'Frontend Master',
-    note: 'React 19带来了许多激动人心的新特性...',
-    createdAt: '2024-01-14'
-  }
-]
 
 export const NoteListPage: FC = () => {
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [notes, setNotes] = useState<NoteItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // 获取笔记列表
+  const fetchNotes = async () => {
+    setLoading(true)
+    try {
+      const response = await getTasks(100)
+      // axios 拦截器已经返回了 response.data，所以 response 就是 { tasks: [...] }
+      if (response && response.tasks) {
+        // 转换后端数据为前端格式
+        const formattedNotes = response.tasks.map((task: any) => ({
+          id: task.task_id,
+          task_id: task.task_id,
+          cover: task.note?.audio_meta?.cover_url || '',
+          platform: task.platform || 'unknown',
+          title: task.note?.title || '无标题',
+          author: task.note?.audio_meta?.title || '',
+          note: task.note?.markdown || '',
+          created_at: task.created_at || '',
+          status: task.status || 'UNKNOWN'
+        }))
+        setNotes(formattedNotes)
+      }
+    } catch (error) {
+      console.error('获取笔记列表失败:', error)
+      toast.error('获取笔记列表失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 初始加载
+  useEffect(() => {
+    fetchNotes()
+  }, [])
 
   const toggleSelectAll = () => {
-    if (selectedRows.length === mockData.length) {
+    if (selectedRows.length === notes.length) {
       setSelectedRows([])
     } else {
-      setSelectedRows(mockData.map(item => item.id))
+      setSelectedRows(notes.map(item => item.id))
     }
   }
 
@@ -69,6 +88,29 @@ export const NoteListPage: FC = () => {
       setSelectedRows([...selectedRows, id])
     }
   }
+
+  // 删除笔记
+  const handleDelete = async (taskId: string) => {
+    try {
+      await delete_task({ task_id: taskId })
+      toast.success('删除成功')
+      fetchNotes() // 刷新列表
+    } catch (error) {
+      console.error('删除失败:', error)
+      toast.error('删除失败')
+    }
+  }
+
+  // 过滤笔记
+  const filteredNotes = notes.filter(note => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
+    return (
+      note.title.toLowerCase().includes(query) ||
+      note.note.toLowerCase().includes(query) ||
+      note.platform.toLowerCase().includes(query)
+    )
+  })
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
@@ -136,8 +178,8 @@ export const NoteListPage: FC = () => {
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
-            <Button variant="outline" size="icon" className="h-8 w-8">
-              <RotateCw className="w-4 h-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchNotes}>
+              <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
             </Button>
             <Button variant="outline" size="icon" className="h-8 w-8">
               <Columns className="w-4 h-4" />
@@ -148,7 +190,7 @@ export const NoteListPage: FC = () => {
         {/* 提示行 */}
         <div className="flex items-center gap-2 text-sm">
           <span className="text-foreground font-medium">
-            {selectedRows.length}/{mockData.length} 行被选中
+            {selectedRows.length}/{filteredNotes.length} 行被选中
           </span>
           <Lightbulb className="w-4 h-4 text-yellow-500" />
           <span className="text-muted-foreground">提示：按住 Shift 键点击可连续选择</span>
@@ -163,12 +205,12 @@ export const NoteListPage: FC = () => {
                 onClick={toggleSelectAll}
                 className={cn(
                   "w-4 h-4 border rounded flex items-center justify-center transition-colors",
-                  selectedRows.length === mockData.length && mockData.length > 0
+                  selectedRows.length === filteredNotes.length && filteredNotes.length > 0
                     ? "bg-primary border-primary text-primary-foreground"
                     : "border-border hover:border-primary"
                 )}
               >
-                {selectedRows.length === mockData.length && mockData.length > 0 && (
+                {selectedRows.length === filteredNotes.length && filteredNotes.length > 0 && (
                   <Square className="w-3 h-3 fill-current" />
                 )}
               </button>
@@ -179,8 +221,24 @@ export const NoteListPage: FC = () => {
             <div className="w-24 text-right">操作菜单</div>
           </div>
 
+          {/* 加载状态 */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
+            </div>
+          )}
+
+          {/* 空状态 */}
+          {!loading && filteredNotes.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
+              <p>暂无笔记</p>
+              <p className="text-xs mt-1">生成笔记后将显示在这里</p>
+            </div>
+          )}
+
           {/* 表格行 */}
-          {mockData.map((item) => (
+          {!loading && filteredNotes.map((item) => (
             <div
               key={item.id}
               className={cn(
@@ -223,10 +281,10 @@ export const NoteListPage: FC = () => {
                 <button className="p-1.5 hover:bg-accent rounded-md transition-colors">
                   <Eye className="w-4 h-4 text-muted-foreground" />
                 </button>
-                <button className="p-1.5 hover:bg-accent rounded-md transition-colors">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                </button>
-                <button className="p-1.5 hover:bg-accent rounded-md transition-colors">
+                <button 
+                  className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                  onClick={() => handleDelete(item.task_id)}
+                >
                   <Trash2 className="w-4 h-4 text-destructive" />
                 </button>
               </div>

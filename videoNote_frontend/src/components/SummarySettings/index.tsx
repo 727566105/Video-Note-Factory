@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, ChevronDown, Sparkles, Globe, Languages, Smile, Clock, ListOrdered, AlignLeft } from 'lucide-react'
+import { X, Sparkles, Eye, FileText, StickyNote, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -7,16 +7,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Slider } from '@/components/ui/slider'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
+import { noteFormats } from '@/constant/note.ts'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
+import toast from 'react-hot-toast'
 
 interface SummarySettingsProps {
   open: boolean
@@ -25,14 +21,37 @@ interface SummarySettingsProps {
 
 export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
   const [activeTab, setActiveTab] = useState<'default' | 'custom'>('default')
-  const [showEmoji, setShowEmoji] = useState(true)
-  const [showTimestamp, setShowTimestamp] = useState(false)
-  const [pointsCount, setPointsCount] = useState([3])
-  const [sentenceLength, setSentenceLength] = useState([20])
 
-  // 自定义总结状态
+  // 从 store 读取默认配置
+  const {
+    videoUnderstanding,
+    setVideoUnderstanding,
+    videoInterval,
+    setVideoInterval,
+    gridCols,
+    setGridCols,
+    gridRows,
+    setGridRows,
+    selectedFormats,
+    setSelectedFormats,
+    extras,
+    setExtras,
+  } = useSummarySettingsStore()
+
+  // 自定义总结状态（本地状态，不持久化）
   const [promptContent, setPromptContent] = useState('')
   const [promptName, setPromptName] = useState('')
+
+  // 保存默认配置
+  const handleSaveDefaultSettings = () => {
+    // 配置已经通过 store 自动持久化，这里只是触发提示
+    toast.success('保存成功', {
+      icon: <Check className="w-4 h-4" />,
+      duration: 2000,
+    })
+    // 关闭弹窗
+    onOpenChange(false)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -71,123 +90,109 @@ export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
 
           {activeTab === 'default' ? (
             <>
-              {/* 第一行：模型 + 音频语言 */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <Select defaultValue="gpt4">
-                    <SelectTrigger className="w-[140px] h-10 border rounded-lg bg-background">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-muted-foreground" />
-                        <SelectValue placeholder="选择模型" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gpt4">GPT-4</SelectItem>
-                      <SelectItem value="gpt3">GPT-3.5</SelectItem>
-                      <SelectItem value="claude">Claude</SelectItem>
-                      <SelectItem value="deepseek">DeepSeek</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm text-muted-foreground">大语言模型</span>
+              {/* 视频理解 */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">视频理解</span>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <Select defaultValue="auto">
-                    <SelectTrigger className="w-[140px] h-10 border rounded-lg bg-background">
-                      <div className="flex items-center gap-2">
-                        <Globe className="w-4 h-4 text-muted-foreground" />
-                        <SelectValue placeholder="音频语言" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">自动检测</SelectItem>
-                      <SelectItem value="zh">中文</SelectItem>
-                      <SelectItem value="en">英文</SelectItem>
-                      <SelectItem value="ja">日语</SelectItem>
-                      <SelectItem value="ko">韩语</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm text-muted-foreground">音频语言</span>
-                </div>
-              </div>
-
-              {/* 第二行：输出语言 + Emoji开关 */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <Select defaultValue="zh">
-                    <SelectTrigger className="w-[140px] h-10 border rounded-lg bg-background">
-                      <div className="flex items-center gap-2">
-                        <Languages className="w-4 h-4 text-muted-foreground" />
-                        <SelectValue placeholder="输出语言" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="zh">中文</SelectItem>
-                      <SelectItem value="en">英文</SelectItem>
-                      <SelectItem value="ja">日语</SelectItem>
-                      <SelectItem value="ko">韩语</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm text-muted-foreground">输出语言</span>
-                </div>
-
                 <div className="flex items-center gap-3">
                   <Switch
-                    checked={showEmoji}
-                    onCheckedChange={setShowEmoji}
+                    checked={videoUnderstanding}
+                    onCheckedChange={setVideoUnderstanding}
                     className="data-[state=checked]:bg-foreground"
                   />
-                  <span className="text-sm text-muted-foreground">是否显示Emoji</span>
-                </div>
-              </div>
-
-              {/* 第三行：时间戳开关 + 要点个数 */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={showTimestamp}
-                    onCheckedChange={setShowTimestamp}
-                    className="data-[state=checked]:bg-foreground"
-                  />
-                  <span className="text-sm text-muted-foreground">是否显示时间戳</span>
+                  <span className="text-sm text-muted-foreground">启用</span>
                 </div>
 
-                <div className="flex items-center gap-3 w-[280px]">
-                  <ListOrdered className="w-4 h-4 text-muted-foreground" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">要点个数(≤5)</span>
-                      <span className="text-sm font-medium">{pointsCount[0]}</span>
-                    </div>
-                    <Slider
-                      value={pointsCount}
-                      onValueChange={setPointsCount}
-                      max={5}
+                {/* 采样间隔 + 拼图尺寸 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <span className="text-sm text-muted-foreground">采样间隔（秒）</span>
+                    <input
+                      type="number"
                       min={1}
-                      step={1}
-                      className="w-full"
+                      max={30}
+                      value={videoInterval}
+                      disabled={!videoUnderstanding}
+                      onChange={(e) => setVideoInterval(parseInt(e.target.value) || 4)}
+                      className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-sm text-muted-foreground">拼图尺寸（列 × 行）</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={gridCols}
+                        disabled={!videoUnderstanding}
+                        onChange={(e) => setGridCols(parseInt(e.target.value) || 3)}
+                        className="w-16 h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <span className="text-sm text-muted-foreground">×</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={gridRows}
+                        disabled={!videoUnderstanding}
+                        onChange={(e) => setGridRows(parseInt(e.target.value) || 3)}
+                        className="w-16 h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 第四行：句子长短滑块 */}
-              <div className="space-y-2">
+              {/* 笔记格式 */}
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <AlignLeft className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">句子长短(≤30)</span>
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">笔记格式</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <Slider
-                    value={sentenceLength}
-                    onValueChange={setSentenceLength}
-                    max={30}
-                    min={5}
-                    step={1}
-                    className="flex-1"
-                  />
-                  <span className="text-sm font-medium w-8 text-right">{sentenceLength[0]}</span>
+                <div className="flex flex-wrap gap-3">
+                  {noteFormats.map(({ label, value }) => (
+                    <label key={value} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={selectedFormats.includes(value)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedFormats([...selectedFormats, value])
+                          } else {
+                            setSelectedFormats(selectedFormats.filter(v => v !== value))
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-foreground">{label}</span>
+                    </label>
+                  ))}
                 </div>
+              </div>
+
+              {/* 备注 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <StickyNote className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">备注</span>
+                </div>
+                <textarea
+                  value={extras}
+                  onChange={(e) => setExtras(e.target.value)}
+                  placeholder="笔记需要罗列出 xxx 关键点…"
+                  className="w-full h-20 p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              {/* 保存按钮 */}
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={handleSaveDefaultSettings}
+                  className="h-10 px-6 text-sm bg-foreground text-background hover:bg-foreground/90"
+                >
+                  保存
+                </Button>
               </div>
             </>
           ) : (

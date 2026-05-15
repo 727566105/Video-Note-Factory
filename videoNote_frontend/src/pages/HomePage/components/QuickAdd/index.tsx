@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Sparkles, Link, SlidersHorizontal, Compass, Upload, Cloud, Clipboard, Zap } from 'lucide-react'
+import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,8 +12,13 @@ import {
 } from "@/components/ui/select"
 import { videoPlatforms } from '@/constant/note.ts'
 import { SummarySettings } from '@/components/SummarySettings'
+import { ModelSelectDialog } from '@/components/ModelSelectDialog'
+import { useModelStore } from '@/store/modelStore'
+import { useTaskStore } from '@/store/taskStore'
+import { generateNote } from '@/services/note.ts'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 
-type TabType = 'link' | 'explore' | 'upload' | 'cloud'
+type TabType = 'link' | 'upload'
 
 interface QuickAddProps {
   className?: string
@@ -21,6 +27,109 @@ interface QuickAddProps {
 export function QuickAdd({ className }: QuickAddProps) {
   const [activeTab, setActiveTab] = useState<TabType>('link')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [modelSelectOpen, setModelSelectOpen] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('bilibili')
+  const { selectedModel, modelList } = useModelStore()
+  const { addPendingTask } = useTaskStore()
+  const {
+    videoUnderstanding,
+    videoInterval,
+    gridCols,
+    gridRows,
+    selectedFormats,
+    extras,
+  } = useSummarySettingsStore()
+
+  // 获取选中的模型名称
+  const selectedModelName = selectedModel
+    ? modelList.find(m => m.id === selectedModel)?.model_name || '默认模型'
+    : '默认模型'
+
+  // 获取选中的模型信息
+  const selectedModelInfo = selectedModel
+    ? modelList.find(m => m.id === selectedModel)
+    : null
+
+  // 快速粘贴功能
+  const handleQuickPaste = async () => {
+    try {
+      // 检查剪贴板 API 是否可用
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        toast.error('浏览器不支持自动粘贴，请使用 Ctrl+V 手动粘贴')
+        return
+      }
+
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        setInputValue(text)
+        toast.success('粘贴成功')
+      } else {
+        toast.error('剪贴板为空')
+      }
+    } catch (err) {
+      console.error('粘贴失败:', err)
+      // 常见错误：用户未授权或不在 HTTPS 环境
+      toast.error('无法读取剪贴板，请手动粘贴或使用 Ctrl+V')
+    }
+  }
+
+  // 生成笔记
+  const handleGenerateNote = async () => {
+    // 验证输入
+    if (!inputValue.trim()) {
+      toast.error('请输入视频链接')
+      return
+    }
+
+    // 验证模型选择
+    if (!selectedModelInfo) {
+      toast.error('请选择模型')
+      return
+    }
+
+    setIsGenerating(true)
+
+    try {
+      // 构建请求参数
+      const payload = {
+        video_url: inputValue.trim(),
+        platform: selectedPlatform,
+        quality: 'medium',
+        model_name: selectedModelInfo.model_name,
+        provider_id: String(selectedModelInfo.provider_id),
+        style: 'minimal',
+        format: selectedFormats || [],
+        extras: extras || '',
+        video_understanding: videoUnderstanding || false,
+        video_interval: videoInterval || 4,
+        grid_size: [gridCols || 3, gridRows || 3],
+        screenshot: selectedFormats?.includes('screenshot') || false,
+        link: selectedFormats?.includes('link') || false,
+      }
+
+      // 调用生成笔记 API
+      const response = await generateNote(payload)
+
+      if (response && response.task_id) {
+        const taskId = response.task_id
+
+        // 添加任务到 store
+        addPendingTask(taskId, selectedPlatform, payload)
+
+        // 清空输入框
+        setInputValue('')
+
+        toast.success('笔记生成任务已提交！')
+      }
+    } catch (err) {
+      console.error('生成笔记失败:', err)
+      toast.error('生成笔记失败，请稍后重试')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   return (
     <div className={cn("flex flex-col items-center justify-center h-full gap-6 p-8", className)}>
@@ -44,22 +153,10 @@ export function QuickAdd({ className }: QuickAddProps) {
             onClick={() => setActiveTab('link')}
           />
           <TabButton
-            icon={<Compass className="w-4 h-4" />}
-            label="探索"
-            isActive={activeTab === 'explore'}
-            onClick={() => setActiveTab('explore')}
-          />
-          <TabButton
             icon={<Upload className="w-4 h-4" />}
             label="上传"
             isActive={activeTab === 'upload'}
             onClick={() => setActiveTab('upload')}
-          />
-          <TabButton
-            icon={<Cloud className="w-4 h-4" />}
-            label="网盘"
-            isActive={activeTab === 'cloud'}
-            onClick={() => setActiveTab('cloud')}
           />
         </div>
       </div>
@@ -71,6 +168,8 @@ export function QuickAdd({ className }: QuickAddProps) {
           <div className="p-4">
             <textarea
               placeholder="请输入视频网站链接"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
               className="w-full h-20 resize-none border-0 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-sm"
             />
           </div>
@@ -85,12 +184,15 @@ export function QuickAdd({ className }: QuickAddProps) {
                 <SlidersHorizontal className="w-4 h-4" />
                 总结设置
               </button>
-              <button className="flex items-center gap-1.5 text-sm text-foreground hover:text-foreground transition-colors">
+              <button
+                className="flex items-center gap-1.5 text-sm text-foreground hover:text-foreground transition-colors"
+                onClick={() => setModelSelectOpen(true)}
+              >
                 <Sparkles className="w-4 h-4" />
-                默认模型
+                {selectedModelName}
               </button>
               {/* 平台选择下拉器 */}
-              <Select>
+              <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
                 <SelectTrigger className="w-auto h-auto border-0 bg-transparent p-0 gap-1.5 text-sm text-foreground hover:text-foreground focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
                   <SelectValue placeholder="平台选择" />
                 </SelectTrigger>
@@ -107,7 +209,10 @@ export function QuickAdd({ className }: QuickAddProps) {
               </Select>
             </div>
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1.5 text-sm text-foreground hover:text-foreground transition-colors">
+              <button
+                className="flex items-center gap-1.5 text-sm text-foreground hover:text-foreground transition-colors"
+                onClick={handleQuickPaste}
+              >
                 <Clipboard className="w-4 h-4" />
                 快速粘贴
               </button>
@@ -119,9 +224,15 @@ export function QuickAdd({ className }: QuickAddProps) {
         <div className="flex justify-center">
           <Button
             className="w-[280px] h-12 rounded-3xl bg-foreground text-primary-foreground hover:bg-foreground/90 flex items-center gap-2 text-base font-medium"
+            onClick={handleGenerateNote}
+            disabled={isGenerating}
           >
-            <Sparkles className="w-5 h-5" />
-            生成笔记
+            {isGenerating ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Sparkles className="w-5 h-5" />
+            )}
+            {isGenerating ? '生成中...' : '生成笔记'}
           </Button>
         </div>
 
@@ -140,6 +251,9 @@ export function QuickAdd({ className }: QuickAddProps) {
 
       {/* 总结设置对话框 */}
       <SummarySettings open={settingsOpen} onOpenChange={setSettingsOpen} />
+
+      {/* 模型选择对话框 */}
+      <ModelSelectDialog open={modelSelectOpen} onOpenChange={setModelSelectOpen} />
     </div>
   )
 }
