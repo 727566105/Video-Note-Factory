@@ -6,6 +6,10 @@ export interface SummarySettingsState {
   style: string
   setStyle: (value: string) => void
 
+  // 输出语言
+  outputLanguage: string
+  setOutputLanguage: (value: string) => void
+
   videoUnderstanding: boolean
   setVideoUnderstanding: (value: boolean) => void
 
@@ -33,6 +37,12 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
     style: 'minimal',
     setStyle: value => {
       set({ style: value })
+      saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
+    },
+
+    outputLanguage: 'zh',
+    setOutputLanguage: value => {
+      set({ outputLanguage: value })
       saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
     },
 
@@ -83,6 +93,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
     loadFromServer: (data: Record<string, any>) => {
       set({
         style: data.style ?? 'minimal',
+        outputLanguage: data.outputLanguage ?? 'zh',
         videoUnderstanding: data.videoUnderstanding ?? false,
         videoInterval: data.videoInterval ?? 4,
         gridCols: data.gridCols ?? 3,
@@ -96,6 +107,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
       const s = useSummarySettingsStore.getState()
       return {
         style: s.style,
+        outputLanguage: s.outputLanguage,
         videoUnderstanding: s.videoUnderstanding,
         videoInterval: s.videoInterval,
         gridCols: s.gridCols,

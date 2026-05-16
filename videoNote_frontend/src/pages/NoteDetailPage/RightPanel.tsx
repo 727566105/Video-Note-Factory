@@ -10,6 +10,7 @@ import {
   FileText,
   Trash,
   RefreshCw,
+  Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -22,9 +23,9 @@ import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
 import { ExportImageButton } from '@/components/ExportImageButton'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useTaskStore, type Task, type Markdown } from '@/store/taskStore'
-import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { useModelStore } from '@/store/modelStore'
-import { noteStyles } from '@/constant/note'
+import { useProviderStore } from '@/store/providerStore'
+import { noteStyles, outputLanguages } from '@/constant/note'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -33,6 +34,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,15 +61,31 @@ interface RightPanelProps {
   task: Task
 }
 
+interface LocalSettings {
+  style: string
+  outputLanguage: string
+  modelName: string
+  providerId: string
+}
+
 export default function RightPanel({ task }: RightPanelProps) {
   const navigate = useNavigate()
   const removeTask = useTaskStore(state => state.removeTask)
   const retryTask = useTaskStore(state => state.retryTask)
   const setCurrentTask = useTaskStore(state => state.setCurrentTask)
-  const summarySettings = useSummarySettingsStore()
   const modelList = useModelStore(state => state.modelList)
+  const providers = useProviderStore(state => state.provider)
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // 独立的生成配置，不受全局 summarySettings 影响
+  const [localSettings, setLocalSettings] = useState<LocalSettings>({
+    style: task.formData?.style || 'minimal',
+    outputLanguage: task.formData?.output_language || 'zh',
+    modelName: task.formData?.model_name || '',
+    providerId: task.formData?.provider_id || '',
+  })
 
   // 设置 currentTaskId，让 TranscriptViewer 等组件能读取当前任务
   useEffect(() => {
@@ -142,24 +166,20 @@ export default function RightPanel({ task }: RightPanelProps) {
     }
   }
 
-  // 重新生成：使用当前总结设置和默认模型
+  // 重新生成：使用独立的 localSettings
   const handleRegenerate = async () => {
-    const defaultModel = modelList[0]
-    if (!defaultModel) {
+    const model = modelList.find(m => m.model_name === localSettings.modelName) || modelList[0]
+    if (!model) {
       toast.error('没有可用的模型，请先添加模型')
       return
     }
 
     const payload = {
       ...task.formData,
-      model_name: defaultModel.model_name,
-      provider_id: defaultModel.provider_id,
-      style: summarySettings.style,
-      extras: summarySettings.extras,
-      video_understanding: summarySettings.videoUnderstanding,
-      video_interval: summarySettings.videoInterval,
-      grid_size: [summarySettings.gridCols, summarySettings.gridRows],
-      format: summarySettings.selectedFormats,
+      model_name: model.model_name,
+      provider_id: model.provider_id,
+      style: localSettings.style,
+      output_language: localSettings.outputLanguage,
     }
 
     try {
@@ -261,7 +281,7 @@ export default function RightPanel({ task }: RightPanelProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuItem onClick={handleDownload}>
+              <DropdownMenuItem onClick={handleDownload}>
                 <Download className="mr-2 h-4 w-4" /> 导出 Markdown
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -280,6 +300,7 @@ export default function RightPanel({ task }: RightPanelProps) {
           <span className="text-xs font-medium text-green-600">总结完成</span>
         </div>
         <div className="flex items-center gap-2">
+          <ActionBtn icon={<Settings className="w-3.5 h-3.5" />} label="设置" onClick={() => setSettingsOpen(true)} />
           <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} />
           <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
         </div>
@@ -302,6 +323,97 @@ export default function RightPanel({ task }: RightPanelProps) {
           />
         )}
       </div>
+
+      {/* 生成设置对话框（独立于全局设置） */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-[440px] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4">
+            <DialogTitle className="text-lg font-semibold">重新生成设置</DialogTitle>
+            <DialogDescription className="sr-only">
+              配置当前笔记的重新生成参数
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-6 space-y-5">
+            {/* 模型选择 */}
+            <div className="space-y-2">
+              <span className="text-sm font-medium text-foreground">模型</span>
+              <Select
+                value={localSettings.modelName}
+                onValueChange={v => {
+                  const model = modelList.find(m => m.model_name === v)
+                  setLocalSettings(s => ({
+                    ...s,
+                    modelName: v,
+                    providerId: model?.provider_id || s.providerId,
+                  }))
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择模型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {modelList.map(m => {
+                    const provider = providers.find(p => p.id === m.provider_id)
+                    const displayName = provider ? `${provider.name}/${m.model_name}` : m.model_name
+                    return (
+                      <SelectItem key={m.id} value={m.model_name}>
+                        {displayName}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 笔记风格 */}
+            <div className="space-y-2">
+              <span className="text-sm font-medium text-foreground">笔记风格</span>
+              <Select
+                value={localSettings.style}
+                onValueChange={v => setLocalSettings(s => ({ ...s, style: v }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {noteStyles.find(s => s.value === localSettings.style)?.label || '选择风格'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {noteStyles.map(({ label, value, desc }) => (
+                    <SelectItem key={value} value={value}>
+                      <div className="flex flex-col gap-1 py-0.5">
+                        <span className="font-medium">{label}</span>
+                        <span className="text-xs text-muted-foreground">{desc}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 输出语言 */}
+            <div className="space-y-2">
+              <span className="text-sm font-medium text-foreground">输出语言</span>
+              <Select
+                value={localSettings.outputLanguage}
+                onValueChange={v => setLocalSettings(s => ({ ...s, outputLanguage: v }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {outputLanguages.find(l => l.value === localSettings.outputLanguage)?.label || '中文'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {outputLanguages.map(({ label, value }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleteDialogOpen}

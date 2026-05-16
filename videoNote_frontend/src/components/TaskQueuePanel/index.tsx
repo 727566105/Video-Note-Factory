@@ -140,7 +140,7 @@ const TaskQueueItem: FC<{
             <button
               type="button"
               onClick={onViewSummary}
-              className="inline-flex items-center justify-center gap-1.5 h-8 flex-1 rounded-md border-0 bg-sky-500 text-xs text-white hover:bg-sky-600 transition-colors font-medium"
+              className="inline-flex items-center justify-center gap-1.5 h-8 flex-1 rounded-md border-0 bg-foreground text-xs text-background hover:bg-foreground/90 transition-colors font-medium"
             >
               <Sparkles className="mr-1 size-3" />
               查看总结
@@ -159,7 +159,7 @@ const TaskQueueItem: FC<{
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex items-center justify-center gap-1.5 h-8 flex-1 rounded-md border-0 bg-sky-500 text-xs text-white hover:bg-sky-600 transition-colors font-medium"
+            className="inline-flex items-center justify-center gap-1.5 h-8 flex-1 rounded-md border-0 bg-foreground text-xs text-background hover:bg-foreground/90 transition-colors font-medium"
           >
             重试
           </button>

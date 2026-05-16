@@ -37,6 +37,7 @@ class UniversalGPT(GPT):
             _format=kwargs.get('_format'),
             style=kwargs.get('style'),
             extras=kwargs.get('extras'),
+            output_language=kwargs.get('output_language'),
         )
 
         # ⛳ 组装 content 数组，支持 text + image_url 混合
@@ -75,7 +76,8 @@ class UniversalGPT(GPT):
             video_img_urls=source.video_img_urls,
             _format=source._format,
             style=source.style,
-            extras=source.extras
+            extras=source.extras,
+            output_language=source.output_language,
         )
         response = self.client.chat.completions.create(
             model=self.model,

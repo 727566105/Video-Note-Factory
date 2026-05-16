@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useTaskStore, type Task } from '@/store/taskStore'
@@ -6,6 +6,11 @@ import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel from './RightPanel'
 import DetailNav from './DetailNav'
+
+// 用 memo 包裹子组件，防止拖拽时重新渲染
+const MemoLeftPanel = memo(LeftPanel)
+const MemoRightPanel = memo(RightPanel)
+const MemoDetailNav = memo(DetailNav)
 
 export default function NoteDetailPage() {
   const navigate = useNavigate()
@@ -54,6 +59,17 @@ export default function NoteDetailPage() {
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
 
+    let rafId: number | null = null
+    let pendingWidth: number | null = null
+
+    const updateWidth = () => {
+      if (pendingWidth !== null) {
+        setLeftWidth(pendingWidth)
+        pendingWidth = null
+      }
+      rafId = null
+    }
+
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging.current || !containerRef.current) return
       const containerRect = containerRef.current.getBoundingClientRect()
@@ -61,13 +77,25 @@ export default function NoteDetailPage() {
       const navWidth = 64
       const newLeftWidth = e.clientX - containerRect.left - sidebarWidth
       const clamped = Math.max(400, Math.min(newLeftWidth, containerRect.width - sidebarWidth - navWidth - 300))
-      setLeftWidth(clamped)
+
+      pendingWidth = clamped
+      if (!rafId) {
+        rafId = requestAnimationFrame(updateWidth)
+      }
     }
 
     const onMouseUp = () => {
       isDragging.current = false
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      if (rafId) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      if (pendingWidth !== null) {
+        setLeftWidth(pendingWidth)
+        pendingWidth = null
+      }
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
     }
@@ -99,7 +127,7 @@ export default function NoteDetailPage() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background" ref={containerRef}>
       {/* 左栏 */}
-      <div className="flex flex-col border-r border-border overflow-hidden" style={{ width: leftWidth, minWidth: 400 }}>
+      <div className="flex flex-col overflow-hidden" style={{ width: leftWidth, minWidth: 400 }}>
         {/* 返回按钮 + 顶栏 */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <button
@@ -110,24 +138,31 @@ export default function NoteDetailPage() {
             返回列表
           </button>
         </div>
-        <LeftPanel task={task} />
+        <MemoLeftPanel task={task} />
       </div>
 
       {/* 拖拽分割线 */}
       <div
-        className="w-1.5 flex-shrink-0 cursor-col-resize bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors flex items-center justify-center"
+        className="w-4 shrink-0 cursor-col-resize flex flex-col items-center justify-center h-full relative group"
         onMouseDown={onMouseDown}
       >
-        <div className="w-1 h-8 rounded-full bg-muted-foreground/30" />
+        {/* 分割线条 */}
+        <div className="w-0.5 h-full bg-border" />
+        {/* 拖拽手柄 */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-3 h-12 rounded-md bg-background shadow-sm flex flex-col items-center justify-center gap-1">
+          <div className="w-1.5 h-[1.5px] rounded-full bg-muted-foreground" />
+          <div className="w-1.5 h-[1.5px] rounded-full bg-muted-foreground" />
+          <div className="w-1.5 h-[1.5px] rounded-full bg-muted-foreground" />
+        </div>
       </div>
 
       {/* 右栏 */}
       <div className="flex-1 min-w-0 overflow-hidden">
-        <RightPanel task={task} />
+        <MemoRightPanel task={task} />
       </div>
 
       {/* 右侧导航栏 */}
-      <DetailNav />
+      <MemoDetailNav />
     </div>
   )
 }

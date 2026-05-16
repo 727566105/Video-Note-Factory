@@ -58,6 +58,7 @@ class VideoRequest(BaseModel):
     video_understanding: Optional[bool] = False
     video_interval: Optional[int] = 0
     grid_size: Optional[list] = []
+    output_language: Optional[str] = None
 
     @field_validator("video_url")
     def validate_supported_url(cls, v):
@@ -171,6 +172,7 @@ def _save_queued_task_params(task_id: str, data: VideoRequest):
         "video_understanding": data.video_understanding,
         "video_interval": data.video_interval,
         "grid_size": data.grid_size,
+        "output_language": data.output_language,
     }
     with open(queue_path, "w", encoding="utf-8") as f:
         json.dump(params, f, ensure_ascii=False)
@@ -199,7 +201,7 @@ def _start_queued_task(task_id: str):
 def run_note_task(task_id: str, video_url: str, platform: str, quality: DownloadQuality,
                   link: bool = False, screenshot: bool = False, model_name: str = None, provider_id: str = None,
                   _format: list = None, style: str = None, extras: str = None, video_understanding: bool = False,
-                  video_interval=0, grid_size=[]
+                  video_interval=0, grid_size=[], output_language: str = None
                   ):
     try:
         if not model_name or not provider_id:
@@ -219,7 +221,8 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
             screenshot=screenshot
             , video_understanding=video_understanding,
             video_interval=video_interval,
-            grid_size=grid_size
+            grid_size=grid_size,
+            output_language=output_language
         )
         logger.info(f"Note generated: {task_id}")
         if not note or not note.markdown:
@@ -325,7 +328,8 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
         if acquired:
             background_tasks.add_task(run_note_task, task_id, data.video_url, data.platform, data.quality, data.link,
                                       data.screenshot, data.model_name, data.provider_id, data.format, data.style,
-                                      data.extras, data.video_understanding, data.video_interval, data.grid_size)
+                                      data.extras, data.video_understanding, data.video_interval, data.grid_size,
+                                      data.output_language)
         else:
             _save_queued_task_params(task_id, data)
 

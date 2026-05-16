@@ -28,6 +28,19 @@ export const noteStyles = [
   { label: '会议纪要', value: 'meeting_minutes', desc: '按议题归纳讨论、决策和行动项' },
 ] as const
 
+export const outputLanguages = [
+  { label: '中文', value: 'zh' },
+  { label: 'English', value: 'en' },
+  { label: '日本語', value: 'ja' },
+  { label: '한국어', value: 'ko' },
+  { label: 'Français', value: 'fr' },
+  { label: 'Deutsch', value: 'de' },
+  { label: 'Español', value: 'es' },
+  { label: 'Русский', value: 'ru' },
+  { label: 'Português', value: 'pt' },
+  { label: 'Italiano', value: 'it' },
+] as const
+
 export const videoPlatforms = [
   { label: '哔哩哔哩', value: 'bilibili', logo: BiliBiliLogo },
   { label: 'YouTube', value: 'youtube', logo: YoutubeLogo },

@@ -16,6 +16,7 @@ export const generateNote = async (data: {
   grid_size: Array<number>
   screenshot?: boolean
   link?: boolean
+  output_language?: string
 }) => {
   try {
     const response = await request.post('/generate_note', data)

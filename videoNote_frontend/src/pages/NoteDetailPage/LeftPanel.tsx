@@ -2,13 +2,12 @@ import {
   Monitor,
   ArrowLeftRight,
   Download,
-  Languages,
-  Headphones,
   Globe,
   Settings2,
   Sparkles,
   Play,
   X,
+  Headphones,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { SummarySettings } from '@/components/SummarySettings'
@@ -93,8 +92,6 @@ export default function LeftPanel({ task }: LeftPanelProps) {
             URL.revokeObjectURL(a.href)
           } catch { /* ignore */ }
         }} />
-        <ToolBtn icon={<Languages className="w-4 h-4" />} variant="secondary" />
-        <ToolBtn icon={<Headphones className="w-4 h-4" />} variant="secondary" />
         <ToolBtn icon={<Globe className="w-4 h-4" />} />
         <ToolBtn icon={<Settings2 className="w-4 h-4" />} label="总结设置" onClick={() => setSettingsOpen(true)} />
         <ToolBtn icon={<Sparkles className="w-4 h-4" />} label="默认模型" onClick={() => setModelOpen(true)} />

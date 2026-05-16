@@ -62,6 +62,7 @@ const formSchema = z
       .tuple([z.coerce.number().min(1).max(10), z.coerce.number().min(1).max(10)])
       .default([3, 3])
       .optional(),
+    output_language: z.string().optional(),
   })
   .superRefine(({ video_url, platform }, ctx) => {
     if (platform === 'local' || platform === 'local_audio') {
@@ -184,6 +185,7 @@ const NoteForm = () => {
   }, [])
   // 从总结设置 store 同步默认风格到表单（新建模式）
   const summaryStyle = useSummarySettingsStore(s => s.style)
+  const outputLanguage = useSummarySettingsStore(s => s.outputLanguage)
   useEffect(() => {
     if (!currentTaskId && summaryStyle) {
       form.setValue('style', summaryStyle, { shouldValidate: true })
@@ -278,6 +280,7 @@ const NoteForm = () => {
       model_name: selectedModel?.model_name || values.model_name,
       provider_id: selectedModel?.provider_id || '',
       task_id: effectiveTaskId || '',
+      output_language: outputLanguage,
     }
 
     // 编辑模式下校验 video_url

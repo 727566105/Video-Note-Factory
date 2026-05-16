@@ -20,11 +20,49 @@ note_styles = [
     {'label': '会议纪要', 'value': 'meeting_minutes'}
 ]
 
+# 输出语言映射
+output_languages = {
+    'zh': '中文',
+    'en': '英语',
+    'ja': '日语',
+    'ko': '韩语',
+    'fr': '法语',
+    'de': '德语',
+    'es': '西班牙语',
+    'ru': '俄语',
+    'pt': '葡萄牙语',
+    'it': '意大利语',
+}
+
+
+# 获取语言指令
+def get_language_instruction(output_language: str = 'zh') -> str:
+    """根据目标语言生成 prompt 中的语言要求指令"""
+    lang_name = output_languages.get(output_language, '中文')
+    if output_language == 'zh':
+        return '''语言要求：
+- 笔记必须使用 **中文** 撰写。
+- 专有名词、技术术语、品牌名称和人名应适当保留 **英文**。'''
+    elif output_language == 'en':
+        return '''语言要求：
+- 笔记必须使用 **English** 撰写。
+- 保留所有专有名词、技术术语、品牌名称和人名的原始形式。'''
+    else:
+        return f'''语言要求：
+- 笔记必须使用 **{lang_name}** 撰写。
+- 专有名词、技术术语、品牌名称和人名应适当保留原文或使用通用译名。'''
+
 
 # 生成 BASE_PROMPT 函数
-def generate_base_prompt(title, segment_text, tags, _format=None, style=None, extras=None):
+def generate_base_prompt(title, segment_text, tags, _format=None, style=None, extras=None, output_language='zh'):
+    # 防御性处理: 确保 output_language 有效
+    actual_language = output_language if output_language else 'zh'
+    # 生成语言指令
+    language_instruction = get_language_instruction(actual_language)
+
     # 生成 Base Prompt 开头部分
     prompt = BASE_PROMPT.format(
+        language_instruction=language_instruction,
         video_title=title,
         segment_text=segment_text,
         tags=tags

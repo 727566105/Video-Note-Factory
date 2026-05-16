@@ -35,6 +35,7 @@ export function QuickAdd({ className }: QuickAddProps) {
   const { addPendingTask } = useTaskStore()
   const {
     style,
+    outputLanguage,
     videoUnderstanding,
     videoInterval,
     gridCols,
@@ -100,7 +101,7 @@ export function QuickAdd({ className }: QuickAddProps) {
         quality: 'medium',
         model_name: selectedModelInfo.model_name,
         provider_id: String(selectedModelInfo.provider_id),
-        style: 'minimal',
+        style: style || 'minimal',
         format: selectedFormats || [],
         extras: extras || '',
         video_understanding: videoUnderstanding || false,
@@ -108,6 +109,7 @@ export function QuickAdd({ className }: QuickAddProps) {
         grid_size: [gridCols || 3, gridRows || 3],
         screenshot: selectedFormats?.includes('screenshot') || false,
         link: selectedFormats?.includes('link') || false,
+        output_language: outputLanguage || 'zh',
       }
 
       // 调用生成笔记 API

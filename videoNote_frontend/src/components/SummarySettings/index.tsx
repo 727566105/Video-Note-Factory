@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Sparkles, Eye, FileText, StickyNote, Check, Palette } from 'lucide-react'
+import { X, Sparkles, Eye, FileText, StickyNote, Check, Palette, Languages } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { noteFormats, noteStyles } from '@/constant/note.ts'
+import { noteFormats, noteStyles, outputLanguages } from '@/constant/note.ts'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import toast from 'react-hot-toast'
 
@@ -34,6 +34,8 @@ export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
   const {
     style,
     setStyle,
+    outputLanguage,
+    setOutputLanguage,
     videoUnderstanding,
     setVideoUnderstanding,
     videoInterval,
@@ -159,29 +161,52 @@ export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
                 </div>
               </div>
 
-              {/* 笔记风格 */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground">笔记风格</span>
+              {/* 笔记风格 + 输出语言 并排 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">笔记风格</span>
+                  </div>
+                  <Select value={style} onValueChange={setStyle}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {noteStyles.find(s => s.value === style)?.label || '请选择风格'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {noteStyles.map(({ label, value, desc }) => (
+                        <SelectItem key={value} value={value}>
+                          <div className="flex flex-col gap-1 py-0.5">
+                            <span className="font-medium">{label}</span>
+                            <span className="text-xs text-muted-foreground">{desc}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select value={style} onValueChange={setStyle}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue>
-                      {noteStyles.find(s => s.value === style)?.label || '请选择风格'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {noteStyles.map(({ label, value, desc }) => (
-                      <SelectItem key={value} value={value}>
-                        <div className="flex flex-col gap-1 py-0.5">
-                          <span className="font-medium">{label}</span>
-                          <span className="text-xs text-muted-foreground">{desc}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Languages className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">输出语言</span>
+                  </div>
+                  <Select value={outputLanguage} onValueChange={setOutputLanguage}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {outputLanguages.find(l => l.value === outputLanguage)?.label || '中文'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outputLanguages.map(({ label, value }) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* 笔记格式 */}

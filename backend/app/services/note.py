@@ -94,6 +94,7 @@ class NoteGenerator:
         video_understanding: bool = False,
         video_interval: int = 0,
         grid_size: Optional[List[int]] = None,
+        output_language: Optional[str] = None,
     ) -> NoteResult | None:
         """
         主流程：按步骤依次下载、转写、GPT 总结、截图/链接处理、存库、返回 NoteResult。
@@ -166,6 +167,7 @@ class NoteGenerator:
                 style=style,
                 extras=extras,
                 video_img_urls=self.video_img_urls,
+                output_language=output_language,
             )
 
             # 4. 截图 & 链接替换
@@ -622,6 +624,7 @@ class NoteGenerator:
         style: Optional[str],
         extras: Optional[str],
             video_img_urls: List[str],
+            output_language: Optional[str] = None,
     ) -> str | None:
         """
         调用 GPT 对转写结果进行总结，生成 Markdown 文本并缓存。
@@ -639,6 +642,7 @@ class NoteGenerator:
         """
         task_id = markdown_cache_file.stem
         self._update_status(task_id, TaskStatus.SUMMARIZING)
+        logger.info(f"GPT output_language: {output_language}")
 
         # style=raw 时，跳过 GPT，直接输出转写原文
         if style == 'raw':
@@ -657,6 +661,7 @@ class NoteGenerator:
             _format=formats,
             style=style,
             extras=extras,
+            output_language=output_language,
         )
 
         try:
