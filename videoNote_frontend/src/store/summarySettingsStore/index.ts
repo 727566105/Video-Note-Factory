@@ -2,6 +2,10 @@ import { create } from 'zustand'
 import { saveUserPreferences } from '@/services/userPreferences'
 
 export interface SummarySettingsState {
+  // 笔记风格
+  style: string
+  setStyle: (value: string) => void
+
   videoUnderstanding: boolean
   setVideoUnderstanding: (value: boolean) => void
 
@@ -26,6 +30,12 @@ export interface SummarySettingsState {
 
 export const useSummarySettingsStore = create<SummarySettingsState>()(
   set => ({
+    style: 'minimal',
+    setStyle: value => {
+      set({ style: value })
+      saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
+    },
+
     videoUnderstanding: false,
     setVideoUnderstanding: value => {
       set({ videoUnderstanding: value })
@@ -72,6 +82,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
 
     loadFromServer: (data: Record<string, any>) => {
       set({
+        style: data.style ?? 'minimal',
         videoUnderstanding: data.videoUnderstanding ?? false,
         videoInterval: data.videoInterval ?? 4,
         gridCols: data.gridCols ?? 3,
@@ -84,6 +95,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
     toServerData: () => {
       const s = useSummarySettingsStore.getState()
       return {
+        style: s.style,
         videoUnderstanding: s.videoUnderstanding,
         videoInterval: s.videoInterval,
         gridCols: s.gridCols,

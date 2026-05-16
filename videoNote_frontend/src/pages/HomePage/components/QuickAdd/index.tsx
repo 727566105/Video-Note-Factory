@@ -34,6 +34,7 @@ export function QuickAdd({ className }: QuickAddProps) {
   const { selectedModel, modelList } = useModelStore()
   const { addPendingTask } = useTaskStore()
   const {
+    style,
     videoUnderstanding,
     videoInterval,
     gridCols,

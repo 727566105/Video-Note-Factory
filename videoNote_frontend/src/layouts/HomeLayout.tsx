@@ -1,6 +1,5 @@
 import { FC, useState } from 'react'
 
-import TaskStatusBar from '@/components/TaskStatusBar.tsx'
 import { QuickAdd } from '@/pages/HomePage/components/QuickAdd'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,7 +16,6 @@ const HomeLayout: () => JSX.Element = () => {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <TaskStatusBar />
       <div className="flex flex-1 overflow-hidden">
         {/* 主内容区 */}
         <main className="flex-1 overflow-hidden">

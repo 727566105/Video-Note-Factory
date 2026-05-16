@@ -277,13 +277,30 @@ export const useTaskStore = create<TaskStore>()(
               }
             })
 
-            // 合并策略：本地 pending 任务优先（状态更实时），再去重合并后端任务
-            const mergedTasks = [
-              ...localPendingTasks,
-              ...backendTasks.filter(
-                bt => !localPendingTasks.some(lt => lt.id === bt.id)
-              ),
-            ]
+            // 合并策略：后端已完成的状态权威，本地活跃任务保留更实时的数据
+            const localTaskMap = new Map(get().tasks.map(t => [t.id, t]))
+            const mergedMap = new Map<string, Task>()
+
+            // 先添加所有后端任务
+            for (const bt of backendTasks) {
+              mergedMap.set(bt.id, bt)
+            }
+
+            // 合并本地任务
+            for (const [id, lt] of localTaskMap) {
+              const bt = mergedMap.get(id)
+              if (bt) {
+                // 后端显示已完成 → 用后端数据（权威）
+                if (bt.status === 'SUCCESS' || bt.status === 'FAILED') continue
+                // 后端未完成 → 保留本地任务（轮询状态更实时）
+                mergedMap.set(id, lt)
+              } else {
+                // 后端没有（刚创建），保留本地
+                mergedMap.set(id, lt)
+              }
+            }
+
+            const mergedTasks = Array.from(mergedMap.values())
 
             // 按 createdAt 排序（最新的在前）
             mergedTasks.sort(

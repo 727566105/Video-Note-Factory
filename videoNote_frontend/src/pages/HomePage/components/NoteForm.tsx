@@ -40,6 +40,7 @@ import { Input } from '@/components/ui/input.tsx'
 import { ClearableInput } from '@/components/ui/clearable-input.tsx'
 import { Textarea } from '@/components/ui/textarea.tsx'
 import { noteStyles, noteFormats, videoPlatforms } from '@/constant/note.ts'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { fetchModels } from '@/services/model.ts'
 import { useNavigate } from 'react-router-dom'
 
@@ -181,6 +182,13 @@ const NoteForm = () => {
     const timer = setTimeout(dismissHint, 5000)
     return () => clearTimeout(timer)
   }, [])
+  // 从总结设置 store 同步默认风格到表单（新建模式）
+  const summaryStyle = useSummarySettingsStore(s => s.style)
+  useEffect(() => {
+    if (!currentTaskId && summaryStyle) {
+      form.setValue('style', summaryStyle, { shouldValidate: true })
+    }
+  }, [summaryStyle, currentTaskId])
   // 模型列表加载完后，同步 model_name 到表单（新建模式）
   useEffect(() => {
     if (modelList.length > 0 && !currentTaskId) {

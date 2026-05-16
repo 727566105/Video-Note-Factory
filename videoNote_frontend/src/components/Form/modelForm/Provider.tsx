@@ -1,11 +1,13 @@
 import ProviderCard from '@/components/Form/modelForm/components/providerCard.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { useProviderStore } from '@/store/providerStore'
+import { CardSkeleton } from '@/components/Skeletons'
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 
 const Provider = () => {
   const providers = useProviderStore(state => state.provider)
+  const loading = useProviderStore(state => state.loading)
   const navigate = useNavigate()
   const handleClick = () => {
     navigate(`/settings/model/new`, { state: { reset: true } })
@@ -35,7 +37,9 @@ const Provider = () => {
       <div className="flex flex-col gap-2">
         <div className="text-xs font-medium text-muted-foreground">已添加的供应商</div>
         <div className="flex flex-col gap-1">
-          {sortedProviders && sortedProviders.length > 0 ? (
+          {loading ? (
+            <CardSkeleton count={3} />
+          ) : sortedProviders && sortedProviders.length > 0 ? (
             sortedProviders.map((provider, index) => (
               <ProviderCard
                 key={index}

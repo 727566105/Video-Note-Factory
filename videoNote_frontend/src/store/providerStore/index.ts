@@ -12,6 +12,7 @@ import {
 
 interface ProviderStore {
   provider: IProvider[]
+  loading: boolean
   setProvider: (provider: IProvider) => void
   setAllProviders: (providers: IProvider[]) => void
   getProviderById: (id: number) => IProvider | undefined
@@ -26,6 +27,7 @@ interface ProviderStore {
 
 export const useProviderStore = create<ProviderStore>((set, get) => ({
   provider: [],
+  loading: false,
 
   // 添加或更新一个 provider
   setProvider: newProvider =>
@@ -136,9 +138,11 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   getProviderList: () => get().provider,
   fetchProviderList: async () => {
     try {
+      set({ loading: true })
       const res  = await getProviderList()
 
         set({
+          loading: false,
           provider: res.map(
             (item: {
               id: string
@@ -165,6 +169,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
         })
     } catch (error) {
       console.error('Error fetching provider list:', error)
+      set({ loading: false })
     }
   },
 }))

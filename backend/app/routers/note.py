@@ -782,3 +782,39 @@ def update_queue_config(data: QueueConfigRequest, current_user=Depends(get_curre
 
 # 注册队列管理器的任务启动回调（必须在 _start_queued_task 定义之后）
 task_queue.register_start_callback(_start_queued_task)
+
+
+# ==================== 音频下载接口 ====================
+
+@router.get("/audio/{task_id}")
+def download_audio(task_id: str, current_user=Depends(get_current_user)):
+    """下载任务对应的音频文件"""
+    audio_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}_audio.json")
+    if not os.path.exists(audio_path):
+        raise HTTPException(status_code=404, detail="音频元数据不存在")
+
+    try:
+        with open(audio_path, "r", encoding="utf-8") as f:
+            audio_meta = json.load(f)
+        file_path = audio_meta.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="音频文件不存在")
+
+        # 获取文件名
+        filename = os.path.basename(file_path)
+        title = audio_meta.get("title", "音频")
+        # 清理标题中的特殊字符，用作下载文件名
+        safe_title = "".join(c for c in title if c.isalnum() or c in " -_").strip()
+        ext = os.path.splitext(filename)[1] or ".mp3"
+        download_name = f"{safe_title}{ext}"
+
+        return FileResponse(
+            file_path,
+            media_type="audio/mpeg",
+            filename=download_name
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"下载音频失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

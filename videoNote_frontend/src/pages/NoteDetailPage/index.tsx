@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useTaskStore, type Task } from '@/store/taskStore'
+import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel from './RightPanel'
 import DetailNav from './DetailNav'
@@ -10,11 +11,43 @@ export default function NoteDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams()
   const task = useTaskStore(state => state.tasks.find((t: Task) => t.id === id))
+  const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
+  const [loading, setLoading] = useState(!task)
+  const [notFound, setNotFound] = useState(false)
 
   // 拖拽分割线
   const [leftWidth, setLeftWidth] = useState(592)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
+
+  // 从后端加载（如果 store 中没有）
+  useEffect(() => {
+    if (task) {
+      setLoading(false)
+      return
+    }
+    if (!id) {
+      setNotFound(true)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    loadTasksFromBackend()
+      .then(() => {
+        // loadTasksFromBackend 会更新 store，task selector 会自动重新计算
+        // 但这里我们无法直接读取更新后的 task，所以用 store.getState()
+        const found = useTaskStore.getState().tasks.find((t: Task) => t.id === id)
+        if (!found) {
+          setNotFound(true)
+        }
+        setLoading(false)
+      })
+      .catch(() => {
+        setNotFound(true)
+        setLoading(false)
+      })
+  }, [id, task, loadTasksFromBackend])
 
   const onMouseDown = useCallback(() => {
     isDragging.current = true
@@ -43,7 +76,11 @@ export default function NoteDetailPage() {
     document.addEventListener('mouseup', onMouseUp)
   }, [])
 
-  if (!task) {
+  if (loading) {
+    return <DetailSkeleton />
+  }
+
+  if (!task || notFound) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="text-center">

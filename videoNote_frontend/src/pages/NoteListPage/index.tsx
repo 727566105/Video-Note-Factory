@@ -6,17 +6,16 @@ import {
   Columns,
   ChevronLeft,
   ChevronRight,
-  Lightbulb,
   Trash2,
   FolderPlus,
   Search,
-  Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { getTasks, delete_task } from '@/services/note'
+import { TableSkeleton } from '@/components/Skeletons'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -134,7 +133,7 @@ export const NoteListPage: FC = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex flex-col gap-4 p-6">
+      <div className="flex flex-col gap-4 p-6 shrink-0">
         {/* 标题行 */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-foreground">总结记录</h1>
@@ -181,23 +180,6 @@ export const NoteListPage: FC = () => {
             </Button>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">每页行数</span>
-            <select className="px-2 py-1 text-sm border border-border rounded-md bg-background">
-              <option>10</option>
-              <option>20</option>
-              <option>50</option>
-            </select>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" className="h-8 w-8">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <select className="px-2 py-1 text-sm border border-border rounded-md bg-background">
-                <option>1</option>
-              </select>
-              <Button variant="outline" size="icon" className="h-8 w-8">
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchNotes}>
               <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
             </Button>
@@ -206,18 +188,10 @@ export const NoteListPage: FC = () => {
             </Button>
           </div>
         </div>
+      </div>
 
-        {/* 提示行 */}
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-foreground font-medium">
-            {selectedRows.length}/{filteredNotes.length} 行被选中
-          </span>
-          <Lightbulb className="w-4 h-4 text-yellow-500" />
-          <span className="text-muted-foreground">提示：按住 Shift 键点击可连续选择</span>
-        </div>
-
-        {/* 表格容器 */}
-        <div className="border border-border rounded-lg overflow-hidden">
+      {/* 表格容器 */}
+      <div className="flex-1 min-h-0 border border-border rounded-lg overflow-auto">
           {/* 表头 */}
           <div className="flex items-center gap-4 px-4 py-3 bg-muted border-b border-border text-sm font-medium text-muted-foreground">
             <Checkbox
@@ -232,10 +206,7 @@ export const NoteListPage: FC = () => {
 
           {/* 加载状态 */}
           {loading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
-            </div>
+            <TableSkeleton rows={5} />
           )}
 
           {/* 空状态 */}
@@ -294,8 +265,35 @@ export const NoteListPage: FC = () => {
               </div>
             </div>
           ))}
+
+          {/* 分页器 */}
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/50">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>每页行数</span>
+              <select className="px-2 py-1 text-sm border border-border rounded-md bg-background">
+                <option>10</option>
+                <option>20</option>
+                <option>50</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {selectedRows.length}/{filteredNotes.length} 行
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <select className="px-2 py-1 text-sm border border-border rounded-md bg-background">
+                  <option>1</option>
+                </select>
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
       <ConfirmDialog
         open={deleteDialogOpen}

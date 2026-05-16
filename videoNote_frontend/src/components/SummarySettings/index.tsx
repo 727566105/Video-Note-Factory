@@ -1,16 +1,24 @@
 import { useState } from 'react'
-import { X, Sparkles, Eye, FileText, StickyNote, Check } from 'lucide-react'
+import { X, Sparkles, Eye, FileText, StickyNote, Check, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { noteFormats } from '@/constant/note.ts'
+import { noteFormats, noteStyles } from '@/constant/note.ts'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import toast from 'react-hot-toast'
 
@@ -24,6 +32,8 @@ export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
 
   // 从 store 读取默认配置
   const {
+    style,
+    setStyle,
     videoUnderstanding,
     setVideoUnderstanding,
     videoInterval,
@@ -59,6 +69,9 @@ export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
         {/* 标题栏 */}
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="text-xl font-semibold">总结设置</DialogTitle>
+          <DialogDescription className="sr-only">
+            配置视频笔记的总结风格和格式选项
+          </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-6">
@@ -144,6 +157,31 @@ export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* 笔记风格 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">笔记风格</span>
+                </div>
+                <Select value={style} onValueChange={setStyle}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {noteStyles.find(s => s.value === style)?.label || '请选择风格'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {noteStyles.map(({ label, value, desc }) => (
+                      <SelectItem key={value} value={value}>
+                        <div className="flex flex-col gap-1 py-0.5">
+                          <span className="font-medium">{label}</span>
+                          <span className="text-xs text-muted-foreground">{desc}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* 笔记格式 */}

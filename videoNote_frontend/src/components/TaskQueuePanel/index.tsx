@@ -212,15 +212,13 @@ export const TaskQueuePanel: FC = () => {
   }, [isOpen])
 
   const handleViewSummary = (taskId: string) => {
-    setCurrentTask(taskId)
-    navigate('/')
     setIsOpen(false)
+    navigate(`/notes/${taskId}`)
   }
 
   const handleViewTranscript = (taskId: string) => {
-    setCurrentTask(taskId)
-    navigate('/')
     setIsOpen(false)
+    navigate(`/notes/${taskId}`)
   }
 
   const handleDelete = async (taskId: string) => {

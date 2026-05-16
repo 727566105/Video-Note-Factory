@@ -9,6 +9,7 @@ import {
   BrainCircuit,
   FileText,
   Trash,
+  RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -21,6 +22,8 @@ import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
 import { ExportImageButton } from '@/components/ExportImageButton'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useTaskStore, type Task, type Markdown } from '@/store/taskStore'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
+import { useModelStore } from '@/store/modelStore'
 import { noteStyles } from '@/constant/note'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -53,7 +56,10 @@ interface RightPanelProps {
 export default function RightPanel({ task }: RightPanelProps) {
   const navigate = useNavigate()
   const removeTask = useTaskStore(state => state.removeTask)
+  const retryTask = useTaskStore(state => state.retryTask)
   const setCurrentTask = useTaskStore(state => state.setCurrentTask)
+  const summarySettings = useSummarySettingsStore()
+  const modelList = useModelStore(state => state.modelList)
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
@@ -133,6 +139,34 @@ export default function RightPanel({ task }: RightPanelProps) {
       navigate('/notes')
     } catch {
       // removeTask 内部已 toast
+    }
+  }
+
+  // 重新生成：使用当前总结设置和默认模型
+  const handleRegenerate = async () => {
+    const defaultModel = modelList[0]
+    if (!defaultModel) {
+      toast.error('没有可用的模型，请先添加模型')
+      return
+    }
+
+    const payload = {
+      ...task.formData,
+      model_name: defaultModel.model_name,
+      provider_id: defaultModel.provider_id,
+      style: summarySettings.style,
+      extras: summarySettings.extras,
+      video_understanding: summarySettings.videoUnderstanding,
+      video_interval: summarySettings.videoInterval,
+      grid_size: [summarySettings.gridCols, summarySettings.gridRows],
+      format: summarySettings.selectedFormats,
+    }
+
+    try {
+      await retryTask(task.id, payload)
+      toast.success('重新生成任务已提交')
+    } catch {
+      // retryTask 内部已 toast
     }
   }
 
@@ -227,10 +261,7 @@ export default function RightPanel({ task }: RightPanelProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={handleCopy}>
-                <Copy className="mr-2 h-4 w-4" /> 复制
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownload}>
+                            <DropdownMenuItem onClick={handleDownload}>
                 <Download className="mr-2 h-4 w-4" /> 导出 Markdown
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -249,6 +280,7 @@ export default function RightPanel({ task }: RightPanelProps) {
           <span className="text-xs font-medium text-green-600">总结完成</span>
         </div>
         <div className="flex items-center gap-2">
+          <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} />
           <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
         </div>
       </div>

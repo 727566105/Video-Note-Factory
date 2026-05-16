@@ -71,7 +71,28 @@ export default function LeftPanel({ task }: LeftPanelProps) {
       <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
         <ToolBtn icon={<Monitor className="w-4 h-4" />} />
         <ToolBtn icon={<ArrowLeftRight className="w-4 h-4" />} />
-        <ToolBtn icon={<Download className="w-4 h-4" />} variant="secondary" />
+        <ToolBtn icon={<Headphones className="w-4 h-4" />} variant="secondary" onClick={async () => {
+          try {
+            const raw = localStorage.getItem('auth-storage')
+            const token = raw ? JSON.parse(raw).state?.token : ''
+            const res = await fetch(`${getBaseURL()}/api/audio/${task.id}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            if (!res.ok) throw new Error()
+            const blob = await res.blob()
+            const cd = res.headers.get('content-disposition')
+            let filename = (task.audioMeta?.title || '音频') + '.mp3'
+            if (cd) {
+              const m = cd.match(/filename\*?=(?:UTF-8'')?(.+)/i)
+              if (m) filename = decodeURIComponent(m[1].replace(/["']/g, ''))
+            }
+            const a = document.createElement('a')
+            a.href = URL.createObjectURL(blob)
+            a.download = filename
+            a.click()
+            URL.revokeObjectURL(a.href)
+          } catch { /* ignore */ }
+        }} />
         <ToolBtn icon={<Languages className="w-4 h-4" />} variant="secondary" />
         <ToolBtn icon={<Headphones className="w-4 h-4" />} variant="secondary" />
         <ToolBtn icon={<Globe className="w-4 h-4" />} />

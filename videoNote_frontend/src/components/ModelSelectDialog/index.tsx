@@ -4,6 +4,8 @@ import { useProviderStore } from '@/store/providerStore'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Search, Sparkles, X, Bot } from 'lucide-react'
@@ -55,7 +57,12 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
       <DialogContent showCloseButton={false} className="w-[375px] max-w-[375px] p-0 gap-0 overflow-hidden rounded-lg border border-border bg-popover">
         {/* 标题栏 */}
         <div className="flex items-center justify-between h-[56px] px-4">
-          <span className="text-[17px] font-semibold text-popover-foreground">选择模型</span>
+          <DialogTitle className="text-[17px] font-semibold text-popover-foreground">
+            选择模型
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            从列表中选择一个AI模型用于生成笔记
+          </DialogDescription>
           <button
             onClick={() => onOpenChange(false)}
             className="flex items-center justify-center w-5 h-5 text-muted-foreground hover:text-foreground transition-colors"
