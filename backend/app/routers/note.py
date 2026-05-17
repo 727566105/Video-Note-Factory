@@ -85,7 +85,7 @@ ALLOWED_EXTENSIONS = {
     # 音频类型
     "mp3", "wav", "aac", "ogg", "flac", "m4a", "wma",
 }
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 
 
 def sanitize_filename(filename: str) -> str:
@@ -789,6 +789,54 @@ task_queue.register_start_callback(_start_queued_task)
 
 
 # ==================== 音频下载接口 ====================
+
+@router.get("/screenshot/{task_id}")
+def get_screenshot(task_id: str, t: float = 0):
+    """根据 task_id 和时间戳生成/返回视频截图（无需认证，图片不敏感）"""
+    from app.utils.video_helper import generate_screenshot
+
+    # 查找视频文件
+    video_patterns = [
+        os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.mp4"),
+        os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.mkv"),
+        os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.webm"),
+    ]
+    video_path = None
+    for p in video_patterns:
+        if os.path.exists(p):
+            video_path = p
+            break
+
+    if not video_path:
+        raise HTTPException(status_code=404, detail="视频文件不存在")
+
+    # 截图缓存路径
+    timestamp_key = str(int(t)).zfill(6)
+    screenshot_dir = os.path.join("static", "screenshots", task_id)
+    os.makedirs(screenshot_dir, exist_ok=True)
+    screenshot_path = os.path.join(screenshot_dir, f"t{timestamp_key}.jpg")
+
+    # 已有缓存直接返回
+    if os.path.exists(screenshot_path):
+        return FileResponse(screenshot_path, media_type="image/jpeg")
+
+    # 生成截图
+    try:
+        generate_screenshot(video_path, screenshot_dir, int(t), int(t))
+        # 重命名为规范路径
+        generated = [f for f in os.listdir(screenshot_dir) if f.startswith("screenshot_")]
+        if generated:
+            src = os.path.join(screenshot_dir, generated[0])
+            os.rename(src, screenshot_path)
+
+        if os.path.exists(screenshot_path):
+            return FileResponse(screenshot_path, media_type="image/jpeg")
+        raise HTTPException(status_code=500, detail="截图生成失败")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/audio/{task_id}")
 def download_audio(task_id: str, current_user=Depends(get_current_user)):

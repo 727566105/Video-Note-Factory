@@ -5,6 +5,9 @@ import { useEffect, useState, useRef } from "react"
 import { Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
+import OpenCC from 'opencc-js'
+
+const twToCn = OpenCC.Converter({ from: 'tw', to: 'cn' })
 
 interface Segment {
   start: number
@@ -93,7 +96,7 @@ const TranscriptViewer = () => {
                       {segment.speaker}
                     </span>
                         )}
-                        {segment.text}
+                        {twToCn(segment.text)}
                       </div>
                     </div>
                 ))}

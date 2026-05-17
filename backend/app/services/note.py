@@ -795,7 +795,11 @@ class NoteGenerator:
             author = ""
             if audio_meta.raw_info:
                 owner = audio_meta.raw_info.get("owner", {})
-                author = owner.get("name", "")
+                author = owner.get("name", "") if owner else ""
+                if not author:
+                    author = audio_meta.raw_info.get("uploader", "")
+                if not author:
+                    author = audio_meta.raw_info.get("channel", "")
             update_task_metadata(
                 task_id=task_id,
                 title=audio_meta.title,

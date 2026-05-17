@@ -54,7 +54,7 @@ class YoutubeDownloader(Downloader, ABC):
             cover_url=cover_url,
             platform="youtube",
             video_id=video_id,
-            raw_info={'tags':info.get('tags')}, #全部返回会报错
+            raw_info={'tags':info.get('tags'), 'uploader': info.get('uploader') or info.get('channel', '')},
             video_path=None  # ❗音频下载不包含视频路径
         )
 

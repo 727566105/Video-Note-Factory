@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2 } from 'lucide-react'
+import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2, FileBox, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -15,6 +17,7 @@ import { ModelSelectDialog } from '@/components/ModelSelectDialog'
 import { useModelStore } from '@/store/modelStore'
 import { useTaskStore } from '@/store/taskStore'
 import { generateNote } from '@/services/note.ts'
+import { uploadFile } from '@/services/upload.ts'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 
 type TabType = 'link' | 'upload'
@@ -31,6 +34,8 @@ export function QuickAdd({ className }: QuickAddProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedPlatform, setSelectedPlatform] = useState<string>('auto')
   const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [multiFileMode, setMultiFileMode] = useState<'separate' | 'merge'>('separate')
   const { selectedModel, modelList, loadEnabledModels } = useModelStore()
   const { addPendingTask } = useTaskStore()
 
@@ -44,6 +49,7 @@ export function QuickAdd({ className }: QuickAddProps) {
     style,
     outputLanguage,
     videoUnderstanding,
+    setVideoUnderstanding,
     videoInterval,
     gridCols,
     gridRows,
@@ -163,6 +169,99 @@ export function QuickAdd({ className }: QuickAddProps) {
     }
   }
 
+  const ACCEPT_TYPES = 'video/*,.mp4,audio/*,.mp3,.mpeg,.mpga,.m4a,.wav,.webm,.acc,.flac,.ogg,.opus,.wma,.wmv,.mov,.avi,.mkv'
+
+  const pickFiles = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.accept = ACCEPT_TYPES
+    input.onchange = (e) => {
+      const files = Array.from((e.target as HTMLInputElement).files || [])
+      if (files.length + selectedFiles.length > 10) {
+        toast.error('最多同时选择 10 个文件')
+        return
+      }
+      setSelectedFiles(prev => [...prev, ...files])
+    }
+    input.click()
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const files = Array.from(e.dataTransfer.files).filter(f =>
+      f.type.startsWith('video/') || f.type.startsWith('audio/')
+    )
+    if (files.length === 0) {
+      toast.error('请拖入音视频文件')
+      return
+    }
+    if (files.length + selectedFiles.length > 10) {
+      toast.error('最多同时选择 10 个文件')
+      return
+    }
+    setSelectedFiles(prev => [...prev, ...files])
+  }
+
+  const handleUploadGenerate = async () => {
+    if (selectedFiles.length === 0) return
+
+    if (!selectedModelInfo) {
+      toast.error('请选择模型')
+      return
+    }
+
+    if (multiFileMode === 'merge') {
+      toast.error('合并功能正在开发中，请选择"独立任务"模式')
+      return
+    }
+
+    setIsGenerating(true)
+    let successCount = 0
+
+    for (const file of selectedFiles) {
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const uploadRes = await uploadFile(fd)
+
+        const isAudio = file.type.startsWith('audio/')
+        const payload = {
+          video_url: uploadRes.url,
+          platform: isAudio ? 'local_audio' : 'local',
+          quality: 'medium' as const,
+          model_name: selectedModelInfo.model_name,
+          provider_id: String(selectedModelInfo.provider_id),
+          style: style || 'minimal',
+          format: selectedFormats || [],
+          extras: extras || '',
+          video_understanding: videoUnderstanding || false,
+          video_interval: videoInterval || 4,
+          grid_size: [gridCols || 3, gridRows || 3],
+          screenshot: selectedFormats?.includes('screenshot') || false,
+          link: false,
+          output_language: outputLanguage || 'zh',
+        }
+
+        const res = await generateNote(payload)
+        if (res?.task_id) {
+          addPendingTask(res.task_id, payload.platform, payload)
+          successCount++
+        }
+      } catch (err) {
+        console.error(`文件 ${file.name} 提交失败:`, err)
+        toast.error(`${file.name} 提交失败`)
+      }
+    }
+
+    if (successCount > 0) {
+      setSelectedFiles([])
+      toast.success(`已提交 ${successCount} 个笔记生成任务`)
+    }
+    setIsGenerating(false)
+  }
+
   return (
     <div className={cn("flex flex-col items-center justify-center h-full gap-6 p-8", className)}>
       {/* 标题区域 */}
@@ -193,7 +292,8 @@ export function QuickAdd({ className }: QuickAddProps) {
         </div>
       </div>
 
-      {/* 输入框容器 */}
+      {/* 链接输入 */}
+      {activeTab === 'link' && (
       <div className="w-full max-w-[800px] flex flex-col gap-4">
         <div className="flex flex-col border-2 border-border rounded-xl bg-background overflow-hidden">
           {/* 输入框 */}
@@ -302,6 +402,114 @@ export function QuickAdd({ className }: QuickAddProps) {
           </button>
         </div>
       </div>
+      )}
+
+      {/* 上传标签页 */}
+      {activeTab === 'upload' && (
+      <div className="w-full max-w-[600px] flex flex-col items-center gap-4">
+        {/* 上传区域 */}
+        <div
+          className="w-full flex flex-col items-center justify-center gap-4 py-6 px-4
+                     border-2 border-dashed border-input rounded-lg
+                     bg-background hover:border-pink-200 dark:hover:border-pink-400/30
+                     transition-shadow cursor-pointer shadow-sm"
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+          onDrop={handleDrop}
+          onClick={pickFiles}
+        >
+          <FileBox className="w-8 h-8 text-muted-foreground -mb-2" />
+
+          {/* 视觉化总结开关 */}
+          <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-current/20">
+            <Label htmlFor="visual-summary" className="text-sm font-medium cursor-pointer">视觉化总结</Label>
+            <Switch
+              id="visual-summary"
+              checked={videoUnderstanding}
+              onCheckedChange={setVideoUnderstanding}
+              className="data-[state=checked]:bg-pink-400"
+            />
+          </div>
+
+          <Button variant="default" className="mb-2" type="button">选择音视频文件</Button>
+
+          <div className="text-center px-2">
+            <p className="text-sm text-foreground/50">
+              <span className="font-semibold">点击上传或拖拽至此处</span>
+              <span className="pl-1">可同时选择多个文件 (单个文件大小 ≤2G)</span>
+            </p>
+            <span className="text-xs text-foreground/40">
+              支持格式：mp3, mp4, mov, mpg, m4a, wav, webm, avi, mkv 等
+            </span>
+          </div>
+        </div>
+
+        {/* 已选文件列表 */}
+        {selectedFiles.length > 0 && (
+          <div className="w-full flex flex-col gap-2">
+            {selectedFiles.map((file, idx) => (
+              <div key={idx} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-background">
+                <span className="flex-1 text-sm truncate">{file.name}</span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {(file.size / 1024 / 1024).toFixed(1)} MB
+                </span>
+                <button
+                  className="p-1 hover:bg-accent rounded transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedFiles(prev => prev.filter((_, i) => i !== idx))
+                  }}
+                >
+                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 多文件处理选项 */}
+        {selectedFiles.length > 1 && (
+          <div className="w-full flex items-center gap-2 px-1">
+            <span className="text-sm text-muted-foreground">多文件处理：</span>
+            <button
+              className={cn(
+                "px-3 py-1 rounded-md text-sm transition-colors",
+                multiFileMode === 'separate'
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setMultiFileMode('separate')}
+            >
+              每个独立任务
+            </button>
+            <button
+              className={cn(
+                "px-3 py-1 rounded-md text-sm transition-colors",
+                multiFileMode === 'merge'
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setMultiFileMode('merge')}
+            >
+              合并为一个任务
+            </button>
+          </div>
+        )}
+
+        {/* 提交按钮 */}
+        <Button
+          className="w-[280px] h-12 rounded-3xl bg-foreground text-primary-foreground hover:bg-foreground/90 flex items-center gap-2 text-base font-medium"
+          onClick={handleUploadGenerate}
+          disabled={selectedFiles.length === 0 || isGenerating}
+        >
+          {isGenerating ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Sparkles className="w-5 h-5" />
+          )}
+          {isGenerating ? '提交中...' : `生成笔记 (${selectedFiles.length})`}
+        </Button>
+      </div>
+      )}
 
       {/* 总结设置对话框 */}
       <SummarySettings open={settingsOpen} onOpenChange={setSettingsOpen} />

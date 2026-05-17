@@ -342,6 +342,10 @@ class DouyinDownloader(Downloader):
                 video_id=video_data['aweme_detail']['aweme_id'],
                 raw_info={
                     'tags': video_data['aweme_detail']['caption'] + ''.join(tags),
+                    'owner': {
+                        'name': video_data['aweme_detail'].get('author', {}).get('nickname', ''),
+                    },
+                    'uploader': video_data['aweme_detail'].get('author', {}).get('nickname', ''),
                 },
                 video_path=None  # ❗音频下载不包含视频路径
             )

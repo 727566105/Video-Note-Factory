@@ -4,17 +4,20 @@ import {
   Download,
   MoreHorizontal,
   ListVideo,
-  CheckCircle,
   Edit,
   BrainCircuit,
   FileText,
   Trash,
   RefreshCw,
   Settings,
+  ScrollText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
+import OpenCC from 'opencc-js'
+
+const twToCn = OpenCC.Converter({ from: 'tw', to: 'cn' })
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import MarkmapEditor from '@/pages/HomePage/components/MarkmapComponent'
 import TranscriptViewer from '@/pages/HomePage/components/transcriptViewer'
@@ -49,12 +52,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-type TabKey = 'summary' | 'transcript' | 'mindmap'
+type TabKey = 'summary' | 'transcript' | 'mindmap' | 'original'
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'summary', label: '全文总结' },
   { key: 'transcript', label: '字幕脚本' },
   { key: 'mindmap', label: '思维导图' },
+  { key: 'original', label: '原文详情' },
 ]
 
 interface RightPanelProps {
@@ -212,7 +216,8 @@ export default function RightPanel({ task }: RightPanelProps) {
             const TabIcon =
               tab.key === 'summary' ? FileText :
               tab.key === 'transcript' ? ListVideo :
-              BrainCircuit
+              tab.key === 'mindmap' ? BrainCircuit :
+              ScrollText
             return (
               <button
                 key={tab.key}
@@ -294,11 +299,7 @@ export default function RightPanel({ task }: RightPanelProps) {
       </div>
 
       {/* 状态行 */}
-      <div className="flex items-center justify-between px-4 py-1">
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 dark:bg-green-900/20 rounded-full">
-          <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-          <span className="text-xs font-medium text-green-600">总结完成</span>
-        </div>
+      <div className="flex items-center justify-end px-4 py-1">
         <div className="flex items-center gap-2">
           <ActionBtn icon={<Settings className="w-3.5 h-3.5" />} label="设置" onClick={() => setSettingsOpen(true)} />
           <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} />
@@ -321,6 +322,38 @@ export default function RightPanel({ task }: RightPanelProps) {
             height="100%"
             title={task.audioMeta?.title || '思维导图'}
           />
+        )}
+        {activeTab === 'original' && (
+          task.transcript?.segments?.length > 0 ? (
+            <div className="space-y-3">
+              {groupSegments(task.transcript.segments).map((group, idx) => (
+                <div key={idx} className="rounded-lg border border-border bg-background overflow-hidden">
+                  <ScreenshotImg taskId={task.id} time={group.startTime} />
+                  <div className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono font-medium">
+                        {fmtTime(group.startTime)}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        - {fmtTime(group.endTime)}
+                      </span>
+                    </div>
+                    <div className="text-sm leading-relaxed text-foreground">
+                      {twToCn(group.text)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : task.transcript?.full_text ? (
+            <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+              {twToCn(task.transcript.full_text)}
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              暂无转写原文
+            </div>
+          )
         )}
       </div>
 
@@ -452,5 +485,115 @@ function ActionBtn({
       {icon}
       {label && <span>{label}</span>}
     </button>
+  )
+}
+
+interface Seg { start: number; end: number; text: string }
+
+function groupSegments(segments: Seg[]) {
+  if (!segments.length) return []
+
+  // Step 1: 根据总时长确定每组目标时长
+  const totalDuration = segments[segments.length - 1].end - segments[0].start
+  let targetDuration: number
+  if (totalDuration < 180) targetDuration = 30        // <3min
+  else if (totalDuration < 600) targetDuration = 45    // 3-10min
+  else if (totalDuration < 1800) targetDuration = 60   // 10-30min
+  else if (totalDuration < 3600) targetDuration = 90   // 30-60min
+  else if (totalDuration < 10800) targetDuration = 120 // 1-3hr
+  else targetDuration = 180                            // >3hr
+
+  // Step 2: 计算间隙阈值（2.5倍中位数，至少2秒）
+  const gaps: number[] = []
+  for (let i = 1; i < segments.length; i++) {
+    gaps.push(Math.max(0, segments[i].start - segments[i - 1].end))
+  }
+  const sortedGaps = [...gaps].sort((a, b) => a - b)
+  const medianGap = sortedGaps[Math.floor(sortedGaps.length / 2)] || 1
+  const gapThreshold = Math.max(medianGap * 2.5, 2.0)
+
+  // Step 3: 遍历分组
+  const groups: { startTime: number; endTime: number; text: string }[] = []
+  let cur: { startTime: number; endTime: number; texts: string[] } | null = null
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]
+    const gap = i > 0 ? Math.max(0, seg.start - segments[i - 1].end) : 0
+
+    if (!cur) {
+      cur = { startTime: seg.start, endTime: seg.end, texts: [seg.text] }
+      continue
+    }
+
+    const groupDuration = seg.end - cur.startTime
+
+    // 自然停顿 + 已有足够内容 → 断开
+    if (gap > gapThreshold && groupDuration >= targetDuration * 0.7) {
+      groups.push({ startTime: cur.startTime, endTime: cur.endTime, text: cur.texts.join(' ') })
+      cur = { startTime: seg.start, endTime: seg.end, texts: [seg.text] }
+      continue
+    }
+
+    // 超长强制断开
+    if (groupDuration >= targetDuration * 1.5) {
+      groups.push({ startTime: cur.startTime, endTime: cur.endTime, text: cur.texts.join(' ') })
+      cur = { startTime: seg.start, endTime: seg.end, texts: [seg.text] }
+      continue
+    }
+
+    cur.endTime = seg.end
+    cur.texts.push(seg.text)
+  }
+
+  if (cur) {
+    groups.push({ startTime: cur.startTime, endTime: cur.endTime, text: cur.texts.join(' ') })
+  }
+
+  // Step 4: 合并过短的组（<20字）
+  if (!groups.length) return groups
+  const result = [groups[0]]
+  for (let i = 1; i < groups.length; i++) {
+    const last = result[result.length - 1]
+    if (groups[i].text.length < 20) {
+      last.endTime = groups[i].endTime
+      last.text += ' ' + groups[i].text
+    } else {
+      result.push(groups[i])
+    }
+  }
+
+  return result
+}
+
+function fmtTime(seconds: number) {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+function ScreenshotImg({ taskId, time }: { taskId: string; time: number }) {
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+  const src = `${baseUrl}/api/screenshot/${taskId}?t=${Math.floor(time)}`
+
+  if (error) return null
+
+  return (
+    <div className="relative w-full aspect-video bg-muted/50">
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={`截图 ${fmtTime(time)}`}
+        className="w-full h-full object-cover"
+        onLoad={() => setLoaded(true)}
+        onError={() => setError(true)}
+        loading="lazy"
+      />
+    </div>
   )
 }

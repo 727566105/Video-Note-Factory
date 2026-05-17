@@ -7,6 +7,7 @@ from app.decorators.timeit import timeit
 from app.models.transcriber_model import TranscriptSegment, TranscriptResult
 from app.transcriber.base import Transcriber
 from app.utils.logger import get_logger
+from app.utils.chinese_converter import to_simplified
 from events import transcription_finished
 
 logger = get_logger(__name__)
@@ -75,25 +76,25 @@ class KuaishouTranscriber(Transcriber):
             # 提取分段数据
             segments = []
             full_text = ""
-            
+
             # 解析快手API返回的文本段
             texts = result_data.get('data', {}).get('text', [])
             for u in texts:
-                text = u.get('text', '').strip()
+                text = to_simplified(u.get('text', '').strip())
                 start_time = float(u.get('start_time', 0))
                 end_time = float(u.get('end_time', 0))
-                
+
                 full_text += text + " "
                 segments.append(TranscriptSegment(
                     start=start_time,
                     end=end_time,
                     text=text
                 ))
-            
+
             # 创建结果对象
             result = TranscriptResult(
                 language="zh",  # 快手API可能不返回语言信息，默认为中文
-                full_text=full_text.strip(),
+                full_text=to_simplified(full_text.strip()),
                 segments=segments,
                 raw=result_data
             )

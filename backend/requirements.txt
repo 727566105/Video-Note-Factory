@@ -132,3 +132,4 @@ zopfli==0.2.3.post1
 playwright==1.49.0
 python-jose[cryptography]
 passlib[bcrypt]
+zhconv==1.4.3

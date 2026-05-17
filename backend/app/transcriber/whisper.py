@@ -6,6 +6,7 @@ from app.transcriber.base import Transcriber
 from app.utils.env_checker import is_cuda_available, is_torch_installed
 from app.utils.logger import get_logger
 from app.utils.path_helper import get_model_dir
+from app.utils.chinese_converter import to_simplified
 
 from events import transcription_finished
 from pathlib import Path
@@ -101,6 +102,8 @@ class WhisperTranscriber(Transcriber):
 
             for seg in segments_raw:
                 text = seg.text.strip()
+                # 繁体转简体
+                text = to_simplified(text)
                 full_text += text + " "
                 segments.append(TranscriptSegment(
                     start=seg.start,
@@ -110,7 +113,7 @@ class WhisperTranscriber(Transcriber):
 
             result= TranscriptResult(
                 language=info.language,
-                full_text=full_text.strip(),
+                full_text=to_simplified(full_text.strip()),
                 segments=segments,
                 raw=info
             )

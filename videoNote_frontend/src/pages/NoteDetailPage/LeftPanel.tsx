@@ -31,6 +31,15 @@ export default function LeftPanel({ task }: LeftPanelProps) {
   const navigate = useNavigate()
   const setPanelSwapped = useSystemStore(state => state.setPanelSwapped)
 
+  // 获取发布人名字
+  const getAuthor = () => {
+    if (task.author) return task.author
+    const raw = task.audioMeta?.raw_info
+    if (!raw) return task.platform
+    return raw.owner?.name || raw.uploader || raw.channel || raw.author?.name || task.platform
+  }
+  const authorDisplay = getAuthor()
+
   const rawCoverUrl = task.audioMeta?.cover_url || ''
   const isLocal = task.platform === 'local' || task.platform === 'local_audio'
   const coverUrl = isLocal || !rawCoverUrl ? rawCoverUrl : `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}`
@@ -82,7 +91,7 @@ export default function LeftPanel({ task }: LeftPanelProps) {
           </button>
           <div className="w-px h-4 bg-border" />
           <ToolBtn icon={<Monitor className="w-4 h-4" />} />
-          <ToolBtn icon={<Headphones className="w-4 h-4" />} variant="secondary" onClick={async () => {
+          <ToolBtn icon={<Headphones className="w-4 h-4" />} onClick={async () => {
           try {
             const raw = localStorage.getItem('auth-storage')
             const token = raw ? JSON.parse(raw).state?.token : ''
@@ -108,7 +117,7 @@ export default function LeftPanel({ task }: LeftPanelProps) {
           <ToolBtn icon={<Settings2 className="w-4 h-4" />} label="总结设置" onClick={() => setSettingsOpen(true)} />
           <ToolBtn icon={<Sparkles className="w-4 h-4" />} label="默认模型" onClick={() => setModelOpen(true)} />
         </div>
-        <ToolBtn icon={<ArrowLeftRight className="w-4 h-4" />} onClick={() => setPanelSwapped(!panelSwapped)} />
+        <ToolBtn icon={<ArrowLeftRight className="w-4 h-4" />} onClick={() => setPanelSwapped(!useSystemStore.getState().panelSwapped)} />
       </div>
 
       {/* 视频播放器 */}
@@ -180,7 +189,7 @@ export default function LeftPanel({ task }: LeftPanelProps) {
       <div className="px-4 py-2 flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-foreground leading-snug">{title}</h2>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{task.platform}</span>
+          <span className="text-sm text-muted-foreground">{authorDisplay}</span>
         </div>
       </div>
 

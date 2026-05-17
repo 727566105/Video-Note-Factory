@@ -9,7 +9,6 @@ import {
   Sparkles,
   FileText,
   Plus,
-  Clipboard,
   Loader2,
   AlertCircle,
 } from 'lucide-react'
@@ -360,13 +359,6 @@ export const TaskQueuePanel: FC = () => {
                 >
                   <Plus className="size-3" />
                   继续添加新内容
-                </button>
-                <button
-                  type="button"
-                  title="快速粘贴 (⌘+V)"
-                  className="flex items-center justify-center gap-1 h-8 rounded-md border bg-card shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 px-2 text-xs font-medium transition-colors"
-                >
-                  <Clipboard className="size-3" />
                 </button>
               </div>
             </div>

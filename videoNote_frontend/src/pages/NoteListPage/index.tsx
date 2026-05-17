@@ -8,17 +8,26 @@ import {
   Trash2,
   FolderPlus,
   Search,
+  LoaderCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { getTasks, delete_task } from '@/services/note'
 import { TableSkeleton } from '@/components/Skeletons'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
+import { useSystemStore } from '@/store/configStore'
 
 const getBaseURL = () => (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
 
@@ -29,7 +38,6 @@ const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   return `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
 }
 
-// 表格数据类型
 interface NoteItem {
   id: string
   task_id: string
@@ -50,23 +58,22 @@ export const NoteListPage: FC = () => {
   const [loading, setLoading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState('')
+  const noteViewMode = useSystemStore(state => state.noteViewMode)
+  const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
 
-  // 获取笔记列表
   const fetchNotes = async () => {
     setLoading(true)
     try {
       const response = await getTasks(100)
-      // axios 拦截器已经返回了 response.data，所以 response 就是 { tasks: [...] }
       if (response && response.tasks) {
-        // 转换后端数据为前端格式
         const formattedNotes = response.tasks.map((task: any) => ({
           id: task.task_id,
           task_id: task.task_id,
-          // 优先使用数据库字段，兜底从 note.audio_meta 读取
           cover: getProxiedCoverUrl(task.cover_url || task.note?.audio_meta?.cover_url || '', task.platform),
           platform: task.platform || 'unknown',
           title: task.title || task.note?.audio_meta?.title || task.note?.title || '无标题',
-          author: task.author || task.note?.audio_meta?.raw_info?.owner?.name || '',
+          author: task.author || task.note?.audio_meta?.raw_info?.owner?.name
+            || task.note?.audio_meta?.raw_info?.uploader || '',
           note: task.note?.markdown || '',
           created_at: task.created_at || '',
           status: task.status || 'UNKNOWN'
@@ -81,10 +88,7 @@ export const NoteListPage: FC = () => {
     }
   }
 
-  // 初始加载
-  useEffect(() => {
-    fetchNotes()
-  }, [])
+  useEffect(() => { fetchNotes() }, [])
 
   const toggleSelectAll = () => {
     if (selectedRows.length === notes.length) {
@@ -102,7 +106,6 @@ export const NoteListPage: FC = () => {
     }
   }
 
-  // 删除笔记
   const handleDelete = async () => {
     try {
       await delete_task({ task_id: deleteTargetId })
@@ -114,12 +117,10 @@ export const NoteListPage: FC = () => {
     }
   }
 
-  // 点击笔记跳转详情页
   const handleNoteClick = (item: NoteItem) => {
     navigate(`/notes/${item.id}`)
   }
 
-  // 过滤笔记
   const filteredNotes = notes.filter(note => {
     if (!searchQuery) return true
     const query = searchQuery.toLowerCase()
@@ -143,14 +144,16 @@ export const NoteListPage: FC = () => {
 
         {/* 标签行 */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button className="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md">
-              表格
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-              卡片
-            </button>
-          </div>
+          <Select value={noteViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry')}>
+            <SelectTrigger className="w-[130px] hover:bg-accent">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="table">表格</SelectItem>
+              <SelectItem value="card">卡片</SelectItem>
+              <SelectItem value="masonry">瀑布流</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* 工具栏 */}
@@ -185,9 +188,9 @@ export const NoteListPage: FC = () => {
         </div>
       </div>
 
-      {/* 表格容器 */}
-      <div className="flex-1 min-h-0 border border-border rounded-lg overflow-auto">
-          {/* 表头 */}
+      {/* 视图内容 */}
+      {noteViewMode === 'table' ? (
+        <div className="flex-1 min-h-0 border border-border rounded-lg overflow-auto">
           <div className="flex items-center gap-4 px-4 py-3 bg-muted border-b border-border text-sm font-medium text-muted-foreground">
             <Checkbox
               checked={selectedRows.length === filteredNotes.length && filteredNotes.length > 0}
@@ -199,12 +202,8 @@ export const NoteListPage: FC = () => {
             <div className="w-24 text-right">操作菜单</div>
           </div>
 
-          {/* 加载状态 */}
-          {loading && (
-            <TableSkeleton rows={5} />
-          )}
+          {loading && <TableSkeleton rows={5} />}
 
-          {/* 空状态 */}
           {!loading && filteredNotes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
               <p>暂无笔记</p>
@@ -212,7 +211,6 @@ export const NoteListPage: FC = () => {
             </div>
           )}
 
-          {/* 表格行 */}
           {!loading && filteredNotes.map((item) => (
             <div
               key={item.id}
@@ -228,13 +226,18 @@ export const NoteListPage: FC = () => {
                 onClick={(e) => e.stopPropagation()}
               />
               <div className="w-32">
-                <div className="aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                <div className="relative aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
                   {item.cover ? (
                     <img src={item.cover} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-1">
                       <PlatformIconSmall platform={item.platform} />
-                      <span className="text-xs text-muted-foreground capitalize">{item.platform}</span>
+                      <span className="text-xs text-muted-foreground">{item.author || item.platform}</span>
+                    </div>
+                  )}
+                  {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <LoaderCircle className="w-6 h-6 text-white animate-spin" />
                     </div>
                   )}
                 </div>
@@ -261,7 +264,6 @@ export const NoteListPage: FC = () => {
             </div>
           ))}
 
-          {/* 分页器 */}
           <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/50">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>每页行数</span>
@@ -289,6 +291,129 @@ export const NoteListPage: FC = () => {
             </div>
           </div>
         </div>
+      ) : noteViewMode === 'card' ? (
+        /* 卡片视图 */
+        <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
+          {loading ? (
+            <TableSkeleton rows={3} />
+          ) : filteredNotes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
+              <p>暂无笔记</p>
+              <p className="text-xs mt-1">生成笔记后将显示在这里</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              {filteredNotes.map((item) => (
+                <div
+                  key={item.id}
+                  className="group rounded-xl border border-border bg-background overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/20"
+                  onClick={() => handleNoteClick(item)}
+                >
+                  {/* 封面 */}
+                  <div className="relative aspect-video bg-muted overflow-hidden">
+                    {item.cover ? (
+                      <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full gap-1">
+                        <PlatformIconSmall platform={item.platform} />
+                      </div>
+                    )}
+                    {/* 加载状态 */}
+                    {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <LoaderCircle className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                    )}
+                    {/* 作者徽章 */}
+                    {item.author && (
+                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
+                        {item.author}
+                      </div>
+                    )}
+                    {/* 删除按钮 */}
+                    <button
+                      className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTargetId(item.task_id)
+                        setDeleteDialogOpen(true)
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {/* 信息 */}
+                  <div className="p-3">
+                    <div className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{item.title}</div>
+                    {item.author && (
+                      <div className="mt-1.5 text-xs text-primary">{item.author}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* 瀑布流视图 */
+        <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
+          {loading ? (
+            <TableSkeleton rows={3} />
+          ) : filteredNotes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
+              <p>暂无笔记</p>
+              <p className="text-xs mt-1">生成笔记后将显示在这里</p>
+            </div>
+          ) : (
+            <div className="columns-[280px] gap-4">
+              {filteredNotes.map((item) => (
+                <div
+                  key={item.id}
+                  className="group rounded-xl border border-border bg-background overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/20 mb-4 break-inside-avoid"
+                  onClick={() => handleNoteClick(item)}
+                >
+                  {/* 封面 */}
+                  <div className="relative aspect-video bg-muted overflow-hidden">
+                    {item.cover ? (
+                      <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full gap-1">
+                        <PlatformIconSmall platform={item.platform} />
+                      </div>
+                    )}
+                    {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <LoaderCircle className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                    )}
+                    {item.author && (
+                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
+                        {item.author}
+                      </div>
+                    )}
+                    <button
+                      className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTargetId(item.task_id)
+                        setDeleteDialogOpen(true)
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <div className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{item.title}</div>
+                    {item.author && (
+                      <div className="mt-1.5 text-xs text-primary">{item.author}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={deleteDialogOpen}
