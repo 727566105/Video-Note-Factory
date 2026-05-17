@@ -9,7 +9,7 @@ import {
   X,
   Headphones,
 } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SummarySettings } from '@/components/SummarySettings'
 import { ModelSelectDialog } from '@/components/ModelSelectDialog'
@@ -28,17 +28,94 @@ export default function LeftPanel({ task }: LeftPanelProps) {
   const [modelOpen, setModelOpen] = useState(false)
   const [isEmbedActive, setIsEmbedActive] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null)
+  const coverRef = useRef<HTMLImageElement>(null)
   const navigate = useNavigate()
   const setPanelSwapped = useSystemStore(state => state.setPanelSwapped)
 
   // 获取发布人名字
-  const getAuthor = () => {
-    if (task.author) return task.author
-    const raw = task.audioMeta?.raw_info
+  const getAuthor = (): string => {
+    if (task.audioMeta?.author) return task.audioMeta.author
+    const raw = task.audioMeta?.raw_info as Record<string, unknown> | undefined
     if (!raw) return task.platform
-    return raw.owner?.name || raw.uploader || raw.channel || raw.author?.name || task.platform
+    const owner = raw.owner as Record<string, unknown> | undefined
+    const author = raw.author as Record<string, unknown> | undefined
+    return (owner?.name as string) || (raw.uploader as string) || (raw.channel as string) || (author?.name as string) || task.platform
   }
   const authorDisplay = getAuthor()
+
+  // 从 raw_info 获取视频宽高
+  useEffect(() => {
+    const raw = task.audioMeta?.raw_info as Record<string, unknown> | null
+    if (raw) {
+      const width = raw.width as number | undefined
+      const height = raw.height as number | undefined
+      if (width && height && width > 0 && height > 0) {
+        setVideoDimensions({ width, height })
+      }
+    }
+  }, [task.audioMeta?.raw_info])
+
+  // 从封面图片加载后获取宽高（作为备用）
+  const handleCoverLoad = () => {
+    if (coverRef.current && !videoDimensions) {
+      const naturalWidth = coverRef.current.naturalWidth
+      const naturalHeight = coverRef.current.naturalHeight
+      if (naturalWidth > 0 && naturalHeight > 0) {
+        // 抖音封面通常是竖屏格式，不能作为判断依据
+        if (task.platform !== 'douyin') {
+          setVideoDimensions({ width: naturalWidth, height: naturalHeight })
+        }
+      }
+    }
+  }
+
+  // 计算 iframe wrapper 样式 - 根据视频宽高比动态缩放
+  const getIframeWrapperStyle = () => {
+    const containerHeight = 300
+    // 默认假设竖屏视频 9:16
+    const defaultRatio = 9 / 16
+    
+    if (!videoDimensions) {
+      // 没有宽高信息，使用默认竖屏比例
+      const wrapperHeight = containerHeight / defaultRatio
+      const scale = defaultRatio
+      return {
+        width: '100%',
+        height: `${wrapperHeight}px`,
+        transform: `scale(${scale})`,
+        transformOrigin: 'center center',
+      }
+    }
+    
+    const { width, height } = videoDimensions
+    const ratio = height / width // 竖屏时 > 1
+    
+    if (ratio > 1) {
+      // 竖屏视频：wrapper 高度按视频比例，缩放适应容器
+      const wrapperHeight = containerHeight / (1 / ratio)
+      const scale = 1 / ratio
+      return {
+        width: '100%',
+        height: `${wrapperHeight}px`,
+        transform: `scale(${scale})`,
+        transformOrigin: 'center center',
+      }
+    } else {
+      // 横屏视频：使用 aspect-video (16:9) 比例
+      return {
+        width: '100%',
+        height: '100%',
+        transform: 'none',
+      }
+    }
+  }
+
+  // 判断是否为竖屏视频
+  const isPortraitVideo = () => {
+    if (!videoDimensions) return true // 默认假设竖屏
+    return videoDimensions.height > videoDimensions.width
+  }
 
   const rawCoverUrl = task.audioMeta?.cover_url || ''
   const isLocal = task.platform === 'local' || task.platform === 'local_audio'
@@ -122,15 +199,22 @@ export default function LeftPanel({ task }: LeftPanelProps) {
 
       {/* 视频播放器 */}
       <div className="px-4 py-2">
-        <div className="relative aspect-video bg-muted rounded-xl overflow-hidden group">
+        <div
+          className="relative bg-muted rounded-xl overflow-hidden group w-full"
+          style={{ height: isPortraitVideo() ? '300px' : 'auto', aspectRatio: isPortraitVideo() ? undefined : '16/9' }}
+        >
           {isEmbedActive && embedUrl ? (
             <>
-              <iframe
-                src={embedUrl}
-                scrolling="no"
-                className="w-full h-full border-0"
-                allowFullScreen
-              />
+              {/* iframe wrapper - 使用缩放适应容器 */}
+              <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                <div style={getIframeWrapperStyle()}>
+                  <iframe
+                    src={embedUrl}
+                    className="w-full h-full border-0"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
               <button
                 onClick={() => setIsEmbedActive(false)}
                 className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -142,14 +226,16 @@ export default function LeftPanel({ task }: LeftPanelProps) {
             <>
               {coverUrl && !coverFailed ? (
                 <img
+                  ref={coverRef}
                   src={coverUrl}
                   alt={title}
-                  className="w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-contain"
                   crossOrigin="anonymous"
                   onError={() => setCoverFailed(true)}
+                  onLoad={handleCoverLoad}
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-muted to-muted/50">
+                <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-muted to-muted/50">
                   <PlatformIcon platform={task.platform} />
                   <span className="text-xs text-muted-foreground">{title}</span>
                 </div>
@@ -215,7 +301,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     local: <LocalLogo className="w-10 h-10" />,
     local_audio: <AudioLogo className="w-10 h-10" />,
   }
-  return <>{iconMap[platform] || <LocalLogo className="w-10 h-10" />}</>
+  return iconMap[platform] ?? <LocalLogo className="w-10 h-10" />
 }
 
 function ToolBtn({
