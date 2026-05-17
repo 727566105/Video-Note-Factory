@@ -1,7 +1,7 @@
 import {
   Monitor,
   ArrowLeftRight,
-  Download,
+  ArrowLeft,
   Globe,
   Settings2,
   Sparkles,
@@ -10,9 +10,11 @@ import {
   Headphones,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { SummarySettings } from '@/components/SummarySettings'
 import { ModelSelectDialog } from '@/components/ModelSelectDialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
+import { useSystemStore } from '@/store/configStore'
 import type { Task } from '@/store/taskStore'
 
 const getBaseURL = () => (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
@@ -26,6 +28,8 @@ export default function LeftPanel({ task }: LeftPanelProps) {
   const [modelOpen, setModelOpen] = useState(false)
   const [isEmbedActive, setIsEmbedActive] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
+  const navigate = useNavigate()
+  const setPanelSwapped = useSystemStore(state => state.setPanelSwapped)
 
   const rawCoverUrl = task.audioMeta?.cover_url || ''
   const isLocal = task.platform === 'local' || task.platform === 'local_audio'
@@ -67,10 +71,18 @@ export default function LeftPanel({ task }: LeftPanelProps) {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* 顶栏工具按钮 */}
-      <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
-        <ToolBtn icon={<Monitor className="w-4 h-4" />} />
-        <ToolBtn icon={<ArrowLeftRight className="w-4 h-4" />} />
-        <ToolBtn icon={<Headphones className="w-4 h-4" />} variant="secondary" onClick={async () => {
+      <div className="flex items-center justify-between px-4 py-2 overflow-x-auto">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/notes')}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mr-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-xs">返回</span>
+          </button>
+          <div className="w-px h-4 bg-border" />
+          <ToolBtn icon={<Monitor className="w-4 h-4" />} />
+          <ToolBtn icon={<Headphones className="w-4 h-4" />} variant="secondary" onClick={async () => {
           try {
             const raw = localStorage.getItem('auth-storage')
             const token = raw ? JSON.parse(raw).state?.token : ''
@@ -93,8 +105,10 @@ export default function LeftPanel({ task }: LeftPanelProps) {
           } catch { /* ignore */ }
         }} />
         <ToolBtn icon={<Globe className="w-4 h-4" />} />
-        <ToolBtn icon={<Settings2 className="w-4 h-4" />} label="总结设置" onClick={() => setSettingsOpen(true)} />
-        <ToolBtn icon={<Sparkles className="w-4 h-4" />} label="默认模型" onClick={() => setModelOpen(true)} />
+          <ToolBtn icon={<Settings2 className="w-4 h-4" />} label="总结设置" onClick={() => setSettingsOpen(true)} />
+          <ToolBtn icon={<Sparkles className="w-4 h-4" />} label="默认模型" onClick={() => setModelOpen(true)} />
+        </div>
+        <ToolBtn icon={<ArrowLeftRight className="w-4 h-4" />} onClick={() => setPanelSwapped(!panelSwapped)} />
       </div>
 
       {/* 视频播放器 */}

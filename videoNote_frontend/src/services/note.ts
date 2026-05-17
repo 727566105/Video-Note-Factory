@@ -23,7 +23,6 @@ export const generateNote = async (data: {
 
     // axios 拦截器已经返回了 response.data
     if (response && response.task_id) {
-      toast.success('笔记生成任务已提交！')
       return response
     }
     

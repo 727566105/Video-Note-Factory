@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, memo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
 import { useTaskStore, type Task } from '@/store/taskStore'
+import { useSystemStore } from '@/store/configStore'
 import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel from './RightPanel'
@@ -17,6 +17,7 @@ export default function NoteDetailPage() {
   const { id } = useParams()
   const task = useTaskStore(state => state.tasks.find((t: Task) => t.id === id))
   const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
+  const panelSwapped = useSystemStore(state => state.panelSwapped)
   const [loading, setLoading] = useState(!task)
   const [notFound, setNotFound] = useState(false)
 
@@ -126,19 +127,15 @@ export default function NoteDetailPage() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background" ref={containerRef}>
-      {/* 左栏 */}
+      {/* 左栏（根据 panelSwapped 决定是视频还是笔记） */}
       <div className="flex flex-col overflow-hidden" style={{ width: leftWidth, minWidth: 400 }}>
-        {/* 返回按钮 + 顶栏 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <button
-            onClick={() => navigate('/notes')}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            返回列表
-          </button>
+        {/* 面板内容（带切换动画） */}
+        <div
+          key={`left-${panelSwapped}`}
+          className="flex-1 min-h-0 animate-in fade-in slide-in-from-right-4 duration-300"
+        >
+          {panelSwapped ? <MemoRightPanel task={task} /> : <MemoLeftPanel task={task} />}
         </div>
-        <MemoLeftPanel task={task} />
       </div>
 
       {/* 拖拽分割线 */}
@@ -156,9 +153,15 @@ export default function NoteDetailPage() {
         </div>
       </div>
 
-      {/* 右栏 */}
+      {/* 右栏（根据 panelSwapped 决定是笔记还是视频） */}
       <div className="flex-1 min-w-0 overflow-hidden">
-        <MemoRightPanel task={task} />
+        {/* 面板内容（带切换动画） */}
+        <div
+          key={`right-${panelSwapped}`}
+          className="h-full animate-in fade-in slide-in-from-left-4 duration-300"
+        >
+          {panelSwapped ? <MemoLeftPanel task={task} /> : <MemoRightPanel task={task} />}
+        </div>
       </div>
 
       {/* 右侧导航栏 */}

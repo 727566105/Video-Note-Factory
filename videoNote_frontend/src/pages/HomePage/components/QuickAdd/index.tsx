@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
 import { videoPlatforms } from '@/constant/note.ts'
 import { SummarySettings } from '@/components/SummarySettings'
@@ -30,9 +29,17 @@ export function QuickAdd({ className }: QuickAddProps) {
   const [modelSelectOpen, setModelSelectOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('bilibili')
-  const { selectedModel, modelList } = useModelStore()
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('auto')
+  const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null)
+  const { selectedModel, modelList, loadEnabledModels } = useModelStore()
   const { addPendingTask } = useTaskStore()
+
+  // 初始化时加载可用模型列表
+  useEffect(() => {
+    if (modelList.length === 0) {
+      loadEnabledModels()
+    }
+  }, [])
   const {
     style,
     outputLanguage,
@@ -43,6 +50,28 @@ export function QuickAdd({ className }: QuickAddProps) {
     selectedFormats,
     extras,
   } = useSummarySettingsStore()
+
+  // URL 自动识别平台（仅在"智能选择"模式下生效）
+  useEffect(() => {
+    if (selectedPlatform !== 'auto') return
+    const url = inputValue.trim().toLowerCase()
+    if (!url) {
+      setDetectedPlatform(null)
+      return
+    }
+    const match =
+      url.includes('bilibili.com') || url.includes('b23.tv') ? 'bilibili' :
+      url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
+      url.includes('douyin') ? 'douyin' :
+      url.includes('kuaishou') ? 'kuaishou' :
+      null
+    setDetectedPlatform(match)
+  }, [inputValue, selectedPlatform])
+
+  // 实际使用的平台（智能选择时用检测结果，否则用用户选择）
+  const effectivePlatform = selectedPlatform === 'auto'
+    ? (detectedPlatform || 'bilibili')
+    : selectedPlatform
 
   // 获取选中的模型名称
   const selectedModelName = selectedModel
@@ -97,7 +126,7 @@ export function QuickAdd({ className }: QuickAddProps) {
       // 构建请求参数
       const payload = {
         video_url: inputValue.trim(),
-        platform: selectedPlatform,
+        platform: effectivePlatform,
         quality: 'medium',
         model_name: selectedModelInfo.model_name,
         provider_id: String(selectedModelInfo.provider_id),
@@ -119,7 +148,7 @@ export function QuickAdd({ className }: QuickAddProps) {
         const taskId = response.task_id
 
         // 添加任务到 store
-        addPendingTask(taskId, selectedPlatform, payload)
+        addPendingTask(taskId, effectivePlatform, payload)
 
         // 清空输入框
         setInputValue('')
@@ -197,10 +226,32 @@ export function QuickAdd({ className }: QuickAddProps) {
               {/* 平台选择下拉器 */}
               <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
                 <SelectTrigger className="h-8 px-3 border-0 bg-transparent gap-1.5 text-sm text-foreground hover:bg-accent rounded-md focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
-                  <SelectValue placeholder="平台选择" />
+                  {selectedPlatform === 'auto' ? (
+                    <div className="flex items-center gap-2">
+                      <Wand2 className="w-4 h-4" />
+                      <span>智能选择</span>
+                      {detectedPlatform && (
+                        <span className="text-xs text-muted-foreground">
+                          ({videoPlatforms.find(p => p.value === detectedPlatform)?.label || detectedPlatform})
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4">{videoPlatforms.find(p => p.value === selectedPlatform)?.logo()}</div>
+                      <span>{videoPlatforms.find(p => p.value === selectedPlatform)?.label}</span>
+                    </div>
+                  )}
                 </SelectTrigger>
                 <SelectContent>
-                  {videoPlatforms?.map(p => (
+                  {/* 智能选择选项 */}
+                  <SelectItem value="auto">
+                    <div className="flex items-center gap-2">
+                      <Wand2 className="w-4 h-4" />
+                      <span>智能选择</span>
+                    </div>
+                  </SelectItem>
+                  {videoPlatforms?.filter(p => p.value !== 'local' && p.value !== 'local_audio').map(p => (
                     <SelectItem key={p.value} value={p.value}>
                       <div className="flex items-center gap-2">
                         <div className="h-4 w-4">{p.logo()}</div>

@@ -20,7 +20,7 @@ export default function AboutPage() {
               height={50}
               className="rounded-lg"
             />
-            <h1 className="text-4xl font-bold">videoNote v2.5.2</h1>
+            <h1 className="text-4xl font-bold">videoNote v3.0.0</h1>
           </div>
           <p className="text-muted-foreground mb-6 text-xl italic">
             AI 视频笔记生成工具 让 AI 为你的视频做笔记

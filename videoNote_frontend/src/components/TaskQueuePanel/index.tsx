@@ -324,8 +324,8 @@ export const TaskQueuePanel: FC = () => {
             </div>
 
             {/* 可滚动任务列表 */}
-            <div className="px-4 pt-0">
-              <ScrollArea className="flex-1 min-h-0">
+            <div className="px-4 pt-0 flex-1 min-h-0 overflow-hidden">
+              <ScrollArea className="h-[calc(100vh-16rem)]">
                 <div className="flex flex-col gap-2 p-2">
                   {tasks.length === 0 ? (
                     <div className="py-8 text-center text-sm text-muted-foreground">

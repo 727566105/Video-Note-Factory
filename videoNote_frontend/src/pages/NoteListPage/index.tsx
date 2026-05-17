@@ -1,6 +1,5 @@
 import { FC, useState, useEffect } from 'react'
 import {
-  Plus,
   Download,
   RotateCw,
   Columns,
@@ -152,10 +151,6 @@ export const NoteListPage: FC = () => {
               卡片
             </button>
           </div>
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            新增
-          </Button>
         </div>
 
         {/* 工具栏 */}

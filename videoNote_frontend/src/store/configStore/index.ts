@@ -12,6 +12,9 @@ interface SystemState {
 
   toolbarConfig: ToolbarConfig
   setToolbarConfig: (config: ToolbarConfig) => void
+
+  panelSwapped: boolean
+  setPanelSwapped: (value: boolean) => void
 }
 export const useSystemStore = create<SystemState>()(
   persist(
@@ -24,6 +27,9 @@ export const useSystemStore = create<SystemState>()(
 
       toolbarConfig: DEFAULT_TOOLBAR_CONFIG,
       setToolbarConfig: config => set({ toolbarConfig: config }),
+
+      panelSwapped: false,
+      setPanelSwapped: value => set({ panelSwapped: value }),
     }),
     {
       name: 'system-store',
