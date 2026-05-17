@@ -148,6 +148,9 @@ class NoteGenerator:
                 grid_size=grid_size,
             )
 
+            # 下载完成后立即保存元数据（封面图等），避免后续步骤失败导致封面丢失
+            self._save_audio_metadata(task_id=task_id, audio_meta=audio_meta)
+
             # 2. 转写文字
             transcript = self._transcribe_audio(
                 audio_file=audio_meta.file_path,

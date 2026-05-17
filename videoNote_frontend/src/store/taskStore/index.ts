@@ -63,13 +63,13 @@ export interface Task {
 interface TaskStore {
   tasks: Task[]
   currentTaskId: string | null
-  addPendingTask: (taskId: string, platform: string) => void
+  addPendingTask: (taskId: string, platform: string, formData: Record<string, unknown>) => void
   updateTaskContent: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt'>>) => void
-  removeTask: (id: string) => void
+  removeTask: (id: string) => Promise<void>
   clearTasks: () => void
   setCurrentTask: (taskId: string | null) => void
   getCurrentTask: () => Task | null
-  retryTask: (id: string) => void
+  retryTask: (id: string, payload?: Record<string, unknown>) => Promise<void>
   loadTasksFromBackend: () => Promise<void>
 }
 

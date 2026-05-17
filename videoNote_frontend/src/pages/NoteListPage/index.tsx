@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from 'react'
+import { FC, useState, useEffect, useRef } from 'react'
 import {
   Download,
   RotateCw,
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getTasks, delete_task } from '@/services/note'
+import { getTasks, delete_task, get_task_status } from '@/services/note'
 import { TableSkeleton } from '@/components/Skeletons'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
@@ -29,13 +29,34 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
 
-const getBaseURL = () => (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
-
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   if (!coverUrl) return ''
   const isLocal = platform === 'local' || platform === 'local_audio'
   if (isLocal) return coverUrl
-  return `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
+  return `/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
+}
+
+const PROGRESS_STEPS = [
+  { key: 'PARSING', label: '解析', order: 1 },
+  { key: 'DOWNLOADING', label: '下载', order: 2 },
+  { key: 'TRANSCRIBING', label: '转写', order: 3 },
+  { key: 'SUMMARIZING', label: '总结', order: 4 },
+  { key: 'SAVING', label: '保存', order: 5 },
+  { key: 'SUCCESS', label: '完成', order: 6 },
+]
+
+const getStepProgress = (status: string): { currentStep: number; stepLabel: string } => {
+  const step = PROGRESS_STEPS.find(s => s.key === status)
+  if (!step) {
+    if (status === 'FAILED') return { currentStep: 0, stepLabel: '失败' }
+    if (status === 'QUEUED' || status === 'PENDING') return { currentStep: 0, stepLabel: '排队' }
+    return { currentStep: 0, stepLabel: '未知' }
+  }
+  return { currentStep: step.order, stepLabel: step.label }
+}
+
+const isProcessingStatus = (status: string): boolean => {
+  return ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(status)
 }
 
 interface NoteItem {
@@ -60,6 +81,56 @@ export const NoteListPage: FC = () => {
   const [deleteTargetId, setDeleteTargetId] = useState('')
   const noteViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
+  const notesRef = useRef(notes)
+
+  useEffect(() => {
+    notesRef.current = notes
+  }, [notes])
+
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      const pendingNotes = notesRef.current.filter(
+        note => note.status !== 'SUCCESS' && note.status !== 'FAILED'
+      )
+      if (pendingNotes.length === 0) return
+
+      for (const note of pendingNotes) {
+        try {
+          const res: any = await get_task_status(note.task_id)
+          const status = res?.status as string
+          if (status && status !== note.status) {
+            if (status === 'SUCCESS') {
+              const taskData = res?.result
+              setNotes(prev => prev.map(n =>
+                n.task_id === note.task_id
+                  ? {
+                    ...n,
+                    status,
+                    cover: getProxiedCoverUrl(taskData?.audio_meta?.cover_url || '', n.platform),
+                    title: taskData?.audio_meta?.title || taskData?.title || n.title,
+                    author: taskData?.audio_meta?.raw_info?.owner?.name
+                      || taskData?.audio_meta?.raw_info?.uploader || n.author,
+                    note: taskData?.markdown || '',
+                  }
+                  : n
+              ))
+              toast.success('笔记生成成功')
+            } else {
+              setNotes(prev => prev.map(n =>
+                n.task_id === note.task_id
+                  ? { ...n, status }
+                  : n
+              ))
+            }
+          }
+        } catch (e) {
+          console.error('轮询任务状态失败:', e)
+        }
+      }
+    }, 3000)
+
+    return () => clearInterval(timer)
+  }, [])
 
   const fetchNotes = async () => {
     setLoading(true)
@@ -245,6 +316,39 @@ export const NoteListPage: FC = () => {
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-foreground truncate">{item.title}</div>
                 <div className="text-sm text-muted-foreground">{item.author}</div>
+                {/* 进度条展示 */}
+                {isProcessingStatus(item.status) && (() => {
+                  const { currentStep, stepLabel } = getStepProgress(item.status)
+                  return (
+                    <div className="flex flex-col gap-1 mt-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <LoaderCircle className="w-3 h-3 animate-spin text-primary" />
+                        <span className="text-primary">{stepLabel}</span>
+                        <span className="text-muted-foreground">{currentStep}/6</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {PROGRESS_STEPS.map((step: { key: string; label: string; order: number }, idx: number) => (
+                          <div
+                            key={step.key}
+                            className={cn(
+                              'h-1 flex-1 rounded-full transition-all duration-300',
+                              idx < currentStep ? 'bg-primary' : 'bg-muted'
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+                {item.status === 'QUEUED' && (
+                  <div className="flex items-center gap-2 text-xs mt-2 text-muted-foreground">
+                    <LoaderCircle className="w-3 h-3 animate-spin" />
+                    排队等待中...
+                  </div>
+                )}
+                {item.status === 'FAILED' && (
+                  <div className="text-xs mt-2 text-red-500">生成失败</div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-muted-foreground truncate">{item.note}</div>

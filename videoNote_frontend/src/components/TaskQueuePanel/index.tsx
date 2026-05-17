@@ -58,6 +58,67 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgClass: str
     borderClass: 'border-gray-200 dark:border-gray-800',
     icon: Loader2,
   },
+  PARSING: {
+    label: '解析链接',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgClass: 'bg-amber-50 dark:bg-amber-950/50',
+    borderClass: 'border-amber-200 dark:border-amber-900',
+    icon: Loader2,
+  },
+  DOWNLOADING: {
+    label: '下载中',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgClass: 'bg-amber-50 dark:bg-amber-950/50',
+    borderClass: 'border-amber-200 dark:border-amber-900',
+    icon: Loader2,
+  },
+  TRANSCRIBING: {
+    label: '转写中',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgClass: 'bg-amber-50 dark:bg-amber-950/50',
+    borderClass: 'border-amber-200 dark:border-amber-900',
+    icon: Loader2,
+  },
+  SUMMARIZING: {
+    label: '总结中',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgClass: 'bg-amber-50 dark:bg-amber-950/50',
+    borderClass: 'border-amber-200 dark:border-amber-900',
+    icon: Loader2,
+  },
+  FORMATTING: {
+    label: '格式化中',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgClass: 'bg-amber-50 dark:bg-amber-950/50',
+    borderClass: 'border-amber-200 dark:border-amber-900',
+    icon: Loader2,
+  },
+  SAVING: {
+    label: '保存中',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgClass: 'bg-amber-50 dark:bg-amber-950/50',
+    borderClass: 'border-amber-200 dark:border-amber-900',
+    icon: Loader2,
+  },
+}
+
+const PROGRESS_STEPS = [
+  { key: 'PARSING', label: '解析', order: 1 },
+  { key: 'DOWNLOADING', label: '下载', order: 2 },
+  { key: 'TRANSCRIBING', label: '转写', order: 3 },
+  { key: 'SUMMARIZING', label: '总结', order: 4 },
+  { key: 'SAVING', label: '保存', order: 5 },
+  { key: 'SUCCESS', label: '完成', order: 6 },
+]
+
+const getStepProgress = (status: string): { currentStep: number; stepLabel: string } => {
+  const step = PROGRESS_STEPS.find(s => s.key === status)
+  if (!step) {
+    if (status === 'FAILED') return { currentStep: 0, stepLabel: '失败' }
+    if (status === 'QUEUED' || status === 'PENDING') return { currentStep: 0, stepLabel: '排队' }
+    return { currentStep: 0, stepLabel: '未知' }
+  }
+  return { currentStep: step.order, stepLabel: step.label }
 }
 
 const getTaskTitle = (task: { platform: string; formData?: { video_url?: string }; audioMeta: { title: string } }) => {
@@ -163,12 +224,44 @@ const TaskQueueItem: FC<{
             重试
           </button>
         )}
-        {(task.status === 'RUNNING' || task.status === 'QUEUED' || task.status === 'PENDING') && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" />
-            正在处理中...
-          </div>
-        )}
+        {(() => {
+          const { currentStep, stepLabel } = getStepProgress(task.status)
+          const isProcessing = currentStep > 0 && task.status !== 'SUCCESS'
+          if (isProcessing) {
+            return (
+              <div className="flex flex-col gap-1.5 w-full">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{stepLabel}</span>
+                  <span className="text-muted-foreground">{currentStep}/6</span>
+                </div>
+                <div className="flex gap-1">
+                  {PROGRESS_STEPS.map((step, idx) => (
+                    <div
+                      key={step.key}
+                      className={cn(
+                        'h-1.5 flex-1 rounded-full transition-all duration-300',
+                        idx < currentStep
+                          ? 'bg-primary'
+                          : idx === currentStep - 1
+                            ? 'bg-primary/70'
+                            : 'bg-muted'
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          }
+          if (task.status === 'QUEUED' || task.status === 'PENDING') {
+            return (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" />
+                排队等待中...
+              </div>
+            )
+          }
+          return null
+        })()}
       </div>
     </div>
   )

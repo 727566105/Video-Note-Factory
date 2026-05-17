@@ -79,6 +79,11 @@ web_modules/
 .env.production.local
 .env.local
 !.env.example
+
+# 本地服务 PID 和日志
+.pids/
+scripts/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

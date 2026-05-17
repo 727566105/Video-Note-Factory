@@ -5,8 +5,12 @@ from pathlib import Path
 
 # 最先加载 .env（必须在任何 app import 之前）
 from dotenv import load_dotenv
-_root_env = Path(__file__).parent.parent / ".env"
-if _root_env.exists():
+_project_root = Path(__file__).parent.parent
+_local_env = _project_root / ".env.local"
+_root_env = _project_root / ".env"
+if _local_env.exists():
+    load_dotenv(_local_env, override=True)
+elif _root_env.exists():
     load_dotenv(_root_env)
 else:
     load_dotenv()
@@ -77,14 +81,20 @@ origins = [
     "http://localhost:3016",
     "http://localhost:3017",
     "http://localhost:3018",
+    "http://localhost:33015",
     "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3015",
     "http://127.0.0.1:3016",
     "http://127.0.0.1:3017",
     "http://127.0.0.1:3018",
+    "http://127.0.0.1:33015",
     "http://127.0.0.1:5173",
 ]
+
+extra_origins = os.getenv("ALLOWED_ORIGINS", "")
+if extra_origins:
+    origins.extend([o.strip() for o in extra_origins.split(",") if o.strip()])
 
 env_mode = os.getenv("ENV", "development")
 logger.info(f"CORS origins: {origins}")

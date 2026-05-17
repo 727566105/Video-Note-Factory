@@ -6,6 +6,82 @@ import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel from './RightPanel'
 import DetailNav from './DetailNav'
+import { Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const PROGRESS_STEPS = [
+  { key: 'PARSING', label: '解析', order: 1 },
+  { key: 'DOWNLOADING', label: '下载', order: 2 },
+  { key: 'TRANSCRIBING', label: '转写', order: 3 },
+  { key: 'SUMMARIZING', label: '总结', order: 4 },
+  { key: 'SAVING', label: '保存', order: 5 },
+  { key: 'SUCCESS', label: '完成', order: 6 },
+]
+
+const getStepProgress = (status: string): { currentStep: number; stepLabel: string } => {
+  const step = PROGRESS_STEPS.find(s => s.key === status)
+  if (!step) {
+    if (status === 'FAILED') return { currentStep: 0, stepLabel: '失败' }
+    if (status === 'QUEUED' || status === 'PENDING') return { currentStep: 0, stepLabel: '排队' }
+    return { currentStep: 0, stepLabel: '未知' }
+  }
+  return { currentStep: step.order, stepLabel: step.label }
+}
+
+const isProcessingStatus = (status: string): boolean => {
+  return ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(status)
+}
+
+function ProcessingView({ status }: { status: string }) {
+  const { currentStep, stepLabel } = getStepProgress(status)
+  return (
+    <div className="flex h-screen w-full flex-col items-center justify-center gap-6 bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="text-lg font-medium text-foreground">{stepLabel}</div>
+        <div className="text-sm text-muted-foreground">{currentStep}/6 步骤</div>
+      </div>
+      <div className="w-[400px] flex gap-1">
+        {PROGRESS_STEPS.map((step, idx) => (
+          <div
+            key={step.key}
+            className={cn(
+              'h-2 flex-1 rounded-full transition-all duration-300',
+              idx < currentStep ? 'bg-primary' : 'bg-muted'
+            )}
+          />
+        ))}
+      </div>
+      <div className="text-xs text-muted-foreground">刷新页面后进度条仍会实时展示</div>
+    </div>
+  )
+}
+
+function QueuedView() {
+  return (
+    <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
+      <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+      <div className="text-lg font-medium text-foreground">排队等待中...</div>
+      <div className="text-sm text-muted-foreground">任务正在排队，请稍候</div>
+    </div>
+  )
+}
+
+function FailedView({ message }: { message?: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
+      <div className="text-lg font-medium text-red-500">生成失败</div>
+      {message && <div className="text-sm text-muted-foreground">{message}</div>}
+      <button
+        onClick={() => navigate('/notes')}
+        className="mt-4 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+      >
+        返回列表
+      </button>
+    </div>
+  )
+}
 
 // 用 memo 包裹子组件，防止拖拽时重新渲染
 const MemoLeftPanel = memo(LeftPanel)
@@ -123,6 +199,21 @@ export default function NoteDetailPage() {
         </div>
       </div>
     )
+  }
+
+  // 任务进行中时显示进度条
+  if (isProcessingStatus(task.status)) {
+    return <ProcessingView status={task.status} />
+  }
+
+  // 任务排队中时显示排队提示
+  if (task.status === 'QUEUED' || task.status === 'PENDING') {
+    return <QueuedView />
+  }
+
+  // 任务失败时显示失败提示
+  if (task.status === 'FAILED') {
+    return <FailedView message={task.message} />
   }
 
   return (
