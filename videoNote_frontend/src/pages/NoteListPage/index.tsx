@@ -9,6 +9,7 @@ import {
   FolderPlus,
   Search,
   LoaderCircle,
+  Play,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,12 @@ import { TableSkeleton } from '@/components/Skeletons'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
 
@@ -69,6 +76,7 @@ interface NoteItem {
   note: string
   created_at: string
   status: string
+  video_url: string
 }
 
 export const NoteListPage: FC = () => {
@@ -79,6 +87,8 @@ export const NoteListPage: FC = () => {
   const [loading, setLoading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState('')
+  const [playDialogOpen, setPlayDialogOpen] = useState(false)
+  const [playItem, setPlayItem] = useState<NoteItem | null>(null)
   const noteViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
   const notesRef = useRef(notes)
@@ -147,7 +157,8 @@ export const NoteListPage: FC = () => {
             || task.note?.audio_meta?.raw_info?.uploader || '',
           note: task.note?.markdown || '',
           created_at: task.created_at || '',
-          status: task.status || 'UNKNOWN'
+          status: task.status || 'UNKNOWN',
+          video_url: task.video_url || '',
         }))
         setNotes(formattedNotes)
       }
@@ -428,6 +439,21 @@ export const NoteListPage: FC = () => {
                         <LoaderCircle className="w-6 h-6 text-white animate-spin" />
                       </div>
                     )}
+                    {/* 播放按钮（本地文件） */}
+                    {(item.platform === 'local' || item.platform === 'local_audio') && item.video_url && (
+                      <button
+                        className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPlayItem(item)
+                          setPlayDialogOpen(true)
+                        }}
+                      >
+                        <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
+                          <Play className="w-8 h-8 text-white ml-1" />
+                        </div>
+                      </button>
+                    )}
                     {/* 作者徽章 */}
                     {item.author && (
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
@@ -490,6 +516,20 @@ export const NoteListPage: FC = () => {
                         <LoaderCircle className="w-6 h-6 text-white animate-spin" />
                       </div>
                     )}
+                    {(item.platform === 'local' || item.platform === 'local_audio') && item.video_url && (
+                      <button
+                        className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPlayItem(item)
+                          setPlayDialogOpen(true)
+                        }}
+                      >
+                        <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
+                          <Play className="w-8 h-8 text-white ml-1" />
+                        </div>
+                      </button>
+                    )}
                     {item.author && (
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
                         {item.author}
@@ -518,6 +558,30 @@ export const NoteListPage: FC = () => {
           )}
         </div>
       )}
+
+      {/* 播放弹窗 */}
+      <Dialog open={playDialogOpen} onOpenChange={setPlayDialogOpen}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>{playItem?.title || '播放'}</DialogTitle>
+          </DialogHeader>
+          {playItem?.platform === 'local' ? (
+            <video
+              src={`${import.meta.env.VITE_API_BASE_URL || ''}${playItem.video_url}`}
+              controls
+              autoPlay
+              className="w-full rounded-lg"
+            />
+          ) : playItem?.platform === 'local_audio' ? (
+            <audio
+              src={`${import.meta.env.VITE_API_BASE_URL || ''}${playItem.video_url}`}
+              controls
+              autoPlay
+              className="w-full mt-4"
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleteDialogOpen}
