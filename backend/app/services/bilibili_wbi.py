@@ -81,7 +81,8 @@ def extract_key_from_url(url: str) -> str:
 
 
 def sign_wbi_params(params: dict) -> dict:
-    """对参数进行 WBI 签名"""
+    """对参数进行 WBI 签名（返回新字典，不修改入参）"""
+    params = dict(params)
     img_key, sub_key = get_wbi_keys()
 
     # 添加时间戳
