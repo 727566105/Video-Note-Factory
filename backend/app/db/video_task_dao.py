@@ -1,3 +1,4 @@
+from typing import Optional
 from app.db.models.video_tasks import VideoTask
 from app.db.engine import get_db
 from app.utils.logger import get_logger
@@ -131,5 +132,64 @@ def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
     except Exception as e:
         logger.error(f"Failed to update task metadata: {e}")
         db.rollback()
+    finally:
+        db.close()
+
+
+def find_completed_task_by_video(video_id: str, platform: str) -> Optional[VideoTask]:
+    """跨用户查找已完成笔记的任务（用于复用）"""
+    import os
+    db = next(get_db())
+    try:
+        tasks = db.query(VideoTask).filter_by(
+            video_id=video_id, platform=platform
+        ).order_by(VideoTask.created_at.desc()).all()
+        for task in tasks:
+            note_path = os.path.join("note_results", f"{task.task_id}.json")
+            if os.path.exists(note_path):
+                logger.info(f"找到可复用笔记: video_id={video_id}, task_id={task.task_id}")
+                return task
+        return None
+    except Exception as e:
+        logger.error(f"查找可复用笔记失败: {e}")
+        return None
+    finally:
+        db.close()
+
+
+def clone_task_to_user(original_task_id: str, new_user_id: int,
+                       video_id: str, platform: str, video_url: str = None) -> VideoTask:
+    """为新用户创建指向同一笔记的任务记录（用于复用）"""
+    db = next(get_db())
+    try:
+        # 避免同一用户重复创建
+        existing = db.query(VideoTask).filter_by(
+            task_id=original_task_id, user_id=new_user_id
+        ).first()
+        if existing:
+            return existing
+
+        # 从原始任务复制元数据
+        original = db.query(VideoTask).filter_by(task_id=original_task_id).first()
+        task = VideoTask(
+            video_id=video_id,
+            platform=platform,
+            task_id=original_task_id,
+            video_url=video_url,
+            user_id=new_user_id,
+            title=original.title if original else None,
+            cover_url=original.cover_url if original else None,
+            duration=original.duration if original else None,
+            author=original.author if original else None,
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        logger.info(f"已为用户 {new_user_id} 复用笔记 task_id={original_task_id}")
+        return task
+    except Exception as e:
+        db.rollback()
+        logger.error(f"复用笔记失败: {e}")
+        raise
     finally:
         db.close()

@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, validator, field_validator
 from dataclasses import asdict
 
-from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task
+from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task, find_completed_task_by_video, clone_task_to_user
 from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
@@ -314,6 +314,15 @@ async def upload(file: UploadFile = File(...), current_user=Depends(get_current_
 def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current_user=Depends(get_current_user)):
     try:
         video_id = extract_video_id(data.video_url, data.platform)
+
+        # 检查是否有其他用户已生成过该视频的笔记（复用）
+        if video_id and not data.task_id:
+            existing_task = find_completed_task_by_video(video_id, data.platform)
+            if existing_task:
+                clone_task_to_user(existing_task.task_id, current_user.id, video_id, data.platform, data.video_url)
+                logger.info(f"笔记复用: 用户 {current_user.id} 复用了视频 {video_id} 的笔记 task_id={existing_task.task_id}")
+                return R.success({"task_id": existing_task.task_id, "reused": True})
+
         if data.task_id:
             task_id = data.task_id
             NoteGenerator()._update_status(task_id, TaskStatus.PENDING)
