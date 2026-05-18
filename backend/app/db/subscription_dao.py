@@ -93,6 +93,62 @@ def get_subscription_by_url(user_id: int, channel_url: str) -> Optional[Subscrip
         db.close()
 
 
+def find_subscription_by_platform_id(platform: str, platform_id: str) -> Optional[Subscription]:
+    """跨用户查找已有订阅（用于复用）"""
+    db = next(get_db())
+    try:
+        return db.query(Subscription).filter_by(
+            platform=platform, platform_id=platform_id
+        ).first()
+    finally:
+        db.close()
+
+
+def copy_feed_items_to_user(source_sub_id: int, target_user_id: int, target_sub_id: int) -> int:
+    """将已有 FeedItem 复制到新用户的订阅（用于复用）"""
+    db = next(get_db())
+    copied = 0
+    try:
+        source_items = db.query(FeedItem).filter_by(subscription_id=source_sub_id).all()
+        for item in source_items:
+            # 按 content_id + platform 去重，避免重复复制
+            existing = db.query(FeedItem).filter_by(
+                user_id=target_user_id,
+                content_id=item.content_id,
+                platform=item.platform
+            ).first()
+            if existing:
+                continue
+            # 复制 FeedItem，关联到新用户和新订阅
+            new_item = FeedItem(
+                user_id=target_user_id,
+                subscription_id=target_sub_id,
+                platform=item.platform,
+                content_type=item.content_type,
+                content_id=item.content_id,
+                content_url=item.content_url,
+                title=item.title,
+                cover_url=item.cover_url,
+                images=item.images,
+                duration=item.duration,
+                author=item.author,
+                description=item.description,
+                published_at=item.published_at,
+                raw_info=item.raw_info,
+                task_id=item.task_id,
+            )
+            db.add(new_item)
+            copied += 1
+        db.commit()
+        return copied
+    except Exception as e:
+        db.rollback()
+        logger.error(f"复制 FeedItem 失败: {e}")
+        return 0
+    finally:
+        db.close()
+
+
 def get_all_enabled_subscriptions() -> list[Subscription]:
     db = next(get_db())
     try:
@@ -119,7 +175,7 @@ def update_subscription_check(sub_id: int):
 # ── FeedItem CRUD ──
 
 def upsert_feed_items(items: list[dict]) -> int:
-    """批量插入动态，按 content_id+platform 去重，返回新增数量"""
+    """批量插入动态，按 content_id+platform 去重，已存在则更新关联，返回新增数量"""
     db = next(get_db())
     added = 0
     try:
@@ -132,6 +188,13 @@ def upsert_feed_items(items: list[dict]) -> int:
                 content_id=content_id, platform=platform
             ).first()
             if existing:
+                # 已存在：更新关联到当前订阅
+                if item.get("subscription_id") and existing.subscription_id != item["subscription_id"]:
+                    existing.subscription_id = item["subscription_id"]
+                if item.get("user_id") and existing.user_id != item["user_id"]:
+                    existing.user_id = item["user_id"]
+                if item.get("task_id") and not existing.task_id:
+                    existing.task_id = item["task_id"]
                 continue
             feed = FeedItem(**item)
             db.add(feed)
@@ -200,12 +263,43 @@ def get_unread_count(user_id: int) -> int:
         db.close()
 
 
-def get_feed_items_by_subscription(sub_id: int, limit: int = 20) -> list[FeedItem]:
+def get_feed_items_by_subscription(sub_id: int, limit: int = 20, offset: int = 0) -> list[FeedItem]:
     db = next(get_db())
     try:
-        return db.query(FeedItem).filter_by(subscription_id=sub_id).order_by(
+        # 先按 subscription_id 查询
+        items = db.query(FeedItem).filter_by(subscription_id=sub_id).order_by(
             FeedItem.published_at.desc()
-        ).limit(limit).all()
+        ).offset(offset).limit(limit).all()
+        if items:
+            return items
+        # 复用场景：FeedItem 可能关联到其他（甚至已删除的）订阅
+        # 按 platform + author 查询同一频道的内容
+        sub = db.query(Subscription).filter_by(id=sub_id).first()
+        if sub and sub.channel_name:
+            return db.query(FeedItem).filter_by(
+                platform=sub.platform, author=sub.channel_name
+            ).order_by(
+                FeedItem.published_at.desc()
+            ).limit(limit).all()
+        return []
+    finally:
+        db.close()
+
+
+def count_feed_items_by_subscription(sub_id: int) -> int:
+    db = next(get_db())
+    try:
+        # 先按 subscription_id 计数
+        count = db.query(FeedItem).filter_by(subscription_id=sub_id).count()
+        if count > 0:
+            return count
+        # 复用场景：按 platform + author 查询
+        sub = db.query(Subscription).filter_by(id=sub_id).first()
+        if sub and sub.channel_name:
+            return db.query(FeedItem).filter_by(
+                platform=sub.platform, author=sub.channel_name
+            ).count()
+        return 0
     finally:
         db.close()
 

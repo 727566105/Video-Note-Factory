@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchChannelVideos, refreshSubscription } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
@@ -38,11 +47,15 @@ const timeAgo = (iso?: string | null) => {
   return `${days}天前`
 }
 
+const PAGE_SIZE = 20
+
 export default function ChannelDetailPage() {
   const { platform, id } = useParams<{ platform: string; id: string }>()
   const navigate = useNavigate()
-  const { subscriptions } = useSubscriptionStore()
+  const { subscriptions, subscribe, unsubscribe, fetchSubscriptions } = useSubscriptionStore()
   const [videos, setVideos] = useState<FeedItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'summarized' | 'new'>('all')
@@ -54,17 +67,25 @@ export default function ChannelDetailPage() {
 
   const sub = subscriptions.find(s => s.platform === platform && s.platform_id === id)
 
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+
+  useEffect(() => {
+    fetchSubscriptions()
+    loadEnabledModels()
+  }, [])
+
   useEffect(() => {
     if (platform && id) loadVideos()
-    loadEnabledModels()
-  }, [platform, id])
+  }, [platform, id, page])
 
   const loadVideos = async () => {
     if (!platform || !id) return
     setLoading(true)
     try {
-      const res = await fetchChannelVideos(platform, id)
-      setVideos(res || [])
+      const offset = (page - 1) * PAGE_SIZE
+      const res = await fetchChannelVideos(platform, id, PAGE_SIZE, offset)
+      setVideos(res?.items || [])
+      setTotal(res?.total || 0)
     } catch { } finally {
       setLoading(false)
     }
@@ -75,6 +96,7 @@ export default function ChannelDetailPage() {
     try {
       await refreshSubscription(sub.id)
       toast.success('刷新成功')
+      setPage(1)
       loadVideos()
     } catch {
       toast.error('刷新失败')
@@ -136,31 +158,46 @@ export default function ChannelDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b flex items-center gap-4">
+      {/* 返回按钮 */}
+      <div className="px-6 pt-4">
         <button onClick={() => navigate('/channels')} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="flex items-center gap-3">
-          {sub?.avatar_url ? <img src={sub.avatar_url} alt="" referrerPolicy="no-referrer" className="w-12 h-12 rounded-full" /> :
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+      </div>
+
+      {/* 频道信息卡片 */}
+      <div className="mx-6 mb-4 flex flex-col rounded-lg bg-background p-4 shadow-md md:flex-row">
+        <div className="mb-4 flex w-full flex-row items-center gap-4">
+          {sub?.avatar_url ? (
+            <img src={sub.avatar_url} alt="" referrerPolicy="no-referrer" className="mb-auto size-20 rounded-full md:size-48" />
+          ) : (
+            <div className="mb-auto size-20 rounded-full bg-muted flex items-center justify-center md:size-48">
               {platformIcon[platform || '']}
-            </div>}
-          <div>
-            <h1 className="text-lg font-bold">{sub?.channel_name || '频道详情'}</h1>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            </div>
+          )}
+          <div className="flex h-full flex-col justify-between">
+            <h2 className="mb-2 text-lg font-bold sm:text-3xl">{sub?.channel_name || '频道详情'}</h2>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
               {platformIcon[platform || '']} {platformLabel[platform || '']}
               {sub?.channel_url && (
-                <a href={sub.channel_url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
-                  <ExternalLink className="w-3 h-3" />
+                <a href={sub.channel_url} target="_blank" rel="noopener noreferrer" className="hover:text-primary inline-flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" />{sub.channel_url}
                 </a>
               )}
             </div>
+            <div className="flex w-full flex-row items-center gap-2">
+              <Button className="flex-1" onClick={handleRefresh} disabled={!sub || loading}>
+                <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />刷新
+              </Button>
+              <Button
+                variant={sub ? "outline" : "secondary"}
+                className={`flex-1 ${!sub ? 'hover:text-pink-400' : ''}`}
+                onClick={() => sub ? unsubscribe(sub.id) : (sub?.channel_url && subscribe(sub.channel_url))}
+              >
+                {sub ? <><UserCheck className="size-3" />已订阅</> : <><UserPlus className="size-3" />订阅更新</>}
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={!sub || loading}>
-            <RefreshCw className="w-4 h-4 mr-1" />刷新
-          </Button>
         </div>
       </div>
 
@@ -171,6 +208,7 @@ export default function ChannelDetailPage() {
           <option value="summarized">已总结</option>
           <option value="new">未总结</option>
         </select>
+        <span className="text-sm text-muted-foreground ml-2">共 {total} 条</span>
       </div>
 
       <div className="flex-1 overflow-auto px-6">
@@ -213,17 +251,12 @@ export default function ChannelDetailPage() {
                   </td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">{timeAgo(item.published_at)}</td>
                   <td className="px-4 py-2 text-right">
-                    {item.task_id ? (
-                      <Button size="sm" variant="outline"
-                        onClick={() => navigate(`/notes/${item.task_id}`)}>查看</Button>
-                    ) : (
-                      <Button size="sm"
+                    <Button size="sm" variant="outline"
                         onClick={() => handleGenerate(item)}
                         disabled={generatingId === item.id}>
                         {generatingId === item.id && <LoaderCircle className="w-4 h-4 animate-spin mr-1" />}
-                        {generatingId === item.id ? '生成中...' : '生成笔记'}
+                        {generatingId === item.id ? '生成中...' : item.task_id ? '重新生成' : '生成笔记'}
                       </Button>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -231,6 +264,51 @@ export default function ChannelDetailPage() {
           </table>
         )}
       </div>
+
+      {/* 分页器 */}
+      {totalPages > 1 && (
+        <div className="px-6 py-4 flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className={page <= 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number
+                if (totalPages <= 5) {
+                  pageNum = i + 1
+                } else if (page <= 3) {
+                  pageNum = i + 1
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i
+                } else {
+                  pageNum = page - 2 + i
+                }
+                return (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      onClick={() => setPage(pageNum)}
+                      isActive={page === pageNum}
+                      className="cursor-pointer"
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              })}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className={page >= totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   )
 }

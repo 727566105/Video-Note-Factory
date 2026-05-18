@@ -75,8 +75,8 @@ export const fetchSummarizedChannels = () =>
 export const parseChannelUrl = (url: string) =>
   request.post<ChannelInfo>('/channels/parse-url', { url })
 
-export const fetchChannelVideos = (platform: string, platformId: string, limit: number = 20) =>
-  request.get<FeedItem[]>(`/channels/${platform}/${platformId}/videos`, { params: { limit } })
+export const fetchChannelVideos = (platform: string, platformId: string, limit: number = 20, offset: number = 0) =>
+  request.get<{ items: FeedItem[]; total: number }>(`/channels/${platform}/${platformId}/videos`, { params: { limit, offset } })
 
 export const generateArticleNote = (itemId: number) =>
   request.post<{ markdown: string }>(`/feed/${itemId}/generate-note`)

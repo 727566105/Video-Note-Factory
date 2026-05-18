@@ -36,7 +36,7 @@ async def parse_url(req: ParseUrlRequest, user=Depends(get_current_user)):
 
 
 @router.get("/{platform}/{platform_id}/videos")
-async def get_channel_videos(platform: str, platform_id: str, limit: int = 20,
+async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, offset: int = 0,
                               user=Depends(get_current_user)):
     # 先找订阅获取 subscription_id
     channel_url_map = {
@@ -50,20 +50,24 @@ async def get_channel_videos(platform: str, platform_id: str, limit: int = 20,
 
     # 如果有订阅，从缓存的 feed_items 读取；否则实时获取
     if sub_id:
-        items = subscription_dao.get_feed_items_by_subscription(sub_id, limit)
+        items = subscription_dao.get_feed_items_by_subscription(sub_id, limit, offset)
+        total = subscription_dao.count_feed_items_by_subscription(sub_id)
     else:
         items_raw = fetch_videos(channel_url, platform, limit)
-        return R.success(items_raw)
+        return R.success({"items": items_raw, "total": len(items_raw)})
 
-    return R.success([{
-        "id": f.id,
-        "content_id": f.content_id,
-        "content_url": f.content_url,
-        "title": f.title,
-        "cover_url": f.cover_url,
-        "duration": f.duration,
-        "author": f.author,
-        "published_at": f.published_at.isoformat() if f.published_at else None,
-        "is_read": f.is_read,
-        "task_id": f.task_id,
-    } for f in items])
+    return R.success({
+        "items": [{
+            "id": f.id,
+            "content_id": f.content_id,
+            "content_url": f.content_url,
+            "title": f.title,
+            "cover_url": f.cover_url,
+            "duration": f.duration,
+            "author": f.author,
+            "published_at": f.published_at.isoformat() if f.published_at else None,
+            "is_read": f.is_read,
+            "task_id": f.task_id,
+        } for f in items],
+        "total": total,
+    })
