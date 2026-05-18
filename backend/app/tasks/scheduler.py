@@ -154,7 +154,8 @@ def subscription_fetch_job():
         total_added = 0
         for sub in subs:
             try:
-                items = fetch_all_for_subscription(sub, limit=20)
+                # 增量获取：只取最近 50 条，与数据库对比去重
+                items = fetch_all_for_subscription(sub, limit=50)
                 if items:
                     added = upsert_feed_items(items)
                     total_added += added
