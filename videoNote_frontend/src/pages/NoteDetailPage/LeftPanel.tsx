@@ -8,16 +8,22 @@ import {
   Play,
   X,
   Headphones,
+  Rss,
 } from 'lucide-react'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { SummarySettings } from '@/components/SummarySettings'
 import { ModelSelectDialog } from '@/components/ModelSelectDialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
 import type { Task } from '@/store/taskStore'
+import { getBaseURL } from '@/utils/api'
+import { useAuthStore } from '@/store/authStore'
+import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { cn } from '@/lib/utils'
 
-const getBaseURL = () => (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
+const SUBSCRIBABLE_PLATFORMS = ['bilibili', 'youtube', 'douyin', 'kuaishou']
 
 interface LeftPanelProps {
   task: Task
@@ -28,10 +34,12 @@ export default function LeftPanel({ task }: LeftPanelProps) {
   const [modelOpen, setModelOpen] = useState(false)
   const [isEmbedActive, setIsEmbedActive] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
+  const [subscribing, setSubscribing] = useState(false)
   const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null)
   const coverRef = useRef<HTMLImageElement>(null)
   const navigate = useNavigate()
   const setPanelSwapped = useSystemStore(state => state.setPanelSwapped)
+  const { subscribe, subscriptions } = useSubscriptionStore()
 
   // 获取发布人名字
   const getAuthor = (): string => {
@@ -43,6 +51,9 @@ export default function LeftPanel({ task }: LeftPanelProps) {
     return (owner?.name as string) || (raw.uploader as string) || (raw.channel as string) || (author?.name as string) || task.platform
   }
   const authorDisplay = getAuthor()
+
+  const isAuthorSubscribed = subscriptions.some(s => s.channel_name === authorDisplay)
+  const canSubscribe = SUBSCRIBABLE_PLATFORMS.includes(task.platform) && authorDisplay && authorDisplay !== task.platform
 
   // 从 raw_info 获取视频宽高
   useEffect(() => {
@@ -170,8 +181,7 @@ export default function LeftPanel({ task }: LeftPanelProps) {
           <ToolBtn icon={<Monitor className="w-4 h-4" />} />
           <ToolBtn icon={<Headphones className="w-4 h-4" />} onClick={async () => {
           try {
-            const raw = localStorage.getItem('auth-storage')
-            const token = raw ? JSON.parse(raw).state?.token : ''
+            const token = useAuthStore.getState().token
             const res = await fetch(`${getBaseURL()}/api/audio/${task.id}`, {
               headers: { Authorization: `Bearer ${token}` }
             })
@@ -188,7 +198,9 @@ export default function LeftPanel({ task }: LeftPanelProps) {
             a.download = filename
             a.click()
             URL.revokeObjectURL(a.href)
-          } catch { /* ignore */ }
+          } catch {
+            toast.error('音频下载失败')
+          }
         }} />
         <ToolBtn icon={<Globe className="w-4 h-4" />} />
           <ToolBtn icon={<Settings2 className="w-4 h-4" />} label="总结设置" onClick={() => setSettingsOpen(true)} />
@@ -276,6 +288,34 @@ export default function LeftPanel({ task }: LeftPanelProps) {
         <h2 className="text-lg font-semibold text-foreground leading-snug">{title}</h2>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{authorDisplay}</span>
+          {canSubscribe && (
+            <button
+              disabled={subscribing || isAuthorSubscribed}
+              className={cn(
+                "flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors disabled:opacity-50",
+                isAuthorSubscribed
+                  ? "bg-primary/10 text-primary"
+                  : subscribing
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10"
+              )}
+              onClick={async () => {
+                if (isAuthorSubscribed) {
+                  toast.info('已订阅该频道')
+                } else if (!subscribing) {
+                  setSubscribing(true)
+                  try {
+                    await subscribe(videoUrl)
+                  } finally {
+                    setSubscribing(false)
+                  }
+                }
+              }}
+            >
+              <Rss className="w-3 h-3" />
+              {subscribing ? '订阅中...' : isAuthorSubscribed ? '已订阅' : '订阅'}
+            </button>
+          )}
         </div>
       </div>
 

@@ -10,6 +10,7 @@ import {
   Search,
   LoaderCircle,
   Play,
+  Rss,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import { TableSkeleton } from '@/components/Skeletons'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { getBaseURL } from '@/utils/api'
 import {
   Dialog,
   DialogContent,
@@ -35,6 +37,7 @@ import {
 } from '@/components/ui/dialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
+import { useSubscriptionStore } from '@/store/subscriptionStore'
 
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   if (!coverUrl) return ''
@@ -87,11 +90,26 @@ export const NoteListPage: FC = () => {
   const [loading, setLoading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState('')
+  const [failedCovers, setFailedCovers] = useState<Set<string>>(new Set())
   const [playDialogOpen, setPlayDialogOpen] = useState(false)
   const [playItem, setPlayItem] = useState<NoteItem | null>(null)
   const noteViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
+  const { subscribe, subscriptions } = useSubscriptionStore()
   const notesRef = useRef(notes)
+
+  // 判断是否已订阅（通过作者名匹配）
+  const isSubscribed = (author: string): boolean => {
+    return subscriptions.some(s => s.channel_name === author)
+  }
+
+  // 是否支持订阅的平台
+  const isSubscribable = (platform: string): boolean => {
+    return ['bilibili', 'youtube', 'douyin', 'kuaishou'].includes(platform)
+  }
+  const handleCoverError = (id: string) => {
+    setFailedCovers(prev => new Set(prev).add(id))
+  }
 
   useEffect(() => {
     notesRef.current = notes
@@ -134,7 +152,6 @@ export const NoteListPage: FC = () => {
             }
           }
         } catch (e) {
-          console.error('轮询任务状态失败:', e)
         }
       }
     }, 3000)
@@ -163,7 +180,6 @@ export const NoteListPage: FC = () => {
         setNotes(formattedNotes)
       }
     } catch (error) {
-      console.error('获取笔记列表失败:', error)
       toast.error('获取笔记列表失败')
     } finally {
       setLoading(false)
@@ -194,7 +210,6 @@ export const NoteListPage: FC = () => {
       toast.success('删除成功')
       fetchNotes()
     } catch (error) {
-      console.error('删除失败:', error)
       toast.error('删除失败')
     }
   }
@@ -309,8 +324,8 @@ export const NoteListPage: FC = () => {
               />
               <div className="w-32">
                 <div className="relative aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                  {item.cover ? (
-                    <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                  {item.cover && !failedCovers.has(item.id) ? (
+                    <img src={item.cover} alt="" className="w-full h-full object-cover" onError={() => handleCoverError(item.id)} />
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-1">
                       <PlatformIconSmall platform={item.platform} />
@@ -326,7 +341,27 @@ export const NoteListPage: FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-foreground truncate">{item.title}</div>
-                <div className="text-sm text-muted-foreground">{item.author}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm text-muted-foreground">{item.author}</span>
+                  {isSubscribable(item.platform) && item.author && (
+                    <button
+                      className={cn(
+                        "flex items-center gap-0.5 text-xs transition-colors",
+                        isSubscribed(item.author) ? "text-primary" : "text-muted-foreground hover:text-primary"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (isSubscribed(item.author)) {
+                          toast.info('已订阅该频道')
+                        } else {
+                          subscribe(item.video_url)
+                        }
+                      }}
+                    >
+                      <Rss className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
                 {/* 进度条展示 */}
                 {isProcessingStatus(item.status) && (() => {
                   const { currentStep, stepLabel } = getStepProgress(item.status)
@@ -426,8 +461,8 @@ export const NoteListPage: FC = () => {
                 >
                   {/* 封面 */}
                   <div className="relative aspect-video bg-muted overflow-hidden">
-                    {item.cover ? (
-                      <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                    {item.cover && !failedCovers.has(item.id) ? (
+                      <img src={item.cover} alt="" className="w-full h-full object-cover" onError={() => handleCoverError(item.id)} />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full gap-1">
                         <PlatformIconSmall platform={item.platform} />
@@ -454,10 +489,32 @@ export const NoteListPage: FC = () => {
                         </div>
                       </button>
                     )}
-                    {/* 作者徽章 */}
+                    {/* 作者徽章 + 订阅按钮 */}
                     {item.author && (
-                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
-                        {item.author}
+                      <div className="absolute bottom-2 left-2 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
+                          {item.author}
+                        </span>
+                        {isSubscribable(item.platform) && (
+                          <button
+                            className={cn(
+                              "p-1 rounded transition-all",
+                              isSubscribed(item.author)
+                                ? "bg-primary/80 text-white"
+                                : "bg-foreground/60 text-background hover:bg-primary/80 hover:text-white"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (isSubscribed(item.author)) {
+                                toast.info('已订阅该频道')
+                              } else {
+                                subscribe(item.video_url)
+                              }
+                            }}
+                          >
+                            <Rss className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     )}
                     {/* 删除按钮 */}
@@ -504,8 +561,8 @@ export const NoteListPage: FC = () => {
                 >
                   {/* 封面 */}
                   <div className="relative aspect-video bg-muted overflow-hidden">
-                    {item.cover ? (
-                      <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                    {item.cover && !failedCovers.has(item.id) ? (
+                      <img src={item.cover} alt="" className="w-full h-full object-cover" onError={() => handleCoverError(item.id)} />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full gap-1">
                         <PlatformIconSmall platform={item.platform} />
@@ -531,8 +588,30 @@ export const NoteListPage: FC = () => {
                       </button>
                     )}
                     {item.author && (
-                      <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
-                        {item.author}
+                      <div className="absolute bottom-2 left-2 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
+                          {item.author}
+                        </span>
+                        {isSubscribable(item.platform) && (
+                          <button
+                            className={cn(
+                              "p-1 rounded transition-all",
+                              isSubscribed(item.author)
+                                ? "bg-primary/80 text-white"
+                                : "bg-foreground/60 text-background hover:bg-primary/80 hover:text-white"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (isSubscribed(item.author)) {
+                                toast.info('已订阅该频道')
+                              } else {
+                                subscribe(item.video_url)
+                              }
+                            }}
+                          >
+                            <Rss className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     )}
                     <button
@@ -567,14 +646,14 @@ export const NoteListPage: FC = () => {
           </DialogHeader>
           {playItem?.platform === 'local' ? (
             <video
-              src={`${import.meta.env.VITE_API_BASE_URL || ''}${playItem.video_url}`}
+              src={`${getBaseURL()}${playItem.video_url}`}
               controls
               autoPlay
               className="w-full rounded-lg"
             />
           ) : playItem?.platform === 'local_audio' ? (
             <audio
-              src={`${import.meta.env.VITE_API_BASE_URL || ''}${playItem.video_url}`}
+              src={`${getBaseURL()}${playItem.video_url}`}
               controls
               autoPlay
               className="w-full mt-4"
