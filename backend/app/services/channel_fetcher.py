@@ -310,7 +310,7 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
     return results
 
 
-def fetch_videos(channel_url: str, platform: str, limit: int = 20) -> list[dict]:
+def fetch_videos(channel_url: str, platform: str, limit: int | None = 20) -> list[dict]:
     """获取频道视频列表"""
     # B站：使用 WBI 签名 API 获取全部视频
     if platform == "bilibili":
@@ -318,7 +318,7 @@ def fetch_videos(channel_url: str, platform: str, limit: int = 20) -> list[dict]
         if not mid:
             logger.error(f"无法提取B站博主 ID: {channel_url}")
             return []
-        # max_pages 根据 limit 计算（每页50条）
+        # max_pages 根据 limit 计算（每页50条），limit=None 表示全部
         max_pages = max(1, (limit // 50) + 1) if limit else 50
         videos = fetch_bilibili_all_videos(mid, max_pages=max_pages)
         # 如果 limit 指定了数量，截取
@@ -451,8 +451,9 @@ def parse_channel_info(channel_url: str, platform: str) -> dict:
 def fetch_all_for_subscription(subscription, limit: int = 20) -> list[dict]:
     """合并视频+图文，返回统一格式的动态列表"""
     results = []
-    # yt-dlp 获取视频
-    videos = fetch_videos(subscription.channel_url, subscription.platform, limit)
+    # yt-dlp 获取视频（limit=0 或 None 表示获取全部）
+    effective_limit = limit if limit else 0
+    videos = fetch_videos(subscription.channel_url, subscription.platform, effective_limit or None)
     for v in videos:
         v["user_id"] = subscription.user_id
         v["subscription_id"] = subscription.id
