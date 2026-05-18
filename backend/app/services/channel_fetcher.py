@@ -3,12 +3,15 @@ import os
 import json
 import re
 import tempfile
+import time
 from typing import Optional
 from datetime import datetime
 
 import feedparser
+import requests
 
 from app.utils.logger import get_logger
+from app.services.bilibili_wbi import sign_wbi_params
 
 logger = get_logger(__name__)
 
@@ -62,7 +65,7 @@ RSSHUB_TEMPLATES = {
 }
 
 
-def _make_bilibili_cookiefile(cookie_str: str) -> str:
+def _make_platform_cookiefile(domain: str, cookie_str: str) -> str:
     """将浏览器格式 cookie 转为 Netscape 格式临时文件"""
     cf = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
     # Netscape cookie 文件必须以注释行开头
@@ -71,9 +74,14 @@ def _make_bilibili_cookiefile(cookie_str: str) -> str:
         item = item.strip()
         if '=' in item:
             name, value = item.split('=', 1)
-            cf.write(f".bilibili.com\tTRUE\t/\tTRUE\t0\t{name.strip()}\t{value.strip()}\n")
+            cf.write(f".{domain}\tTRUE\t/\tTRUE\t0\t{name.strip()}\t{value.strip()}\n")
     cf.close()
     return cf.name
+
+
+def _make_bilibili_cookiefile(cookie_str: str) -> str:
+    """将浏览器格式 cookie 转为 Netscape 格式临时文件（B站专用）"""
+    return _make_platform_cookiefile("bilibili.com", cookie_str)
 
 
 def identify_platform(url: str) -> Optional[dict]:
@@ -188,8 +196,99 @@ def _extract_douyin_uid(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50) -> list[dict]:
+    """获取B站博主全部视频列表（分页）
+
+    :param mid: 博主 ID（如 85742625）
+    :param max_pages: 最大页数限制（防止无限循环）
+    :param page_size: 每页数量（最大 50）
+    :return: 视频列表
+    """
+    results = []
+    pn = 1
+
+    while pn <= max_pages:
+        try:
+            # 构造请求参数
+            params = {
+                "mid": mid,
+                "pn": pn,
+                "ps": page_size,
+                "order": "pubdate",  # 按发布时间排序
+                "platform": "web",
+                "web_location": "space_video",
+            }
+
+            # WBI 签名
+            signed_params = sign_wbi_params(params)
+
+            # 请求 API
+            resp = requests.get(
+                "https://api.bilibili.com/x/space/wbi/arc/search",
+                params=signed_params,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Referer": f"https://space.bilibili.com/{mid}",
+                },
+                timeout=15,
+            )
+            data = resp.json()
+
+            if data.get("code") != 0:
+                logger.error(f"B站视频列表 API 错误: {data.get('message')}")
+                break
+
+            vlist = data.get("data", {}).get("list", {}).get("vlist", [])
+            if not vlist:
+                logger.info(f"B站博主 {mid} 视频获取完成，共 {len(results)} 条")
+                break
+
+            # 解析视频信息
+            for v in vlist:
+                bvid = v.get("bvid", "")
+                results.append({
+                    "content_type": "video",
+                    "content_id": bvid,
+                    "content_url": f"https://www.bilibili.com/video/{bvid}",
+                    "title": v.get("title", ""),
+                    "cover_url": _fix_image_url(v.get("pic", "")),
+                    "duration": v.get("length", 0),  # 格式为 "MM:SS"，需转换
+                    "author": v.get("author", ""),
+                    "description": v.get("description", ""),
+                    "published_at": datetime.fromtimestamp(v.get("created", 0)) if v.get("created") else None,
+                    "raw_info": json.dumps(v, ensure_ascii=False, default=str),
+                })
+
+            logger.info(f"B站博主 {mid} 第 {pn} 页获取成功，本页 {len(vlist)} 条")
+            pn += 1
+
+            # 请求间隔 10 秒
+            time.sleep(10)
+
+        except Exception as e:
+            logger.error(f"B站视频列表获取失败 (mid={mid}, pn={pn}): {e}")
+            break
+
+    return results
+
+
 def fetch_videos(channel_url: str, platform: str, limit: int = 20) -> list[dict]:
     """获取频道视频列表"""
+    # B站：使用 WBI 签名 API 获取全部视频
+    if platform == "bilibili":
+        mid = _extract_bilibili_mid(channel_url)
+        if not mid:
+            logger.error(f"无法提取B站博主 ID: {channel_url}")
+            return []
+        # max_pages 根据 limit 计算（每页50条）
+        max_pages = max(1, (limit // 50) + 1) if limit else 50
+        videos = fetch_bilibili_all_videos(mid, max_pages=max_pages)
+        # 如果 limit 指定了数量，截取
+        if limit and len(videos) > limit:
+            videos = videos[:limit]
+        return videos
+
+    # 其他平台：使用 yt-dlp
     try:
         import yt_dlp
         ydl_opts = {
@@ -198,12 +297,12 @@ def fetch_videos(channel_url: str, platform: str, limit: int = 20) -> list[dict]
             "extract_flat": True,
             "playlistend": limit,
         }
-        # B站需要 cookie
-        if platform == "bilibili":
+        # 抖音需要 cookie
+        if platform == "douyin":
             cfm = _get_cookie_manager()
-            cookie_str = cfm.get("bilibili")
+            cookie_str = cfm.get("douyin")
             if cookie_str:
-                ydl_opts["cookiefile"] = _make_bilibili_cookiefile(cookie_str)
+                ydl_opts["cookiefile"] = _make_platform_cookiefile("douyin.com", cookie_str)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(channel_url, download=False)
@@ -215,28 +314,6 @@ def fetch_videos(channel_url: str, platform: str, limit: int = 20) -> list[dict]
                     continue
                 content_id = entry.get("id", "")
                 content_url = entry.get("url", "")
-
-                # B站：调用公开 API 获取元数据
-                if platform == "bilibili" and content_id:
-                    video_info = _fetch_bilibili_video_meta(content_id)
-                    if video_info:
-                        pub_ts = video_info.get("pubdate")
-                        pub_dt = datetime.fromtimestamp(pub_ts) if pub_ts else None
-                        results.append({
-                            "content_type": "video",
-                            "content_id": content_id,
-                            "content_url": content_url,
-                            "title": video_info.get("title", ""),
-                            "cover_url": _fix_image_url(video_info.get("pic", "")),
-                            "duration": video_info.get("duration"),
-                            "author": video_info.get("owner", {}).get("name", ""),
-                            "description": video_info.get("desc", ""),
-                            "published_at": pub_dt,
-                            "raw_info": json.dumps(video_info, ensure_ascii=False, default=str),
-                        })
-                        continue
-
-                # 其他平台：使用 yt-dlp 返回的有限信息
                 results.append({
                     "content_type": "video",
                     "content_id": content_id,
@@ -251,24 +328,6 @@ def fetch_videos(channel_url: str, platform: str, limit: int = 20) -> list[dict]
     except Exception as e:
         logger.error(f"获取视频列表失败 [{platform}]: {e}")
         return []
-
-
-def _fetch_bilibili_video_meta(bvid: str) -> Optional[dict]:
-    """调用 B站公开 API 获取视频元数据"""
-    try:
-        import requests
-        resp = requests.get(
-            "https://api.bilibili.com/x/web-interface/view",
-            params={"bvid": bvid},
-            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.bilibili.com"},
-            timeout=10,
-        )
-        data = resp.json()
-        if data.get("code") == 0:
-            return data.get("data")
-    except Exception as e:
-        logger.error(f"获取 B站视频元数据失败 ({bvid}): {e}")
-    return None
 
 
 def fetch_articles(platform: str, platform_id: str, limit: int = 20) -> list[dict]:
@@ -308,7 +367,6 @@ def fetch_articles(platform: str, platform_id: str, limit: int = 20) -> list[dic
 def _fetch_bilibili_user_info(mid: str) -> Optional[dict]:
     """调用 B站公开 API 获取用户信息（名称、头像）"""
     try:
-        import requests
         resp = requests.get(
             "https://api.bilibili.com/x/web-interface/card",
             params={"mid": mid},
