@@ -196,6 +196,23 @@ def _extract_douyin_uid(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def _parse_duration(length_str) -> int:
+    """将 MM:SS 或 HH:MM:SS 格式转为秒数"""
+    if not length_str:
+        return 0
+    if isinstance(length_str, (int, float)):
+        return int(length_str)
+    parts = str(length_str).split(":")
+    try:
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + int(parts[1])
+        return int(parts[0])
+    except (ValueError, IndexError):
+        return 0
+
+
 def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50) -> list[dict]:
     """获取B站博主全部视频列表（分页）
 
@@ -252,7 +269,7 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
                     "content_url": f"https://www.bilibili.com/video/{bvid}",
                     "title": v.get("title", ""),
                     "cover_url": _fix_image_url(v.get("pic", "")),
-                    "duration": v.get("length", 0),  # 格式为 "MM:SS"，需转换
+                    "duration": _parse_duration(v.get("length", "")),
                     "author": v.get("author", ""),
                     "description": v.get("description", ""),
                     "published_at": datetime.fromtimestamp(v.get("created", 0)) if v.get("created") else None,
