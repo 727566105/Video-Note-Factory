@@ -239,17 +239,38 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
             # WBI 签名
             signed_params = sign_wbi_params(params)
 
-            # 请求 API
+            # 构造请求头（携带 Cookie）
+            req_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": f"https://space.bilibili.com/{mid}",
+            }
+            try:
+                cfm = _get_cookie_manager()
+                cookie_str = cfm.get("bilibili")
+                if cookie_str:
+                    req_headers["Cookie"] = cookie_str
+            except Exception:
+                pass
+
+            # 优先使用 WBI 签名 API，失败则降级到旧 API
             resp = requests.get(
                 "https://api.bilibili.com/x/space/wbi/arc/search",
                 params=signed_params,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Referer": f"https://space.bilibili.com/{mid}",
-                },
+                headers=req_headers,
                 timeout=15,
             )
             data = resp.json()
+
+            # WBI API 返回 -403 时降级到旧 API
+            if data.get("code") == -403:
+                logger.warning(f"WBI API 返回 -403，降级到旧 API (mid={mid})")
+                resp = requests.get(
+                    "https://api.bilibili.com/x/space/arc/search",
+                    params=params,
+                    headers=req_headers,
+                    timeout=15,
+                )
+                data = resp.json()
 
             if data.get("code") != 0:
                 logger.error(f"B站视频列表 API 错误: {data.get('message')}")

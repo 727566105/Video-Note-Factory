@@ -35,12 +35,23 @@ def get_wbi_keys() -> tuple[str, str]:
 
         # 从B站获取最新 key
         try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://www.bilibili.com",
+            }
+            # 尝试携带 Cookie（解决"账号未登录"问题）
+            try:
+                from app.services.cookie_manager import CookieConfigManager
+                cfm = CookieConfigManager()
+                cookie_str = cfm.get("bilibili")
+                if cookie_str:
+                    headers["Cookie"] = cookie_str
+            except Exception:
+                pass
+
             resp = requests.get(
                 "https://api.bilibili.com/x/web-interface/nav",
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Referer": "https://www.bilibili.com",
-                },
+                headers=headers,
                 timeout=10,
             )
             data = resp.json()
