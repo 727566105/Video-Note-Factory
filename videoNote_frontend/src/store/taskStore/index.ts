@@ -310,7 +310,6 @@ export const useTaskStore = create<TaskStore>()(
             set({ tasks: mergedTasks })
           }
         } catch (e) {
-          console.error('加载历史任务失败:', e)
         }
       },
     }),

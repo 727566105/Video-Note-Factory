@@ -102,6 +102,9 @@ def start_scheduler():
 
             # 添加缓存清理定时任务
             _setup_cache_cleaner_job()
+
+            # 添加订阅轮询定时任务
+            _setup_subscription_fetch_job()
         else:
             logger.warning("Scheduler already running")
     except Exception as e:
@@ -133,6 +136,56 @@ def _setup_cache_cleaner_job():
             logger.error(f"无效的缓存清理 Cron 表达式: {CACHE_CLEAN_SCHEDULE}")
     except Exception as e:
         logger.error(f"设置缓存清理任务失败: {e}")
+
+
+# 订阅轮询间隔配置（分钟，默认 60）
+SUBSCRIPTION_FETCH_INTERVAL = int(os.getenv("SUBSCRIPTION_FETCH_INTERVAL", "60"))
+
+
+def subscription_fetch_job():
+    """定时获取所有启用订阅的最新内容"""
+    try:
+        from app.db.subscription_dao import get_all_enabled_subscriptions, upsert_feed_items, update_subscription_check
+        from app.services.channel_fetcher import fetch_all_for_subscription
+
+        subs = get_all_enabled_subscriptions()
+        logger.info(f"开始订阅轮询，共 {len(subs)} 个订阅")
+
+        total_added = 0
+        for sub in subs:
+            try:
+                items = fetch_all_for_subscription(sub, limit=20)
+                if items:
+                    added = upsert_feed_items(items)
+                    total_added += added
+                update_subscription_check(sub.id)
+            except Exception as e:
+                logger.error(f"订阅 {sub.id} ({sub.channel_name}) 轮询失败: {e}")
+
+        logger.info(f"订阅轮询完成，新增 {total_added} 条动态")
+    except Exception as e:
+        logger.error(f"订阅轮询任务失败: {e}")
+
+
+def _setup_subscription_fetch_job():
+    """设置订阅定时轮询"""
+    try:
+        interval_minutes = SUBSCRIPTION_FETCH_INTERVAL
+        if interval_minutes <= 0:
+            logger.info("订阅自动刷新已禁用（手动模式）")
+            return
+
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler.add_job(
+            subscription_fetch_job,
+            trigger=IntervalTrigger(minutes=interval_minutes),
+            id="subscription_fetch",
+            name="订阅轮询",
+            replace_existing=True,
+        )
+        logger.info(f"已添加订阅轮询定时任务 (间隔={interval_minutes}分钟)")
+    except Exception as e:
+        logger.error(f"设置订阅轮询任务失败: {e}")
 
 
 def shutdown_scheduler():

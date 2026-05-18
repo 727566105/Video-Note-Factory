@@ -114,7 +114,6 @@ export default function MarkmapEditor({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('导出HTML失败:', error);
     }
   };
 
@@ -193,24 +192,20 @@ export default function MarkmapEditor({
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
             } else {
-              console.error('无法创建Blob对象');
             }
           }, 'image/png');
         } catch (err) {
-          console.error('Canvas处理失败:', err);
         }
       };
       
       // 设置图片加载错误处理
       img.onerror = (error) => {
-        console.error('导出PNG失败（图片加载错误）:', error);
       };
       
       // 开始加载SVG图像 (使用Data URI而不是Blob URL)
       img.src = dataUri;
       
     } catch (error) {
-      console.error('导出PNG失败:', error);
     }
   };
 

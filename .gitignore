@@ -326,4 +326,7 @@ cython_debug/
 /backend/uploads/*
 /backend/.idea/*
 /backend/config/*
-/BiliNote_frontend/.idea/*docs/superpowers/
+/BiliNote_frontend/.idea/*
+docs/superpowers/
+.trae/
+/note_results/

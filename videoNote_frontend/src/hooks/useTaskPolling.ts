@@ -58,7 +58,6 @@ export const useTaskPolling = (interval = 3000) => {
             }
           }
         } catch (e: any) {
-          console.error('❌ 任务轮询失败：', e)
           const message = e?.msg || ''
           updateTaskContent(task.id, { status: 'FAILED', message })
         }

@@ -6,6 +6,7 @@ import { ArrowUpDown, XIcon } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform.tsx'
 import { noteStyles } from '@/constant/note.ts'
+import { getBaseURL } from '@/utils/api'
 
 import {
   Tooltip,
@@ -65,7 +66,7 @@ interface NoteHistoryProps {
 
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
-  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
+  const baseURL = getBaseURL()
   const [rawSearch, setRawSearch] = useState('')
   const [search, setSearch] = useState('')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')

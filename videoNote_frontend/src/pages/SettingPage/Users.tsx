@@ -45,7 +45,7 @@ const Users = () => {
   const loadUsers = async () => {
     setLoading(true)
     try {
-      const res: any = await request.get('/auth/users')
+      const res = await request.get<{ id: number; username: string; role: string }[]>('/auth/users')
       setUsers(res)
     } catch {
       toast.error('加载用户列表失败')

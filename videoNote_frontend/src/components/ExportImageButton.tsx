@@ -3,6 +3,7 @@ import { Image } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTaskStore } from '@/store/taskStore'
 import ExportImageDialog from './ExportImageDialog'
+import { getBaseURL } from '@/utils/api'
 
 interface ExportImageButtonProps {
   taskId: string
@@ -31,7 +32,7 @@ export const ExportImageButton = forwardRef<HTMLButtonElement, ExportImageButton
     return task || null
   })
 
-  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || '').replace('/api', '') || '').replace(/\/$/, '')
+  const baseURL = getBaseURL()
 
   // 提取显示内容
   const getContent = () => {

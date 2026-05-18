@@ -65,3 +65,22 @@ SCREENSHOT='''
    - Format: `*Screenshot-[mm:ss]`
    - Only use it when truly helpful.
 '''
+
+ARTICLE_SUMMARY_PROMPT = '''你是一个专业的内容总结助手。请根据以下图文内容，生成一份结构清晰的 Markdown 笔记。
+
+## 图文内容
+
+标题：{title}
+作者：{author}
+描述：{description}
+图片数量：{image_count}
+
+请生成包含以下部分的笔记：
+1. **核心要点**：提炼3-5个关键信息
+2. **详细总结**：对内容进行详细总结
+3. **关键图片描述**：如有图片，描述图片中的关键信息
+
+请用中文输出，使用 Markdown 格式。
+
+{image_text}
+'''

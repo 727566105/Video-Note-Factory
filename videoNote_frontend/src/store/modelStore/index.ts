@@ -55,7 +55,6 @@ export const useModelStore = create<ModelStore>()(
         set({ modelList: list })
       } catch (error) {
         set({ modelList: [] })
-        console.error('加载可用模型失败', error)
       } finally {
         set({ loading: false })
       }
@@ -77,7 +76,6 @@ export const useModelStore = create<ModelStore>()(
         set({ models })
       } catch (error) {
         set({ models: [] })
-        console.error('加载模型列表失败', error)
       } finally {
         set({ loading: false })
       }
@@ -88,7 +86,6 @@ export const useModelStore = create<ModelStore>()(
         const models = await fetchEnableModelById(providerId)
         return models
       } catch (error) {
-        console.error('加载供应商模型失败', error)
         return []
       }
     },
@@ -112,10 +109,8 @@ export const useModelStore = create<ModelStore>()(
             ],
           }))
         } else {
-          console.error('新增模型失败', res.msg)
         }
       } catch (error) {
-        console.error('添加模型出错', error)
       }
     },
 
@@ -126,7 +121,6 @@ export const useModelStore = create<ModelStore>()(
           models: state.models.filter((model) => model.id !== modelId.toString())
         }))
       } catch (error) {
-        console.error('删除模型失败', error)
       }
     },
 

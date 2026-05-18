@@ -1,4 +1,3 @@
-import './App.css'
 import { HomePage } from './pages/HomePage/Home.tsx'
 import { useTaskPolling } from '@/hooks/useTaskPolling.ts'
 import SettingPage from './pages/SettingPage/index.tsx'
@@ -17,6 +16,10 @@ import UsersPage from '@/pages/SettingPage/Users.tsx'
 import LoginPage from '@/pages/LoginPage'
 import { NoteListPage } from './pages/NoteListPage'
 import NoteDetailPage from '@/pages/NoteDetailPage'
+import FeedPage from '@/pages/FeedPage'
+import ChannelsPage from '@/pages/ChannelsPage'
+import ChannelDetailPage from '@/pages/ChannelDetailPage'
+import SubscriptionSettings from '@/pages/SettingPage/Subscription'
 import { useEffect, ReactNode } from 'react'
 import { systemCheck } from '@/services/system.ts'
 import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
@@ -92,6 +95,9 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path="notes" element={<NoteListPage />} />
             <Route path="notes/:id" element={<NoteDetailPage />} />
+            <Route path="feed" element={<FeedPage />} />
+            <Route path="channels" element={<ChannelsPage />} />
+            <Route path="channel/:platform/:id" element={<ChannelDetailPage />} />
             <Route path="settings" element={<SettingPage />}>
               <Route index element={<Navigate to="about" replace />} />
               <Route path="model" element={<AdminRoute><Model /></AdminRoute>}>
@@ -105,6 +111,7 @@ function App() {
               <Route path="siyuan" element={<SiyuanSettings />} />
               <Route path="webdav" element={<WebDAVSettings />} />
               <Route path="about" element={<AboutPage />} />
+              <Route path="subscription" element={<AdminRoute><SubscriptionSettings /></AdminRoute>} />
               <Route path="users" element={<UsersPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>

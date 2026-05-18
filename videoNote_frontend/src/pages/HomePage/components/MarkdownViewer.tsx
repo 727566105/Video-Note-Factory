@@ -141,7 +141,6 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
       await removeTask(currentTask.id)
       toast.success('删除成功')
     } catch (e) {
-      console.error('删除失败:', e)
     }
   }
 

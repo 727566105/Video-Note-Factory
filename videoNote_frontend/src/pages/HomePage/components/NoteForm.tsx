@@ -259,7 +259,6 @@ const NoteForm = () => {
       cb(data.url)
       setUploadSuccess(true)
     } catch (err) {
-      console.error('上传失败:', err)
       toast.error('上传失败，请重试')
     } finally {
       setIsUploading(false)
@@ -296,7 +295,6 @@ const NoteForm = () => {
     const data = await generateNote(payload)
     addPendingTask(data.task_id, values.platform, payload)
     } catch (err) {
-      console.error('提交失败:', err)
     }
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {

@@ -16,7 +16,6 @@ export const saveUserPreferences = async (data: {
     try {
       await request.put('/user/preferences', data)
     } catch (e) {
-      console.error('保存用户偏好失败', e)
     }
   }, 500)
 }

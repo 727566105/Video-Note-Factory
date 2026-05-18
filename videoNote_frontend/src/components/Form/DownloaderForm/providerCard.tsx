@@ -7,7 +7,7 @@ import { useProviderStore } from '@/store/providerStore'
 export interface IProviderCardProps {
   id: string
   providerName: string
-  Icon: any
+  Icon: React.ComponentType<{ className?: string }>
 }
 const ProviderCard: FC<IProviderCardProps> = ({ providerName, Icon, id }: IProviderCardProps) => {
   const navigate = useNavigate()
@@ -17,8 +17,7 @@ const ProviderCard: FC<IProviderCardProps> = ({ providerName, Icon, id }: IProvi
   }
 
   const rawId = useParams()
-  // @ts-ignore
-  const { id: currentId } = useParams()
+  const { id: currentId } = useParams<{ id: string }>()
   const isActive = currentId === id
   return (
     <div

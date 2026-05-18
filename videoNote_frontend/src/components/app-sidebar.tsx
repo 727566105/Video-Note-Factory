@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { NavUser } from "@/components/nav-user"
 import { TaskQueuePanel } from "@/components/TaskQueuePanel"
+import { useSubscriptionStore } from "@/store/subscriptionStore"
 
 interface NavItemProps {
   icon: React.ReactNode
@@ -79,6 +80,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navigate = useNavigate()
   const location = useLocation()
   const { state, toggleSidebar } = useSidebar()
+  const { unreadCount, fetchUnreadCount } = useSubscriptionStore()
+
+  React.useEffect(() => { fetchUnreadCount() }, [fetchUnreadCount])
 
   const user = {
     name: "王旭洋",
@@ -145,13 +149,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </div>
 
           <SidebarContent className="flex flex-col items-center gap-1 !px-0 !overflow-hidden !py-2">
-            {/* 7. Activity 动态 */}
-            <button className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent text-sidebar-foreground transition-colors">
-              <Activity className="w-[18px] h-[18px]" />
-            </button>
-            {/* 8. Rss 订阅 */}
-            <button className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent text-sidebar-foreground transition-colors">
+            {/* 7. Rss 动态 */}
+            <button
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-lg transition-colors relative",
+                location.pathname === "/feed"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "hover:bg-accent text-sidebar-foreground"
+              )}
+              onClick={() => navigate("/feed")}
+            >
               <Rss className="w-[18px] h-[18px]" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
+            </button>
+            {/* 8. Activity 频道 */}
+            <button
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
+                location.pathname === "/channels"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "hover:bg-accent text-sidebar-foreground"
+              )}
+              onClick={() => navigate("/channels")}
+            >
+              <Activity className="w-[18px] h-[18px]" />
             </button>
             {/* 9. Flame 热门 */}
             <button className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent text-sidebar-foreground transition-colors">
@@ -268,17 +291,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenu className="flex flex-col gap-1">
                 <SidebarMenuItem>
                   <NavItem
-                    icon={<Activity className="w-4 h-4" />}
-                    label="动态 (Beta)"
-                    onClick={() => alert('暂无开发')}
+                    icon={<Rss className="w-4 h-4" />}
+                    label={`动态${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
+                    active={location.pathname === "/feed"}
+                    onClick={() => navigate("/feed")}
                   />
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <NavItem
-                    icon={<Rss className="w-4 h-4" />}
-                    label="订阅"
-                    hasDropdown
-                    onClick={() => alert('暂无开发')}
+                    icon={<Activity className="w-4 h-4" />}
+                    label="频道管理"
+                    active={location.pathname === "/channels"}
+                    onClick={() => navigate("/channels")}
                   />
                 </SidebarMenuItem>
                 <SidebarMenuItem>

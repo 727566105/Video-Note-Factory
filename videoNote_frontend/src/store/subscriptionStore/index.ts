@@ -1,0 +1,127 @@
+import { create } from 'zustand'
+import { devtools } from 'zustand/middleware'
+import toast from 'react-hot-toast'
+import {
+  fetchSubscriptions as apiFetchSubscriptions,
+  subscribe as apiSubscribe,
+  unsubscribe as apiUnsubscribe,
+  toggleSubscription as apiToggle,
+  refreshFeed as apiRefreshFeed,
+  fetchFeed as apiFetchFeed,
+  markFeedRead as apiMarkRead,
+  markAllFeedRead as apiMarkAllRead,
+  fetchUnreadCount as apiFetchUnreadCount,
+  type Subscription,
+  type FeedItem,
+} from '@/services/subscription'
+
+interface SubscriptionStore {
+  subscriptions: Subscription[]
+  feedItems: FeedItem[]
+  unreadCount: number
+  loading: boolean
+
+  fetchSubscriptions: () => Promise<void>
+  subscribe: (url: string) => Promise<boolean>
+  unsubscribe: (id: number) => Promise<void>
+  toggleSubscription: (id: number) => Promise<void>
+  fetchFeed: (limit?: number, offset?: number, type?: string) => Promise<void>
+  markRead: (id: number) => Promise<void>
+  markAllRead: () => Promise<void>
+  refreshFeed: () => Promise<void>
+  fetchUnreadCount: () => Promise<void>
+}
+
+export const useSubscriptionStore = create<SubscriptionStore>()(
+  devtools((set, get) => ({
+    subscriptions: [],
+    feedItems: [],
+    unreadCount: 0,
+    loading: false,
+
+    fetchSubscriptions: async () => {
+      try {
+        const subs = await apiFetchSubscriptions()
+        set({ subscriptions: subs || [] })
+      } catch { }
+    },
+
+    subscribe: async (url: string) => {
+      try {
+        await apiSubscribe(url)
+        toast.success('订阅成功')
+        get().fetchSubscriptions()
+        get().fetchUnreadCount()
+        return true
+      } catch (e: any) {
+        toast.error(e?.response?.data?.detail || e?.message || '订阅失败')
+        return false
+      }
+    },
+
+    unsubscribe: async (id: number) => {
+      try {
+        await apiUnsubscribe(id)
+        toast.success('已取消订阅')
+        get().fetchSubscriptions()
+      } catch {
+        toast.error('取消订阅失败')
+      }
+    },
+
+    toggleSubscription: async (id: number) => {
+      try {
+        await apiToggle(id)
+        get().fetchSubscriptions()
+      } catch { }
+    },
+
+    fetchFeed: async (limit = 20, offset = 0, type?: string) => {
+      set({ loading: true })
+      try {
+        const items = await apiFetchFeed(limit, offset, type)
+        set({ feedItems: items || [] })
+      } catch { } finally {
+        set({ loading: false })
+      }
+    },
+
+    markRead: async (id: number) => {
+      try {
+        await apiMarkRead(id)
+        set(state => ({
+          feedItems: state.feedItems.map(f => f.id === id ? { ...f, is_read: 1 } : f),
+          unreadCount: Math.max(0, state.unreadCount - 1),
+        }))
+      } catch { }
+    },
+
+    markAllRead: async () => {
+      try {
+        await apiMarkAllRead()
+        set(state => ({
+          feedItems: state.feedItems.map(f => ({ ...f, is_read: 1 })),
+          unreadCount: 0,
+        }))
+      } catch { }
+    },
+
+    refreshFeed: async () => {
+      try {
+        const res = await apiRefreshFeed()
+        toast.success(`刷新完成，新增 ${(res as any)?.added || 0} 条`)
+        get().fetchFeed()
+        get().fetchUnreadCount()
+      } catch {
+        toast.error('刷新失败')
+      }
+    },
+
+    fetchUnreadCount: async () => {
+      try {
+        const res = await apiFetchUnreadCount()
+        set({ unreadCount: (res as any)?.count || 0 })
+      } catch { }
+    },
+  }))
+)

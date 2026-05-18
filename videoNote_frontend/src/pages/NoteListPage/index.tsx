@@ -1,21 +1,28 @@
-import { FC, useState, useEffect, useRef } from 'react'
+import { FC, useState, useEffect, useRef, useMemo } from 'react'
 import {
   Download,
   RotateCw,
-  Columns,
-  ChevronLeft,
-  ChevronRight,
   Trash2,
   FolderPlus,
   Search,
   LoaderCircle,
   Play,
   Rss,
+  ChevronDown,
 } from 'lucide-react'
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  flexRender,
+  type VisibilityState,
+  type SortingState,
+} from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -23,6 +30,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { getTasks, delete_task, get_task_status } from '@/services/note'
 import { TableSkeleton } from '@/components/Skeletons'
 import toast from 'react-hot-toast'
@@ -35,51 +56,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
 
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   if (!coverUrl) return ''
   const isLocal = platform === 'local' || platform === 'local_audio'
   if (isLocal) return coverUrl
   return `/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
-}
-
-const PROGRESS_STEPS = [
-  { key: 'PARSING', label: '解析', order: 1 },
-  { key: 'DOWNLOADING', label: '下载', order: 2 },
-  { key: 'TRANSCRIBING', label: '转写', order: 3 },
-  { key: 'SUMMARIZING', label: '总结', order: 4 },
-  { key: 'SAVING', label: '保存', order: 5 },
-  { key: 'SUCCESS', label: '完成', order: 6 },
-]
-
-const getStepProgress = (status: string): { currentStep: number; stepLabel: string } => {
-  const step = PROGRESS_STEPS.find(s => s.key === status)
-  if (!step) {
-    if (status === 'FAILED') return { currentStep: 0, stepLabel: '失败' }
-    if (status === 'QUEUED' || status === 'PENDING') return { currentStep: 0, stepLabel: '排队' }
-    return { currentStep: 0, stepLabel: '未知' }
-  }
-  return { currentStep: step.order, stepLabel: step.label }
-}
-
-const isProcessingStatus = (status: string): boolean => {
-  return ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(status)
-}
-
-interface NoteItem {
-  id: string
-  task_id: string
-  cover: string
-  platform: string
-  title: string
-  author: string
-  note: string
-  created_at: string
-  status: string
-  video_url: string
 }
 
 export const NoteListPage: FC = () => {
@@ -278,169 +263,29 @@ export const NoteListPage: FC = () => {
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchNotes}>
               <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
             </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8">
-              <Columns className="w-4 h-4" />
-            </Button>
           </div>
         </div>
       </div>
 
       {/* 视图内容 */}
       {noteViewMode === 'table' ? (
-        <div className="flex-1 min-h-0 border border-border rounded-lg overflow-auto">
-          <div className="flex items-center gap-4 px-4 py-3 bg-muted border-b border-border text-sm font-medium text-muted-foreground">
-            <Checkbox
-              checked={selectedRows.length === filteredNotes.length && filteredNotes.length > 0}
-              onCheckedChange={toggleSelectAll}
-            />
-            <div className="w-32">封面</div>
-            <div className="flex-1 min-w-0">标题</div>
-            <div className="flex-1 min-w-0">笔记</div>
-            <div className="w-24 text-right">操作菜单</div>
-          </div>
-
-          {loading && <TableSkeleton rows={5} />}
-
-          {!loading && filteredNotes.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
-              <p>暂无笔记</p>
-              <p className="text-xs mt-1">生成笔记后将显示在这里</p>
-            </div>
-          )}
-
-          {!loading && filteredNotes.map((item) => (
-            <div
-              key={item.id}
-              className={cn(
-                "flex items-center gap-4 px-4 py-4 border-b border-border last:border-b-0 cursor-pointer transition-all duration-200 hover:bg-accent hover:shadow-sm",
-                selectedRows.includes(item.id) && "bg-accent"
-              )}
-              onClick={() => handleNoteClick(item)}
-            >
-              <Checkbox
-                checked={selectedRows.includes(item.id)}
-                onCheckedChange={() => toggleSelectRow(item.id)}
-                onClick={(e) => e.stopPropagation()}
-              />
-              <div className="w-32">
-                <div className="relative aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                  {item.cover && !failedCovers.has(item.id) ? (
-                    <img src={item.cover} alt="" className="w-full h-full object-cover" onError={() => handleCoverError(item.id)} />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-1">
-                      <PlatformIconSmall platform={item.platform} />
-                      <span className="text-xs text-muted-foreground">{item.author || item.platform}</span>
-                    </div>
-                  )}
-                  {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <LoaderCircle className="w-6 h-6 text-white animate-spin" />
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-foreground truncate">{item.title}</div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm text-muted-foreground">{item.author}</span>
-                  {isSubscribable(item.platform) && item.author && (
-                    <button
-                      className={cn(
-                        "flex items-center gap-0.5 text-xs transition-colors",
-                        isSubscribed(item.author) ? "text-primary" : "text-muted-foreground hover:text-primary"
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (isSubscribed(item.author)) {
-                          toast.info('已订阅该频道')
-                        } else {
-                          subscribe(item.video_url)
-                        }
-                      }}
-                    >
-                      <Rss className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-                {/* 进度条展示 */}
-                {isProcessingStatus(item.status) && (() => {
-                  const { currentStep, stepLabel } = getStepProgress(item.status)
-                  return (
-                    <div className="flex flex-col gap-1 mt-2">
-                      <div className="flex items-center gap-2 text-xs">
-                        <LoaderCircle className="w-3 h-3 animate-spin text-primary" />
-                        <span className="text-primary">{stepLabel}</span>
-                        <span className="text-muted-foreground">{currentStep}/6</span>
-                      </div>
-                      <div className="flex gap-1">
-                        {PROGRESS_STEPS.map((step: { key: string; label: string; order: number }, idx: number) => (
-                          <div
-                            key={step.key}
-                            className={cn(
-                              'h-1 flex-1 rounded-full transition-all duration-300',
-                              idx < currentStep ? 'bg-primary' : 'bg-muted'
-                            )}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })()}
-                {item.status === 'QUEUED' && (
-                  <div className="flex items-center gap-2 text-xs mt-2 text-muted-foreground">
-                    <LoaderCircle className="w-3 h-3 animate-spin" />
-                    排队等待中...
-                  </div>
-                )}
-                {item.status === 'FAILED' && (
-                  <div className="text-xs mt-2 text-red-500">生成失败</div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-muted-foreground truncate">{item.note}</div>
-              </div>
-              <div className="w-24 flex items-center justify-end gap-2">
-                <button
-                  className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setDeleteTargetId(item.task_id)
-                    setDeleteDialogOpen(true)
-                  }}
-                >
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </button>
-              </div>
-            </div>
-          ))}
-
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/50">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>每页行数</span>
-              <select className="px-2 py-1 text-sm border border-border rounded-md bg-background">
-                <option>10</option>
-                <option>20</option>
-                <option>50</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {selectedRows.length}/{filteredNotes.length} 行
-              </span>
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="icon" className="h-8 w-8">
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <select className="px-2 py-1 text-sm border border-border rounded-md bg-background">
-                  <option>1</option>
-                </select>
-                <Button variant="outline" size="icon" className="h-8 w-8">
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DataTable
+          data={filteredNotes}
+          loading={loading}
+          selectedRows={selectedRows}
+          onSelectRow={toggleSelectRow}
+          onSelectAll={toggleSelectAll}
+          onRowClick={handleNoteClick}
+          onDelete={(taskId) => {
+            setDeleteTargetId(taskId)
+            setDeleteDialogOpen(true)
+          }}
+          onSubscribe={subscribe}
+          failedCovers={failedCovers}
+          onCoverError={handleCoverError}
+          isSubscribed={isSubscribed}
+          isSubscribable={isSubscribable}
+        />
       ) : noteViewMode === 'card' ? (
         /* 卡片视图 */
         <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
@@ -677,14 +522,195 @@ export const NoteListPage: FC = () => {
 
 export default NoteListPage
 
-function PlatformIconSmall({ platform }: { platform: string }) {
-  const iconMap: Record<string, React.ReactNode> = {
-    bilibili: <BiliBiliLogo className="w-6 h-6" />,
-    youtube: <YoutubeLogo className="w-6 h-6" />,
-    douyin: <DouyinLogo className="w-6 h-6" />,
-    kuaishou: <KuaishouLogo className="w-6 h-6" />,
-    local: <LocalLogo className="w-6 h-6" />,
-    local_audio: <AudioLogo className="w-6 h-6" />,
-  }
-  return <>{iconMap[platform] || <LocalLogo className="w-6 h-6" />}</>
+function DataTable({
+  data,
+  loading,
+  selectedRows,
+  onSelectRow,
+  onSelectAll,
+  onRowClick,
+  onDelete,
+  onSubscribe,
+  failedCovers,
+  onCoverError,
+  isSubscribed,
+  isSubscribable,
+}: {
+  data: NoteItem[]
+  loading: boolean
+  selectedRows: string[]
+  onSelectRow: (id: string) => void
+  onSelectAll: () => void
+  onRowClick: (item: NoteItem) => void
+  onDelete: (taskId: string) => void
+  onSubscribe: (url: string) => void
+  failedCovers: Set<string>
+  onCoverError: (id: string) => void
+  isSubscribed: (author: string) => boolean
+  isSubscribable: (platform: string) => boolean
+}) {
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [sorting, setSorting] = useState<SortingState>([])
+
+  const columns = useMemo(
+    () =>
+      getColumns({
+        selectedRows,
+        onSelectRow,
+        onSelectAll,
+        onRowClick,
+        onDelete,
+        onSubscribe,
+        failedCovers,
+        onCoverError,
+        isSubscribed,
+        isSubscribable,
+      }),
+    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable],
+  )
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onSortingChange: setSorting,
+    state: {
+      columnVisibility,
+      sorting,
+    },
+    initialState: {
+      pagination: { pageSize: 10 },
+    },
+  })
+
+  const selectedCount = table.getFilteredSelectedRowModel().rows.length
+  const totalCount = table.getFilteredRowModel().rows.length
+
+  return (
+    <div className="flex-1 min-h-0 border border-border rounded-lg overflow-auto flex flex-col mx-6">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+        <span className="text-sm text-muted-foreground">
+          已选择 {selectedCount} 行（共 {totalCount} 行）
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              列 <ChevronDown className="ml-1 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {table
+              .getAllColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  checked={column.getIsVisible()}
+                  onCheckedChange={(value) => column.toggleVisibility(value)}
+                >
+                  {column.id === 'select' ? '选择' : column.id === 'cover' ? '封面' : column.id === 'title' ? '标题' : column.id === 'note' ? '笔记' : column.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id} className="hover:bg-muted/50">
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id} style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}>
+                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-48 text-center">
+                <TableSkeleton rows={5} />
+              </TableCell>
+            </TableRow>
+          ) : table.getRowModel().rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-48 text-center">
+                <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
+                  <p>暂无笔记</p>
+                  <p className="text-xs mt-1">生成笔记后将显示在这里</p>
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className={cn(
+                  'cursor-pointer transition-all duration-200',
+                  selectedRows.includes(row.original.id) && 'bg-accent',
+                )}
+                onClick={() => onRowClick(row.original)}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id} style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+
+      {/* 分页 */}
+      <div className="flex items-center justify-between px-4 py-4 border-t border-border">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Select
+            value={String(table.getState().pagination.pageSize)}
+            onValueChange={(value) => table.setPageSize(Number(value))}
+          >
+            <SelectTrigger className="h-8 w-[70px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent side="top">
+              {[10, 20, 30, 50].map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span>行/页</span>
+        </div>
+        <div className="flex items-center justify-end space-x-2">
+          <span className="text-sm text-muted-foreground">
+            第 {table.getState().pagination.pageIndex + 1} / {table.getPageCount()} 页
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            上一页
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            下一页
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
 }
+

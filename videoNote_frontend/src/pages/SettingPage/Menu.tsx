@@ -7,6 +7,7 @@ import {
   Cloud,
   ListOrdered,
   Users,
+  Rss,
 } from 'lucide-react'
 import MenuBar, { IMenuProps } from '@/pages/SettingPage/components/menuBar.tsx'
 import { useAuthStore } from '@/store/authStore'
@@ -54,6 +55,12 @@ const Menu = () => {
       name: '下载配置',
       icon: <HardDriveDownload size={20} />,
       path: '/settings/download',
+    },
+    {
+      id: 'subscription',
+      name: '订阅设置',
+      icon: <Rss size={20} />,
+      path: '/settings/subscription',
     },
   ]
 

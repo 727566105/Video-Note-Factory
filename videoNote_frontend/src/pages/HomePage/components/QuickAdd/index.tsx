@@ -106,7 +106,6 @@ export function QuickAdd({ className }: QuickAddProps) {
         toast.error('剪贴板为空')
       }
     } catch (err) {
-      console.error('粘贴失败:', err)
       // 常见错误：用户未授权或不在 HTTPS 环境
       toast.error('无法读取剪贴板，请手动粘贴或使用 Ctrl+V')
     }
@@ -162,7 +161,6 @@ export function QuickAdd({ className }: QuickAddProps) {
         toast.success('笔记生成任务已提交！')
       }
     } catch (err) {
-      console.error('生成笔记失败:', err)
       toast.error('生成笔记失败，请稍后重试')
     } finally {
       setIsGenerating(false)
@@ -250,7 +248,6 @@ export function QuickAdd({ className }: QuickAddProps) {
           successCount++
         }
       } catch (err) {
-        console.error(`文件 ${file.name} 提交失败:`, err)
         toast.error(`${file.name} 提交失败`)
       }
     }

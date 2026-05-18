@@ -1,16 +1,17 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import toast from 'react-hot-toast'
 
+import { getApiBaseURL } from '@/utils/api'
+import { useAuthStore } from '@/store/authStore'
+
 // 统一响应类型
-export interface IResponse<T = any> {
+export interface IResponse<T = unknown> {
   code: number;
   msg: string;
   data: T;
 }
 
-const baseURL = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api`
-  : '/api';
+const baseURL = getApiBaseURL();
 
 // 创建实例
  const request: AxiosInstance = axios.create({
@@ -21,15 +22,10 @@ const baseURL = import.meta.env.VITE_API_BASE_URL
 // 请求拦截器：注入 token
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    try {
-      const raw = localStorage.getItem('auth-storage')
-      if (raw) {
-        const { state } = JSON.parse(raw)
-        if (state?.token) {
-          config.headers.Authorization = `Bearer ${state.token}`
-        }
-      }
-    } catch {}
+    const token = useAuthStore.getState().token
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   (error) => Promise.reject(error)
@@ -56,18 +52,13 @@ request.interceptors.response.use(
     }
     // 401 未认证，清除 token 并跳转登录
     if (error.response?.status === 401) {
-      try {
-        const raw = localStorage.getItem('auth-storage')
-        if (raw) {
-          const { state } = JSON.parse(raw)
-          if (state?.token) {
-            localStorage.removeItem('auth-storage')
-            toast.error('登录已过期，请重新登录')
-            window.location.href = '/login'
-            return Promise.reject(error)
-          }
-        }
-      } catch {}
+      const { token, logout } = useAuthStore.getState()
+      if (token) {
+        logout()
+        toast.error('登录已过期，请重新登录')
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
     }
 
     const silent = error.config?.headers?.['X-Silent']

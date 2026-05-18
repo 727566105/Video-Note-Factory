@@ -28,7 +28,6 @@ export const generateNote = async (data: {
     
     return null
   } catch (e: any) {
-    console.error('❌ 请求出错', e)
     
     // 显示后端返回的错误信息
     if (e.msg) {
@@ -53,7 +52,6 @@ export const get_task_status = async (task_id: string) => {
 
     return await request.get('/task_status/' + task_id)
   } catch (e) {
-    console.error('❌ 请求出错', e)
     throw e // 抛出错误以便调用方处理
   }
 }
@@ -62,7 +60,6 @@ export const getTasks = async (limit: number = 100) => {
   try {
     return await request.get('/tasks?limit=' + limit)
   } catch (e) {
-    console.error('❌ 获取任务列表失败', e)
     throw e
   }
 }
@@ -79,7 +76,6 @@ export const updateQueueConfig = async (maxConcurrent: number) => {
   try {
     return await request.post('/task_queue/config', { max_concurrent: maxConcurrent })
   } catch (e) {
-    console.error('❌ 更新队列配置失败', e)
     throw e
   }
 }

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTaskStore, type Task } from '@/store/taskStore'
+import { getBaseURL } from '@/utils/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   DropdownMenu,
@@ -136,7 +137,7 @@ const TaskQueueItem: FC<{
   onDelete: () => void
   onRetry: () => void
 }> = ({ task, onViewSummary, onViewTranscript, onDelete, onRetry }) => {
-  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
+  const baseURL = getBaseURL()
   const config = STATUS_CONFIG[task.status] || STATUS_CONFIG.PENDING
   const StatusIcon = config.icon
   const title = getTaskTitle(task)

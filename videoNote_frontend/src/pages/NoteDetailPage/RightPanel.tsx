@@ -28,6 +28,7 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import { useTaskStore, type Task, type Markdown } from '@/store/taskStore'
 import { useModelStore } from '@/store/modelStore'
 import { useProviderStore } from '@/store/providerStore'
+import { getBaseURL } from '@/utils/api'
 import { noteStyles, outputLanguages } from '@/constant/note'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -574,8 +575,7 @@ function fmtTime(seconds: number) {
 function ScreenshotImg({ taskId, time }: { taskId: string; time: number }) {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-  const src = `${baseUrl}/api/screenshot/${taskId}?t=${Math.floor(time)}`
+  const src = `${getBaseURL()}/api/screenshot/${taskId}?t=${Math.floor(time)}`
 
   if (error) return null
 

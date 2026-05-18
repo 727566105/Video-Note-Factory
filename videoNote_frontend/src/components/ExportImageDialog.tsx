@@ -162,7 +162,6 @@ const ExportImageDialog = ({
         const url = canvas.toDataURL('image/png', 1.0)
         setImageUrl(url)
       } catch (err) {
-        console.error('生成图片失败:', err)
         setError(err instanceof Error ? err.message : '生成图片失败')
       } finally {
         setLoading(false)

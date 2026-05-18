@@ -17,10 +17,9 @@ interface MarkdownRendererProps {
   baseURL?: string
 }
 
+import { getBaseURL } from '@/utils/api'
+
 // 确保 baseURL 没有尾部斜杠
-const getBaseURL = () => {
-  return (String(import.meta.env.VITE_API_BASE_URL || '').replace('/api', '') || '').replace(/\/$/, '')
-}
 
 const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBaseURL() }) => {
   return (

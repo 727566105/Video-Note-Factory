@@ -74,7 +74,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       await get().fetchProviderList()
       return item.id || item
     } catch (error) {
-      console.error('Error adding provider:', error)
       throw error
     }
   },
@@ -122,7 +121,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       await get().fetchProviderList()
       return res
     } catch (error) {
-      console.error('Error updating provider:', error)
       throw error
     }
   },
@@ -131,7 +129,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       await deleteProvider(id)
       await get().fetchProviderList()
     } catch (error) {
-      console.error('Error deleting provider:', error)
       throw error
     }
   },
@@ -168,7 +165,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
           ),
         })
     } catch (error) {
-      console.error('Error fetching provider list:', error)
       set({ loading: false })
     }
   },

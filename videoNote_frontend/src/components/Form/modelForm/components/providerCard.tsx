@@ -35,8 +35,7 @@ const ProviderCard: FC<IProviderCardProps> = ({
     // 刷新首页模型列表
     loadEnabledModels()
   }
-  // @ts-ignore
-  const { id: currentId } = useParams()
+  const { id: currentId } = useParams<{ id: string }>()
   const isActive = currentId === id
   return (
     <div

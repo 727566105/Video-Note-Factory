@@ -205,6 +205,28 @@ class NoteGenerator:
             self._update_status(task_id, TaskStatus.FAILED, message=str(exc))
             return None
 
+    def generate_article_note(self, title: str, author: str, description: str,
+                              images: list = None, model_name: str = None,
+                              provider_id: str = None) -> str:
+        """从图文内容直接生成笔记（跳过下载和转写）"""
+        from app.gpt.prompt import ARTICLE_SUMMARY_PROMPT
+
+        image_text = ""
+        if images:
+            image_text = "\n\n图片链接：\n" + "\n".join(f"- {img}" for img in images)
+
+        prompt = ARTICLE_SUMMARY_PROMPT.format(
+            title=title,
+            author=author or "未知",
+            description=description or "",
+            image_count=len(images) if images else 0,
+            image_text=image_text,
+        )
+
+        gpt = GPTFactory.from_config(provider_id=provider_id, model_name=model_name)
+        result = gpt.chat(prompt)
+        return result
+
     @staticmethod
     def delete_note(video_id: str, platform: str) -> int:
         """

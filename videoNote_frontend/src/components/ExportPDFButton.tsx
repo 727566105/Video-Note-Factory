@@ -64,7 +64,6 @@ export const ExportPDFButton = forwardRef<HTMLButtonElement, ExportPDFButtonProp
 
       toast.success('PDF 导出成功');
     } catch (error) {
-      console.error('PDF 导出失败:', error);
       const errorMessage = error instanceof Error ? error.message : 'PDF 导出失败，请重试';
       toast.error(errorMessage);
     } finally {
