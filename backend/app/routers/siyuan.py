@@ -13,8 +13,8 @@ from app.auth.dependencies import get_current_user
 
 logger = get_logger(__name__)
 
-# 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+# 使用统一的路径管理工具
+from app.utils.path_helper import get_note_file_path
 
 router = APIRouter()
 

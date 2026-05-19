@@ -15,8 +15,9 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# 获取项目根目录的绝对路径
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+# 使用统一的路径管理工具
+from app.utils.path_helper import get_note_file_path, get_export_file_path, NOTE_OUTPUT_DIR
+
 EXPORT_HISTORY_FILE = NOTE_OUTPUT_DIR / ".export_history.json"
 
 # PDF 样式主题

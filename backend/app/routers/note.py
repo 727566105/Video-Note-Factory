@@ -31,8 +31,13 @@ from fastapi.responses import StreamingResponse, FileResponse
 from app.auth.dependencies import get_current_user
 from app.enmus.task_status_enums import TaskStatus
 
-# from app.services.downloader import download_raw_audio
-# from app.services.whisperer import transcribe_audio
+# 使用统一的路径管理工具
+from app.utils.path_helper import (
+    get_note_file_path,
+    get_note_folder,
+    get_media_file_path,
+    NOTE_OUTPUT_DIR,
+)
 
 router = APIRouter()
 
@@ -73,7 +78,6 @@ class VideoRequest(BaseModel):
         return v
 
 
-NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
 UPLOAD_DIR = "uploads"
 
 # 文件上传安全配置
@@ -109,14 +113,25 @@ def sanitize_filename(filename: str) -> str:
 
 
 def save_note_to_file(task_id: str, note):
-    os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
-    result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
+    """
+    保存笔记到文件，使用新的目录结构（按标题建文件夹）
+    
+    :param task_id: 任务 ID
+    :param note: NoteResult 对象
+    """
+    # 获取标题（从 audio_meta 中）
+    title = None
+    if note.audio_meta and hasattr(note.audio_meta, 'title'):
+        title = note.audio_meta.title
+    
+    # 使用新的路径管理
+    result_path = get_note_file_path(task_id, title, "note")
 
     # 检查是否存在旧版本
     existing_versions = []
     existing_transcript = None
     existing_audio_meta = None
-    if os.path.exists(result_path):
+    if result_path.exists():
         try:
             with open(result_path, "r", encoding="utf-8") as f:
                 old_data = json.load(f)
@@ -156,8 +171,7 @@ def save_note_to_file(task_id: str, note):
 
 def _save_queued_task_params(task_id: str, data: VideoRequest):
     """保存排队任务的参数到文件，供后续拉起时读取"""
-    os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
-    queue_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.queue.json")
+    queue_path = get_note_file_path(task_id, None, "queue")
     params = {
         "video_url": data.video_url,
         "platform": data.platform,
@@ -180,14 +194,14 @@ def _save_queued_task_params(task_id: str, data: VideoRequest):
 
 def _start_queued_task(task_id: str):
     """从队列文件读取参数并在新线程中启动排队任务"""
-    queue_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.queue.json")
-    if not os.path.exists(queue_path):
+    queue_path = get_note_file_path(task_id, None, "queue")
+    if not queue_path.exists():
         logger.error(f"排队任务参数文件不存在: {task_id}")
         return
     try:
         with open(queue_path, "r", encoding="utf-8") as f:
             params = json.load(f)
-        os.remove(queue_path)
+        queue_path.unlink()  # 删除队列文件
         if "quality" in params and isinstance(params["quality"], str):
             params["quality"] = DownloadQuality(params["quality"])
         thread = threading.Thread(target=run_note_task, args=(task_id,), kwargs=params, daemon=True)
@@ -244,21 +258,15 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)):
         if data.task_id:
             # 删除数据库记录
             delete_task_by_id(data.task_id)
-            # 删除笔记相关文件
-            result_file = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.json")
-            status_file = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.status.json")
-            audio_cache = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}_audio.json")
-            transcript_cache = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}_transcript.json")
-            md_cache = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.md")
-
-            for file_path in [result_file, status_file, audio_cache, transcript_cache, md_cache]:
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    logger.info(f"已删除文件: {file_path}")
-            # 清理排队任务文件和队列
-            queue_file = os.path.join(NOTE_OUTPUT_DIR, f"{data.task_id}.queue.json")
-            if os.path.exists(queue_file):
-                os.remove(queue_file)
+            
+            # 删除整个笔记文件夹（包含所有相关文件）
+            note_folder = get_note_folder(data.task_id, None)
+            if note_folder.exists():
+                import shutil
+                shutil.rmtree(note_folder)
+                logger.info(f"已删除笔记文件夹: {note_folder}")
+            
+            # 清理队列
             task_queue.remove(data.task_id)
         else:
             # 兼容旧逻辑：通过 video_id + platform 删除
@@ -349,11 +357,11 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
 
 @router.get("/task_status/{task_id}")
 def get_task_status(task_id: str, current_user=Depends(get_current_user)):
-    status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
-    result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
+    status_path = get_note_file_path(task_id, None, "status")
+    result_path = get_note_file_path(task_id, None, "note")
 
     # 优先读状态文件
-    if os.path.exists(status_path):
+    if status_path.exists():
         with open(status_path, "r", encoding="utf-8") as f:
             status_content = json.load(f)
 
@@ -394,7 +402,7 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)):
         })
 
     # 没有状态文件，但有结果
-    if os.path.exists(result_path):
+    if result_path.exists():
         with open(result_path, "r", encoding="utf-8") as f:
             result_content = json.load(f)
         return R.success({
@@ -662,13 +670,13 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
 
         for task in db_tasks:
             task_id = task.task_id
-            status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
-            result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.json")
+            status_path = get_note_file_path(task_id, None, "status")
+            result_path = get_note_file_path(task_id, None, "note")
 
             # 读取状态文件，获取任务进度
             status = "SUCCESS"  # 默认值（已完成）
             message = ""
-            if os.path.exists(status_path):
+            if status_path.exists():
                 with open(status_path, "r", encoding="utf-8") as f:
                     status_data = json.load(f)
                     status = status_data.get("status", "PENDING")
@@ -676,7 +684,7 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
 
             # 读取笔记内容（如果存在）
             note_data = None
-            if os.path.exists(result_path):
+            if result_path.exists():
                 with open(result_path, "r", encoding="utf-8") as f:
                     note_data = json.load(f)
 
@@ -804,16 +812,16 @@ def get_screenshot(task_id: str, t: float = 0):
     """根据 task_id 和时间戳生成/返回视频截图（无需认证，图片不敏感）"""
     from app.utils.video_helper import generate_screenshot
 
-    # 查找视频文件
+    # 查找视频文件（在媒体目录中）
     video_patterns = [
-        os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.mp4"),
-        os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.mkv"),
-        os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.webm"),
+        get_media_file_path(task_id, "video", "mp4"),
+        get_media_file_path(task_id, "video", "mkv"),
+        get_media_file_path(task_id, "video", "webm"),
     ]
     video_path = None
     for p in video_patterns:
-        if os.path.exists(p):
-            video_path = p
+        if p.exists():
+            video_path = str(p)
             break
 
     if not video_path:
@@ -850,8 +858,8 @@ def get_screenshot(task_id: str, t: float = 0):
 @router.get("/audio/{task_id}")
 def download_audio(task_id: str, current_user=Depends(get_current_user)):
     """下载任务对应的音频文件"""
-    audio_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}_audio.json")
-    if not os.path.exists(audio_path):
+    audio_path = get_note_file_path(task_id, None, "audio")
+    if not audio_path.exists():
         raise HTTPException(status_code=404, detail="音频元数据不存在")
 
     try:

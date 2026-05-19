@@ -11,8 +11,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# 缓存目录配置
-NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "note_results"))
+# 使用统一的路径管理工具
+from app.utils.path_helper import NOTE_OUTPUT_DIR
+
 # 缓存 TTL 配置（天数）
 CACHE_TTL_DAYS = int(os.getenv("CACHE_TTL_DAYS", "7"))
 

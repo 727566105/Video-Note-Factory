@@ -70,7 +70,8 @@ def migrate_video_tasks_table():
 
 def backfill_task_metadata():
     """从 JSON 文件回填已有任务的元数据到数据库"""
-    NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
+    from app.utils.path_helper import get_note_file_path
+    
     db = next(get_db())
     backfilled = 0
     try:
@@ -79,8 +80,8 @@ def backfill_task_metadata():
             # 如果已有 title，跳过
             if task.title:
                 continue
-            result_path = os.path.join(NOTE_OUTPUT_DIR, f"{task.task_id}.json")
-            if os.path.exists(result_path):
+            result_path = get_note_file_path(task.task_id, None, "note")
+            if result_path.exists():
                 try:
                     with open(result_path, "r", encoding="utf-8") as f:
                         note_data = json.load(f)

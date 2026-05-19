@@ -1,29 +1,28 @@
 import os
 import re
+from pathlib import Path
 from urllib.parse import quote
 from markdown_pdf import MarkdownPdf, Section
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# 项目根路径（无论你在哪里运行）
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 使用统一的路径管理工具
+from app.utils.path_helper import (
+    PROJECT_ROOT,
+    get_export_file_path,
+    IMAGE_BASE_URL,
+)
 
-# 从 .env 获取 DATA_DIR，相对于 BASE_DIR 解析
-DATA_DIR_NAME = os.getenv("DATA_DIR", "data")
-DATA_DIR = os.path.join(BASE_DIR, DATA_DIR_NAME)
-SAVE_PATH = os.path.join(DATA_DIR, "note_output")
-IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL")
-STATIC_BASE = os.path.join(BASE_DIR, IMAGE_BASE_URL)
+# 静态文件基础路径
+STATIC_BASE = PROJECT_ROOT / "static"
 
 
 class ExportUtils:
     def __init__(self, **kwargs):
-        # 确认SAVE_PATH存在
-        print(f"保存路径: {SAVE_PATH}")
+        # 路径由 path_helper 统一管理，不需要在这里创建
         print(f"静态文件路径: {STATIC_BASE}")
-        if not os.path.exists(SAVE_PATH):
-            os.makedirs(SAVE_PATH)
+        print(f"图片基础URL: {IMAGE_BASE_URL}")
 
     def _embed_image_as_base64(self, img_path: str) -> str:
         """
@@ -83,8 +82,8 @@ class ExportUtils:
             if img_path.startswith("/static/"):
                 # 构建绝对路径
                 relative_path = img_path.lstrip("/")  # 移除开头的 /
-                abs_path = os.path.join(BASE_DIR, relative_path)
-                abs_path = self._get_normalized_path(abs_path)
+                abs_path = PROJECT_ROOT / relative_path
+                abs_path = self._get_normalized_path(str(abs_path))
 
                 # 检查文件是否存在并转换为 base64
                 if os.path.exists(abs_path):
@@ -103,13 +102,13 @@ class ExportUtils:
             elif not img_path.startswith(('http://', 'https://', 'data:')):
                 # 尝试多个可能的路径
                 possible_paths = [
-                    os.path.join(STATIC_BASE, img_path),
-                    os.path.abspath(img_path),
-                    os.path.join(BASE_DIR, img_path)
+                    STATIC_BASE / img_path,
+                    Path(img_path).resolve(),
+                    PROJECT_ROOT / img_path
                 ]
 
                 for abs_path in possible_paths:
-                    abs_path = self._get_normalized_path(abs_path)
+                    abs_path = self._get_normalized_path(str(abs_path))
                     if os.path.exists(abs_path):
                         base64_uri = self._embed_image_as_base64(abs_path)
                         if base64_uri:
@@ -136,9 +135,13 @@ class ExportUtils:
         print("图片路径处理完成")
         return result
 
-    def _to_pdf(self, content: str, title: str):
+    def _to_pdf(self, content: str, title: str, task_id: str = None):
         """
         将 Markdown 内容转换为 PDF
+        
+        :param content: Markdown 内容
+        :param title: 标题
+        :param task_id: 任务 ID（用于确定保存路径）
         """
         try:
             # 创建 PDF 对象，启用优化
@@ -153,12 +156,20 @@ class ExportUtils:
             # 添加内容段落
             pdf.add_section(Section(content))
 
-            # 保存 PDF
-            save_path = os.path.join(SAVE_PATH, f"{title}.pdf")
-            pdf.save(save_path)
+            # 使用新的路径管理
+            if task_id:
+                save_path = get_export_file_path(task_id, title, "pdf")
+            else:
+                # 兼容旧的调用方式（直接使用标题）
+                from app.utils.path_helper import EXPORT_DIR, sanitize_folder_name
+                EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+                safe_title = sanitize_folder_name(title)
+                save_path = EXPORT_DIR / f"{safe_title}.pdf"
+            
+            pdf.save(str(save_path))
 
             print(f"PDF 导出成功: {save_path}")
-            return save_path
+            return str(save_path)
 
         except Exception as e:
             print(f"PDF 导出失败: {str(e)}")
@@ -167,18 +178,31 @@ class ExportUtils:
                 # 尝试最基本的配置
                 pdf = MarkdownPdf()
                 pdf.add_section(Section(content))
-                save_path = os.path.join(SAVE_PATH, f"{title}.pdf")
-                pdf.save(save_path)
+                
+                if task_id:
+                    save_path = get_export_file_path(task_id, title, "pdf")
+                else:
+                    from app.utils.path_helper import EXPORT_DIR, sanitize_folder_name
+                    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+                    safe_title = sanitize_folder_name(title)
+                    save_path = EXPORT_DIR / f"{safe_title}.pdf"
+                
+                pdf.save(str(save_path))
                 print(f"基本配置 PDF 导出成功: {save_path}")
-                return save_path
+                return str(save_path)
             except Exception as e2:
                 print(f"基本配置也失败: {str(e2)}")
                 raise e2
 
-    def export(self, output_format: str, title: str, content: str) -> str:
+    def export(self, output_format: str, title: str, content: str, task_id: str = None) -> str:
         """
         导出内容为指定格式
         支持格式：pdf, html, word/docx, image/png
+        
+        :param output_format: 导出格式
+        :param title: 标题
+        :param content: 内容
+        :param task_id: 任务 ID（用于确定保存路径）
         """
         content = content.strip()
 
@@ -190,13 +214,13 @@ class ExportUtils:
 
         try:
             if output_format == "pdf":
-                save_path = self._to_pdf(content, title)
+                save_path = self._to_pdf(content, title, task_id)
             elif output_format == "html":
-                save_path = self._to_html(content, title)
+                save_path = self._to_html(content, title, task_id)
             elif output_format in ["word", "docx"]:
-                save_path = self._to_word(content, title)
+                save_path = self._to_word(content, title, task_id)
             elif output_format in ["image", "png"]:
-                save_path = self._to_image(content, title)
+                save_path = self._to_image(content, title, task_id)
             else:
                 supported_formats = ["pdf", "html", "word/docx", "image/png"]
                 raise ValueError(f"不支持的导出格式: {output_format}. 支持的格式: {', '.join(supported_formats)}")
@@ -225,9 +249,7 @@ class ExportUtils:
         调试方法：打印重要路径信息
         """
         print("=== 路径调试信息 ===")
-        print(f"BASE_DIR: {BASE_DIR}")
-        print(f"DATA_DIR: {DATA_DIR}")
-        print(f"SAVE_PATH: {SAVE_PATH}")
+        print(f"PROJECT_ROOT: {PROJECT_ROOT}")
         print(f"STATIC_BASE: {STATIC_BASE}")
         print(f"IMAGE_BASE_URL: {IMAGE_BASE_URL}")
         print("==================")

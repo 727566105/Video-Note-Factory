@@ -9,7 +9,8 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-NOTE_OUTPUT_DIR = os.getenv("NOTE_OUTPUT_DIR", "note_results")
+# 使用统一的路径管理工具
+from app.utils.path_helper import get_note_file_path
 
 
 class TaskQueueManager:
@@ -108,8 +109,7 @@ class TaskQueueManager:
 
     def _write_queued_status(self, task_id: str, position: int):
         """写入排队状态文件。"""
-        os.makedirs(NOTE_OUTPUT_DIR, exist_ok=True)
-        status_path = os.path.join(NOTE_OUTPUT_DIR, f"{task_id}.status.json")
+        status_path = get_note_file_path(task_id, None, "status")
         status_data = {
             "status": "QUEUED",
             "message": f"排队中（第 {position} 位）",

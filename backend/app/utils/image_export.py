@@ -14,8 +14,8 @@ from app.utils.response import ResponseWrapper as R
 
 logger = get_logger(__name__)
 
-# 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+# 使用统一的路径管理工具
+from app.utils.path_helper import get_note_file_path, get_export_file_path
 
 # 图片格式类型
 ImageFormat = Literal["png", "jpg", "jpeg"]
@@ -937,7 +937,7 @@ async def export_note_as_image(
         (图片二进制数据列表, 标题)
     """
     # 检查 Markdown 文件是否存在
-    markdown_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+    markdown_file = get_note_file_path(task_id, None, "markdown")
 
     if not markdown_file.exists():
         raise FileNotFoundError(f"笔记不存在 (task_id={task_id})")
@@ -953,7 +953,7 @@ async def export_note_as_image(
     platform = ""
     date_str = ""
 
-    audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
+    audio_cache_file = get_note_file_path(task_id, None, "audio")
     if audio_cache_file.exists():
         try:
             audio_meta = json.loads(audio_cache_file.read_text(encoding="utf-8"))

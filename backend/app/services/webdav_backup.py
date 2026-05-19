@@ -14,12 +14,13 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+# 使用统一的路径管理工具
+from app.utils.path_helper import NOTE_OUTPUT_DIR, PROJECT_ROOT
+
 # 数据库文件
-DB_FILE = Path(__file__).parent.parent.parent / "videonote.db"
+DB_FILE = PROJECT_ROOT / "backend" / "videonote.db"
 # 临时备份目录
-BACKUP_TEMP_DIR = Path(__file__).parent.parent.parent / ".backup_temp"
+BACKUP_TEMP_DIR = PROJECT_ROOT / ".backup_temp"
 
 # 全局状态，用于并发控制
 _backup_in_progress = False

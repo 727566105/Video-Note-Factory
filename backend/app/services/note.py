@@ -47,12 +47,15 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost")
 BACKEND_PORT = os.getenv("BACKEND_PORT", "8483")
 BACKEND_BASE_URL = f"{API_BASE_URL}:{BACKEND_PORT}"
 
-# 输出目录（用于缓存音频、转写、Markdown 文件，以及存储截图）
-NOTE_OUTPUT_DIR = Path(os.getenv("NOTE_OUTPUT_DIR", "note_results"))
-NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-IMAGE_OUTPUT_DIR = os.getenv("OUT_DIR", "./static/screenshots")
-# 图片基础 URL（用于生成 Markdown 中的图片链接，需前端静态目录对应）
-IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL", "/static/screenshots")
+# 使用统一的路径管理工具
+from app.utils.path_helper import (
+    NOTE_OUTPUT_DIR,
+    IMAGE_OUTPUT_DIR,
+    IMAGE_BASE_URL,
+    get_note_file_path,
+    get_media_file_path,
+    MEDIA_DIR,
+)
 
 # 日志配置
 logger = logging.getLogger(__name__)
@@ -128,10 +131,10 @@ class NoteGenerator:
             downloader = self._get_downloader(platform)
             gpt = self._get_gpt(model_name, provider_id)
 
-            # 缓存文件路径
-            audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
-            transcript_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_transcript.json"
-            markdown_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+            # 缓存文件路径（暂时不使用标题，因为下载前还没有标题）
+            audio_cache_file = get_note_file_path(task_id, None, "audio")
+            transcript_cache_file = get_note_file_path(task_id, None, "transcript")
+            markdown_cache_file = get_note_file_path(task_id, None, "markdown")
             print(audio_cache_file)
             # 1. 下载音频/视频
             audio_meta = self._download_media(
@@ -296,19 +299,19 @@ class NoteGenerator:
         logger.info(f"使用下载器：{downloader_cls.__class__}")
         return instance
 
-    def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus], message: Optional[str] = None):
+    def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus], message: Optional[str] = None, title: Optional[str] = None):
         """
-        创建或更新 {task_id}.status.json，记录当前任务状态
+        创建或更新状态文件，记录当前任务状态
 
         :param task_id: 任务唯一 ID
         :param status: TaskStatus 枚举或自定义状态字符串
         :param message: 可选消息，用于记录失败原因等
+        :param title: 笔记标题（可选，用于确定文件夹）
         """
         if not task_id:
             return
 
-        NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        status_file = NOTE_OUTPUT_DIR / f"{task_id}.status.json"
+        status_file = get_note_file_path(task_id, title, "status")
         print(f"写入状态文件: {status_file} 当前状态: {status}")
         data = {"status": status.value if isinstance(status, TaskStatus) else status}
         if message:
@@ -464,22 +467,20 @@ class NoteGenerator:
         """
         检查视频是否已缓存（通过检查视频文件是否存在）
         """
-        # 视频文件通常以 task_id 命名或存储在 data 目录
+        # 检查媒体目录中的视频文件
         video_patterns = [
-            NOTE_OUTPUT_DIR / f"{task_id}.mp4",
-            NOTE_OUTPUT_DIR / f"{task_id}.mkv",
-            NOTE_OUTPUT_DIR / f"{task_id}.webm",
-            Path(os.getenv("DATA_DIR", "data")) / f"{task_id}.mp4",
+            get_media_file_path(task_id, "video", "mp4"),
+            get_media_file_path(task_id, "video", "mkv"),
+            get_media_file_path(task_id, "video", "webm"),
         ]
         return any(p.exists() for p in video_patterns)
 
     def _restore_cached_video(self, task_id: str, grid_size: List[int], video_interval: int):
         """从缓存中恢复视频路径和缩略图"""
         video_patterns = [
-            NOTE_OUTPUT_DIR / f"{task_id}.mp4",
-            NOTE_OUTPUT_DIR / f"{task_id}.mkv",
-            NOTE_OUTPUT_DIR / f"{task_id}.webm",
-            Path(os.getenv("DATA_DIR", "data")) / f"{task_id}.mp4",
+            get_media_file_path(task_id, "video", "mp4"),
+            get_media_file_path(task_id, "video", "mkv"),
+            get_media_file_path(task_id, "video", "webm"),
         ]
         for p in video_patterns:
             if p.exists():

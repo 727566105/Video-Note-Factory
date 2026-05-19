@@ -5,10 +5,10 @@ from app.utils.logger import get_logger
 from app.db.siyuan_config_dao import get_config, get_decrypted_config, get_decrypted_token
 from app.db.siyuan_export_history_dao import add_export_record
 
-logger = get_logger(__name__)
+# 使用统一的路径管理工具
+from app.utils.path_helper import get_note_file_path
 
-# 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
+logger = get_logger(__name__)
 
 
 class SiyuanExporter:
@@ -81,7 +81,7 @@ class SiyuanExporter:
         """
         try:
             # 读取 Markdown 内容
-            markdown_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+            markdown_file = get_note_file_path(task_id, None, "markdown")
             if not markdown_file.exists():
                 raise FileNotFoundError(f"笔记文件不存在: {task_id}")
 
