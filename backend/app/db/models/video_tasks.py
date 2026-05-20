@@ -19,3 +19,4 @@ class VideoTask(Base):
     cover_url = Column(String, nullable=True)   # 封面图 URL
     duration = Column(Float, nullable=True)     # 视频时长（秒）
     author = Column(String, nullable=True)      # 作者名
+    description = Column(String, nullable=True)  # 视频描述

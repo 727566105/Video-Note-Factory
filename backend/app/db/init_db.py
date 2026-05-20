@@ -63,8 +63,32 @@ def migrate_video_tasks_table():
             db.execute(text("ALTER TABLE video_tasks ADD COLUMN author VARCHAR"))
             db.commit()
             logger.info("author 列添加成功")
+
+        if 'description' not in columns:
+            logger.info("description 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN description VARCHAR"))
+            db.commit()
+            logger.info("description 列添加成功")
     except Exception as e:
         logger.error(f"数据库迁移失败: {e}")
+    finally:
+        db.close()
+
+
+def migrate_feed_items_table():
+    """检查并添加 feed_items 表缺失的列"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(feed_items)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if 'description' not in columns:
+            logger.info("feed_items: description 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE feed_items ADD COLUMN description VARCHAR"))
+            db.commit()
+            logger.info("feed_items: description 列添加成功")
+    except Exception as e:
+        logger.error(f"feed_items 迁移失败: {e}")
     finally:
         db.close()
 
@@ -95,6 +119,7 @@ def backfill_task_metadata():
                         raw_info = audio_meta.get("raw_info", {})
                         owner = raw_info.get("owner", {})
                         task.author = owner.get("name", "")
+                        task.description = audio_meta.get("description")
                         backfilled += 1
                 except Exception as e:
                     logger.warning(f"回填任务 {task.task_id} 元数据失败: {e}")
@@ -112,6 +137,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     # 执行数据库迁移检查
     migrate_video_tasks_table()
+    migrate_feed_items_table()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户
