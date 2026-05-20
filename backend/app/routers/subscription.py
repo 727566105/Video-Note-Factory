@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from app.auth.dependencies import get_current_user
 from app.db import subscription_dao
 from app.services.channel_fetcher import identify_platform, fetch_all_for_subscription, parse_channel_info
-from app.db.subscription_dao import upsert_feed_items
+from app.db.subscription_dao import upsert_feed_items, get_channel_stats
 from app.services.fetch_progress import create_progress, get_progress, update_progress, complete_progress
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
@@ -66,6 +66,11 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         subscription_dao.update_subscription_check(sub.id)
         logger.info(f"订阅复用: 用户 {user.id} 复用了博主 {reused_sub.channel_name} 的数据，复制 {copied} 条动态")
 
+        # 获取频道统计提示
+        stats_hint = None
+        if platform_id:
+            stats_hint = get_channel_stats(info["platform"], platform_id)
+
         if copied == 0:
             # 复用数据为空，走正常获取流程
             result = fetch_all_for_subscription(sub, limit=20)
@@ -84,15 +89,20 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
                 response_data["warning"] = "该博主暂无可获取的内容"
             else:
                 response_data["fetch_status"] = "success"
+            if stats_hint:
+                response_data["stats_hint"] = stats_hint
             return R.success(response_data)
 
-        return R.success({
+        resp = {
             "id": sub.id,
             "channel_name": sub.channel_name,
             "platform": sub.platform,
             "items_count": copied,
             "fetch_status": "success",
-        })
+        }
+        if stats_hint:
+            resp["stats_hint"] = stats_hint
+        return R.success(resp)
     else:
         # 正常流程：获取频道详细信息并抓取
         channel_info = parse_channel_info(info["channel_url"], info["platform"])
@@ -129,6 +139,12 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
             response_data["warning"] = "该博主暂无可获取的内容"
         else:
             response_data["fetch_status"] = "success"
+
+        # 获取频道统计提示
+        if sub.platform_id:
+            stats = get_channel_stats(sub.platform, sub.platform_id)
+            if stats:
+                response_data["stats_hint"] = stats
 
         return R.success(response_data)
 
