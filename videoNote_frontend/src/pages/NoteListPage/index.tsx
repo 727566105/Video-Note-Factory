@@ -114,6 +114,8 @@ export const NoteListPage: FC = () => {
   const [failedCovers, setFailedCovers] = useState<Set<string>>(new Set())
   const [playDialogOpen, setPlayDialogOpen] = useState(false)
   const [playItem, setPlayItem] = useState<NoteItem | null>(null)
+  const [coverPreviewOpen, setCoverPreviewOpen] = useState(false)
+  const [coverPreviewSrc, setCoverPreviewSrc] = useState('')
   const noteViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
   const { subscribe, subscriptions } = useSubscriptionStore()
@@ -376,7 +378,7 @@ export const NoteListPage: FC = () => {
                   {/* 封面 */}
                   <div className="relative aspect-video bg-muted overflow-hidden">
                     {item.cover && !failedCovers.has(item.id) ? (
-                      <img src={item.cover} alt="" className="w-full h-full object-cover" onError={() => handleCoverError(item.id)} />
+                      <img src={item.cover} alt="" className="w-full h-full object-cover cursor-zoom-in" onError={() => handleCoverError(item.id)} onClick={(e) => { e.stopPropagation(); setCoverPreviewSrc(item.cover); setCoverPreviewOpen(true) }} />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full gap-1">
                         <PlatformIconSmall platform={item.platform} />
@@ -473,7 +475,7 @@ export const NoteListPage: FC = () => {
                   {/* 封面 */}
                   <div className="relative aspect-video bg-muted overflow-hidden">
                     {item.cover && !failedCovers.has(item.id) ? (
-                      <img src={item.cover} alt="" className="w-full h-full object-cover" onError={() => handleCoverError(item.id)} />
+                      <img src={item.cover} alt="" className="w-full h-full object-cover cursor-zoom-in" onError={() => handleCoverError(item.id)} onClick={(e) => { e.stopPropagation(); setCoverPreviewSrc(item.cover); setCoverPreviewOpen(true) }} />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full gap-1">
                         <PlatformIconSmall platform={item.platform} />
@@ -570,6 +572,18 @@ export const NoteListPage: FC = () => {
               className="w-full mt-4"
             />
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* 封面预览弹窗 */}
+      <Dialog open={coverPreviewOpen} onOpenChange={setCoverPreviewOpen}>
+        <DialogContent className="sm:max-w-[800px] p-2">
+          <DialogHeader className="sr-only">
+            <DialogTitle>封面预览</DialogTitle>
+          </DialogHeader>
+          {coverPreviewSrc && (
+            <img src={coverPreviewSrc} alt="封面预览" className="w-full rounded-lg" />
+          )}
         </DialogContent>
       </Dialog>
 
