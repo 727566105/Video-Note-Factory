@@ -1,5 +1,4 @@
 import request from '@/utils/request'
-import toast from 'react-hot-toast'
 
 export const generateNote = async (data: {
   video_url: string
@@ -28,15 +27,8 @@ export const generateNote = async (data: {
     
     return null
   } catch (e: any) {
-    
-    // 显示后端返回的错误信息
-    if (e.msg) {
-      toast.error(e.msg)
-    } else {
-      toast.error('笔记生成失败，请稍后重试')
-    }
-
-    throw e // 抛出错误以便调用方处理
+    // request.ts 拦截器已显示错误 toast，此处仅抛出错误
+    throw e
   }
 }
 

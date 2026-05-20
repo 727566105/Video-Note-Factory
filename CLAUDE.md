@@ -209,12 +209,38 @@ Chrome 插件 "VideoNote Helper"，功能：
 
 ## 缓存机制
 
-后端会在 `note_results/` 目录缓存以下文件以加速重试:
+后端会在 `data/notes/{folder}/` 目录缓存以下文件以加速重试:
+- `note.json`: 最终笔记（含 markdown、audio_meta 等）
 - `{task_id}_audio.json`: 音频元信息
 - `{task_id}_transcript.json`: 转写结果
 - `{task_id}.md`: GPT 生成的 Markdown
 - `{task_id}.status.json`: 任务实时状态
 
+文件路径由 `app/utils/path_helper.py` 的 `get_note_file_path()` 统一管理。
+
 ## 数据库
 
-使用 SQLite + SQLAlchemy，数据库文件位于 `backend/data/`。后端启动时自动初始化（`init_db`）并种子默认供应商（`seed_default_providers`）。
+使用 SQLite + SQLAlchemy，数据库文件位于项目根目录的 `data/video_note.db`。后端启动时自动初始化（`init_db`）并种子默认供应商（`seed_default_providers`）。
+
+**数据库迁移**: `app/db/init_db.py` 中通过 `migrate_video_tasks_table()` 和 `migrate_feed_items_table()` 函数检查并添加新列。新增字段必须同时更新模型文件和迁移函数。
+
+## 认证系统
+
+JWT Bearer Token 认证，通过 `app/auth/` 模块实现：
+- 登录返回 JWT token，前端存储在 localStorage `auth-storage` 中
+- 路由通过 `get_current_user` 依赖注入验证
+- 管理员接口使用 `require_admin` 依赖
+- 默认用户：admin（密码 123456）
+
+## 订阅与频道系统
+
+- **订阅**: 用户订阅频道后，通过定时任务或手动刷新获取最新视频
+- **跨用户复用**: 新用户订阅已有频道时，复制 FeedItem 但不复制 task_id；笔记可用性通过 API 跨用户检测
+- **频道统计**: `subscription_dao.get_channel_stats()` 聚合订阅者数、视频数、笔记数
+
+## 版本号更新
+
+版本号需同步修改 3 处：
+1. `README.md` — `<h1>videoNote v{version}</h1>`
+2. `videoNote_frontend/package.json` — `"version": "{version}"`
+3. `videoNote_frontend/src/pages/SettingPage/about.tsx` — 关于页标题

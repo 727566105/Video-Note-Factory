@@ -3,7 +3,7 @@ import { getQueueStatus, updateQueueConfig } from '@/services/note'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Settings, Minus, Plus } from 'lucide-react'
 
 export default function TaskQueueSettings() {

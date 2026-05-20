@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { useSiyuanStore } from '@/store/siyuanStore'
 import { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Info, BookOpen, CheckCircle2, XCircle, History, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 import {
