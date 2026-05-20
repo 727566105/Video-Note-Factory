@@ -46,6 +46,7 @@ import {
 import { NavUser } from "@/components/nav-user"
 import { TaskQueuePanel } from "@/components/TaskQueuePanel"
 import { useSubscriptionStore } from "@/store/subscriptionStore"
+import { useAuthStore } from "@/store/authStore"
 
 interface NavItemProps {
   icon: React.ReactNode
@@ -84,13 +85,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation()
   const { state, toggleSidebar } = useSidebar()
   const { unreadCount, fetchUnreadCount } = useSubscriptionStore()
+  const authUser = useAuthStore(state => state.user)
 
   React.useEffect(() => { fetchUnreadCount() }, [fetchUnreadCount])
 
   const user = {
-    name: "王旭洋",
-    email: "user@example.com",
-    avatar: "",
+    name: authUser?.username || '未登录',
+    email: '',
+    avatar: '',
   }
 
   return (

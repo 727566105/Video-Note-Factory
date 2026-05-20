@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.auth.dependencies import get_current_user
 from app.db import subscription_dao
+from app.db.engine import get_db
+from app.db.video_task_dao import find_completed_task_by_video
 from app.services.channel_fetcher import identify_platform, parse_channel_info, fetch_videos
 from app.utils.response import ResponseWrapper as R
 
@@ -56,8 +58,15 @@ async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, o
         result = fetch_videos(channel_url, platform, limit)
         return R.success({"items": result.items, "total": len(result.items)})
 
-    return R.success({
-        "items": [{
+    items_data = []
+    for f in items:
+        # 检查笔记可用性：优先用 feed_item 关联的 task_id，否则跨用户查找
+        available_task_id = f.task_id
+        if not available_task_id and f.content_id:
+            existing = find_completed_task_by_video(f.content_id, platform)
+            if existing:
+                available_task_id = existing.task_id
+        items_data.append({
             "id": f.id,
             "content_id": f.content_id,
             "content_url": f.content_url,
@@ -68,6 +77,31 @@ async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, o
             "published_at": f.published_at.isoformat() if f.published_at else None,
             "is_read": f.is_read,
             "task_id": f.task_id,
-        } for f in items],
+            "note_available": bool(available_task_id),
+            "available_task_id": available_task_id,
+        })
+
+    return R.success({
+        "items": items_data,
         "total": total,
     })
+
+
+@router.get("/{platform}/{platform_id}/subscribers")
+async def get_channel_subscribers(platform: str, platform_id: str, user=Depends(get_current_user)):
+    """获取频道订阅者列表"""
+    db = next(get_db())
+    try:
+        from app.db.models.subscriptions import Subscription
+        from app.db.models.users import User
+        subs = db.query(Subscription).filter_by(
+            platform=platform, platform_id=platform_id
+        ).all()
+        user_ids = [s.user_id for s in subs]
+        users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+        return R.success({
+            "subscribers": [{"user_id": u.id, "username": u.username} for u in users],
+            "total": len(users),
+        })
+    finally:
+        db.close()

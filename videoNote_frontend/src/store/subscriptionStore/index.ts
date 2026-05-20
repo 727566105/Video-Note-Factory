@@ -51,6 +51,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         const res = await apiSubscribe(url) as any
         const status = res?.fetch_status
         const count = res?.items_count || 0
+        const statsHint = res?.stats_hint
 
         if (status === 'failed') {
           toast.error(res?.warning || '订阅成功但获取内容失败，请稍后刷新重试')
@@ -58,6 +59,14 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           toast.success('订阅成功，该博主暂无可获取的内容')
         } else {
           toast.success(`订阅成功，获取了 ${count} 条动态`)
+        }
+
+        // 显示频道统计提示
+        if (statsHint && (statsHint.subscriber_count > 1 || statsHint.note_count > 0)) {
+          toast.success(
+            `该频道已有 ${statsHint.subscriber_count} 位用户订阅，共 ${statsHint.video_count} 个视频，其中 ${statsHint.note_count} 个视频已有现成笔记可直接使用！`,
+            { duration: 6000 }
+          )
         }
 
         get().fetchSubscriptions()

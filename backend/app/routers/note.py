@@ -687,6 +687,67 @@ async def image_proxy(request: Request, url: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class CheckAvailabilityRequest(BaseModel):
+    video_url: str
+    platform: str
+
+
+@router.post("/check_note_availability")
+def check_note_availability(data: CheckAvailabilityRequest, current_user=Depends(get_current_user)):
+    """预检视频笔记可用性"""
+    try:
+        video_id = extract_video_id(data.video_url, data.platform)
+        if not video_id:
+            return R.success({"available": False})
+
+        existing = find_completed_task_by_video(video_id, data.platform)
+        if not existing:
+            return R.success({"available": False})
+
+        # 检查当前用户是否已拥有该 task
+        from app.db.video_task_dao import get_task_by_video
+        own_task = get_task_by_video(video_id, data.platform, current_user.id)
+
+        result = {
+            "available": True,
+            "task_id": existing.task_id,
+            "can_view": bool(own_task),
+            "title": existing.title,
+            "author": existing.author,
+        }
+        return R.success(result)
+    except Exception as e:
+        logger.error(f"预检笔记可用性失败: {e}")
+        return R.success({"available": False})
+
+
+@router.get("/quick_view/{task_id}")
+def quick_view_note(task_id: str, current_user=Depends(get_current_user)):
+    """快速预览笔记内容（不 clone）"""
+    # 先查数据库获取标题
+    from app.db.video_task_dao import get_task_by_task_id
+    task = get_task_by_task_id(task_id)
+
+    result_path = get_note_file_path(task_id, task.title if task else None, "note")
+    if not result_path.exists():
+        raise HTTPException(status_code=404, detail="笔记文件不存在")
+
+    try:
+        with open(result_path, "r", encoding="utf-8") as f:
+            note_data = json.load(f)
+
+        return R.success({
+            "task_id": task_id,
+            "title": task.title if task else None,
+            "author": task.author if task else None,
+            "markdown": note_data.get("markdown", ""),
+            "model_name": note_data.get("model_name", ""),
+        })
+    except Exception as e:
+        logger.error(f"快速查看笔记失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/tasks")
 def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
     """获取所有历史任务列表"""

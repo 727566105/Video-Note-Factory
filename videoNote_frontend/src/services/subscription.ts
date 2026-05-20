@@ -29,6 +29,8 @@ export interface FeedItem {
   published_at: string | null
   is_read: number
   task_id: string | null
+  note_available?: boolean
+  available_task_id?: string | null
 }
 
 export interface ChannelInfo {
@@ -93,3 +95,33 @@ export const fetchChannelVideos = (platform: string, platformId: string, limit: 
 
 export const generateArticleNote = (itemId: number) =>
   request.post<{ markdown: string }>(`/feed/${itemId}/generate-note`)
+
+export interface NoteAvailability {
+  available: boolean
+  task_id?: string
+  can_view?: boolean
+  title?: string
+  author?: string
+}
+
+export const checkNoteAvailability = (videoUrl: string, platform: string) =>
+  request.post<NoteAvailability>('/check_note_availability', { video_url: videoUrl, platform })
+
+export interface QuickViewNote {
+  task_id: string
+  title: string | null
+  author: string | null
+  markdown: string
+  model_name: string
+}
+
+export const quickViewNote = (taskId: string) =>
+  request.get<QuickViewNote>(`/quick_view/${taskId}`)
+
+export interface ChannelSubscribers {
+  subscribers: { user_id: number; username: string }[]
+  total: number
+}
+
+export const fetchChannelSubscribers = (platform: string, platformId: string) =>
+  request.get<ChannelSubscribers>(`/channels/${platform}/${platformId}/subscribers`)

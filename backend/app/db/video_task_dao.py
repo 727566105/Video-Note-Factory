@@ -31,15 +31,13 @@ def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str
 
 
 # 查询任务（最新一条）
-def get_task_by_video(video_id: str, platform: str):
+def get_task_by_video(video_id: str, platform: str, user_id: int = None):
     db = next(get_db())
     try:
-        task = (
-            db.query(VideoTask)
-            .filter_by(video_id=video_id, platform=platform)
-            .order_by(VideoTask.created_at.desc())
-            .first()
-        )
+        query = db.query(VideoTask).filter_by(video_id=video_id, platform=platform)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        task = query.order_by(VideoTask.created_at.desc()).first()
         if task:
             logger.info(f"Task found for video_id: {video_id} and platform: {platform}")
             return task.task_id
@@ -111,8 +109,8 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
 
 
 def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
-                         duration: float = None, author: str = None):
-    """更新任务的元数据（标题、封面、时长、作者）"""
+                         duration: float = None, author: str = None, description: str = None):
+    """更新任务的元数据（标题、封面、时长、作者、描述）"""
     db = next(get_db())
     try:
         task = db.query(VideoTask).filter_by(task_id=task_id).first()
@@ -125,6 +123,8 @@ def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
                 task.duration = duration
             if author is not None:
                 task.author = author
+            if description is not None:
+                task.description = description
             db.commit()
             logger.info(f"Task metadata updated: {task_id}, title={title}")
         else:
@@ -136,17 +136,31 @@ def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
         db.close()
 
 
+def get_task_by_task_id(task_id: str) -> Optional[VideoTask]:
+    """根据 task_id 查询任务"""
+    db = next(get_db())
+    try:
+        task = db.query(VideoTask).filter_by(task_id=task_id).first()
+        return task
+    except Exception as e:
+        logger.error(f"Failed to get task by task_id: {e}")
+        return None
+    finally:
+        db.close()
+
+
 def find_completed_task_by_video(video_id: str, platform: str) -> Optional[VideoTask]:
     """跨用户查找已完成笔记的任务（用于复用）"""
-    import os
+    from app.utils.path_helper import get_note_file_path
     db = next(get_db())
     try:
         tasks = db.query(VideoTask).filter_by(
             video_id=video_id, platform=platform
         ).order_by(VideoTask.created_at.desc()).all()
         for task in tasks:
-            note_path = os.path.join("note_results", f"{task.task_id}.json")
-            if os.path.exists(note_path):
+            # 使用 path_helper 检查笔记文件是否存在
+            note_path = get_note_file_path(task.task_id, task.title if hasattr(task, 'title') else None, "note")
+            if note_path.exists():
                 logger.info(f"找到可复用笔记: video_id={video_id}, task_id={task.task_id}")
                 return task
         return None
@@ -181,6 +195,7 @@ def clone_task_to_user(original_task_id: str, new_user_id: int,
             cover_url=original.cover_url if original else None,
             duration=original.duration if original else None,
             author=original.author if original else None,
+            description=original.description if original else None,
         )
         db.add(task)
         db.commit()

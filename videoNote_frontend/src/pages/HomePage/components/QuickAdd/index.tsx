@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2, FileBox, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ import { useTaskStore } from '@/store/taskStore'
 import { generateNote } from '@/services/note.ts'
 import { uploadFile } from '@/services/upload.ts'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
+import { checkNoteAvailability } from '@/services/subscription'
 
 type TabType = 'link' | 'upload'
 
@@ -27,6 +29,7 @@ interface QuickAddProps {
 }
 
 export function QuickAdd({ className }: QuickAddProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<TabType>('link')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [modelSelectOpen, setModelSelectOpen] = useState(false)
@@ -38,6 +41,10 @@ export function QuickAdd({ className }: QuickAddProps) {
   const [multiFileMode, setMultiFileMode] = useState<'separate' | 'merge'>('separate')
   const { selectedModel, modelList, loadEnabledModels } = useModelStore()
   const { addPendingTask } = useTaskStore()
+  const autoSubmitRef = useRef(false)
+
+  // 笔记可用性预检对话框
+  const [availabilityDialog, setAvailabilityDialog] = useState<{ available: boolean; task_id?: string; title?: string } | null>(null)
 
   // 初始化时加载可用模型列表
   useEffect(() => {
@@ -45,6 +52,85 @@ export function QuickAdd({ className }: QuickAddProps) {
       loadEnabledModels()
     }
   }, [])
+
+  // 从 URL 参数读取链接并自动触发提交
+  useEffect(() => {
+    const urlParam = searchParams.get('url')
+    if (!urlParam || autoSubmitRef.current) return
+
+    autoSubmitRef.current = true
+    setInputValue(urlParam)
+    setSearchParams({})
+
+    // 等待状态更新和模型加载后自动提交
+    const trySubmit = async () => {
+      // 等待模型列表加载
+      if (modelList.length === 0) {
+        await new Promise<void>(resolve => {
+          const check = setInterval(() => {
+            if (useModelStore.getState().modelList.length > 0) {
+              clearInterval(check)
+              resolve()
+            }
+          }, 100)
+          // 最多等待 5 秒
+          setTimeout(() => { clearInterval(check); resolve() }, 5000)
+        })
+      }
+
+      setIsGenerating(true)
+      try {
+        const currentModels = useModelStore.getState().modelList
+        const currentSelected = useModelStore.getState().selectedModel
+        const isSmart = currentSelected === 'smart'
+        const modelInfo = isSmart ? null : currentModels.find(m => m.id === currentSelected)
+
+        const settings = useSummarySettingsStore.getState()
+        const platform = settings.style || 'minimal'
+
+        // 自动检测平台
+        const url = urlParam.trim().toLowerCase()
+        const detected =
+          url.includes('bilibili.com') || url.includes('b23.tv') ? 'bilibili' :
+          url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
+          url.includes('douyin') ? 'douyin' :
+          url.includes('kuaishou') ? 'kuaishou' :
+          'bilibili'
+
+        const payload = {
+          video_url: urlParam.trim(),
+          platform: detected,
+          quality: 'medium',
+          smart_mode: isSmart,
+          model_name: isSmart ? '' : (modelInfo?.model_name || ''),
+          provider_id: isSmart ? '' : String(modelInfo?.provider_id || ''),
+          style: settings.style || 'minimal',
+          format: settings.selectedFormats || [],
+          extras: settings.extras || '',
+          video_understanding: settings.videoUnderstanding || false,
+          video_interval: settings.videoInterval || 4,
+          grid_size: [settings.gridCols || 3, settings.gridRows || 3],
+          screenshot: settings.selectedFormats?.includes('screenshot') || false,
+          link: settings.selectedFormats?.includes('link') || false,
+          output_language: settings.outputLanguage || 'zh',
+        }
+
+        const response = await generateNote(payload)
+        if (response && response.task_id) {
+          addPendingTask(response.task_id, detected, payload)
+          setInputValue('')
+          toast.success('笔记生成任务已提交！')
+        }
+      } catch {
+        toast.error('生成笔记失败，请稍后重试')
+      } finally {
+        setIsGenerating(false)
+      }
+    }
+
+    trySubmit()
+  }, [searchParams, setSearchParams, modelList.length, addPendingTask])
+
   const {
     style,
     outputLanguage,
@@ -132,6 +218,21 @@ export function QuickAdd({ className }: QuickAddProps) {
       return
     }
 
+    // 预检笔记可用性
+    try {
+      const checkResult = await checkNoteAvailability(inputValue.trim(), effectivePlatform)
+      if (checkResult?.available) {
+        setAvailabilityDialog(checkResult as any)
+        return
+      }
+    } catch {
+      // 预检失败，静默降级
+    }
+
+    await doGenerateNote()
+  }
+
+  const doGenerateNote = async () => {
     setIsGenerating(true)
 
     try {
@@ -269,7 +370,7 @@ export function QuickAdd({ className }: QuickAddProps) {
   }
 
   return (
-    <div className={cn("flex flex-col items-center justify-center h-full gap-6 p-8", className)}>
+    <div className={cn("flex flex-col items-center justify-center w-full h-full gap-6 p-8", className)}>
       {/* 标题区域 */}
       <div className="flex flex-col items-center gap-2">
         <h1 className="text-3xl font-semibold bg-gradient-to-r from-[#FF6B9D] to-[#9B59B6] bg-clip-text text-transparent">
@@ -300,7 +401,7 @@ export function QuickAdd({ className }: QuickAddProps) {
 
       {/* 链接输入 */}
       {activeTab === 'link' && (
-      <div className="w-full max-w-[800px] flex flex-col gap-4">
+      <div className="w-full max-w-[1000px] flex flex-col gap-4">
         <div className="flex flex-col border-2 border-border rounded-xl bg-background overflow-hidden">
           {/* 输入框 */}
           <div className="p-4">
@@ -412,7 +513,7 @@ export function QuickAdd({ className }: QuickAddProps) {
 
       {/* 上传标签页 */}
       {activeTab === 'upload' && (
-      <div className="w-full max-w-[600px] flex flex-col items-center gap-4">
+      <div className="w-full max-w-[800px] flex flex-col items-center gap-4">
         {/* 上传区域 */}
         <div
           className="w-full flex flex-col items-center justify-center gap-4 py-6 px-4
@@ -522,6 +623,47 @@ export function QuickAdd({ className }: QuickAddProps) {
 
       {/* 模型选择对话框 */}
       <ModelSelectDialog open={modelSelectOpen} onOpenChange={setModelSelectOpen} />
+
+      {/* 笔记可用性预检对话框 */}
+      {availabilityDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setAvailabilityDialog(null)}>
+          <div className="bg-background rounded-lg shadow-lg max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-2">发现已有笔记</h3>
+            <p className="text-muted-foreground mb-4">
+              该视频已有现成笔记{availabilityDialog.title ? `「${availabilityDialog.title}」` : ''}，可以直接查看，无需重新生成。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setAvailabilityDialog(null); doGenerateNote() }}>
+                重新生成
+              </Button>
+              <Button onClick={() => {
+                if (availabilityDialog.task_id) {
+                  // 调用生成接口，后端会自动复用
+                  const payload = {
+                    video_url: inputValue.trim(),
+                    platform: effectivePlatform,
+                    quality: 'medium' as const,
+                    smart_mode: isSmartMode,
+                    model_name: isSmartMode ? '' : (selectedModelInfo?.model_name || ''),
+                    provider_id: isSmartMode ? '' : String(selectedModelInfo?.provider_id || ''),
+                    style: style || 'minimal',
+                  }
+                  generateNote(payload).then(res => {
+                    if (res?.task_id) {
+                      addPendingTask(res.task_id, effectivePlatform, payload)
+                      setInputValue('')
+                      toast.success('笔记已保存到我的笔记！')
+                    }
+                  }).catch(() => toast.error('保存笔记失败'))
+                }
+                setAvailabilityDialog(null)
+              }}>
+                查看现有笔记
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

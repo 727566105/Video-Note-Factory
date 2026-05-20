@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck, Download, Search } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck, Download, Search, Eye, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -19,13 +19,15 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
-import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress } from '@/services/subscription'
+import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
 import type { FeedItem } from '@/services/subscription'
+import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useModelStore } from '@/store/modelStore'
 import { useTaskStore } from '@/store/taskStore'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { generateNote } from '@/services/note'
+import MarkdownRenderer from '@/components/MarkdownRenderer'
 import toast from 'react-hot-toast'
 
 const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音' }
@@ -67,6 +69,14 @@ export default function ChannelDetailPage() {
   const [filter, setFilter] = useState<'all' | 'summarized' | 'new'>('all')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
 
+  // 快速预览笔记
+  const [previewNote, setPreviewNote] = useState<{ markdown: string; title: string | null } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  // 订阅者列表
+  const [subscribers, setSubscribers] = useState<{ user_id: number; username: string }[]>([])
+  const [subscribersTotal, setSubscribersTotal] = useState(0)
+
   // 异步获取进度状态
   const [fetching, setFetching] = useState(false)
   const [progressText, setProgressText] = useState('')
@@ -96,6 +106,15 @@ export default function ChannelDetailPage() {
   useEffect(() => {
     if (platform && id) loadVideos()
   }, [platform, id, page])
+
+  useEffect(() => {
+    if (platform && id) {
+      fetchChannelSubscribers(platform, id).then(res => {
+        setSubscribers(res?.subscribers || [])
+        setSubscribersTotal(res?.total || 0)
+      }).catch(() => {})
+    }
+  }, [platform, id])
 
   const loadVideos = async () => {
     if (!platform || !id) return
@@ -174,6 +193,20 @@ export default function ChannelDetailPage() {
       return
     }
 
+    // 检查是否有现成笔记
+    if (item.note_available && item.available_task_id) {
+      setPreviewLoading(true)
+      try {
+        const noteData = await quickViewNote(item.available_task_id)
+        setPreviewNote({ markdown: noteData?.markdown || '', title: noteData?.title || item.title })
+      } catch {
+        // 快速查看失败，继续正常生成
+      } finally {
+        setPreviewLoading(false)
+      }
+      return // 先显示预览弹窗，用户可以选择是否克隆
+    }
+
     const selectedModel = modelList[0]
     setGeneratingId(item.id)
     try {
@@ -203,6 +236,49 @@ export default function ChannelDetailPage() {
       }
     } catch {
       toast.error('生成笔记失败，请稍后重试')
+    } finally {
+      setGeneratingId(null)
+    }
+  }
+
+  const handleQuickView = async (item: FeedItem) => {
+    if (!item.available_task_id) return
+    setPreviewLoading(true)
+    try {
+      const noteData = await quickViewNote(item.available_task_id)
+      setPreviewNote({ markdown: noteData?.markdown || '', title: noteData?.title || item.title })
+    } catch {
+      toast.error('加载笔记失败')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const handleCloneNote = async (item: FeedItem) => {
+    if (!item.content_url) {
+      toast.error('无法获取视频链接')
+      return
+    }
+    // 直接调用生成接口，后端会自动检测并复用
+    setGeneratingId(item.id)
+    try {
+      const payload = {
+        video_url: item.content_url,
+        platform: platform || 'bilibili',
+        quality: 'medium',
+        model_name: modelList[0]?.model_name || '',
+        provider_id: String(modelList[0]?.provider_id || ''),
+        style: style || 'minimal',
+      }
+      const response = await generateNote(payload)
+      if (response && response.task_id) {
+        addPendingTask(response.task_id, platform || 'bilibili', payload)
+        toast.success('笔记已保存到我的笔记！')
+        setPreviewNote(null)
+        loadVideos()
+      }
+    } catch {
+      toast.error('保存笔记失败')
     } finally {
       setGeneratingId(null)
     }
@@ -247,6 +323,19 @@ export default function ChannelDetailPage() {
                 </a>
               )}
             </div>
+            {subscribersTotal > 0 && (
+              <div className="flex items-center gap-2 mb-3">
+                <AvatarGroup>
+                  {subscribers.slice(0, 4).map(s => (
+                    <Avatar key={s.user_id}>
+                      <AvatarFallback>{s.username.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                  ))}
+                  {subscribersTotal > 4 && <AvatarGroupCount>{subscribersTotal - 4}</AvatarGroupCount>}
+                </AvatarGroup>
+                <span className="text-xs text-muted-foreground">{subscribersTotal} 人订阅</span>
+              </div>
+            )}
             <div className="flex w-full flex-row items-center gap-2">
               <Button className="flex-1" onClick={handleFetch} disabled={!sub || fetching}>
                 {fetching ? (
@@ -332,18 +421,34 @@ export default function ChannelDetailPage() {
                   <td className="px-4 py-2 text-center">
                     {item.task_id ? (
                       <span className="text-green-500 text-xs">已有笔记</span>
+                    ) : item.note_available ? (
+                      <span className="inline-flex items-center gap-1 text-green-500 text-xs cursor-pointer hover:underline" onClick={() => handleQuickView(item)}>
+                        <FileText className="w-3 h-3" />可复用
+                      </span>
                     ) : (
                       <span className="text-muted-foreground text-xs">暂无</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">{timeAgo(item.published_at)}</td>
                   <td className="px-4 py-2 text-right">
-                    <Button size="sm" variant="outline"
+                    <div className="flex items-center justify-end gap-1">
+                      {item.task_id && (
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/note/${item.task_id}`)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {item.note_available && !item.task_id && (
+                        <Button size="sm" variant="ghost" className="text-green-600" onClick={() => handleQuickView(item)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline"
                         onClick={() => handleGenerate(item)}
                         disabled={generatingId === item.id}>
                         {generatingId === item.id && <LoaderCircle className="w-4 h-4 animate-spin mr-1" />}
                         {generatingId === item.id ? '生成中...' : item.task_id ? '重新生成' : '生成笔记'}
                       </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -394,6 +499,35 @@ export default function ChannelDetailPage() {
               </PaginationItem>
             </PaginationContent>
           </Pagination>
+        </div>
+      )}
+
+      {/* 笔记预览弹窗 */}
+      {previewNote && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPreviewNote(null)}>
+          <div className="bg-background rounded-lg shadow-lg max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-bold">{previewNote.title || '笔记预览'}</h3>
+              <button className="text-muted-foreground hover:text-foreground" onClick={() => setPreviewNote(null)}>✕</button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <MarkdownRenderer content={previewNote.markdown} />
+            </div>
+            <div className="px-4 py-3 border-t flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setPreviewNote(null)}>关闭</Button>
+              <Button onClick={() => {
+                const item = videos.find(v => v.available_task_id && previewNote)
+                if (item) handleCloneNote(item)
+              }}>保存到我的笔记</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 加载中遮罩 */}
+      {previewLoading && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <LoaderCircle className="w-8 h-8 animate-spin text-primary" />
         </div>
       )}
     </div>

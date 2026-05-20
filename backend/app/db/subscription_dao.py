@@ -119,7 +119,7 @@ def copy_feed_items_to_user(source_sub_id: int, target_user_id: int, target_sub_
             ).first()
             if existing:
                 continue
-            # 复制 FeedItem，关联到新用户和新订阅
+            # 复制 FeedItem，关联到新用户和新订阅（不复制 task_id，笔记可用性由 API 跨用户检测）
             new_item = FeedItem(
                 user_id=target_user_id,
                 subscription_id=target_sub_id,
@@ -135,7 +135,6 @@ def copy_feed_items_to_user(source_sub_id: int, target_user_id: int, target_sub_
                 description=item.description,
                 published_at=item.published_at,
                 raw_info=item.raw_info,
-                task_id=item.task_id,
             )
             db.add(new_item)
             copied += 1
@@ -345,5 +344,53 @@ def update_feed_item_task(item_id: int, task_id: str):
     except Exception as e:
         db.rollback()
         logger.error(f"更新动态任务ID失败: {e}")
+    finally:
+        db.close()
+
+
+# ── Channel Statistics ──
+
+def get_channel_stats(platform: str, platform_id: str) -> dict:
+    """获取频道统计信息（跨用户聚合）：订阅者数、视频数、笔记数"""
+    from app.db.video_task_dao import find_completed_task_by_video
+
+    db = next(get_db())
+    try:
+        # 1. 订阅者数量
+        subscriber_count = db.query(Subscription).filter_by(
+            platform=platform, platform_id=platform_id
+        ).count()
+
+        # 2. 获取该频道所有订阅的 ID
+        subs = db.query(Subscription).filter_by(
+            platform=platform, platform_id=platform_id
+        ).all()
+        sub_ids = [s.id for s in subs]
+
+        # 3. 视频数量（从 feed_items 查询，去重 content_id）
+        video_count = 0
+        video_ids = set()
+        if sub_ids:
+            items = db.query(FeedItem).filter(
+                FeedItem.subscription_id.in_(sub_ids),
+                FeedItem.content_type == "video"
+            ).all()
+            for item in items:
+                if item.content_id:
+                    video_ids.add(item.content_id)
+            video_count = len(video_ids)
+
+        # 4. 笔记数量（检查每个视频是否有已完成的笔记文件）
+        note_count = 0
+        for video_id in video_ids:
+            existing = find_completed_task_by_video(video_id, platform)
+            if existing:
+                note_count += 1
+
+        return {
+            "subscriber_count": subscriber_count,
+            "video_count": video_count,
+            "note_count": note_count,
+        }
     finally:
         db.close()
