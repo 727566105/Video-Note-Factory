@@ -28,13 +28,13 @@ import { useTaskStore } from '@/store/taskStore'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { generateNote } from '@/services/note'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音' }
 const platformIcon: Record<string, React.ReactNode> = {
-  bilibili: <BiliBiliLogo className="w-5 h-5" />,
-  youtube: <YoutubeLogo className="w-5 h-5" />,
-  douyin: <DouyinLogo className="w-5 h-5" />,
+  bilibili: <BiliBiliLogo className="size-5" />,
+  youtube: <YoutubeLogo className="size-5" />,
+  douyin: <DouyinLogo className="size-5" />,
 }
 
 const formatDuration = (s?: number | null) => {
@@ -112,7 +112,7 @@ export default function ChannelDetailPage() {
       fetchChannelSubscribers(platform, id).then(res => {
         setSubscribers(res?.subscribers || [])
         setSubscribersTotal(res?.total || 0)
-      }).catch(() => {})
+      }).catch((e) => console.error('获取订阅者列表失败:', e))
     }
   }, [platform, id])
 
@@ -124,7 +124,9 @@ export default function ChannelDetailPage() {
       const res = await fetchChannelVideos(platform, id, PAGE_SIZE, offset)
       setVideos(res?.items || [])
       setTotal(res?.total || 0)
-    } catch { } finally {
+    } catch (e) {
+      console.error('加载频道视频失败:', e)
+    } finally {
       setLoading(false)
     }
   }
@@ -235,7 +237,7 @@ export default function ChannelDetailPage() {
         loadVideos()
       }
     } catch {
-      toast.error('生成笔记失败，请稍后重试')
+      // request.ts 拦截器已显示错误 toast
     } finally {
       setGeneratingId(null)
     }
@@ -299,7 +301,7 @@ export default function ChannelDetailPage() {
       {/* 返回按钮 */}
       <div className="px-6 pt-4">
         <button onClick={() => navigate('/channels')} className="text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="size-5" />
         </button>
       </div>
 
@@ -319,7 +321,7 @@ export default function ChannelDetailPage() {
               {platformIcon[platform || '']} {platformLabel[platform || '']}
               {sub?.channel_url && (
                 <a href={sub.channel_url} target="_blank" rel="noopener noreferrer" className="hover:text-primary inline-flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" />{sub.channel_url}
+                  <ExternalLink className="size-3" />{sub.channel_url}
                 </a>
               )}
             </div>
@@ -339,11 +341,11 @@ export default function ChannelDetailPage() {
             <div className="flex w-full flex-row items-center gap-2">
               <Button className="flex-1" onClick={handleFetch} disabled={!sub || fetching}>
                 {fetching ? (
-                  <><LoaderCircle className="w-4 h-4 mr-1 animate-spin" />{progressText || '获取中...'}</>
+                  <><LoaderCircle className="size-4 mr-1 animate-spin" />{progressText || '获取中...'}</>
                 ) : total > 0 ? (
-                  <><RefreshCw className="w-4 h-4 mr-1" />刷新</>
+                  <><RefreshCw className="size-4 mr-1" />刷新</>
                 ) : (
-                  <><Download className="w-4 h-4 mr-1" />获取内容</>
+                  <><Download className="size-4 mr-1" />获取内容</>
                 )}
               </Button>
               <Button
@@ -374,14 +376,14 @@ export default function ChannelDetailPage() {
           <div className="text-center py-20 text-muted-foreground">加载中...</div>
         ) : fetching ? (
           <div className="text-center py-20">
-            <LoaderCircle className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+            <LoaderCircle className="size-8 animate-spin mx-auto mb-4 text-primary" />
             <p className="text-muted-foreground">{progressText || '正在获取订阅内容...'}</p>
           </div>
         ) : isEmpty ? (
           <div className="text-center py-20">
             <p className="text-muted-foreground mb-4">暂未获取内容</p>
             <Button onClick={handleFetch} disabled={!sub}>
-              <Download className="w-4 h-4 mr-1" />获取内容
+              <Download className="size-4 mr-1" />获取内容
             </Button>
           </div>
         ) : filtered.length === 0 ? (
@@ -423,7 +425,7 @@ export default function ChannelDetailPage() {
                       <span className="text-green-500 text-xs">已有笔记</span>
                     ) : item.note_available ? (
                       <span className="inline-flex items-center gap-1 text-green-500 text-xs cursor-pointer hover:underline" onClick={() => handleQuickView(item)}>
-                        <FileText className="w-3 h-3" />可复用
+                        <FileText className="size-3" />可复用
                       </span>
                     ) : (
                       <span className="text-muted-foreground text-xs">暂无</span>
@@ -434,18 +436,18 @@ export default function ChannelDetailPage() {
                     <div className="flex items-center justify-end gap-1">
                       {item.task_id && (
                         <Button size="sm" variant="ghost" onClick={() => navigate(`/note/${item.task_id}`)}>
-                          <Eye className="w-4 h-4" />
+                          <Eye className="size-4" />
                         </Button>
                       )}
                       {item.note_available && !item.task_id && (
                         <Button size="sm" variant="ghost" className="text-green-600" onClick={() => handleQuickView(item)}>
-                          <Eye className="w-4 h-4" />
+                          <Eye className="size-4" />
                         </Button>
                       )}
                       <Button size="sm" variant="outline"
                         onClick={() => handleGenerate(item)}
                         disabled={generatingId === item.id}>
-                        {generatingId === item.id && <LoaderCircle className="w-4 h-4 animate-spin mr-1" />}
+                        {generatingId === item.id && <LoaderCircle className="size-4 animate-spin mr-1" />}
                         {generatingId === item.id ? '生成中...' : item.task_id ? '重新生成' : '生成笔记'}
                       </Button>
                     </div>
@@ -527,7 +529,7 @@ export default function ChannelDetailPage() {
       {/* 加载中遮罩 */}
       {previewLoading && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <LoaderCircle className="w-8 h-8 animate-spin text-primary" />
+          <LoaderCircle className="size-8 animate-spin text-primary" />
         </div>
       )}
     </div>

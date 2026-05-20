@@ -405,7 +405,7 @@ async def export_pdf(
     task_id: str,
     style: StyleType = Query(default="default", description="PDF 样式主题"),
     current_user=Depends(get_current_user)
-):
+) -> dict:
     """
     导出笔记为 PDF（带缓存和样式选择）
 
@@ -508,14 +508,14 @@ async def export_pdf(
 @router.get("/styles")
 async def list_styles(current_user=Depends(get_current_user)):
     """获取可用的 PDF 样式列表"""
-    return {
+    return R.success(data={
         "styles": [
             {"id": "default", "name": "默认样式", "description": "适合屏幕阅读，色彩丰富"},
             {"id": "simple", "name": "简洁样式", "description": "极简设计，清爽干净"},
             {"id": "print", "name": "打印样式", "description": "适合打印，黑白配色，衬线字体"},
             {"id": "academic", "name": "学术样式", "description": "适合学术论文，首行缩进，正式排版"}
         ]
-    }
+    })
 
 
 @router.post("/batch")
@@ -523,7 +523,7 @@ async def batch_export_pdf(
     task_ids: list[str] = Body(..., embed=True),
     style: StyleType = Query(default="default", description="PDF 样式主题"),
     current_user=Depends(get_current_user)
-):
+) -> dict:
     """
     批量导出笔记为 PDF 打包下载
 
@@ -568,7 +568,7 @@ async def batch_export_pdf(
                         if raw_title:
                             safe_title = re.sub(r'[\\/*?:"<>|]', '', raw_title)[:50]
                             title = safe_title if safe_title else title
-                    except:
+                    except Exception:
                         pass
 
                 # 检查缓存
@@ -603,7 +603,7 @@ async def batch_export_pdf(
                     # 保存缓存
                     try:
                         pdf_cache_file.write_bytes(pdf_content)
-                    except:
+                    except Exception:
                         pass
 
                 # 添加到 ZIP
@@ -634,10 +634,10 @@ async def batch_export_pdf(
 async def get_export_history(limit: int = Query(default=50, ge=1, le=200), current_user=Depends(get_current_user)):
     """获取导出历史记录"""
     history = _get_export_history(limit)
-    return {
+    return R.success(data={
         "total": len(history),
         "history": history
-    }
+    })
 
 
 @router.get("/history/{task_id}")
@@ -645,11 +645,11 @@ async def get_task_history(task_id: str, current_user=Depends(get_current_user))
     """获取指定任务的导出历史"""
     history = _get_export_history(1000)
     task_history = [h for h in history if h.get("task_id") == task_id]
-    return {
+    return R.success(data={
         "task_id": task_id,
         "count": len(task_history),
         "history": task_history
-    }
+    })
 
 
 @router.get("/redownload/{task_id}")
@@ -657,7 +657,7 @@ async def redownload_pdf(
     task_id: str,
     style: StyleType = Query(default="default", description="PDF 样式主题"),
     current_user=Depends(get_current_user)
-):
+) -> dict:
     """重新下载历史 PDF（优先使用缓存）"""
     pdf_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_{style}.pdf"
     if not pdf_cache_file.exists():
@@ -679,10 +679,10 @@ async def list_image_templates(current_user=Depends(get_current_user)):
     from app.utils.image_export import get_available_templates
 
     templates = get_available_templates()
-    return {
+    return R.success(data={
         "templates": templates,
         "total": len(templates)
-    }
+    })
 
 
 @router.get("/image/history/{task_id}")
@@ -691,11 +691,11 @@ async def get_image_history(task_id: str, current_user=Depends(get_current_user)
     history = _get_export_history(1000)
     image_history = [h for h in history if h.get("style", "").startswith("image_")]
     task_history = [h for h in image_history if h.get("task_id") == task_id]
-    return {
+    return R.success(data={
         "task_id": task_id,
         "count": len(task_history),
         "history": task_history
-    }
+    })
 
 
 @router.get("/image/{task_id}")
@@ -705,7 +705,7 @@ async def export_image(
     width: int = Query(default=1080, ge=400, le=1920, description="图片宽度"),
     format: ImageFormat = Query(default="png", description="图片格式"),
     current_user=Depends(get_current_user)
-):
+) -> dict:
     """
     导出笔记为图文（多张图片打包为 ZIP）
 

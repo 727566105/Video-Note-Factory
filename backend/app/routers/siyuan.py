@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
 from pathlib import Path
@@ -36,7 +36,7 @@ class TestConnectionRequest(BaseModel):
 
 
 @router.get("/config")
-def get_config(current_user=Depends(get_current_user)):
+def get_config(current_user=Depends(get_current_user)) -> dict:
     """获取思源笔记配置"""
     try:
         config = dao_get_config()
@@ -58,7 +58,7 @@ def get_config(current_user=Depends(get_current_user)):
 
 
 @router.post("/config")
-def save_config(data: SiyuanConfigRequest, current_user=Depends(get_current_user)):
+def save_config(data: SiyuanConfigRequest, current_user=Depends(get_current_user)) -> dict:
     """保存思源笔记配置"""
     try:
         config_id = upsert_config(
@@ -73,7 +73,7 @@ def save_config(data: SiyuanConfigRequest, current_user=Depends(get_current_user
 
 
 @router.put("/config")
-def update_config(data: SiyuanConfigRequest, current_user=Depends(get_current_user)):
+def update_config(data: SiyuanConfigRequest, current_user=Depends(get_current_user)) -> dict:
     """更新思源笔记配置"""
     try:
         # 检查是否为脱敏 Token，是则保留原 Token
@@ -97,7 +97,7 @@ def update_config(data: SiyuanConfigRequest, current_user=Depends(get_current_us
 
 
 @router.get("/notebooks")
-def get_notebooks(api_url: str = None, api_token: str = None, current_user=Depends(get_current_user)):
+def get_notebooks(api_url: str = None, api_token: str = None, current_user=Depends(get_current_user)) -> dict:
     """获取思源笔记本列表"""
     try:
         if api_url and api_token:
@@ -123,7 +123,7 @@ def get_notebooks(api_url: str = None, api_token: str = None, current_user=Depen
 
 
 @router.post("/test")
-def test_connection(data: TestConnectionRequest, current_user=Depends(get_current_user)):
+def test_connection(data: TestConnectionRequest, current_user=Depends(get_current_user)) -> dict:
     """测试思源笔记连接"""
     logger.info(f"收到测试连接请求: api_url={data.api_url}, token={data.api_token[:8]}...")
     try:
@@ -142,19 +142,19 @@ def test_connection(data: TestConnectionRequest, current_user=Depends(get_curren
 
 
 @router.post("/export/siyuan/{task_id}")
-def export_to_siyuan(task_id: str, title: str = None, current_user=Depends(get_current_user)):
+def export_to_siyuan(task_id: str, title: str = None, current_user=Depends(get_current_user)) -> dict:
     """导出笔记到思源笔记"""
     try:
         # 读取笔记标题（如果未提供）
         if not title:
-            from pathlib import Path
+            from app.utils.path_helper import NOTE_OUTPUT_DIR
             import json
             audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
             if audio_cache_file.exists():
                 try:
                     audio_meta = json.loads(audio_cache_file.read_text(encoding="utf-8"))
                     title = audio_meta.get("title", "").strip()
-                except:
+                except Exception:
                     pass
 
         # 执行导出（exporter 会自动解密 Token）
@@ -180,7 +180,7 @@ def export_to_siyuan(task_id: str, title: str = None, current_user=Depends(get_c
 
 
 @router.get("/history")
-def get_siyuan_export_history(limit: int = 50, current_user=Depends(get_current_user)):
+def get_siyuan_export_history(limit: int = 50, current_user=Depends(get_current_user)) -> dict:
     """获取思源笔记导出历史"""
     try:
         histories = get_export_history(limit)
@@ -204,7 +204,7 @@ def get_siyuan_export_history(limit: int = 50, current_user=Depends(get_current_
 
 
 @router.get("/history/{task_id}")
-def get_siyuan_task_export_history(task_id: str, current_user=Depends(get_current_user)):
+def get_siyuan_task_export_history(task_id: str, current_user=Depends(get_current_user)) -> dict:
     """获取指定任务的思源笔记导出历史"""
     try:
         histories = get_task_export_history(task_id)

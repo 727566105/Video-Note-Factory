@@ -1,15 +1,13 @@
 """智能模型选择器，支持模型自动切换和重试"""
 
 import concurrent.futures
-import logging
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple
 
 from app.db.model_usage_history_dao import (
     get_sorted_models_for_user,
     get_model_by_id,
     get_provider_by_id,
-    get_next_available_model,
     record_usage,
 )
 from app.gpt.gpt_factory import GPTFactory

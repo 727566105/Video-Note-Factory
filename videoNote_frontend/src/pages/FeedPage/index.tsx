@@ -22,9 +22,9 @@ import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platfo
 import type { FeedItem } from '@/services/subscription'
 
 const platformIcon: Record<string, React.ReactNode> = {
-  bilibili: <BiliBiliLogo className="w-4 h-4" />,
-  youtube: <YoutubeLogo className="w-4 h-4" />,
-  douyin: <DouyinLogo className="w-4 h-4" />,
+  bilibili: <BiliBiliLogo className="size-4" />,
+  youtube: <YoutubeLogo className="size-4" />,
+  douyin: <DouyinLogo className="size-4" />,
 }
 
 const formatDuration = (s?: number | null) => {
@@ -67,10 +67,10 @@ export default function FeedPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={refreshFeed} disabled={loading}>
-            <RefreshCw className="w-4 h-4 mr-1" />刷新
+            <RefreshCw className="size-4 mr-1" />刷新
           </Button>
           <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
-            <CheckCheck className="w-4 h-4 mr-1" />全部已读
+            <CheckCheck className="size-4 mr-1" />全部已读
           </Button>
           <Select value={viewMode} onValueChange={(v) => setViewMode(v as 'grid' | 'list')}>
             <SelectTrigger className="w-[120px] h-8">
@@ -96,7 +96,7 @@ export default function FeedPage() {
             </EmptyHeader>
             <EmptyContent>
               <Button onClick={() => navigate('/channels')}>
-                <Plus className="w-4 h-4 mr-1" />订阅频道
+                <Plus className="size-4 mr-1" />订阅频道
               </Button>
             </EmptyContent>
           </Empty>

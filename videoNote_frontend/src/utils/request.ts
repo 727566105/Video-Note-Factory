@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 import { getApiBaseURL } from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
@@ -65,7 +65,7 @@ request.interceptors.response.use(
     const res = error?.response?.data as IResponse | undefined;
     if (!silent) {
       if (res) {
-        toast.error(res.msg || '服务器错误，请稍后再试');
+        toast.error(res.msg || res.detail || '服务器错误，请稍后再试');
       } else {
         toast.error( '请求失败，请检查网络连接或稍后再试')
       }

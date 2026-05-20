@@ -6,15 +6,10 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, Any
 
-from fastapi import HTTPException
 from pydantic import HttpUrl
 from dotenv import load_dotenv
 
 from app.downloaders.base import Downloader
-from app.downloaders.bilibili_downloader import BilibiliDownloader
-from app.downloaders.douyin_downloader import DouyinDownloader
-from app.downloaders.local_downloader import LocalDownloader
-from app.downloaders.youtube_downloader import YoutubeDownloader
 from app.db.video_task_dao import delete_task_by_video, insert_video_task
 from app.enmus.exception import NoteErrorEnum, ProviderErrorEnum
 from app.enmus.task_status_enums import TaskStatus
@@ -33,7 +28,6 @@ from app.services.provider import ProviderService
 from app.transcriber.base import Transcriber
 from app.transcriber.transcriber_provider import get_transcriber, _transcribers
 from app.utils.note_helper import replace_content_markers
-from app.utils.status_code import StatusCode
 from app.utils.video_helper import generate_screenshot
 from app.utils.video_reader import VideoReader
 
@@ -422,7 +416,7 @@ class NoteGenerator:
             try:
                 with status_file.open('w', encoding='utf-8') as f:
                     f.write(f"Error writing status: {str(e)}")
-            except:
+            except Exception:
                 logger.error(f"写入错误  {e}")
 
     def _handle_exception(self, task_id, exc):
@@ -431,7 +425,7 @@ class NoteGenerator:
         if isinstance(error_message, dict):
             try:
                 error_message = json.dumps(error_message, ensure_ascii=False)
-            except:
+            except Exception:
                 error_message = str(error_message)
         self._update_status(task_id, TaskStatus.FAILED, message=error_message)
 

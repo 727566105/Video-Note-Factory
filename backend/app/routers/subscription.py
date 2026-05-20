@@ -20,7 +20,7 @@ class SubscribeRequest(BaseModel):
 
 
 @router.get("")
-async def list_subscriptions(user=Depends(get_current_user)):
+async def list_subscriptions(user=Depends(get_current_user)) -> dict:
     subs = subscription_dao.get_user_subscriptions(user.id)
     return R.success([{
         "id": s.id,
@@ -37,7 +37,7 @@ async def list_subscriptions(user=Depends(get_current_user)):
 
 
 @router.post("")
-async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)):
+async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)) -> dict:
     info = identify_platform(req.url)
     if not info:
         raise HTTPException(status_code=400, detail="无法识别平台或频道，请检查 URL")
@@ -150,13 +150,13 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
 
 
 @router.delete("/{sub_id}")
-async def delete_subscription(sub_id: int, user=Depends(get_current_user)):
+async def delete_subscription(sub_id: int, user=Depends(get_current_user)) -> dict:
     subscription_dao.remove_subscription(sub_id, user.id)
     return R.success(msg="已取消订阅")
 
 
 @router.put("/{sub_id}/toggle")
-async def toggle_subscription(sub_id: int, user=Depends(get_current_user)):
+async def toggle_subscription(sub_id: int, user=Depends(get_current_user)) -> dict:
     sub = subscription_dao.toggle_subscription(sub_id, user.id)
     if not sub:
         raise HTTPException(status_code=404, detail="订阅不存在")
@@ -164,7 +164,7 @@ async def toggle_subscription(sub_id: int, user=Depends(get_current_user)):
 
 
 @router.post("/{sub_id}/refresh")
-async def refresh_subscription(sub_id: int, user=Depends(get_current_user)):
+async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> dict:
     """启动异步刷新任务，返回 progress_id"""
     subs = subscription_dao.get_user_subscriptions(user.id)
     sub = next((s for s in subs if s.id == sub_id), None)
@@ -203,7 +203,7 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)):
 
 
 @router.get("/progress/{progress_id}")
-async def get_refresh_progress(progress_id: str, user=Depends(get_current_user)):
+async def get_refresh_progress(progress_id: str, user=Depends(get_current_user)) -> dict:
     """查询刷新进度"""
     progress = get_progress(progress_id)
     if not progress:

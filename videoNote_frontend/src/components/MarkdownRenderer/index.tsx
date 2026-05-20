@@ -9,7 +9,7 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import 'github-markdown-css/github-markdown-light.css'
 import { Play, ExternalLink, Copy } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { FC } from 'react'
 
 interface MarkdownRendererProps {

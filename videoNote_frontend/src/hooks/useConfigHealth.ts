@@ -31,7 +31,8 @@ export function useConfigHealth() {
         }
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error('获取配置健康状态失败:', e)
         setLoading(false);
       });
   }, []);

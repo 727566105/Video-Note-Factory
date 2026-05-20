@@ -37,7 +37,7 @@ function ProcessingView({ status }: { status: string }) {
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center gap-6 bg-background">
       <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <Loader2 className="size-8 animate-spin text-primary" />
         <div className="text-lg font-medium text-foreground">{stepLabel}</div>
         <div className="text-sm text-muted-foreground">{currentStep}/6 步骤</div>
       </div>
@@ -60,7 +60,7 @@ function ProcessingView({ status }: { status: string }) {
 function QueuedView() {
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
-      <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+      <Loader2 className="size-8 animate-spin text-amber-500" />
       <div className="text-lg font-medium text-foreground">排队等待中...</div>
       <div className="text-sm text-muted-foreground">任务正在排队，请稍候</div>
     </div>
@@ -125,7 +125,8 @@ export default function NoteDetailPage() {
         }
         setLoading(false)
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error('从后端加载任务失败:', e)
         setNotFound(true)
         setLoading(false)
       })

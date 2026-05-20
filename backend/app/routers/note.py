@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 from datetime import datetime
-
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
-from pydantic import BaseModel, validator, field_validator
 from dataclasses import asdict
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Request, Depends
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, field_validator
 
 from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task, find_completed_task_by_video, clone_task_to_user
 from app.enmus.exception import NoteErrorEnum
@@ -26,8 +27,6 @@ from app.services.cache_cleaner import clean_expired_cache, get_cache_stats, CAC
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
 from app.validators.video_url_validator import is_supported_video_url
-from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import StreamingResponse, FileResponse
 from app.auth.dependencies import get_current_user
 from app.enmus.task_status_enums import TaskStatus
 
@@ -36,7 +35,6 @@ from app.utils.path_helper import (
     get_note_file_path,
     get_note_folder,
     get_media_file_path,
-    NOTE_OUTPUT_DIR,
 )
 
 router = APIRouter()
@@ -267,7 +265,7 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
 
 
 @router.post('/delete_task')
-def delete_task(data: RecordRequest, current_user=Depends(get_current_user)):
+def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> dict:
     try:
         # 优先使用 task_id 删除（更精确）
         if data.task_id:
@@ -294,7 +292,7 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)):
 
 
 @router.post("/upload")
-async def upload(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+async def upload(file: UploadFile = File(...), current_user=Depends(get_current_user)) -> dict:
     # 1. 验证文件扩展名
     if file.filename:
         ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
@@ -334,12 +332,19 @@ async def upload(file: UploadFile = File(...), current_user=Depends(get_current_
 
 
 @router.post("/generate_note")
-def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current_user=Depends(get_current_user)):
+def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current_user=Depends(get_current_user)) -> dict:
     try:
         video_id = extract_video_id(data.video_url, data.platform)
 
-        # 检查是否有其他用户已生成过该视频的笔记（复用）
         if video_id and not data.task_id:
+            # 先检查当前用户是否已生成过该视频的笔记（避免重复提交）
+            user_own_task = get_task_by_video(video_id, data.platform, current_user.id)
+            if user_own_task:
+                note_path = get_note_file_path(user_own_task, None, "note")
+                if note_path.exists():
+                    return R.error("该视频已生成过笔记，请直接查看或点击「重新生成」")
+
+            # 检查是否有其他用户已生成过该视频的笔记（复用）
             existing_task = find_completed_task_by_video(video_id, data.platform)
             if existing_task:
                 clone_task_to_user(existing_task.task_id, current_user.id, video_id, data.platform, data.video_url)
@@ -367,11 +372,12 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
 
         return R.success({"task_id": task_id})
     except Exception as e:
+        logger.error(f"生成笔记失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/task_status/{task_id}")
-def get_task_status(task_id: str, current_user=Depends(get_current_user)):
+def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dict:
     status_path = get_note_file_path(task_id, None, "status")
     result_path = get_note_file_path(task_id, None, "note")
 
@@ -633,7 +639,7 @@ def get_image_headers(url: str, request: Request) -> dict:
 
 
 @router.get("/image_proxy")
-async def image_proxy(request: Request, url: str):
+async def image_proxy(request: Request, url: str) -> dict:
     """图片代理接口，支持本地缓存"""
     # 0. SSRF 安全检查
     is_safe, error_msg = is_safe_url(url)
@@ -693,7 +699,7 @@ class CheckAvailabilityRequest(BaseModel):
 
 
 @router.post("/check_note_availability")
-def check_note_availability(data: CheckAvailabilityRequest, current_user=Depends(get_current_user)):
+def check_note_availability(data: CheckAvailabilityRequest, current_user=Depends(get_current_user)) -> dict:
     """预检视频笔记可用性"""
     try:
         video_id = extract_video_id(data.video_url, data.platform)
@@ -722,7 +728,7 @@ def check_note_availability(data: CheckAvailabilityRequest, current_user=Depends
 
 
 @router.get("/quick_view/{task_id}")
-def quick_view_note(task_id: str, current_user=Depends(get_current_user)):
+def quick_view_note(task_id: str, current_user=Depends(get_current_user)) -> dict:
     """快速预览笔记内容（不 clone）"""
     # 先查数据库获取标题
     from app.db.video_task_dao import get_task_by_task_id
@@ -749,7 +755,7 @@ def quick_view_note(task_id: str, current_user=Depends(get_current_user)):
 
 
 @router.get("/tasks")
-def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
+def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
     """获取所有历史任务列表"""
     try:
         db_tasks = get_all_tasks(user_id=current_user.id, role=current_user.role, limit=limit)
@@ -812,7 +818,7 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
 # ==================== 缓存管理接口 ====================
 
 @router.get("/cache/stats")
-def cache_statistics(current_user=Depends(get_current_user)):
+def cache_statistics(current_user=Depends(get_current_user)) -> dict:
     """
     获取缓存统计信息
 
@@ -835,7 +841,7 @@ def cache_statistics(current_user=Depends(get_current_user)):
 
 
 @router.post("/cache/clean")
-def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None, current_user=Depends(get_current_user)):
+def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None, current_user=Depends(get_current_user)) -> dict:
     """
     手动触发缓存清理
 
@@ -884,13 +890,13 @@ class QueueConfigRequest(BaseModel):
 
 
 @router.get("/task_queue/status")
-def get_queue_status(current_user=Depends(get_current_user)):
+def get_queue_status(current_user=Depends(get_current_user)) -> dict:
     """获取当前任务队列状态"""
     return R.success(task_queue.get_status())
 
 
 @router.post("/task_queue/config")
-def update_queue_config(data: QueueConfigRequest, current_user=Depends(get_current_user)):
+def update_queue_config(data: QueueConfigRequest, current_user=Depends(get_current_user)) -> dict:
     """更新任务队列配置"""
     try:
         task_queue.update_max_concurrent(data.max_concurrent)
@@ -907,7 +913,7 @@ task_queue.register_start_callback(_start_queued_task)
 # ==================== 音频下载接口 ====================
 
 @router.get("/screenshot/{task_id}")
-def get_screenshot(task_id: str, t: float = 0):
+def get_screenshot(task_id: str, t: float = 0) -> dict:
     """根据 task_id 和时间戳生成/返回视频截图（无需认证，图片不敏感）"""
     from app.utils.video_helper import generate_screenshot
 
@@ -955,7 +961,7 @@ def get_screenshot(task_id: str, t: float = 0):
 
 
 @router.get("/audio/{task_id}")
-def download_audio(task_id: str, current_user=Depends(get_current_user)):
+def download_audio(task_id: str, current_user=Depends(get_current_user)) -> dict:
     """下载任务对应的音频文件"""
     audio_path = get_note_file_path(task_id, None, "audio")
     if not audio_path.exists():

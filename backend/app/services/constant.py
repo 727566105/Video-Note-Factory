@@ -14,3 +14,10 @@ SUPPORT_PLATFORM_MAP = {
     'local':LocalDownloader(),
     'local_audio':LocalAudioDownloader()
 }
+
+# 频道 URL 映射（用于根据平台 ID 生成频道 URL）
+CHANNEL_URL_MAP = {
+    "bilibili": "https://space.bilibili.com/{platform_id}",
+    "youtube": "https://www.youtube.com/channel/{platform_id}",
+    "douyin": "https://www.douyin.com/user/{platform_id}",
+}

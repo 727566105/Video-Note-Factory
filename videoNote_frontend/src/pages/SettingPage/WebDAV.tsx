@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { useWebDAVStore } from '@/store/webdavStore'
 import { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Info, CheckCircle2, XCircle, Eye, EyeOff, Upload, Download, Clock, Trash2, Settings, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import {
@@ -255,8 +255,9 @@ const WebDAVSettings = () => {
     try {
       await createBackup()
       toast.success('备份成功')
-    } catch (error: any) {
-      toast.error(`备份失败：${error?.message || '未知错误'}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      toast.error(`备份失败：${message}`)
     }
   }
 
@@ -265,8 +266,9 @@ const WebDAVSettings = () => {
     try {
       await deleteBackup(backupName)
       toast.success('备份已删除')
-    } catch (error: any) {
-      toast.error(`删除失败：${error?.message || '未知错误'}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      toast.error(`删除失败：${message}`)
     }
   }
 
@@ -279,8 +281,9 @@ const WebDAVSettings = () => {
       toast.success('恢复成功，请刷新页面查看恢复的数据')
       setRestoreDialogOpen(false)
       setSelectedBackup(null)
-    } catch (error: any) {
-      toast.error(`恢复失败：${error?.message || '未知错误'}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      toast.error(`恢复失败：${message}`)
     }
   }
 
@@ -307,8 +310,9 @@ const WebDAVSettings = () => {
       toast.success('恢复成功，页面将刷新')
       setUploadRestoreDialogOpen(false)
       setSelectedFile(null)
-    } catch (error: any) {
-      toast.error(`恢复失败：${error?.message || '未知错误'}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      toast.error(`恢复失败：${message}`)
     }
   }
 
@@ -318,8 +322,9 @@ const WebDAVSettings = () => {
     try {
       await loadBackups()
       toast.success('刷新成功')
-    } catch (error: any) {
-      toast.error(`刷新失败：${error?.message || '未知错误'}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      toast.error(`刷新失败：${message}`)
     } finally {
       setIsRefreshing(false)
     }
@@ -771,8 +776,9 @@ const WebDAVSettings = () => {
               try {
                 await exportConfigsFile()
                 toast.success('配置导出成功')
-              } catch (error: any) {
-                toast.error(`导出失败：${error?.message || '未知错误'}`)
+              } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : '未知错误'
+                toast.error(`导出失败：${message}`)
               }
             }}
             className="w-full sm:w-auto"

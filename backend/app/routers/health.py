@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health_check():
+async def health_check() -> dict:
     """系统配置健康检查"""
     checks = {}
 
@@ -41,13 +41,16 @@ async def health_check():
 
 def _check_database() -> dict:
     """检查数据库连接"""
+    db = None
     try:
         db = next(get_db())
         db.execute(text("SELECT 1"))
-        db.close()
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "message": str(e)}
+    finally:
+        if db:
+            db.close()
 
 
 def _check_ffmpeg() -> dict:

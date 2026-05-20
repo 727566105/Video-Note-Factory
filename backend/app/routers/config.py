@@ -1,6 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import Optional
 from app.utils.response import ResponseWrapper as R
 
 from app.services.cookie_manager import CookieConfigManager
@@ -17,7 +16,7 @@ class CookieUpdateRequest(BaseModel):
 
 
 @router.get("/get_downloader_cookie/{platform}")
-def get_cookie(platform: str, current_user=Depends(get_current_user)):
+def get_cookie(platform: str, current_user=Depends(get_current_user)) -> dict:
     cookie = cookie_manager.get(platform)
     if not cookie:
         return R.success(msg='未找到Cookies')
@@ -27,14 +26,14 @@ def get_cookie(platform: str, current_user=Depends(get_current_user)):
 
 
 @router.post("/update_downloader_cookie")
-def update_cookie(data: CookieUpdateRequest, current_user=Depends(get_current_user)):
+def update_cookie(data: CookieUpdateRequest, current_user=Depends(get_current_user)) -> dict:
     cookie_manager.set(data.platform, data.cookie)
     return R.success(
 
     )
 
 @router.get("/sys_health")
-async def sys_health():
+async def sys_health() -> dict:
     try:
         ensure_ffmpeg_or_raise()
         return R.success()
@@ -42,5 +41,5 @@ async def sys_health():
         return R.error(msg="系统未安装 ffmpeg 请先进行安装")
 
 @router.get("/sys_check")
-async def sys_check():
+async def sys_check() -> dict:
     return R.success()

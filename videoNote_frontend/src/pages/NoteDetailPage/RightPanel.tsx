@@ -13,7 +13,7 @@ import {
   ScrollText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import OpenCC from 'opencc-js'
 

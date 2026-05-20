@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2, FileBox, X } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -122,7 +122,7 @@ export function QuickAdd({ className }: QuickAddProps) {
           toast.success('笔记生成任务已提交！')
         }
       } catch {
-        toast.error('生成笔记失败，请稍后重试')
+        console.error('自动提交生成笔记失败')
       } finally {
         setIsGenerating(false)
       }
@@ -222,11 +222,11 @@ export function QuickAdd({ className }: QuickAddProps) {
     try {
       const checkResult = await checkNoteAvailability(inputValue.trim(), effectivePlatform)
       if (checkResult?.available) {
-        setAvailabilityDialog(checkResult as any)
+        setAvailabilityDialog(checkResult as { available: boolean; task_id?: string; title?: string })
         return
       }
     } catch {
-      // 预检失败，静默降级
+      console.error('笔记可用性预检失败')
     }
 
     await doGenerateNote()
@@ -269,8 +269,8 @@ export function QuickAdd({ className }: QuickAddProps) {
 
         toast.success('笔记生成任务已提交！')
       }
-    } catch (err) {
-      toast.error('生成笔记失败，请稍后重试')
+    } catch {
+      console.error('生成笔记失败')
     } finally {
       setIsGenerating(false)
     }
@@ -627,7 +627,14 @@ export function QuickAdd({ className }: QuickAddProps) {
       {/* 笔记可用性预检对话框 */}
       {availabilityDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setAvailabilityDialog(null)}>
-          <div className="bg-background rounded-lg shadow-lg max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-background rounded-lg shadow-lg max-w-md w-full p-6 relative" onClick={e => e.stopPropagation()}>
+            <button
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setAvailabilityDialog(null)}
+              aria-label="关闭"
+            >
+              <X className="size-4" />
+            </button>
             <h3 className="text-lg font-bold mb-2">发现已有笔记</h3>
             <p className="text-muted-foreground mb-4">
               该视频已有现成笔记{availabilityDialog.title ? `「${availabilityDialog.title}」` : ''}，可以直接查看，无需重新生成。
@@ -656,9 +663,8 @@ export function QuickAdd({ className }: QuickAddProps) {
                     }
                   }).catch(() => toast.error('保存笔记失败'))
                 }
-                setAvailabilityDialog(null)
               }}>
-                查看现有笔记
+              保存到我的笔记
               </Button>
             </div>
           </div>

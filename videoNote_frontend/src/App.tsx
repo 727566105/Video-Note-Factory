@@ -65,7 +65,7 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
         if (prefs.model) {
           useModelStore.getState().loadFromServer(prefs.model)
         }
-      }).catch(() => {})
+      }).catch((e) => console.error('加载用户偏好失败:', e))
     }
   }, [initialized, loadTasksFromBackend])
 

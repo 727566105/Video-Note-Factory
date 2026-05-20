@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { getDownloaderCookie, updateDownloaderCookie } from '@/services/downloader'
 import { Navigate, useParams } from 'react-router-dom'
 import { videoPlatforms } from '@/constant/note.ts'

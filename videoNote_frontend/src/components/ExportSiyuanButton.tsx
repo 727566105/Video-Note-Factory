@@ -1,5 +1,5 @@
 import { useState, forwardRef } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { BookOpen, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSiyuanStore } from '@/store/siyuanStore'

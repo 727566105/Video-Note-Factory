@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils'
 import { noteFormats, noteStyles, outputLanguages } from '@/constant/note.ts'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 interface SummarySettingsProps {
   open: boolean

@@ -400,12 +400,12 @@ export const TaskQueuePanel: FC = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => {
-                        Promise.all(tasks.filter(t => t.status === 'SUCCESS').map(t => removeTask(t.id).catch(() => {})))
+                        Promise.all(tasks.filter(t => t.status === 'SUCCESS').map(t => removeTask(t.id).catch((e) => console.error('清除已完成任务失败:', e))))
                       }}>
                         清除已完成
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => {
-                        Promise.all(tasks.filter(t => t.status === 'FAILED').map(t => removeTask(t.id).catch(() => {})))
+                        Promise.all(tasks.filter(t => t.status === 'FAILED').map(t => removeTask(t.id).catch((e) => console.error('清除失败任务失败:', e))))
                       }}>
                         清除失败任务
                       </DropdownMenuItem>

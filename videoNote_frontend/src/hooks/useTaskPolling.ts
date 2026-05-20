@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTaskStore } from '@/store/taskStore'
 import { get_task_status } from '@/services/note.ts'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 export const useTaskPolling = (interval = 3000) => {
   const tasks = useTaskStore(state => state.tasks)

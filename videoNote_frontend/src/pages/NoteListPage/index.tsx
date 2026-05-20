@@ -60,7 +60,7 @@ import {
 } from '@/components/ui/table'
 import { getTasks, delete_task, get_task_status, generateNote } from '@/services/note'
 import { TableSkeleton } from '@/components/Skeletons'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { getBaseURL } from '@/utils/api'
@@ -152,16 +152,16 @@ export const NoteListPage: FC = () => {
 
       for (const note of pendingNotes) {
         try {
-          const res: any = await get_task_status(note.task_id)
-          const status = res?.status as string
-          if (status && status !== note.status) {
-            if (status === 'SUCCESS') {
-              const taskData = res?.result
-              setNotes(prev => prev.map(n =>
-                n.task_id === note.task_id
-                  ? {
+          const res = await get_task_status(note.task_id)
+          const taskStatus = res?.status as string
+          if (taskStatus && taskStatus !== note.status) {
+              if (taskStatus === 'SUCCESS') {
+                const taskData = res?.result
+                setNotes(prev => prev.map(n =>
+                  n.task_id === note.task_id
+                    ? {
                     ...n,
-                    status,
+                    status: taskStatus,
                     cover: getProxiedCoverUrl(taskData?.audio_meta?.cover_url || '', n.platform),
                     title: taskData?.audio_meta?.title || taskData?.title || n.title,
                     author: taskData?.audio_meta?.raw_info?.owner?.name
@@ -174,12 +174,13 @@ export const NoteListPage: FC = () => {
             } else {
               setNotes(prev => prev.map(n =>
                 n.task_id === note.task_id
-                  ? { ...n, status }
+                  ? { ...n, status: taskStatus }
                   : n
               ))
             }
           }
         } catch (e) {
+          console.error('轮询任务状态失败:', e)
         }
       }
     }, 3000)

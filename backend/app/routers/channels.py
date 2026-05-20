@@ -6,6 +6,7 @@ from app.db import subscription_dao
 from app.db.engine import get_db
 from app.db.video_task_dao import find_completed_task_by_video
 from app.services.channel_fetcher import identify_platform, parse_channel_info, fetch_videos
+from app.services.constant import CHANNEL_URL_MAP
 from app.utils.response import ResponseWrapper as R
 
 router = APIRouter(prefix="/api/channels", tags=["频道信息"])
@@ -16,13 +17,13 @@ class ParseUrlRequest(BaseModel):
 
 
 @router.get("/summarized")
-async def get_summarized_channels(user=Depends(get_current_user)):
+async def get_summarized_channels(user=Depends(get_current_user)) -> dict:
     channels = subscription_dao.get_summarized_channels(user.id)
     return R.success(channels)
 
 
 @router.post("/parse-url")
-async def parse_url(req: ParseUrlRequest, user=Depends(get_current_user)):
+async def parse_url(req: ParseUrlRequest, user=Depends(get_current_user)) -> dict:
     info = identify_platform(req.url)
     if not info:
         raise HTTPException(status_code=400, detail="无法识别平台或频道")
@@ -39,14 +40,9 @@ async def parse_url(req: ParseUrlRequest, user=Depends(get_current_user)):
 
 @router.get("/{platform}/{platform_id}/videos")
 async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, offset: int = 0,
-                              user=Depends(get_current_user)):
+                              user=Depends(get_current_user)) -> dict:
     # 先找订阅获取 subscription_id
-    channel_url_map = {
-        "bilibili": f"https://space.bilibili.com/{platform_id}",
-        "youtube": f"https://www.youtube.com/channel/{platform_id}",
-        "douyin": f"https://www.douyin.com/user/{platform_id}",
-    }
-    channel_url = channel_url_map.get(platform, "")
+    channel_url = CHANNEL_URL_MAP.get(platform, "").format(platform_id=platform_id)
     sub = subscription_dao.get_subscription_by_url(user.id, channel_url) if channel_url else None
     sub_id = sub.id if sub else None
 
@@ -88,7 +84,7 @@ async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, o
 
 
 @router.get("/{platform}/{platform_id}/subscribers")
-async def get_channel_subscribers(platform: str, platform_id: str, user=Depends(get_current_user)):
+async def get_channel_subscribers(platform: str, platform_id: str, user=Depends(get_current_user)) -> dict:
     """获取频道订阅者列表"""
     db = next(get_db())
     try:

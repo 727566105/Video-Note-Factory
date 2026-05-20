@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import request from '@/utils/request'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Trash2, Edit2, Plus } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import ConfirmDialog from '@/components/ConfirmDialog'
@@ -19,6 +19,16 @@ const formatTime = (iso: string) => {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+interface UserUpdatePayload {
+  username?: string
+  password?: string
+  role?: string
+}
+
+interface ApiError {
+  detail?: string
 }
 
 const Users = () => {
@@ -71,14 +81,15 @@ const Users = () => {
       setAdding(false)
       setAddForm({ username: '', password: '', role: 'user' })
       loadUsers()
-    } catch (err: any) {
-      toast.error(err?.detail || '创建失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '创建失败')
     }
   }
 
   const handleUpdate = async (id: number) => {
     try {
-      const payload: any = {}
+      const payload: UserUpdatePayload = {}
       if (editForm.username) payload.username = editForm.username
       if (editForm.password) payload.password = editForm.password
       if (editForm.role) payload.role = editForm.role
@@ -86,8 +97,9 @@ const Users = () => {
       toast.success('用户更新成功')
       setEditing(null)
       loadUsers()
-    } catch (err: any) {
-      toast.error(err?.detail || '更新失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '更新失败')
     }
   }
 
@@ -96,8 +108,9 @@ const Users = () => {
       await request.delete(`/auth/users/${id}`)
       toast.success('用户删除成功')
       loadUsers()
-    } catch (err: any) {
-      toast.error(err?.detail || '删除失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '删除失败')
     }
   }
 
@@ -130,8 +143,9 @@ const Users = () => {
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (err: any) {
-      toast.error(err?.detail || '修改失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '修改失败')
     } finally {
       setChangingPassword(false)
     }

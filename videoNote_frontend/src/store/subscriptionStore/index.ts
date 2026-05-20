@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import {
   fetchSubscriptions as apiFetchSubscriptions,
   subscribe as apiSubscribe,

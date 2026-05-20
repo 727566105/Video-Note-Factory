@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,17 @@ interface CredentialsState {
   webdav_config: { password: string }
 }
 
+interface ImportResultData {
+  success: { type: string; count?: number; id?: string; reason?: string; error?: string }[]
+  failed: { type: string; count?: number; id?: string; reason?: string; error?: string }[]
+  skipped: { type: string; count?: number; id?: string; reason?: string; error?: string }[]
+}
+
+interface ProviderItem {
+  id: string
+  name: string
+}
+
 interface ConfigImportDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -35,7 +46,7 @@ interface ConfigImportDialogProps {
 
 const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => {
   const [step, setStep] = useState<ImportStep>('upload')
-  const [configData, setConfigData] = useState<any>(null)
+  const [configData, setConfigData] = useState<Record<string, unknown> | null>(null)
   const [preview, setPreview] = useState<ConfigPreviewResponse | null>(null)
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [credentials, setCredentials] = useState<CredentialsState>({
@@ -43,7 +54,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
     siyuan_config: { api_token: '' },
     webdav_config: { password: '' },
   })
-  const [importResult, setImportResult] = useState<any>(null)
+  const [importResult, setImportResult] = useState<ImportResultData | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [fileError, setFileError] = useState<string>('')
 
@@ -67,8 +78,9 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
       } else {
         setFileError(response.msg || '文件解析失败')
       }
-    } catch (error: any) {
-      setFileError(error?.message || '文件解析失败')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '文件解析失败'
+      setFileError(message)
     } finally {
       setIsProcessing(false)
     }
@@ -110,7 +122,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
     setIsProcessing(true)
 
     try {
-      const response = await executeImport(configData, selectedItems, credentials)
+      const response = await executeImport(configData as Record<string, unknown>, selectedItems, credentials)
 
       if (response.code === 200) {
         setImportResult(response.data)
@@ -126,8 +138,9 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
       } else {
         toast.error(response.msg || '导入失败')
       }
-    } catch (error: any) {
-      toast.error(`导入失败：${error?.message || '未知错误'}`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      toast.error(`导入失败：${message}`)
     } finally {
       setIsProcessing(false)
     }
@@ -293,7 +306,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
                     {item.name}
                   </h5>
                   <div className="space-y-3">
-                    {providers.map((provider: any) => (
+                    {providers.map((provider: ProviderItem) => (
                       <div key={provider.id}>
                         <label className="text-xs text-muted-foreground block mb-1">
                           {provider.name} ({provider.id}) 的 API Key
@@ -405,7 +418,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
           <div className="mb-4">
             <h5 className="text-sm font-medium text-green-700 mb-2">成功导入</h5>
             <ul className="text-sm space-y-1">
-              {success.map((item: any, idx: number) => (
+              {success.map((item, idx: number) => (
                 <li key={idx} className="flex items-center gap-2 text-foreground">
                   <CheckCircle2 className="w-4 h-4 text-green-600" />
                   {item.type === 'providers' && `AI 模型设置 (${item.count} 项)`}
@@ -421,7 +434,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
           <div className="mb-4">
             <h5 className="text-sm font-medium text-amber-700 mb-2">已跳过</h5>
             <ul className="text-sm space-y-1">
-              {skipped.map((item: any, idx: number) => (
+              {skipped.map((item, idx: number) => (
                 <li key={idx} className="flex items-center gap-2 text-foreground">
                   <XCircle className="w-4 h-4 text-amber-600" />
                   {item.type === 'providers' && `${item.id}: ${item.reason}`}
@@ -437,7 +450,7 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
           <div className="mb-4">
             <h5 className="text-sm font-medium text-red-700 mb-2">导入失败</h5>
             <ul className="text-sm space-y-1">
-              {failed.map((item: any, idx: number) => (
+              {failed.map((item, idx: number) => (
                 <li key={idx} className="flex items-center gap-2 text-foreground">
                   <XCircle className="w-4 h-4 text-red-600" />
                   {item.type === 'providers' && `AI 模型设置: ${item.error}`}

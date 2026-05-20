@@ -3,6 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from app.auth.dependencies import get_current_user
 from app.db import subscription_dao
+from app.db.video_task_dao import find_completed_task_by_video
 from app.services.channel_fetcher import fetch_all_for_subscription
 from app.db.subscription_dao import upsert_feed_items
 from app.utils.response import ResponseWrapper as R
@@ -12,41 +13,52 @@ router = APIRouter(prefix="/api/feed", tags=["动态内容"])
 
 @router.get("")
 async def list_feed(limit: int = 20, offset: int = 0, type: str = None,
-                    user=Depends(get_current_user)):
+                    user=Depends(get_current_user)) -> dict:
     items = subscription_dao.get_feed_items(user.id, limit, offset, type)
-    return R.success([{
-        "id": f.id,
-        "subscription_id": f.subscription_id,
-        "platform": f.platform,
-        "content_type": f.content_type,
-        "content_id": f.content_id,
-        "content_url": f.content_url,
-        "title": f.title,
-        "cover_url": f.cover_url,
-        "images": f.images,
-        "duration": f.duration,
-        "author": f.author,
-        "description": f.description,
-        "published_at": f.published_at.isoformat() if f.published_at else None,
-        "is_read": f.is_read,
-        "task_id": f.task_id,
-    } for f in items])
+    items_data = []
+    for f in items:
+        # 检查笔记可用性：优先用 feed_item 关联的 task_id，否则跨用户查找
+        available_task_id = f.task_id
+        if not available_task_id and f.content_id:
+            existing = find_completed_task_by_video(f.content_id, f.platform)
+            if existing:
+                available_task_id = existing.task_id
+        items_data.append({
+            "id": f.id,
+            "subscription_id": f.subscription_id,
+            "platform": f.platform,
+            "content_type": f.content_type,
+            "content_id": f.content_id,
+            "content_url": f.content_url,
+            "title": f.title,
+            "cover_url": f.cover_url,
+            "images": f.images,
+            "duration": f.duration,
+            "author": f.author,
+            "description": f.description,
+            "published_at": f.published_at.isoformat() if f.published_at else None,
+            "is_read": f.is_read,
+            "task_id": f.task_id,
+            "note_available": bool(available_task_id),
+            "available_task_id": available_task_id,
+        })
+    return R.success(items_data)
 
 
 @router.put("/{item_id}/read")
-async def mark_item_read(item_id: int, user=Depends(get_current_user)):
+async def mark_item_read(item_id: int, user=Depends(get_current_user)) -> dict:
     subscription_dao.mark_read(user.id, item_id)
     return R.success(msg="已标记为已读")
 
 
 @router.put("/read-all")
-async def mark_all_read(user=Depends(get_current_user)):
+async def mark_all_read(user=Depends(get_current_user)) -> dict:
     subscription_dao.mark_all_read(user.id)
     return R.success(msg="已全部标记为已读")
 
 
 @router.post("/refresh")
-async def refresh_feed(user=Depends(get_current_user)):
+async def refresh_feed(user=Depends(get_current_user)) -> dict:
     subs = subscription_dao.get_user_subscriptions(user.id)
     total_added = 0
     errors = []
@@ -67,13 +79,13 @@ async def refresh_feed(user=Depends(get_current_user)):
 
 
 @router.get("/unread-count")
-async def unread_count(user=Depends(get_current_user)):
+async def unread_count(user=Depends(get_current_user)) -> dict:
     count = subscription_dao.get_unread_count(user.id)
     return R.success({"count": count})
 
 
 @router.post("/{item_id}/generate-note")
-async def generate_article_note(item_id: int, user=Depends(get_current_user)):
+async def generate_article_note(item_id: int, user=Depends(get_current_user)) -> dict:
     item = subscription_dao.get_feed_item_by_id(item_id, user.id)
     if not item:
         raise HTTPException(status_code=404, detail="动态不存在")

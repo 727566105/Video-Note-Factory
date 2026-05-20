@@ -1,9 +1,7 @@
 """任务队列管理器 — 控制并发执行数，超出的任务 FIFO 排队"""
 import os
 import json
-import logging
 from collections import deque
-from typing import Optional
 
 from app.utils.logger import get_logger
 

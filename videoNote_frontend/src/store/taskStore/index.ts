@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { delete_task, generateNote, getTasks } from '@/services/note.ts'
 import { v4 as uuidv4 } from 'uuid'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import type { BackendTask } from '@/types/api'
 
 

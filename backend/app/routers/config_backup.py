@@ -37,7 +37,7 @@ class ImportExecuteRequest(BaseModel):
 # ==================== 配置导出 ====================
 
 @router.get("/export")
-def export_configs(current_user=Depends(require_admin)):
+def export_configs(current_user=Depends(require_admin)) -> dict:
     """导出当前配置为 JSON"""
     try:
         config_data = ConfigExporter.export_config()
@@ -49,7 +49,7 @@ def export_configs(current_user=Depends(require_admin)):
 
 
 @router.get("/export/file")
-def export_configs_file(current_user=Depends(require_admin)):
+def export_configs_file(current_user=Depends(require_admin)) -> dict:
     """导出配置为 JSON 文件下载"""
     try:
         import tempfile
@@ -83,7 +83,7 @@ def export_configs_file(current_user=Depends(require_admin)):
 # ==================== 配置导入 ====================
 
 @router.post("/import/preview")
-async def preview_import(file: UploadFile = File(...), current_user=Depends(require_admin)):
+async def preview_import(file: UploadFile = File(...), current_user=Depends(require_admin)) -> dict:
     """
     预览配置导入文件
 
@@ -118,7 +118,7 @@ async def preview_import(file: UploadFile = File(...), current_user=Depends(requ
 
 
 @router.post("/import/preview/json")
-def preview_import_json(request: ImportPreviewRequest, current_user=Depends(require_admin)):
+def preview_import_json(request: ImportPreviewRequest, current_user=Depends(require_admin)) -> dict:
     """
     预览配置导入（JSON 数据）
 
@@ -144,7 +144,7 @@ def preview_import_json(request: ImportPreviewRequest, current_user=Depends(requ
 
 
 @router.post("/import/execute")
-def execute_import(request: ImportExecuteRequest, current_user=Depends(require_admin)):
+def execute_import(request: ImportExecuteRequest, current_user=Depends(require_admin)) -> dict:
     """
     执行配置导入
 

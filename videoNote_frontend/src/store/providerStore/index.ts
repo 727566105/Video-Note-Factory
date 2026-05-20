@@ -25,6 +25,15 @@ interface ProviderStore {
   deleteProvider: (id: string) => Promise<void>
 }
 
+interface ProviderPayload {
+  provider_id?: number
+  provider_name?: string
+  provider_type?: string
+  api_key?: string
+  base_url?: string
+  [key: string]: unknown
+}
+
 export const useProviderStore = create<ProviderStore>((set, get) => ({
   provider: [],
   loading: false,
@@ -61,7 +70,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   },
   addNewProvider: async (provider: IProvider) => {
-    const payload: any = {
+    const payload: ProviderPayload = {
       ...provider,
       api_key: provider.api_key ?? provider.apiKey,
       base_url: provider.base_url ?? provider.baseUrl,
@@ -69,7 +78,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
     delete payload.apiKey
     delete payload.baseUrl
     try {
-      const data = await addProvider(payload)
+      const data = await addProvider(payload as Parameters<typeof addProvider>[0])
       const item = data
       await get().fetchProviderList()
       return item.id || item
@@ -79,14 +88,14 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   },
   // 一气呵成：保存供应商 + 批量添加模型
   addNewProviderWithModels: async (provider: IProvider, modelNames: string[]) => {
-    const payload: any = {
+    const payload: ProviderPayload = {
       ...provider,
       api_key: provider.api_key ?? provider.apiKey,
       base_url: provider.base_url ?? provider.baseUrl,
     }
     delete payload.apiKey
     delete payload.baseUrl
-    const data = await addProvider(payload)
+    const data = await addProvider(payload as Parameters<typeof addProvider>[0])
     const newId = data.id || data
 
     if (modelNames.length > 0) {
@@ -104,7 +113,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   getProviderById: id => get().provider.find(p => p.id === id),
   updateProvider: async (provider: IProvider) => {
     try {
-      const data: any = {
+      const data: ProviderPayload = {
         id: provider.id,
       }
       

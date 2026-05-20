@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, Power, PowerOff, Rss } from 'lucide-react'
+import { Plus, Trash2, Power, PowerOff, Rss } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -15,20 +14,28 @@ import {
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchSummarizedChannels, parseChannelUrl } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
+
+interface SummarizedChannel {
+  platform: string
+  author: string
+  video_url: string
+  count: number
+  last_summarized: string | null
+}
 
 const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音' }
 const platformIcon: Record<string, React.ReactNode> = {
-  bilibili: <BiliBiliLogo className="w-4 h-4" />,
-  youtube: <YoutubeLogo className="w-4 h-4" />,
-  douyin: <DouyinLogo className="w-4 h-4" />,
+  bilibili: <BiliBiliLogo className="size-4" />,
+  youtube: <YoutubeLogo className="size-4" />,
+  douyin: <DouyinLogo className="size-4" />,
 }
 
 export default function ChannelsPage() {
   const navigate = useNavigate()
   const { subscriptions, fetchSubscriptions, subscribe, unsubscribe, toggleSubscription } = useSubscriptionStore()
   const [tab, setTab] = useState<'summarized' | 'subscribed'>('subscribed')
-  const [summarized, setSummarized] = useState<any[]>([])
+  const [summarized, setSummarized] = useState<SummarizedChannel[]>([])
   const [subscribeUrl, setSubscribeUrl] = useState('')
   const [search, setSearch] = useState('')
   const [subscribing, setSubscribing] = useState(false)
@@ -42,7 +49,9 @@ export default function ChannelsPage() {
     try {
       const res = await fetchSummarizedChannels()
       setSummarized(res || [])
-    } catch { }
+    } catch (e) {
+      console.error('加载已总结频道失败:', e)
+    }
   }
 
   const handleSubscribe = async () => {
@@ -51,7 +60,8 @@ export default function ChannelsPage() {
     try {
       const info = await parseChannelUrl(subscribeUrl)
       toast.success(`识别到 ${platformLabel[info.platform] || info.platform} 频道：${info.channel_name || '未知'}`)
-    } catch (e: any) {
+    } catch (e) {
+      console.error('解析频道URL失败:', e)
       // 解析失败也可能是因为URL已过期，直接尝试订阅
     }
     const ok = await subscribe(subscribeUrl)
@@ -84,7 +94,7 @@ export default function ChannelsPage() {
               onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
               className="max-w-md" />
             <Button onClick={handleSubscribe} disabled={subscribing}>
-              <Plus className="w-4 h-4 mr-1" />订阅
+              <Plus className="size-4 mr-1" />订阅
             </Button>
             <Input placeholder="搜索频道..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs ml-auto" />
           </div>
@@ -116,11 +126,11 @@ export default function ChannelsPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <Button size="sm" variant="ghost" onClick={() => toggleSubscription(sub.id)}>
-                      {sub.enabled ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                      {sub.enabled ? <PowerOff className="size-4" /> : <Power className="size-4" />}
                     </Button>
                     <Button size="sm" variant="ghost" className="text-red-500 ml-1"
                       onClick={() => { if (confirm('确定取消订阅？')) unsubscribe(sub.id) }}>
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </td>
                 </tr>
@@ -150,7 +160,7 @@ export default function ChannelsPage() {
               <th className="px-4 py-2 text-right font-medium">操作</th>
             </tr></thead>
             <tbody>
-              {(summarized || []).filter((c: any) => !search || c.author?.includes(search)).map((ch: any, i: number) => (
+              {(summarized || []).filter((c: SummarizedChannel) => !search || c.author?.includes(search)).map((ch: SummarizedChannel, i: number) => (
                 <tr key={i} className="border-b hover:bg-accent/30">
                   <td className="px-4 py-2 font-medium">{ch.author}</td>
                   <td className="px-4 py-2"><div className="flex items-center gap-1">{platformIcon[ch.platform]} {platformLabel[ch.platform] || ch.platform}</div></td>
@@ -163,7 +173,7 @@ export default function ChannelsPage() {
                       <span className="text-green-500 text-xs">已订阅</span>
                     ) : (
                       <Button size="sm" onClick={() => { setSubscribeUrl(ch.video_url || ''); setTab('subscribed') }}>
-                        <Plus className="w-4 h-4 mr-1" />订阅
+                        <Plus className="size-4 mr-1" />订阅
                       </Button>
                     )}
                   </td>

@@ -39,7 +39,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/login")
-def login(req: LoginRequest):
+def login(req: LoginRequest) -> dict:
     user = get_user_by_username(req.username)
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
@@ -59,7 +59,7 @@ def login(req: LoginRequest):
 
 
 @router.get("/me")
-def get_me(current_user=Depends(get_current_user)):
+def get_me(current_user=Depends(get_current_user)) -> dict:
     return R.success(
         data={
             "id": current_user.id,
@@ -70,13 +70,13 @@ def get_me(current_user=Depends(get_current_user)):
 
 
 @router.get("/users")
-def list_users(current_user=Depends(require_admin)):
+def list_users(current_user=Depends(require_admin)) -> dict:
     users = get_all_users()
     return R.success(data=users)
 
 
 @router.post("/users")
-def create_user_api(req: UserCreateRequest, current_user=Depends(require_admin)):
+def create_user_api(req: UserCreateRequest, current_user=Depends(require_admin)) -> dict:
     try:
         user = create_user(req.username, req.password, req.role)
         return R.success(
@@ -90,7 +90,7 @@ def create_user_api(req: UserCreateRequest, current_user=Depends(require_admin))
 @router.put("/users/{user_id}")
 def update_user_api(
     user_id: int, req: UserUpdateRequest, current_user=Depends(require_admin)
-):
+) -> dict:
     try:
         result = update_user(user_id, req.username, req.password, req.role)
         return R.success(data=result, msg="用户更新成功")
@@ -99,7 +99,7 @@ def update_user_api(
 
 
 @router.delete("/users/{user_id}")
-def delete_user_api(user_id: int, current_user=Depends(require_admin)):
+def delete_user_api(user_id: int, current_user=Depends(require_admin)) -> dict:
     try:
         result = delete_user(user_id)
         return R.success(msg=result["message"])
@@ -108,7 +108,7 @@ def delete_user_api(user_id: int, current_user=Depends(require_admin)):
 
 
 @router.put("/change-password")
-def change_password(req: ChangePasswordRequest, current_user=Depends(get_current_user)):
+def change_password(req: ChangePasswordRequest, current_user=Depends(get_current_user)) -> dict:
     if not verify_password(req.old_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="旧密码错误")
     if len(req.new_password) < 6:

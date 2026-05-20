@@ -150,7 +150,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                   onClick={(e) => {
                     e.stopPropagation()
                     if (props.isSubscribed(item.author)) {
-                      import('react-hot-toast').then(t => t.default.info('已订阅该频道'))
+                      import('sonner').then(t => t.toast.info('已订阅该频道'))
                     } else {
                       props.onSubscribe(item.video_url)
                     }

@@ -56,7 +56,7 @@ export const previewImport = async (file: File) => {
  * 预览配置导入（JSON 数据）
  * @param configData 已解析的配置数据
  */
-export const previewImportJson = async (configData: any) => {
+export const previewImportJson = async (configData: ConfigData) => {
   return await request.post('/configs/import/preview/json', { config_data: configData })
 }
 
@@ -67,7 +67,7 @@ export const previewImportJson = async (configData: any) => {
  * @param credentials 敏感信息凭证
  */
 export const executeImport = async (
-  configData: any,
+  configData: ConfigData,
   selectedItems: string[],
   credentials?: Record<string, Record<string, string>>
 ) => {
@@ -79,6 +79,25 @@ export const executeImport = async (
 }
 
 // ==================== 类型定义 ====================
+
+/**
+ * 配置数据接口
+ */
+export interface ConfigData {
+  providers?: unknown[]
+  models?: unknown[]
+  configs?: {
+    providers?: unknown[]
+    siyuan_config?: Record<string, unknown>
+    webdav_config?: Record<string, unknown>
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+/**
+ * 导出当前配置为 JSON
+ */
 
 /**
  * 配置预览项
