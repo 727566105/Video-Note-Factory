@@ -3,6 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -65,9 +72,15 @@ export default function FeedPage() {
           <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
             <CheckCheck className="w-4 h-4 mr-1" />全部已读
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}>
-            {viewMode === 'grid' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
-          </Button>
+          <Select value={viewMode} onValueChange={(v) => setViewMode(v as 'grid' | 'list')}>
+            <SelectTrigger className="w-[120px] h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="grid"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />网格</span></SelectItem>
+              <SelectItem value="list"><span className="flex items-center gap-2"><List className="size-4" />列表</span></SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
