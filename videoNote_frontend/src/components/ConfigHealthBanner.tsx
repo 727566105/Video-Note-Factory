@@ -14,8 +14,8 @@ const LABELS: Record<string, string> = {
 export function ConfigHealthBanner() {
   const { status, checks, loading } = useConfigHealth();
 
-  // 加载中或全部 OK 时不显示
-  if (loading || status === "ok") return null;
+  // 加载中、数据为空或全部 OK 时不显示
+  if (loading || !checks || status === "ok") return null;
 
   // 计算通过数量
   const passedCount = Object.values(checks).filter((c) => c.ok).length;

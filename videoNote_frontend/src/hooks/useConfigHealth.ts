@@ -24,8 +24,11 @@ export function useConfigHealth() {
 
   useEffect(() => {
     getHealth()
-      .then((res: { data: HealthData }) => {
-        setData(res.data);
+      .then((res: unknown) => {
+        const healthData = (res as HealthData) || { status: "ok", checks: {} };
+        if (healthData.checks && typeof healthData.status === "string") {
+          setData(healthData);
+        }
         setLoading(false);
       })
       .catch(() => {
