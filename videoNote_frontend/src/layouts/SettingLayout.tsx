@@ -1,9 +1,7 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom'
-import { ArrowLeft, LogOut, Menu as MenuIcon, Settings, User, X } from 'lucide-react'
+import { Outlet, useNavigate } from 'react-router-dom'
+import { LogOut, Menu as MenuIcon, X } from 'lucide-react'
 import React, { useState } from 'react'
-import logo from '@/assets/logo.png'
 import { Button } from '@/components/ui/button'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuthStore } from '@/store/authStore'
 import {
   Dialog,
@@ -38,45 +36,6 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
 
   return (
     <div className="flex h-screen w-full flex-col bg-muted">
-      {/* 顶部导航栏 - 全平台可见 */}
-      <header className="flex h-12 items-center justify-between border-b border-border bg-background px-3 md:h-14 md:px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden"
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
-          </Button>
-          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg md:h-8 md:w-8">
-            <img src={logo} alt="logo" className="h-full w-full object-contain" />
-          </div>
-          <div className="text-base font-bold text-foreground md:text-lg">设置</div>
-        </div>
-        <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent transition-colors">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <User className="h-4 w-4" />
-                </div>
-                <span className="hidden md:inline">{user?.username}</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={() => navigate('/settings')}>
-                <Settings className="mr-2 h-4 w-4" />
-                个人设置
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLogoutDialogOpen(true)} className="text-red-600 focus:text-red-600">
-                <LogOut className="mr-2 h-4 w-4" />
-                退出登录
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
 
       <div className="flex flex-1 overflow-hidden">
         {/* 侧边栏 */}
@@ -87,6 +46,34 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
             ${mobileMenuOpen ? 'block' : 'hidden'}
           `}
         >
+          {/* 侧边栏顶部：移动端菜单按钮 + 用户 dropdown */}
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden"
+            >
+              {mobileMenuOpen ? <X className="size-5" /> : <MenuIcon className="size-5" />}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent transition-colors">
+                  <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <span className="text-xs font-medium">{user?.username?.slice(0, 2) || 'U'}</span>
+                  </div>
+                  <span className="hidden md:inline">{user?.username}</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={() => setLogoutDialogOpen(true)} className="text-red-600 focus:text-red-600">
+                  <LogOut className="mr-2 size-4" />
+                  退出登录
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           {/* 菜单内容 */}
           <div className="h-full overflow-auto p-4">
             <div onClick={() => setMobileMenuOpen(false)}>{Menu}</div>
