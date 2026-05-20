@@ -77,12 +77,6 @@ const Menu = () => {
 
   return (
     <div className="flex h-full flex-col">
-      <div className={'flex w-full flex-col gap-2'}>
-        <div className="text-2xl font-medium">设置</div>
-        <div className="text-sm font-light text-foreground">
-          {user?.username || '用户'} · {isAdmin ? '管理员' : '普通用户'}
-        </div>
-      </div>
       <div className="mt-6 flex-1">
         {menuList &&
           menuList.map(item => {
