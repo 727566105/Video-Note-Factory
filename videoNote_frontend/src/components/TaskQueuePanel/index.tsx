@@ -8,7 +8,6 @@ import {
   CircleCheckBig,
   Sparkles,
   FileText,
-  Plus,
   Loader2,
   AlertCircle,
 } from 'lucide-react'
@@ -270,7 +269,9 @@ const TaskQueueItem: FC<{
 
 export const TaskQueuePanel: FC = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const [panelPosition, setPanelPosition] = useState({ top: 0, left: 0, maxHeight: 0 })
   const panelRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const navigate = useNavigate()
 
   const tasks = useTaskStore(state => state.tasks)
@@ -304,6 +305,30 @@ export const TaskQueuePanel: FC = () => {
     }
   }, [isOpen])
 
+  const handleToggle = () => {
+    if (triggerRef.current && !isOpen) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom - 8
+      const spaceAbove = rect.top - 8
+      const prefersBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove
+
+      if (prefersBelow) {
+        setPanelPosition({
+          top: rect.bottom + 8,
+          left: rect.left,
+          maxHeight: Math.min(Math.max(spaceBelow, 100), 500),
+        })
+      } else {
+        setPanelPosition({
+          top: Math.max(8, rect.top - 500 - 8),
+          left: rect.left,
+          maxHeight: Math.min(Math.max(spaceAbove, 100), 500),
+        })
+      }
+    }
+    setIsOpen(prev => !prev)
+  }
+
   const handleViewSummary = (taskId: string) => {
     setIsOpen(false)
     navigate(`/notes/${taskId}`)
@@ -326,7 +351,8 @@ export const TaskQueuePanel: FC = () => {
     <>
       {/* 触发器徽章 */}
       <button
-        onClick={() => setIsOpen(prev => !prev)}
+        ref={triggerRef}
+        onClick={handleToggle}
         className="flex items-center justify-between px-3 py-1.5 mb-3 bg-background rounded-full border border-border hover:bg-accent/50 transition-colors w-full cursor-pointer"
       >
         <span className="text-xs text-foreground">
@@ -344,9 +370,10 @@ export const TaskQueuePanel: FC = () => {
       {isOpen && (
         <div
           ref={panelRef}
-          className="fixed top-2 right-9 z-[60] w-80 animate-in fade-in-0 zoom-in-95 duration-200"
+          style={{ top: panelPosition.top, left: panelPosition.left }}
+          className="fixed z-[60] w-80 animate-in fade-in-0 zoom-in-95 duration-200"
         >
-          <div className="flex flex-col rounded-xl border border-gray-200 bg-card text-card-foreground shadow-xl dark:border-slate-800 dark:bg-slate-900 max-h-[calc(100vh-4rem)] overflow-hidden">
+          <div className="flex flex-col rounded-xl border border-gray-200 bg-card text-card-foreground shadow-xl dark:border-slate-800 dark:bg-slate-900 overflow-hidden" style={{ height: panelPosition.maxHeight || undefined }}>
             {/* 头部 */}
             <div className="px-4 py-3">
               <div className="flex items-center justify-between">
@@ -417,9 +444,10 @@ export const TaskQueuePanel: FC = () => {
             </div>
 
             {/* 可滚动任务列表 */}
-            <div className="px-4 pt-0 flex-1 min-h-0 overflow-hidden">
-              <ScrollArea className="h-[calc(100vh-16rem)]">
-                <div className="flex flex-col gap-2 p-2">
+            <div className="relative flex-1 min-h-0">
+              <div className="absolute inset-0">
+                <ScrollArea className="h-full">
+                  <div className="flex flex-col gap-2 p-3 min-w-0 overflow-x-hidden">
                   {tasks.length === 0 ? (
                     <div className="py-8 text-center text-sm text-muted-foreground">
                       暂无任务
@@ -438,24 +466,9 @@ export const TaskQueuePanel: FC = () => {
                   )}
                 </div>
               </ScrollArea>
-            </div>
-
-            {/* 底部操作 */}
-            <div className="mt-3 space-y-2 border-t px-4 py-3 dark:border-slate-800">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigate('/')
-                    setIsOpen(false)
-                  }}
-                  className="flex flex-1 items-center justify-center gap-1 h-8 rounded-md border bg-card shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 text-xs font-medium transition-colors"
-                >
-                  <Plus className="size-3" />
-                  继续添加新内容
-                </button>
               </div>
             </div>
+
           </div>
         </div>
       )}
