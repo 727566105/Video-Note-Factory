@@ -30,6 +30,7 @@ interface ModelStore {
   modelList: IModelListItem[]
   loading: boolean
   selectedModel: string
+  smartSelectionEnabled: boolean
 
   loadModels: (providerId: string) => Promise<void>
   loadModelsById: (providerId: string) => Promise<IModelListItem[]>
@@ -37,6 +38,7 @@ interface ModelStore {
   addNewModel: (providerId: string, modelId: string) => Promise<void>
   deleteModel: (modelId: number) => Promise<void>
   setSelectedModel: (modelId: string) => void
+  setSmartSelectionEnabled: (enabled: boolean) => void
   loadFromServer: (data: Record<string, any>) => void
   clearModels: () => void
 }
@@ -46,7 +48,8 @@ export const useModelStore = create<ModelStore>()(
     models: [],
     modelList: [],
     loading: false,
-    selectedModel: '',
+    selectedModel: 'smart_auto',
+    smartSelectionEnabled: true,
 
     loadEnabledModels: async () => {
       try {
@@ -129,12 +132,23 @@ export const useModelStore = create<ModelStore>()(
       saveUserPreferences({ model: { selectedModel: modelId } })
     },
 
+    setSmartSelectionEnabled: (enabled: boolean) => {
+      set({ smartSelectionEnabled: enabled })
+      if (enabled) {
+        set({ selectedModel: 'smart_auto' })
+      }
+      saveUserPreferences({ model: { smartSelectionEnabled: enabled } })
+    },
+
     loadFromServer: (data: Record<string, any>) => {
       if (data.selectedModel) {
         set({ selectedModel: data.selectedModel })
       }
+      if (data.smartSelectionEnabled !== undefined) {
+        set({ smartSelectionEnabled: data.smartSelectionEnabled })
+      }
     },
 
-    clearModels: () => set({ models: [], selectedModel: '', modelList: [] }),
+    clearModels: () => set({ models: [], selectedModel: 'smart_auto', modelList: [] }),
   }))
 )

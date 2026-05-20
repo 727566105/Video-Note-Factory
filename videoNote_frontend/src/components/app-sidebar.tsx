@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 import {
   Sidebar,
   SidebarContent,
@@ -51,10 +52,11 @@ interface NavItemProps {
   label: string
   active?: boolean
   hasDropdown?: boolean
+  badge?: React.ReactNode
   onClick?: () => void
 }
 
-function NavItem({ icon, label, active, hasDropdown, onClick }: NavItemProps) {
+function NavItem({ icon, label, active, hasDropdown, badge, onClick }: NavItemProps) {
   return (
     <button
       onClick={onClick}
@@ -69,7 +71,8 @@ function NavItem({ icon, label, active, hasDropdown, onClick }: NavItemProps) {
         {icon}
         <span className="text-sm">{label}</span>
       </div>
-      {hasDropdown ? (
+      {badge}
+      {hasDropdown && !badge ? (
         <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
       ) : null}
     </button>
@@ -292,7 +295,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem>
                   <NavItem
                     icon={<Rss className="w-4 h-4" />}
-                    label={`动态${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
+                    label="动态"
+                    badge={unreadCount > 0 ? <Badge variant="secondary" className="ml-auto text-xs">{unreadCount}</Badge> : undefined}
                     active={location.pathname === "/feed"}
                     onClick={() => navigate("/feed")}
                   />

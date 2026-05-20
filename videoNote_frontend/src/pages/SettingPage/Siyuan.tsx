@@ -24,6 +24,13 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Info, BookOpen, CheckCircle2, XCircle, History, Eye, EyeOff, AlertTriangle } from 'lucide-react'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 // 表单 schema
 const SiyuanConfigSchema = z.object({
@@ -446,13 +453,13 @@ const SiyuanSettings = () => {
             </table>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted p-12 text-center">
-            <History className="mb-4 h-16 w-16 text-muted-foreground" />
-            <p className="text-base font-medium text-foreground">暂无导出历史</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              配置完成后，导出笔记时会在此显示历史记录
-            </p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><History /></EmptyMedia>
+              <EmptyTitle>暂无导出历史</EmptyTitle>
+              <EmptyDescription>配置完成后，导出笔记时会在此显示历史记录</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </div>
     </div>

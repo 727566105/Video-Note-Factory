@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Copy, Download, BrainCircuit, FileText, MoreHorizontal, FileDown, Image, BookOpen, Trash, Settings } from 'lucide-react'
+import { Copy, Download, BrainCircuit, FileText, MoreHorizontal, FileDown, Image, BookOpen, Trash, Settings, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -30,12 +30,14 @@ interface NoteHeaderProps {
   currentTask?: {
     markdown: VersionNote[] | string
     id?: string
+    smart_switched?: boolean
   }
   isMultiVersion: boolean
   currentVerId: string
   setCurrentVerId: (id: string) => void
   modelName: string
   style: string
+  smartSwitched?: boolean
   noteStyles: { value: string; label: string }[]
   onCopy: () => void
   onDownload: () => void
@@ -54,6 +56,7 @@ export function MarkdownHeader({
   setCurrentVerId,
   modelName,
   style,
+  smartSwitched,
   noteStyles,
   onCopy,
   onDownload,
@@ -134,9 +137,24 @@ export function MarkdownHeader({
           </Select>
         )}
 
-        <Badge variant="secondary" className="bg-pink-100 text-pink-700 hover:bg-pink-200">
-          {modelName}
-        </Badge>
+        {smartSwitched ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-200 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  {modelName}
+                  <span className="text-xs">(智能优选)</span>
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>智能优选已自动切换模型</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <Badge variant="secondary" className="bg-pink-100 text-pink-700 hover:bg-pink-200">
+            {modelName}
+          </Badge>
+        )}
         <Badge variant="secondary" className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200">
           {styleName}
         </Badge>

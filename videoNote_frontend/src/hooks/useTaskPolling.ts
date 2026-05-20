@@ -39,7 +39,7 @@ export const useTaskPolling = (interval = 3000) => {
 
           if (status && status !== task.status) {
             if (status === 'SUCCESS') {
-              const { markdown, transcript, audio_meta } = res.result
+              const { markdown, transcript, audio_meta, smart_switched, used_model_name } = res.result
               // 只有未提示过的任务才显示成功提示
               if (!notifiedTasksRef.current.has(task.id)) {
                 toast.success('笔记生成成功')
@@ -50,6 +50,8 @@ export const useTaskPolling = (interval = 3000) => {
                 markdown,
                 transcript,
                 audioMeta: audio_meta,
+                smart_switched: smart_switched || false,
+                used_model_name: used_model_name || '',
               })
             } else if (status === 'FAILED') {
               updateTaskContent(task.id, { status, message: res?.message })

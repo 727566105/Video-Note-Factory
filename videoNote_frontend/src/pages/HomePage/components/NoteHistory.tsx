@@ -2,8 +2,14 @@ import { useTaskStore } from '@/store/taskStore'
 import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
 import Fuse from 'fuse.js'
-import { ArrowUpDown, XIcon } from 'lucide-react'
+import { ArrowUpDown, XIcon, StickyNote } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform.tsx'
 import { noteStyles } from '@/constant/note.ts'
 import { getBaseURL } from '@/utils/api'
@@ -164,9 +170,12 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
 
       {/* 内容区 */}
       {filteredTasks.length === 0 ? (
-        <div className="rounded-md border border-border bg-neutral-50 py-6 text-center">
-          <p className="text-sm text-neutral-500">暂无记录</p>
-        </div>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon"><StickyNote /></EmptyMedia>
+            <EmptyTitle>暂无记录</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="flex flex-col gap-2 pb-4">
           {filteredTasks.map(task => (

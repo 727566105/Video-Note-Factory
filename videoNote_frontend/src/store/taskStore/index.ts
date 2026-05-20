@@ -48,6 +48,8 @@ export interface Task {
   createdAt: string
   platform: string
   message?: string  // 错误信息，用于展示失败原因
+  smart_switched?: boolean  // 智能优选是否发生过切换
+  used_model_name?: string  // 实际使用的模型名称
   formData: {
     video_url: string
     link: undefined | boolean
@@ -57,6 +59,7 @@ export interface Task {
     model_name: string
     style: string
     provider_id: string
+    smart_mode?: boolean
   }
 }
 
@@ -252,6 +255,8 @@ export const useTaskStore = create<TaskStore>()(
                   segments: [],
                 },
                 createdAt: t.created_at || new Date().toISOString(),
+                smart_switched: t.note?.smart_switched || false,
+                used_model_name: t.note?.used_model_name || '',
                 // 优先使用数据库元数据字段，兜底从 note.audio_meta 读取
                 audioMeta: {
                   cover_url: t.cover_url || t.note?.audio_meta?.cover_url || '',

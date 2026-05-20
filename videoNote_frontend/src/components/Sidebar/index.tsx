@@ -1,6 +1,12 @@
 import { Sparkles, Edit, PanelLeftClose, Search, ChevronDown, Settings, StickyNote, Library, Box, Activity, Rss, Flame, FolderPlus, MoreHorizontal, NotebookPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 interface SidebarProps {
   className?: string
@@ -79,7 +85,12 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="flex flex-col gap-0.5">
           <NavItem icon={<FolderPlus className="w-4 h-4" />} label="新合集" />
           <div className="px-3 py-2">
-            <span className="text-sm text-muted-foreground italic">暂无合集，试试新建一个？</span>
+            <Empty className="gap-2 py-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><FolderPlus /></EmptyMedia>
+                <EmptyTitle>暂无合集</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           </div>
         </div>
       </div>

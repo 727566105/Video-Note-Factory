@@ -52,7 +52,20 @@ export const toggleSubscription = (id: number) =>
   request.put(`/subscriptions/${id}/toggle`)
 
 export const refreshSubscription = (id: number) =>
-  request.post<{ added: number }>(`/subscriptions/${id}/refresh`)
+  request.post<{ progress_id: string; status: string }>(`/subscriptions/${id}/refresh`)
+
+export const fetchRefreshProgress = (progressId: string) =>
+  request.get<{
+    progress_id: string
+    subscription_id: number
+    status: 'running' | 'completed' | 'failed'
+    current_page: number
+    total_pages: number
+    fetched_count: number
+    added_count: number
+    total_count: number
+    error: string | null
+  }>(`/subscriptions/progress/${progressId}`)
 
 export const fetchFeed = (limit: number = 20, offset: number = 0, type?: string) =>
   request.get<FeedItem[]>('/feed', { params: { limit, offset, type } })

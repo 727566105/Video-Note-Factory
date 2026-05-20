@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RefreshCw, CheckCheck, LayoutGrid, List, Plus } from 'lucide-react'
+import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
 import type { FeedItem } from '@/services/subscription'
@@ -67,12 +75,18 @@ export default function FeedPage() {
         {loading && feedItems.length === 0 ? (
           <div className="text-center text-muted-foreground py-20">加载中...</div>
         ) : feedItems.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-muted-foreground mb-4">还没有动态内容</p>
-            <Button onClick={() => navigate('/channels')}>
-              <Plus className="w-4 h-4 mr-1" />订阅频道
-            </Button>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><Activity /></EmptyMedia>
+              <EmptyTitle>还没有动态内容</EmptyTitle>
+              <EmptyDescription>订阅频道后将在此显示最新视频</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => navigate('/channels')}>
+                <Plus className="w-4 h-4 mr-1" />订阅频道
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {feedItems.map(item => (

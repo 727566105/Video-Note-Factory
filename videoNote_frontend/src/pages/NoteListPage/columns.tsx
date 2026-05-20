@@ -1,6 +1,6 @@
 import { type ColumnDef, type HeaderContext } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Trash2, LoaderCircle, Rss, ArrowUpDown } from 'lucide-react'
+import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 
@@ -35,6 +35,7 @@ interface ColumnProps {
   onSelectAll: () => void
   onRowClick: (item: NoteItem) => void
   onDelete: (taskId: string) => void
+  onRegenerate: (item: NoteItem) => void
   onSubscribe: (videoUrl: string) => void
   failedCovers: Set<string>
   onCoverError: (id: string) => void
@@ -135,7 +136,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
         const item = row.original
         return (
           <div className="min-w-0 py-1">
-            <div className="font-medium text-foreground truncate">{item.title}</div>
+            <div className="font-medium text-foreground line-clamp-2">{item.title}</div>
             <div className="flex items-center gap-1.5">
               <span className="text-sm text-muted-foreground">{item.author}</span>
               {props.isSubscribable(item.platform) && item.author && (
@@ -200,7 +201,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       header: '笔记',
       cell: ({ row }) => (
         <div className="min-w-0 max-w-xs">
-          <div className="text-sm text-muted-foreground truncate">{row.original.note}</div>
+          <div className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">{row.original.note}</div>
         </div>
       ),
     },
@@ -208,19 +209,23 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       id: 'actions',
       header: () => <div className="text-right">操作</div>,
       size: 80,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end">
-          <button
-            className="p-1.5 hover:bg-accent rounded-md transition-colors"
-            onClick={(e) => {
-              e.stopPropagation()
-              props.onDelete(row.original.task_id)
-            }}
-          >
-            <Trash2 className="w-4 h-4 text-destructive" />
-          </button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const item = row.original
+        return (
+          <div className="flex items-center justify-end gap-1">
+            {item.status === 'FAILED' && (
+              <button className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                onClick={(e) => { e.stopPropagation(); props.onRegenerate(item) }}>
+                <RotateCw className="w-4 h-4 text-primary" />
+              </button>
+            )}
+            <button className="p-1.5 hover:bg-accent rounded-md transition-colors"
+              onClick={(e) => { e.stopPropagation(); props.onDelete(item.task_id) }}>
+              <Trash2 className="w-4 h-4 text-destructive" />
+            </button>
+          </div>
+        )
+      },
     },
   ]
 }

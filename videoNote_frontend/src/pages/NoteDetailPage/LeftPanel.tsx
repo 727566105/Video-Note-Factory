@@ -22,6 +22,10 @@ import { getBaseURL } from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
+import { Toggle } from '@/components/ui/toggle'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const SUBSCRIBABLE_PLATFORMS = ['bilibili', 'youtube', 'douyin', 'kuaishou']
 
@@ -169,44 +173,86 @@ export default function LeftPanel({ task }: LeftPanelProps) {
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* 顶栏工具按钮 */}
       <div className="flex items-center justify-between px-4 py-2 overflow-x-auto">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/notes')}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mr-1"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-xs">返回</span>
-          </button>
-          <div className="w-px h-4 bg-border" />
-          <ToolBtn icon={<Monitor className="w-4 h-4" />} />
-          <ToolBtn icon={<Headphones className="w-4 h-4" />} onClick={async () => {
-          try {
-            const token = useAuthStore.getState().token
-            const res = await fetch(`${getBaseURL()}/api/audio/${task.id}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            })
-            if (!res.ok) throw new Error()
-            const blob = await res.blob()
-            const cd = res.headers.get('content-disposition')
-            let filename = (task.audioMeta?.title || '音频') + '.mp3'
-            if (cd) {
-              const m = cd.match(/filename\*?=(?:UTF-8'')?(.+)/i)
-              if (m) filename = decodeURIComponent(m[1].replace(/["']/g, ''))
-            }
-            const a = document.createElement('a')
-            a.href = URL.createObjectURL(blob)
-            a.download = filename
-            a.click()
-            URL.revokeObjectURL(a.href)
-          } catch {
-            toast.error('音频下载失败')
-          }
-        }} />
-        <ToolBtn icon={<Globe className="w-4 h-4" />} />
-          <ToolBtn icon={<Settings2 className="w-4 h-4" />} label="总结设置" onClick={() => setSettingsOpen(true)} />
-          <ToolBtn icon={<Sparkles className="w-4 h-4" />} label="默认模型" onClick={() => setModelOpen(true)} />
-        </div>
-        <ToolBtn icon={<ArrowLeftRight className="w-4 h-4" />} onClick={() => setPanelSwapped(!useSystemStore.getState().panelSwapped)} />
+        <ButtonGroup>
+          <ButtonGroup className="hidden sm:flex">
+            <Button variant="outline" size="sm" onClick={() => navigate('/notes')} aria-label="返回笔记列表">
+              <ArrowLeft className="size-4" />
+              返回
+            </Button>
+          </ButtonGroup>
+          <ButtonGroup className="flex sm:hidden">
+            <Button variant="outline" size="icon-sm" onClick={() => navigate('/notes')} aria-label="返回笔记列表">
+              <ArrowLeft className="size-4" />
+            </Button>
+          </ButtonGroup>
+          <ButtonGroupSeparator />
+          <ButtonGroup>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon-sm" aria-label="视频信息">
+                  <Monitor className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>视频信息</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon-sm" aria-label="下载音频" onClick={async () => {
+                  try {
+                    const token = useAuthStore.getState().token
+                    const res = await fetch(`${getBaseURL()}/api/audio/${task.id}`, {
+                      headers: { Authorization: `Bearer ${token}` }
+                    })
+                    if (!res.ok) throw new Error()
+                    const blob = await res.blob()
+                    const cd = res.headers.get('content-disposition')
+                    let filename = (task.audioMeta?.title || '音频') + '.mp3'
+                    if (cd) {
+                      const m = cd.match(/filename\*?=(?:UTF-8'')?(.+)/i)
+                      if (m) filename = decodeURIComponent(m[1].replace(/["']/g, ''))
+                    }
+                    const a = document.createElement('a')
+                    a.href = URL.createObjectURL(blob)
+                    a.download = filename
+                    a.click()
+                    URL.revokeObjectURL(a.href)
+                  } catch {
+                    toast.error('音频下载失败')
+                  }
+                }}>
+                  <Headphones className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>下载音频</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon-sm" aria-label="原视频链接">
+                  <Globe className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>原视频链接</TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+          <ButtonGroup>
+            <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+              <Settings2 className="size-4" />
+              总结设置
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setModelOpen(true)}>
+              <Sparkles className="size-4" />
+              默认模型
+            </Button>
+          </ButtonGroup>
+        </ButtonGroup>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" size="icon-sm" aria-label="切换面板布局" onClick={() => setPanelSwapped(!useSystemStore.getState().panelSwapped)}>
+              <ArrowLeftRight className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>切换面板布局</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* 视频播放器 */}
@@ -289,20 +335,13 @@ export default function LeftPanel({ task }: LeftPanelProps) {
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{authorDisplay}</span>
           {canSubscribe && (
-            <button
+            <Toggle
+              size="sm"
+              variant="outline"
+              pressed={isAuthorSubscribed}
               disabled={subscribing || isAuthorSubscribed}
-              className={cn(
-                "flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors disabled:opacity-50",
-                isAuthorSubscribed
-                  ? "bg-primary/10 text-primary"
-                  : subscribing
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted text-muted-foreground hover:text-primary hover:bg-primary/10"
-              )}
-              onClick={async () => {
-                if (isAuthorSubscribed) {
-                  toast.info('已订阅该频道')
-                } else if (!subscribing) {
+              onPressedChange={async (pressed) => {
+                if (pressed && !subscribing && !isAuthorSubscribed) {
                   setSubscribing(true)
                   try {
                     await subscribe(videoUrl)
@@ -311,10 +350,11 @@ export default function LeftPanel({ task }: LeftPanelProps) {
                   }
                 }
               }}
+              aria-label="订阅频道"
             >
-              <Rss className="w-3 h-3" />
-              {subscribing ? '订阅中...' : isAuthorSubscribed ? '已订阅' : '订阅'}
-            </button>
+              <Rss className="size-3" />
+              {subscribing ? '订阅中...' : '订阅'}
+            </Toggle>
           )}
         </div>
       </div>
@@ -344,28 +384,3 @@ function PlatformIcon({ platform }: { platform: string }) {
   return iconMap[platform] ?? <LocalLogo className="w-10 h-10" />
 }
 
-function ToolBtn({
-  icon,
-  label,
-  variant = 'outline',
-  onClick,
-}: {
-  icon: React.ReactNode
-  label?: string
-  variant?: 'outline' | 'secondary'
-  onClick?: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 h-8 px-2 rounded-md text-foreground text-xs whitespace-nowrap transition-colors ${
-        variant === 'secondary'
-          ? 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-          : 'bg-background border border-border hover:bg-accent'
-      }`}
-    >
-      {icon}
-      {label && <span>{label}</span>}
-    </button>
-  )
-}

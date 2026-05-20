@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button.tsx'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import Error from '@/components/Lottie/error.tsx'
 import Loading from '@/components/Lottie/Loading.tsx'
@@ -61,6 +61,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
     modelName: '',
     style: '',
     createTime: '',
+    smartSwitched: false,
   })
 
   // 多版本内容处理
@@ -71,9 +72,10 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
       setVersionState({
         currentVerId: '',
         selectedContent: currentTask.markdown as string || '',
-        modelName: currentTask.formData.model_name || '未知模型',
+        modelName: currentTask.used_model_name || currentTask.formData.model_name || '未知模型',
         style: currentTask.formData.style || 'detailed',
         createTime: currentTask.createdAt,
+        smartSwitched: currentTask.smart_switched || false,
       })
     } else {
       const latestVersion = [...currentTask.markdown].sort(
@@ -195,6 +197,7 @@ const MarkdownViewer: FC<MarkdownViewerProps> = ({ status }) => {
         setCurrentVerId={setCurrentVerId}
         modelName={versionState.modelName}
         style={versionState.style}
+        smartSwitched={versionState.smartSwitched}
         noteStyles={noteStyles}
         onCopy={handleCopy}
         onDownload={handleDownload}

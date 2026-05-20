@@ -12,7 +12,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 
-import { Info, Loader2, Plus, X } from 'lucide-react'
+import { Info, Loader2, Plus, X, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert.tsx'
 import { generateNote } from '@/services/note.ts'
@@ -149,7 +149,7 @@ const NoteForm = () => {
     const task = state.tasks.find(t => t.id === state.currentTaskId)
     return task || null
   })
-  const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint } = useModelStore()
+  const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint, smartSelectionEnabled } = useModelStore()
   const providers = useProviderStore(state => state.provider)
   const fetchProviderList = useProviderStore(state => state.fetchProviderList)
 
@@ -160,7 +160,7 @@ const NoteForm = () => {
       platform: 'bilibili',
       video_url: '',
       quality: 'medium',
-      model_name: modelList[0] ? String(modelList[0].id) : '',
+      model_name: smartSelectionEnabled ? 'smart_auto' : (modelList[0] ? String(modelList[0].id) : ''),
       style: 'minimal',
       video_interval: 4,
       grid_size: [3, 3],
@@ -193,13 +193,17 @@ const NoteForm = () => {
   }, [summaryStyle, currentTaskId])
   // 模型列表加载完后，同步 model_name 到表单（新建模式）
   useEffect(() => {
-    if (modelList.length > 0 && !currentTaskId) {
-      const current = form.getValues('model_name')
-      if (!current) {
-        form.setValue('model_name', String(modelList[0].id), { shouldValidate: true })
+    if (!currentTaskId) {
+      if (smartSelectionEnabled) {
+        form.setValue('model_name', 'smart_auto', { shouldValidate: true })
+      } else if (modelList.length > 0) {
+        const current = form.getValues('model_name')
+        if (!current || current === 'smart_auto') {
+          form.setValue('model_name', String(modelList[0].id), { shouldValidate: true })
+        }
       }
     }
-  }, [modelList.length, currentTaskId])
+  }, [modelList.length, currentTaskId, smartSelectionEnabled])
   useEffect(() => {
     if (!currentTask) return
     const { formData } = currentTask
@@ -273,11 +277,13 @@ const NoteForm = () => {
     }
     const effectiveTaskId = currentTask ? currentTaskId : null
 
-    const selectedModel = modelList.find(m => String(m.id) === values.model_name)
-    const payload: NoteFormValues = {
+    const isSmartMode = values.model_name === 'smart_auto'
+    const selectedModel = isSmartMode ? null : modelList.find(m => String(m.id) === values.model_name)
+    const payload: Record<string, any> = {
       ...values,
-      model_name: selectedModel?.model_name || values.model_name,
-      provider_id: selectedModel?.provider_id || '',
+      smart_mode: isSmartMode,
+      model_name: isSmartMode ? '' : (selectedModel?.model_name || values.model_name),
+      provider_id: isSmartMode ? '' : (selectedModel?.provider_id || ''),
       task_id: effectiveTaskId || '',
       output_language: outputLanguage,
     }
@@ -309,7 +315,7 @@ const NoteForm = () => {
       platform: 'bilibili',
       video_url: '',
       quality: 'medium',
-      model_name: modelList[0] ? String(modelList[0].id) : '',
+      model_name: smartSelectionEnabled ? 'smart_auto' : (modelList[0] ? String(modelList[0].id) : ''),
       style: 'minimal',
       video_interval: 4,
       grid_size: [3, 3],
@@ -517,6 +523,17 @@ const NoteForm = () => {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      {/* 智能优选选项（第一项） */}
+                      <SelectItem key="smart_auto" value="smart_auto">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <span className="font-medium">智能优选</span>
+                          <span className="text-xs text-muted-foreground">
+                            自动选择最佳模型
+                          </span>
+                        </div>
+                      </SelectItem>
+                      {/* 真实模型列表 */}
                       {modelList.map(m => {
                         const provider = providers.find(p => p.id === m.provider_id)
                         const displayName = provider ? `${provider.name}/${m.model_name}` : m.model_name

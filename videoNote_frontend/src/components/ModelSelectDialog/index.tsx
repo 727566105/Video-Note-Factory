@@ -10,6 +10,13 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Search, Sparkles, X, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 interface ModelSelectDialogProps {
   open: boolean
@@ -107,10 +114,13 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
             加载中...
           </div>
         ) : modelList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
-            <p>暂无可用模型</p>
-            <p className="text-xs mt-1">请先在设置中添加模型</p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><Bot /></EmptyMedia>
+              <EmptyTitle>暂无可用模型</EmptyTitle>
+              <EmptyDescription>请先在设置中添加模型</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <ScrollArea className="h-[280px]">
             {Object.entries(groupedModels).map(([provider, models]) => (

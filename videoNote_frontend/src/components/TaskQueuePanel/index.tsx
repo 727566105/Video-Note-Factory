@@ -10,6 +10,7 @@ import {
   FileText,
   Loader2,
   AlertCircle,
+  Inbox,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTaskStore, type Task } from '@/store/taskStore'
@@ -21,6 +22,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgClass: string; borderClass: string; icon: FC<{ className?: string }> }> = {
   SUCCESS: {
@@ -449,9 +456,12 @@ export const TaskQueuePanel: FC = () => {
                 <ScrollArea className="h-full">
                   <div className="flex flex-col gap-2 p-3 min-w-0 overflow-x-hidden">
                   {tasks.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
-                      暂无任务
-                    </div>
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon"><Inbox /></EmptyMedia>
+                        <EmptyTitle>暂无任务</EmptyTitle>
+                      </EmptyHeader>
+                    </Empty>
                   ) : (
                     tasks.map(task => (
                       <TaskQueueItem

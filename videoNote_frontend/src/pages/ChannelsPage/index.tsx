@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, Power, PowerOff } from 'lucide-react'
+import { Plus, Search, Trash2, Power, PowerOff, Rss } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchSummarizedChannels, parseChannelUrl } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
@@ -122,7 +130,15 @@ export default function ChannelsPage() {
                 </tr>
               ))}
               {filteredSubs.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">暂无订阅</td></tr>
+                <tr><td colSpan={5}>
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon"><Rss /></EmptyMedia>
+                      <EmptyTitle>暂无订阅</EmptyTitle>
+                      <EmptyDescription>订阅频道后将显示在这里</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                </td></tr>
               )}
             </tbody>
           </table>

@@ -2,9 +2,15 @@
 
 import { useTaskStore } from "@/store/taskStore"
 import { useEffect, useState, useRef } from "react"
-import { Play } from "lucide-react"
+import { Play, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import OpenCC from 'opencc-js'
 
 const twToCn = OpenCC.Converter({ from: 'tw', to: 'cn' })
@@ -55,7 +61,12 @@ const TranscriptViewer = () => {
       <div className="transcript-viewer flex h-full w-full flex-col  rounded-md border bg-background p-4 shadow-sm">
         <h2 className="mb-4 text-lg font-medium">转写结果</h2>
         {!task?.transcript?.segments?.length ? (
-            <div className="flex h-full items-center justify-center text-muted-foreground">暂无转写内容</div>
+            <Empty className="h-full">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><FileText /></EmptyMedia>
+                <EmptyTitle>暂无转写内容</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
         ) : (
             <>
 

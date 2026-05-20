@@ -9,6 +9,8 @@ import {
   Play,
   Rss,
   ChevronDown,
+  FileText,
+  Sparkles,
 } from 'lucide-react'
 import {
   useReactTable,
@@ -37,6 +39,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import {
   Table,
   TableBody,
   TableCell,
@@ -44,7 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getTasks, delete_task, get_task_status } from '@/services/note'
+import { getTasks, delete_task, get_task_status, generateNote } from '@/services/note'
 import { TableSkeleton } from '@/components/Skeletons'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
@@ -58,6 +68,7 @@ import {
 } from '@/components/ui/dialog'
 import { useSystemStore } from '@/store/configStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
 
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
@@ -65,6 +76,31 @@ const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   const isLocal = platform === 'local' || platform === 'local_audio'
   if (isLocal) return coverUrl
   return `/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
+}
+
+function NoteEmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileText />
+        </EmptyMedia>
+        <EmptyTitle>暂无笔记</EmptyTitle>
+        <EmptyDescription>
+          生成笔记后将显示在这里
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent className="flex-row justify-center gap-2">
+        <Button onClick={onQuickAdd}>
+          <Sparkles className="size-4" />
+          快捷生成
+        </Button>
+        <Button variant="outline" onClick={() => window.open('/', '_self')}>
+          浏览首页
+        </Button>
+      </EmptyContent>
+    </Empty>
+  )
 }
 
 export const NoteListPage: FC = () => {
@@ -81,6 +117,7 @@ export const NoteListPage: FC = () => {
   const noteViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
   const { subscribe, subscriptions } = useSubscriptionStore()
+  const { style, outputLanguage, videoUnderstanding, videoInterval, gridCols, gridRows, selectedFormats, extras } = useSummarySettingsStore()
   const notesRef = useRef(notes)
 
   // 判断是否已订阅（通过作者名匹配）
@@ -199,6 +236,40 @@ export const NoteListPage: FC = () => {
     }
   }
 
+  const handleRegenerate = async (item: NoteItem) => {
+    if (!item.video_url) {
+      toast.error('无法获取视频链接')
+      return
+    }
+    try {
+      const payload = {
+        video_url: item.video_url,
+        platform: item.platform,
+        task_id: item.task_id,
+        quality: 'medium',
+        smart_mode: true,
+        model_name: '',
+        provider_id: '',
+        style: style || 'minimal',
+        format: selectedFormats || [],
+        extras: extras || '',
+        video_understanding: videoUnderstanding || false,
+        video_interval: videoInterval || 4,
+        grid_size: [gridCols || 3, gridRows || 3],
+        screenshot: selectedFormats?.includes('screenshot') || false,
+        link: selectedFormats?.includes('link') || false,
+        output_language: outputLanguage || 'zh',
+      }
+      const response = await generateNote(payload)
+      if (response?.task_id) {
+        toast.success('已重新提交生成任务')
+        fetchNotes()
+      }
+    } catch {
+      toast.error('重新生成失败')
+    }
+  }
+
   const handleNoteClick = (item: NoteItem) => {
     navigate(`/notes/${item.id}`)
   }
@@ -280,6 +351,7 @@ export const NoteListPage: FC = () => {
             setDeleteTargetId(taskId)
             setDeleteDialogOpen(true)
           }}
+          onRegenerate={handleRegenerate}
           onSubscribe={subscribe}
           failedCovers={failedCovers}
           onCoverError={handleCoverError}
@@ -292,10 +364,7 @@ export const NoteListPage: FC = () => {
           {loading ? (
             <TableSkeleton rows={3} />
           ) : filteredNotes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
-              <p>暂无笔记</p>
-              <p className="text-xs mt-1">生成笔记后将显示在这里</p>
-            </div>
+            <NoteEmptyState onQuickAdd={() => navigate('/')} />
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
               {filteredNotes.map((item) => (
@@ -392,10 +461,7 @@ export const NoteListPage: FC = () => {
           {loading ? (
             <TableSkeleton rows={3} />
           ) : filteredNotes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
-              <p>暂无笔记</p>
-              <p className="text-xs mt-1">生成笔记后将显示在这里</p>
-            </div>
+            <NoteEmptyState onQuickAdd={() => navigate('/')} />
           ) : (
             <div className="columns-[280px] gap-4">
               {filteredNotes.map((item) => (
@@ -530,6 +596,7 @@ function DataTable({
   onSelectAll,
   onRowClick,
   onDelete,
+  onRegenerate,
   onSubscribe,
   failedCovers,
   onCoverError,
@@ -543,6 +610,7 @@ function DataTable({
   onSelectAll: () => void
   onRowClick: (item: NoteItem) => void
   onDelete: (taskId: string) => void
+  onRegenerate: (item: NoteItem) => void
   onSubscribe: (url: string) => void
   failedCovers: Set<string>
   onCoverError: (id: string) => void
@@ -560,13 +628,14 @@ function DataTable({
         onSelectAll,
         onRowClick,
         onDelete,
+        onRegenerate,
         onSubscribe,
         failedCovers,
         onCoverError,
         isSubscribed,
         isSubscribable,
       }),
-    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable],
+    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable],
   )
 
   const table = useReactTable({
@@ -640,11 +709,8 @@ function DataTable({
             </TableRow>
           ) : table.getRowModel().rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="h-48 text-center">
-                <div className="flex flex-col items-center justify-center py-12 text-sm text-muted-foreground">
-                  <p>暂无笔记</p>
-                  <p className="text-xs mt-1">生成笔记后将显示在这里</p>
-                </div>
+              <TableCell colSpan={columns.length}>
+                <NoteEmptyState onQuickAdd={() => navigate('/')} />
               </TableCell>
             </TableRow>
           ) : (

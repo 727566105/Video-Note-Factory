@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck, Download, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import {
   Pagination,
   PaginationContent,
@@ -13,7 +19,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
-import { fetchChannelVideos, refreshSubscription } from '@/services/subscription'
+import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
 import type { FeedItem } from '@/services/subscription'
 import { useModelStore } from '@/store/modelStore'
@@ -61,6 +67,11 @@ export default function ChannelDetailPage() {
   const [filter, setFilter] = useState<'all' | 'summarized' | 'new'>('all')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
 
+  // 异步获取进度状态
+  const [fetching, setFetching] = useState(false)
+  const [progressText, setProgressText] = useState('')
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const { modelList, loadEnabledModels } = useModelStore()
   const { addPendingTask } = useTaskStore()
   const { style, outputLanguage, videoUnderstanding, videoInterval, gridCols, gridRows, selectedFormats, extras } = useSummarySettingsStore()
@@ -69,9 +80,17 @@ export default function ChannelDetailPage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
     fetchSubscriptions()
     loadEnabledModels()
+    return () => stopPolling()
   }, [])
 
   useEffect(() => {
@@ -91,15 +110,55 @@ export default function ChannelDetailPage() {
     }
   }
 
-  const handleRefresh = async () => {
+  const handleFetch = async () => {
     if (!sub) return
+    setFetching(true)
+    setProgressText('正在启动获取...')
+    stopPolling()
+
     try {
-      await refreshSubscription(sub.id)
-      toast.success('刷新成功')
-      setPage(1)
-      loadVideos()
+      const res = await refreshSubscription(sub.id) as any
+      const progressId = res?.progress_id
+      if (!progressId) {
+        setFetching(false)
+        toast.error('启动获取失败')
+        return
+      }
+
+      // 开始轮询进度
+      pollingRef.current = setInterval(async () => {
+        try {
+          const p = await fetchRefreshProgress(progressId) as any
+          if (!p) return
+
+          if (p.status === 'running') {
+            const page = p.current_page || 0
+            const count = p.fetched_count || 0
+            setProgressText(page > 0 ? `正在获取第 ${page} 页，已获取 ${count} 条...` : '正在获取...')
+          } else if (p.status === 'completed') {
+            stopPolling()
+            setFetching(false)
+            const added = p.added_count || 0
+            const total = p.total_count || 0
+            toast.success(`获取完成，新增 ${added} 条，总计 ${total} 条`)
+            setPage(1)
+            loadVideos()
+          } else if (p.status === 'failed') {
+            stopPolling()
+            setFetching(false)
+            toast.error(`获取失败: ${p.error || '未知错误'}`)
+            loadVideos()
+          }
+        } catch {
+          stopPolling()
+          setFetching(false)
+          toast.error('查询进度失败')
+        }
+      }, 2000)
+
     } catch {
-      toast.error('刷新失败')
+      setFetching(false)
+      toast.error('启动获取失败')
     }
   }
 
@@ -156,6 +215,9 @@ export default function ChannelDetailPage() {
     return true
   })
 
+  // 判断是否为空数据状态（已加载完毕，无内容，无正在获取）
+  const isEmpty = !loading && total === 0 && !fetching
+
   return (
     <div className="flex flex-col h-full">
       {/* 返回按钮 */}
@@ -186,13 +248,20 @@ export default function ChannelDetailPage() {
               )}
             </div>
             <div className="flex w-full flex-row items-center gap-2">
-              <Button className="flex-1" onClick={handleRefresh} disabled={!sub || loading}>
-                <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />刷新
+              <Button className="flex-1" onClick={handleFetch} disabled={!sub || fetching}>
+                {fetching ? (
+                  <><LoaderCircle className="w-4 h-4 mr-1 animate-spin" />{progressText || '获取中...'}</>
+                ) : total > 0 ? (
+                  <><RefreshCw className="w-4 h-4 mr-1" />刷新</>
+                ) : (
+                  <><Download className="w-4 h-4 mr-1" />获取内容</>
+                )}
               </Button>
               <Button
                 variant={sub ? "outline" : "secondary"}
                 className={`flex-1 ${!sub ? 'hover:text-pink-400' : ''}`}
                 onClick={() => sub ? unsubscribe(sub.id) : (sub?.channel_url && subscribe(sub.channel_url))}
+                disabled={fetching}
               >
                 {sub ? <><UserCheck className="size-3" />已订阅</> : <><UserPlus className="size-3" />订阅更新</>}
               </Button>
@@ -214,8 +283,26 @@ export default function ChannelDetailPage() {
       <div className="flex-1 overflow-auto px-6">
         {loading ? (
           <div className="text-center py-20 text-muted-foreground">加载中...</div>
+        ) : fetching ? (
+          <div className="text-center py-20">
+            <LoaderCircle className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">{progressText || '正在获取订阅内容...'}</p>
+          </div>
+        ) : isEmpty ? (
+          <div className="text-center py-20">
+            <p className="text-muted-foreground mb-4">暂未获取内容</p>
+            <Button onClick={handleFetch} disabled={!sub}>
+              <Download className="w-4 h-4 mr-1" />获取内容
+            </Button>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">暂无内容</div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><Search /></EmptyMedia>
+              <EmptyTitle>暂无匹配内容</EmptyTitle>
+              <EmptyDescription>尝试调整筛选条件</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted">

@@ -14,6 +14,13 @@ function ScrollArea({
       className={cn('relative', className)}
       {...props}
     >
+      {/* 覆盖 Radix ScrollArea Viewport 内部自动生成的 div 的溢出问题 */}
+      <style>{`
+        [data-radix-scroll-area-viewport] > div {
+          min-width: 0 !important;
+          display: block !important;
+        }
+      `}</style>
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
         className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"

@@ -48,9 +48,20 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
     subscribe: async (url: string) => {
       try {
-        await apiSubscribe(url)
-        toast.success('订阅成功')
+        const res = await apiSubscribe(url) as any
+        const status = res?.fetch_status
+        const count = res?.items_count || 0
+
+        if (status === 'failed') {
+          toast.error(res?.warning || '订阅成功但获取内容失败，请稍后刷新重试')
+        } else if (status === 'empty') {
+          toast.success('订阅成功，该博主暂无可获取的内容')
+        } else {
+          toast.success(`订阅成功，获取了 ${count} 条动态`)
+        }
+
         get().fetchSubscriptions()
+        get().fetchFeed()
         get().fetchUnreadCount()
         return true
       } catch (e: any) {
@@ -108,8 +119,16 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
     refreshFeed: async () => {
       try {
-        const res = await apiRefreshFeed()
-        toast.success(`刷新完成，新增 ${(res as any)?.added || 0} 条`)
+        const res = await apiRefreshFeed() as any
+        const added = res?.added || 0
+        const error = res?.error
+        if (error) {
+          toast.error(`刷新失败: ${error}`)
+        } else if (added > 0) {
+          toast.success(`刷新完成，新增 ${added} 条`)
+        } else {
+          toast.success('刷新完成，暂无新内容')
+        }
         get().fetchFeed()
         get().fetchUnreadCount()
       } catch {

@@ -79,15 +79,22 @@ export function QuickAdd({ className }: QuickAddProps) {
     ? (detectedPlatform || 'bilibili')
     : selectedPlatform
 
+  // 智能优选模式判断
+  const isSmartMode = selectedModel === 'smart'
+
   // 获取选中的模型名称
-  const selectedModelName = selectedModel
-    ? modelList.find(m => m.id === selectedModel)?.model_name || '默认模型'
-    : '默认模型'
+  const selectedModelName = isSmartMode
+    ? '智能优选'
+    : selectedModel
+      ? modelList.find(m => m.id === selectedModel)?.model_name || '默认模型'
+      : '默认模型'
 
   // 获取选中的模型信息
-  const selectedModelInfo = selectedModel
-    ? modelList.find(m => m.id === selectedModel)
-    : null
+  const selectedModelInfo = isSmartMode
+    ? null
+    : selectedModel
+      ? modelList.find(m => m.id === selectedModel)
+      : null
 
   // 快速粘贴功能
   const handleQuickPaste = async () => {
@@ -119,8 +126,8 @@ export function QuickAdd({ className }: QuickAddProps) {
       return
     }
 
-    // 验证模型选择
-    if (!selectedModelInfo) {
+    // 智能优选模式下跳过模型验证
+    if (!isSmartMode && !selectedModelInfo) {
       toast.error('请选择模型')
       return
     }
@@ -133,8 +140,9 @@ export function QuickAdd({ className }: QuickAddProps) {
         video_url: inputValue.trim(),
         platform: effectivePlatform,
         quality: 'medium',
-        model_name: selectedModelInfo.model_name,
-        provider_id: String(selectedModelInfo.provider_id),
+        smart_mode: isSmartMode,
+        model_name: isSmartMode ? '' : (selectedModelInfo?.model_name || ''),
+        provider_id: isSmartMode ? '' : String(selectedModelInfo?.provider_id || ''),
         style: style || 'minimal',
         format: selectedFormats || [],
         extras: extras || '',
@@ -205,7 +213,7 @@ export function QuickAdd({ className }: QuickAddProps) {
   const handleUploadGenerate = async () => {
     if (selectedFiles.length === 0) return
 
-    if (!selectedModelInfo) {
+    if (!isSmartMode && !selectedModelInfo) {
       toast.error('请选择模型')
       return
     }
@@ -229,8 +237,9 @@ export function QuickAdd({ className }: QuickAddProps) {
           video_url: uploadRes.url,
           platform: isAudio ? 'local_audio' : 'local',
           quality: 'medium' as const,
-          model_name: selectedModelInfo.model_name,
-          provider_id: String(selectedModelInfo.provider_id),
+          smart_mode: isSmartMode,
+          model_name: isSmartMode ? '' : (selectedModelInfo?.model_name || ''),
+          provider_id: isSmartMode ? '' : String(selectedModelInfo?.provider_id || ''),
           style: style || 'minimal',
           format: selectedFormats || [],
           extras: extras || '',
