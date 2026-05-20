@@ -554,25 +554,27 @@ export const NoteListPage: FC = () => {
 
       {/* 播放弹窗 */}
       <Dialog open={playDialogOpen} onOpenChange={setPlayDialogOpen}>
-        <DialogContent className="sm:max-w-[640px]">
-          <DialogHeader>
-            <DialogTitle>{playItem?.title || '播放'}</DialogTitle>
+        <DialogContent className="sm:max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="truncate">{playItem?.title || '播放'}</DialogTitle>
           </DialogHeader>
-          {playItem?.platform === 'local' ? (
-            <video
-              src={`${getBaseURL()}${playItem.video_url}`}
-              controls
-              autoPlay
-              className="w-full rounded-lg"
-            />
-          ) : playItem?.platform === 'local_audio' ? (
-            <audio
-              src={`${getBaseURL()}${playItem.video_url}`}
-              controls
-              autoPlay
-              className="w-full mt-4"
-            />
-          ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {playItem?.platform === 'local' ? (
+              <video
+                src={`${getBaseURL()}${playItem.video_url}`}
+                controls
+                autoPlay
+                className="w-full rounded-lg max-h-[70vh]"
+              />
+            ) : playItem?.platform === 'local_audio' ? (
+              <audio
+                src={`${getBaseURL()}${playItem.video_url}`}
+                controls
+                autoPlay
+                className="w-full mt-4"
+              />
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
 
