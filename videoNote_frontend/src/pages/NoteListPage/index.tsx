@@ -11,6 +11,7 @@ import {
   ChevronDown,
   FileText,
   Sparkles,
+  X,
 } from 'lucide-react'
 import {
   useReactTable,
@@ -577,13 +578,22 @@ export const NoteListPage: FC = () => {
 
       {/* 封面预览弹窗 */}
       <Dialog open={coverPreviewOpen} onOpenChange={setCoverPreviewOpen}>
-        <DialogContent className="sm:max-w-[800px] p-2">
+        <DialogContent showCloseButton={false} className="sm:max-w-[800px] p-0 overflow-hidden bg-black/90 border-none">
           <DialogHeader className="sr-only">
             <DialogTitle>封面预览</DialogTitle>
           </DialogHeader>
-          {coverPreviewSrc && (
-            <img src={coverPreviewSrc} alt="封面预览" className="w-full rounded-lg" />
-          )}
+          <div className="relative">
+            {coverPreviewSrc && (
+              <img src={coverPreviewSrc} alt="封面预览" className="w-full" />
+            )}
+            <button
+              type="button"
+              onClick={() => setCoverPreviewOpen(false)}
+              className="absolute top-3 right-3 flex items-center justify-center w-8 h-8 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 
