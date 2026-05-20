@@ -18,7 +18,10 @@ export default defineConfig(() => {
     server: {
       host: '0.0.0.0',
       port: port,
-      allowedHosts: true, // 允许任意域名访问
+      allowedHosts: true,
+      fs: {
+        strict: false,
+      },
       proxy: {
         '/api': {
           target: apiBaseUrl,

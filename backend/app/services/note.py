@@ -978,6 +978,7 @@ class NoteGenerator:
                 cover_url=audio_meta.cover_url,
                 duration=audio_meta.duration,
                 author=author,
+                description=audio_meta.description,
             )
             logger.info(f"已保存元数据到数据库 (task_id={task_id}, title={audio_meta.title})")
         except Exception as e:

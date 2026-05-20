@@ -39,6 +39,7 @@ export default function LeftPanel({ task }: LeftPanelProps) {
   const [isEmbedActive, setIsEmbedActive] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
   const [subscribing, setSubscribing] = useState(false)
+  const [descExpanded, setDescExpanded] = useState(false)
   const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null)
   const coverRef = useRef<HTMLImageElement>(null)
   const navigate = useNavigate()
@@ -136,6 +137,7 @@ export default function LeftPanel({ task }: LeftPanelProps) {
   const isLocal = task.platform === 'local' || task.platform === 'local_audio'
   const coverUrl = isLocal || !rawCoverUrl ? rawCoverUrl : `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}`
   const title = task.audioMeta?.title || '未命名笔记'
+  const description = task.audioMeta?.description || ''
   const videoId = task.audioMeta?.video_id || ''
 
   // 判断是否支持嵌入播放器
@@ -332,6 +334,17 @@ export default function LeftPanel({ task }: LeftPanelProps) {
       {/* 视频信息 */}
       <div className="px-4 py-2 flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-foreground leading-snug">{title}</h2>
+        {description && (
+          <div className="text-sm text-muted-foreground">
+            <p className={descExpanded ? '' : 'line-clamp-2'}>{description}</p>
+            <button
+              className="text-primary hover:underline text-xs mt-1"
+              onClick={() => setDescExpanded(!descExpanded)}
+            >
+              {descExpanded ? '收起' : '展开'}
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{authorDisplay}</span>
           {canSubscribe && (
@@ -353,7 +366,7 @@ export default function LeftPanel({ task }: LeftPanelProps) {
               aria-label="订阅频道"
             >
               <Rss className="size-3" />
-              {subscribing ? '订阅中...' : '订阅'}
+              {isAuthorSubscribed ? '已订阅' : subscribing ? '订阅中...' : '订阅'}
             </Toggle>
           )}
         </div>

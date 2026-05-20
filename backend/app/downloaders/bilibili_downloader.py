@@ -1,5 +1,6 @@
 import os
 import tempfile
+import requests
 from abc import ABC
 from typing import Union, Optional
 
@@ -24,6 +25,30 @@ cfm = CookieConfigManager()
 class BilibiliDownloader(Downloader, ABC):
     def __init__(self):
         super().__init__()
+
+    def _fetch_description(self, bvid: str) -> Optional[str]:
+        """调用B站视频详情API获取描述"""
+        try:
+            url = f"https://api.bilibili.com/x/web-interface/view?bvid={bvid}"
+            headers = {
+                "Referer": "https://www.bilibili.com",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            # 使用 Cookie 提高成功率
+            cookie_str = cfm.get("bilibili")
+            if cookie_str:
+                headers["Cookie"] = cookie_str
+
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("code") == 0:
+                    desc = data.get("data", {}).get("desc", "")
+                    logger.info(f"获取B站视频描述成功: {bvid}, 长度: {len(desc)}")
+                    return desc if desc else None
+        except Exception as e:
+            logger.warning(f"获取B站视频描述失败: {bvid}, {e}")
+        return None
 
     def _write_cookiefile(self) -> Optional[str]:
         """将 cookie 写入临时 Netscape 格式文件，返回文件路径"""
@@ -95,6 +120,9 @@ class BilibiliDownloader(Downloader, ABC):
                 cover_url = info.get("thumbnail")
                 audio_path = os.path.join(output_dir, f"{video_id}.mp3")
 
+                # 获取B站视频描述
+                description = self._fetch_description(video_id)
+
             return AudioDownloadResult(
                 file_path=audio_path,
                 title=title,
@@ -103,7 +131,8 @@ class BilibiliDownloader(Downloader, ABC):
                 platform="bilibili",
                 video_id=video_id,
                 raw_info=info,
-                video_path=None  # ❗音频下载不包含视频路径
+                video_path=None,
+                description=description
             )
         except DownloadError as e:
             error_msg = str(e)

@@ -23,7 +23,7 @@ import { getBaseURL } from '@/utils/api'
 
 const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBaseURL() }) => {
   return (
-    <div className="markdown-body w-full">
+    <div className="markdown-body w-full !bg-transparent">
       <ReactMarkdown
         remarkPlugins={[gfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
