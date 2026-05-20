@@ -10,6 +10,7 @@ lerna-debug.log*
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 BiliNote/pnpm-lock.yaml
+!videoNote_frontend/pnpm-lock.yaml
 # Runtime data
 pids
 *.pid
@@ -326,6 +327,8 @@ cython_debug/
 /backend/uploads/*
 /backend/.idea/*
 /backend/config/*
+/config/downloader.json
+backend/.env.bak
 /BiliNote_frontend/.idea/*
 docs/superpowers/
 .trae/

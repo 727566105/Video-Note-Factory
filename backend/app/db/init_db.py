@@ -8,6 +8,7 @@ from app.db.models.backup_history import BackupHistory
 from app.db.models.users import User
 from app.db.models.user_preferences import UserPreference
 from app.db.models.subscriptions import Subscription, FeedItem
+from app.db.models.model_usage_history import ModelUsageHistory
 from app.db.engine import get_engine, Base, get_db
 from app.utils.logger import get_logger
 from sqlalchemy import text

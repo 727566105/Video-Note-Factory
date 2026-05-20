@@ -2,10 +2,13 @@ import json
 from pathlib import Path
 from typing import Optional, Dict
 import re
+from app.utils.path_helper import PROJECT_ROOT
 
 
 class CookieConfigManager:
-    def __init__(self, filepath: str = "config/downloader.json"):
+    def __init__(self, filepath: str = None):
+        if filepath is None:
+            filepath = str(PROJECT_ROOT / "config" / "downloader.json")
         self.path = Path(filepath)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():

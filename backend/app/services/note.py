@@ -98,6 +98,8 @@ class NoteGenerator:
         video_interval: int = 0,
         grid_size: Optional[List[int]] = None,
         output_language: Optional[str] = None,
+        smart_mode: bool = False,
+        user_id: Optional[int] = None,
     ) -> NoteResult | None:
         """
         主流程：按步骤依次下载、转写、GPT 总结、截图/链接处理、存库、返回 NoteResult。
@@ -123,13 +125,16 @@ class NoteGenerator:
             grid_size = []
 
         try:
-            logger.info(f"开始生成笔记 (task_id={task_id})")
+            logger.info(f"开始生成笔记 (task_id={task_id}, smart_mode={smart_mode})")
             self._update_status(task_id, TaskStatus.PARSING)
 
-            # 获取下载器与 GPT 实例
-
+            # 获取下载器
             downloader = self._get_downloader(platform)
-            gpt = self._get_gpt(model_name, provider_id)
+
+            # 非智能模式：提前获取 GPT 实例
+            gpt = None
+            if not smart_mode:
+                gpt = self._get_gpt(model_name, provider_id)
 
             # 缓存文件路径（暂时不使用标题，因为下载前还没有标题）
             audio_cache_file = get_note_file_path(task_id, None, "audio")
@@ -162,19 +167,38 @@ class NoteGenerator:
             )
 
             # 3. GPT 总结
-            markdown = self._summarize_text(
-                audio_meta=audio_meta,
-                transcript=transcript,
-                gpt=gpt,
-                markdown_cache_file=markdown_cache_file,
-                link=link,
-                screenshot=screenshot,
-                formats=_format or [],
-                style=style,
-                extras=extras,
-                video_img_urls=self.video_img_urls,
-                output_language=output_language,
-            )
+            smart_result = None
+            if smart_mode and user_id:
+                # 智能优选模式：使用 SmartModelSelector 进行重试
+                markdown, smart_result = self._summarize_with_smart_mode(
+                    audio_meta=audio_meta,
+                    transcript=transcript,
+                    markdown_cache_file=markdown_cache_file,
+                    link=link,
+                    screenshot=screenshot,
+                    formats=_format or [],
+                    style=style,
+                    extras=extras,
+                    video_img_urls=self.video_img_urls,
+                    output_language=output_language,
+                    user_id=user_id,
+                    task_id=task_id,
+                )
+            else:
+                # 普通模式：直接调用 GPT
+                markdown = self._summarize_text(
+                    audio_meta=audio_meta,
+                    transcript=transcript,
+                    gpt=gpt,
+                    markdown_cache_file=markdown_cache_file,
+                    link=link,
+                    screenshot=screenshot,
+                    formats=_format or [],
+                    style=style,
+                    extras=extras,
+                    video_img_urls=self.video_img_urls,
+                    output_language=output_language,
+                )
 
             # 4. 截图 & 链接替换
             if _format:
@@ -195,13 +219,26 @@ class NoteGenerator:
             # 6. 完成
             self._update_status(task_id, TaskStatus.SUCCESS)
             logger.info(f"笔记生成成功 (task_id={task_id})")
-            return NoteResult(
-                markdown=markdown, 
-                transcript=transcript, 
+
+            result_kwargs = dict(
+                markdown=markdown,
+                transcript=transcript,
                 audio_meta=audio_meta,
                 model_name=model_name,
-                style=style
+                style=style,
             )
+
+            # 智能优选模式下附加模型信息
+            if smart_result:
+                result_kwargs.update(
+                    smart_switched=smart_result.switched,
+                    used_model_id=smart_result.model_id,
+                    used_model_name=f"{smart_result.provider_name}/{smart_result.model_name}",
+                    used_provider_name=smart_result.provider_name,
+                    model_name=smart_result.model_name,
+                )
+
+            return NoteResult(**result_kwargs)
 
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)
@@ -210,8 +247,13 @@ class NoteGenerator:
 
     def generate_article_note(self, title: str, author: str, description: str,
                               images: list = None, model_name: str = None,
-                              provider_id: str = None) -> str:
-        """从图文内容直接生成笔记（跳过下载和转写）"""
+                              provider_id: str = None, smart_mode: bool = False,
+                              user_id: int = None) -> Tuple[str, Optional[dict]]:
+        """
+        从图文内容直接生成笔记（跳过下载和转写）
+
+        :return: (markdown, smart_info) 其中 smart_info 包含实际使用的模型信息
+        """
         from app.gpt.prompt import ARTICLE_SUMMARY_PROMPT
 
         image_text = ""
@@ -226,9 +268,54 @@ class NoteGenerator:
             image_text=image_text,
         )
 
-        gpt = GPTFactory.from_config(provider_id=provider_id, model_name=model_name)
+        # 智能优选模式
+        if smart_mode and user_id:
+            from app.services.smart_selector import SmartModelSelector, SmartSelectionError
+
+            selector = SmartModelSelector(user_id)
+            # 创建一个简单的 GPTSource 用于智能选择器
+            # 注意：图文笔记不使用标准的 GPTSource，而是直接 chat
+            try:
+                # 获取排序后的模型，逐个尝试
+                sorted_models = selector.get_sorted_models()
+                if not sorted_models:
+                    return "智能优选失败：没有可用的模型", None
+
+                for model_info in sorted_models[:3]:  # 最多尝试 3 个
+                    model_id = model_info["model_id"]
+                    actual_provider_id = model_info["provider_id"]
+
+                    try:
+                        gpt = self._get_gpt(model_info["model_name"], actual_provider_id)
+                        result = gpt.chat(prompt)
+
+                        if result and len(result) > 100:
+                            # 记录成功
+                            from app.db.model_usage_history_dao import record_usage
+                            record_usage(user_id, model_id, actual_provider_id, True)
+
+                            return result, {
+                                "model_name": model_info["model_name"],
+                                "provider_name": model_info["provider_name"],
+                                "switched": model_info != sorted_models[0],
+                            }
+                    except Exception as e:
+                        # 记录失败
+                        from app.db.model_usage_history_dao import record_usage
+                        record_usage(user_id, model_id, actual_provider_id, False,
+                                     selector._classify_error(e))
+                        logger.warning(f"智能优选图文笔记失败 (model={model_info['model_name']}): {e}")
+                        continue
+
+                return "智能优选失败：所有模型尝试均失败", None
+            except Exception as e:
+                logger.error(f"智能优选图文笔记异常: {e}")
+                return f"智能优选异常: {e}", None
+
+        # 普通模式：直接使用指定模型
+        gpt = self._get_gpt(model_name, provider_id)
         result = gpt.chat(prompt)
-        return result
+        return result, None
 
     @staticmethod
     def delete_note(video_id: str, platform: str) -> int:
@@ -698,6 +785,65 @@ class NoteGenerator:
         except Exception as exc:
             logger.error(f"GPT 总结失败：{exc}")
             self._handle_exception(task_id, exc)
+            raise
+
+    def _summarize_with_smart_mode(
+        self,
+        audio_meta,
+        transcript,
+        markdown_cache_file: Path,
+        link: bool,
+        screenshot: bool,
+        formats: List[str],
+        style: Optional[str],
+        extras: Optional[str],
+        video_img_urls: List[str],
+        output_language: Optional[str],
+        user_id: int,
+        task_id: str,
+    ) -> Tuple[str, Any]:
+        """
+        智能优选模式下的 GPT 总结，支持模型自动切换重试
+
+        :return: (markdown, SmartSelectionResult)
+        """
+        from app.services.smart_selector import SmartModelSelector, SmartSelectionError
+
+        self._update_status(task_id, TaskStatus.SUMMARIZING)
+
+        # raw 模式不需要 GPT
+        if style == 'raw':
+            markdown = self._generate_raw_markdown(audio_meta, transcript, formats)
+            markdown_cache_file.write_text(markdown, encoding="utf-8")
+            return markdown, None
+
+        source = GPTSource(
+            title=audio_meta.title,
+            segment=transcript.segments,
+            tags=audio_meta.raw_info.get("tags", []),
+            screenshot=screenshot,
+            video_img_urls=video_img_urls,
+            link=link,
+            _format=formats,
+            style=style,
+            extras=extras,
+            output_language=output_language,
+        )
+
+        selector = SmartModelSelector(user_id)
+
+        try:
+            result = selector.summarize_with_retry(source, task_id)
+            markdown_cache_file.write_text(result.markdown, encoding="utf-8")
+            logger.info(
+                f"智能优选 GPT 总结成功 ({markdown_cache_file}), "
+                f"使用模型: {result.provider_name}/{result.model_name}, "
+                f"切换: {result.switched}"
+            )
+            return result.markdown, result
+        except SmartSelectionError as e:
+            logger.error(f"智能优选全部失败: {e.message}")
+            self._update_status(task_id, TaskStatus.FAILED, message=e.message)
             raise
 
     def _generate_raw_markdown(

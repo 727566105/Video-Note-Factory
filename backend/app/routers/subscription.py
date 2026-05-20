@@ -1,10 +1,12 @@
 """订阅管理 API"""
+import threading
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.auth.dependencies import get_current_user
 from app.db import subscription_dao
 from app.services.channel_fetcher import identify_platform, fetch_all_for_subscription, parse_channel_info
 from app.db.subscription_dao import upsert_feed_items
+from app.services.fetch_progress import create_progress, get_progress, update_progress, complete_progress
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
 
@@ -51,7 +53,7 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         reused_sub = subscription_dao.find_subscription_by_platform_id(info["platform"], platform_id)
 
     if reused_sub:
-        # 复用：直接创建订阅记录，跳过抓取
+        # 复用：先尝试复制已有数据
         sub = subscription_dao.add_subscription(
             user_id=user.id,
             channel_url=info["channel_url"],
@@ -60,10 +62,37 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
             platform_id=reused_sub.platform_id,
             avatar_url=reused_sub.avatar_url,
         )
-        # 复制已有的 FeedItem 到新用户
         copied = subscription_dao.copy_feed_items_to_user(reused_sub.id, user.id, sub.id)
         subscription_dao.update_subscription_check(sub.id)
         logger.info(f"订阅复用: 用户 {user.id} 复用了博主 {reused_sub.channel_name} 的数据，复制 {copied} 条动态")
+
+        if copied == 0:
+            # 复用数据为空，走正常获取流程
+            result = fetch_all_for_subscription(sub, limit=20)
+            added = upsert_feed_items(result.items) if result.items else 0
+            response_data = {
+                "id": sub.id,
+                "channel_name": sub.channel_name,
+                "platform": sub.platform,
+                "items_count": added,
+            }
+            if result.error:
+                response_data["fetch_status"] = "failed"
+                response_data["warning"] = f"获取内容失败: {result.error}"
+            elif added == 0:
+                response_data["fetch_status"] = "empty"
+                response_data["warning"] = "该博主暂无可获取的内容"
+            else:
+                response_data["fetch_status"] = "success"
+            return R.success(response_data)
+
+        return R.success({
+            "id": sub.id,
+            "channel_name": sub.channel_name,
+            "platform": sub.platform,
+            "items_count": copied,
+            "fetch_status": "success",
+        })
     else:
         # 正常流程：获取频道详细信息并抓取
         channel_info = parse_channel_info(info["channel_url"], info["platform"])
@@ -78,16 +107,30 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         )
 
         # 立即获取初始数据
-        items = fetch_all_for_subscription(sub, limit=20)
-        if items:
-            upsert_feed_items(items)
+        result = fetch_all_for_subscription(sub, limit=20)
+        added = 0
+        if result.items:
+            added = upsert_feed_items(result.items)
         subscription_dao.update_subscription_check(sub.id)
 
-    return R.success({
-        "id": sub.id,
-        "channel_name": sub.channel_name,
-        "platform": sub.platform,
-    })
+        response_data = {
+            "id": sub.id,
+            "channel_name": sub.channel_name,
+            "platform": sub.platform,
+            "items_count": added,
+        }
+
+        if result.error:
+            response_data["fetch_status"] = "failed"
+            response_data["warning"] = f"获取内容失败: {result.error}"
+            logger.warning(f"订阅 {sub.id} 初始获取失败: {result.error}")
+        elif added == 0:
+            response_data["fetch_status"] = "empty"
+            response_data["warning"] = "该博主暂无可获取的内容"
+        else:
+            response_data["fetch_status"] = "success"
+
+        return R.success(response_data)
 
 
 @router.delete("/{sub_id}")
@@ -106,13 +149,47 @@ async def toggle_subscription(sub_id: int, user=Depends(get_current_user)):
 
 @router.post("/{sub_id}/refresh")
 async def refresh_subscription(sub_id: int, user=Depends(get_current_user)):
+    """启动异步刷新任务，返回 progress_id"""
     subs = subscription_dao.get_user_subscriptions(user.id)
     sub = next((s for s in subs if s.id == sub_id), None)
     if not sub:
         raise HTTPException(status_code=404, detail="订阅不存在")
-    # B站获取全部视频，其他平台获取 50 条
-    limit = None if sub.platform == "bilibili" else 50
-    items = fetch_all_for_subscription(sub, limit=limit)
-    added = upsert_feed_items(items) if items else 0
-    subscription_dao.update_subscription_check(sub_id)
-    return R.success({"added": added, "total": len(items) if items else 0})
+
+    progress_id = create_progress(sub_id)
+
+    def _do_fetch():
+        """后台线程执行刷新"""
+        try:
+            limit = None if sub.platform == "bilibili" else 50
+
+            def _progress_cb(page, fetched):
+                update_progress(progress_id, current_page=page, fetched_count=fetched)
+
+            result = fetch_all_for_subscription(sub, limit=limit, progress_callback=_progress_cb)
+            added = upsert_feed_items(result.items) if result.items else 0
+            subscription_dao.update_subscription_check(sub_id)
+            db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
+
+            if result.error:
+                complete_progress(progress_id, added, db_total, error=result.error)
+                logger.warning(f"订阅 {sub_id} 刷新失败: {result.error}")
+            else:
+                complete_progress(progress_id, added, db_total)
+
+        except Exception as e:
+            complete_progress(progress_id, 0, 0, error=str(e))
+            logger.error(f"订阅 {sub_id} 刷新异常: {e}")
+
+    thread = threading.Thread(target=_do_fetch, daemon=True)
+    thread.start()
+
+    return R.success({"progress_id": progress_id, "status": "running"})
+
+
+@router.get("/progress/{progress_id}")
+async def get_refresh_progress(progress_id: str, user=Depends(get_current_user)):
+    """查询刷新进度"""
+    progress = get_progress(progress_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail="进度不存在或已过期")
+    return R.success(progress)

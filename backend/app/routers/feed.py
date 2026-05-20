@@ -49,14 +49,21 @@ async def mark_all_read(user=Depends(get_current_user)):
 async def refresh_feed(user=Depends(get_current_user)):
     subs = subscription_dao.get_user_subscriptions(user.id)
     total_added = 0
+    errors = []
     for sub in subs:
         if sub.enabled != 1:
             continue
-        items = fetch_all_for_subscription(sub, limit=20)
-        if items:
-            total_added += upsert_feed_items(items)
+        result = fetch_all_for_subscription(sub, limit=20)
+        if result.items:
+            total_added += upsert_feed_items(result.items)
+        if result.error:
+            errors.append(f"{sub.channel_name}: {result.error}")
         subscription_dao.update_subscription_check(sub.id)
-    return R.success({"added": total_added})
+
+    response = {"added": total_added}
+    if errors:
+        response["error"] = "; ".join(errors)
+    return R.success(response)
 
 
 @router.get("/unread-count")
@@ -77,10 +84,18 @@ async def generate_article_note(item_id: int, user=Depends(get_current_user)):
 
     from app.services.note import NoteGenerator
     generator = NoteGenerator()
-    markdown = generator.generate_article_note(
+    markdown, smart_info = generator.generate_article_note(
         title=item.title,
         author=item.author,
         description=item.description,
         images=images,
+        smart_mode=True,
+        user_id=user.id,
     )
-    return R.success({"markdown": markdown})
+
+    result = {"markdown": markdown}
+    if smart_info:
+        result["used_model_name"] = f"{smart_info['provider_name']}/{smart_info['model_name']}"
+        result["smart_switched"] = smart_info["switched"]
+
+    return R.success(result)

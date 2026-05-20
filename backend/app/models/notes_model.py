@@ -28,3 +28,8 @@ class NoteResult:
     model_name: Optional[str] = None  # 使用的模型名称
     style: Optional[str] = None  # 笔记风格
     versions: List[NoteVersion] = field(default_factory=list)  # 版本数组（持久化时使用）
+    # 智能优选相关字段
+    smart_switched: Optional[bool] = False  # 是否发生过智能切换
+    used_model_id: Optional[int] = None  # 实际使用的模型 ID
+    used_model_name: Optional[str] = None  # 实际使用的模型名称（用于前端展示）
+    used_provider_name: Optional[str] = None  # 实际使用的供应商名称

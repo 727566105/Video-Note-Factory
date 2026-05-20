@@ -53,8 +53,8 @@ async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, o
         items = subscription_dao.get_feed_items_by_subscription(sub_id, limit, offset)
         total = subscription_dao.count_feed_items_by_subscription(sub_id)
     else:
-        items_raw = fetch_videos(channel_url, platform, limit)
-        return R.success({"items": items_raw, "total": len(items_raw)})
+        result = fetch_videos(channel_url, platform, limit)
+        return R.success({"items": result.items, "total": len(result.items)})
 
     return R.success({
         "items": [{

@@ -20,7 +20,7 @@ CACHE_DIR = PROJECT_ROOT / os.getenv("CACHE_DIR", "data/cache")
 EXPORT_DIR = PROJECT_ROOT / os.getenv("EXPORT_DIR", "data/exports")
 
 # 静态文件目录（保持在 backend 下，因为需要被 FastAPI 服务）
-IMAGE_OUTPUT_DIR = os.getenv("OUT_DIR", "./static/screenshots")
+IMAGE_OUTPUT_DIR = PROJECT_ROOT / "backend" / os.getenv("OUT_DIR", "static/screenshots")
 IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL", "/static/screenshots")
 
 
@@ -140,13 +140,16 @@ def get_data_dir() -> str:
     return str(DATA_DIR)
 
 
-def get_model_dir() -> str:
+def get_model_dir(subdir: str = None) -> str:
     """
     获取模型目录路径（用于 Whisper 等模型）
-    
+
+    :param subdir: 可选子目录名（如 "whisper", "mlx-whisper"）
     :return: 模型目录的字符串路径
     """
     model_dir = DATA_DIR / "models"
+    if subdir:
+        model_dir = model_dir / subdir
     model_dir.mkdir(parents=True, exist_ok=True)
     return str(model_dir)
 

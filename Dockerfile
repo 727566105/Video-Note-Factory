@@ -1,11 +1,14 @@
 # === 阶段1：前端构建 ===
 FROM node:22 AS frontend-builder
 
+# 可配置镜像源
+ARG NPM_REGISTRY=https://registry.npmjs.org
+
 RUN npm install -g pnpm
 
 WORKDIR /app/frontend
 COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-workspace.yaml ./
-RUN pnpm install
+RUN pnpm config set registry ${NPM_REGISTRY} && pnpm install
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
@@ -20,15 +23,18 @@ RUN pnpm run build 2>&1 | tee /tmp/build.log; \
 # === 阶段2：后端构建 ===
 FROM python:3.11-slim AS backend-builder
 
+# 可配置镜像源
+ARG PIP_INDEX_URL=https://pypi.org/simple
+
 RUN apt-get update && \
     apt-get install -y ffmpeg curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
 COPY ./backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt
 
-RUN pip install --no-cache-dir bcrypt==4.0.1
+RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} bcrypt==4.0.1
 
 RUN mkdir -p /app/backend/models/whisper && \
     python -c "from faster_whisper import WhisperModel; WhisperModel('base', download_root='/app/backend/models/whisper', device='cpu', compute_type='int8')"

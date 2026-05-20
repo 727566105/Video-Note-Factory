@@ -175,24 +175,24 @@ def update_subscription_check(sub_id: int):
 # ── FeedItem CRUD ──
 
 def upsert_feed_items(items: list[dict]) -> int:
-    """批量插入动态，按 content_id+platform 去重，已存在则更新关联，返回新增数量"""
+    """批量插入动态，按 user_id+content_id+platform 去重，已存在则更新关联，返回新增数量"""
     db = next(get_db())
     added = 0
     try:
         for item in items:
             content_id = item.get("content_id")
             platform = item.get("platform")
-            if not content_id or not platform:
+            user_id = item.get("user_id")
+            if not content_id or not platform or not user_id:
                 continue
             existing = db.query(FeedItem).filter_by(
-                content_id=content_id, platform=platform
+                user_id=user_id,
+                content_id=content_id,
+                platform=platform
             ).first()
             if existing:
-                # 已存在：更新关联到当前订阅
                 if item.get("subscription_id") and existing.subscription_id != item["subscription_id"]:
                     existing.subscription_id = item["subscription_id"]
-                if item.get("user_id") and existing.user_id != item["user_id"]:
-                    existing.user_id = item["user_id"]
                 if item.get("task_id") and not existing.task_id:
                     existing.task_id = item["task_id"]
                 continue

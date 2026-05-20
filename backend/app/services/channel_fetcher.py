@@ -15,6 +15,18 @@ from app.services.bilibili_wbi import sign_wbi_params
 
 logger = get_logger(__name__)
 
+# B站分页请求间隔（秒，默认 10）
+BILIBILI_PAGE_INTERVAL = int(os.getenv("BILIBILI_PAGE_INTERVAL", "10"))
+
+
+class FetchResult:
+    """获取结果封装，携带数据和错误信息"""
+
+    def __init__(self, items=None, error=None):
+        self.items = items or []
+        self.error = error
+        self.success = error is None
+
 RSSHUB_BASE_URL = os.getenv("RSSHUB_BASE_URL", "https://rsshub.app")
 
 
@@ -213,35 +225,41 @@ def _parse_duration(length_str) -> int:
         return 0
 
 
-def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50) -> list[dict]:
+def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50,
+                              progress_callback=None) -> FetchResult:
     """获取B站博主全部视频列表（分页）
 
     :param mid: 博主 ID（如 85742625）
     :param max_pages: 最大页数限制（防止无限循环）
     :param page_size: 每页数量（最大 50）
-    :return: 视频列表
+    :return: FetchResult，包含 items 和 error
     """
     results = []
+    first_error = None
     pn = 1
 
     while pn <= max_pages:
         try:
-            # 构造请求参数
             params = {
                 "mid": mid,
                 "pn": pn,
                 "ps": page_size,
-                "order": "pubdate",  # 按发布时间排序
+                "order": "pubdate",
                 "platform": "web",
                 "web_location": "space_video",
             }
 
             # WBI 签名
-            signed_params = sign_wbi_params(params)
+            try:
+                signed_params = sign_wbi_params(params)
+            except Exception as e:
+                if first_error is None:
+                    first_error = f"WBI签名失败: {e}"
+                logger.error(f"WBI签名失败 (mid={mid}): {e}")
+                break
 
-            # 构造请求头（携带 Cookie）
             req_headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Referer": f"https://space.bilibili.com/{mid}",
             }
             try:
@@ -252,7 +270,7 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
             except Exception:
                 pass
 
-            # 优先使用 WBI 签名 API，失败则降级到旧 API
+            # 优先使用 WBI 签名 API
             resp = requests.get(
                 "https://api.bilibili.com/x/space/wbi/arc/search",
                 params=signed_params,
@@ -260,10 +278,12 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
                 timeout=15,
             )
             data = resp.json()
+            api_code = data.get("code")
+            api_msg = data.get("message", "未知错误")
 
-            # WBI API 返回 -403 时降级到旧 API
-            if data.get("code") == -403:
-                logger.warning(f"WBI API 返回 -403，降级到旧 API (mid={mid})")
+            # WBI API 返回错误时降级到旧 API
+            if api_code in (-403, -352):
+                logger.warning(f"WBI API 返回 {api_code}({api_msg})，降级到旧 API (mid={mid})")
                 resp = requests.get(
                     "https://api.bilibili.com/x/space/arc/search",
                     params=params,
@@ -271,9 +291,14 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
                     timeout=15,
                 )
                 data = resp.json()
+                api_code = data.get("code")
+                api_msg = data.get("message", "未知错误")
 
-            if data.get("code") != 0:
-                logger.error(f"B站视频列表 API 错误: {data.get('message')}")
+            if api_code != 0:
+                error_msg = f"B站API错误({api_code}): {api_msg}"
+                if first_error is None:
+                    first_error = error_msg
+                logger.error(f"B站视频列表 API 错误: {api_msg} (code={api_code})")
                 break
 
             vlist = data.get("data", {}).get("list", {}).get("vlist", [])
@@ -281,7 +306,6 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
                 logger.info(f"B站博主 {mid} 视频获取完成，共 {len(results)} 条")
                 break
 
-            # 解析视频信息
             for v in vlist:
                 bvid = v.get("bvid", "")
                 results.append({
@@ -298,33 +322,31 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
                 })
 
             logger.info(f"B站博主 {mid} 第 {pn} 页获取成功，本页 {len(vlist)} 条")
+            if progress_callback:
+                progress_callback(pn, len(results))
             pn += 1
-
-            # 请求间隔 10 秒
-            time.sleep(10)
+            time.sleep(BILIBILI_PAGE_INTERVAL)
 
         except Exception as e:
+            if first_error is None:
+                first_error = f"请求失败: {e}"
             logger.error(f"B站视频列表获取失败 (mid={mid}, pn={pn}): {e}")
             break
 
-    return results
+    return FetchResult(items=results, error=first_error)
 
 
-def fetch_videos(channel_url: str, platform: str, limit: int | None = 20) -> list[dict]:
+def fetch_videos(channel_url: str, platform: str, limit: int | None = 20, progress_callback=None) -> FetchResult:
     """获取频道视频列表"""
-    # B站：使用 WBI 签名 API 获取全部视频
     if platform == "bilibili":
         mid = _extract_bilibili_mid(channel_url)
         if not mid:
-            logger.error(f"无法提取B站博主 ID: {channel_url}")
-            return []
-        # max_pages 根据 limit 计算（每页50条），limit=None 表示全部
+            return FetchResult(error=f"无法提取B站博主ID: {channel_url}")
         max_pages = max(1, (limit // 50) + 1) if limit else 50
-        videos = fetch_bilibili_all_videos(mid, max_pages=max_pages)
-        # 如果 limit 指定了数量，截取
-        if limit and len(videos) > limit:
-            videos = videos[:limit]
-        return videos
+        result = fetch_bilibili_all_videos(mid, max_pages=max_pages, progress_callback=progress_callback)
+        if limit and len(result.items) > limit:
+            result.items = result.items[:limit]
+        return result
 
     # 其他平台：使用 yt-dlp
     try:
@@ -335,7 +357,6 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20) -> lis
             "extract_flat": True,
             "playlistend": limit,
         }
-        # 抖音需要 cookie
         if platform == "douyin":
             cfm = _get_cookie_manager()
             cookie_str = cfm.get("douyin")
@@ -345,7 +366,7 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20) -> lis
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(channel_url, download=False)
             if not info or "entries" not in info:
-                return []
+                return FetchResult()
             results = []
             for entry in info["entries"][:limit]:
                 if not entry:
@@ -362,10 +383,10 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20) -> lis
                     "description": entry.get("description", ""),
                     "raw_info": json.dumps(entry, ensure_ascii=False, default=str),
                 })
-            return results
+            return FetchResult(items=results)
     except Exception as e:
         logger.error(f"获取视频列表失败 [{platform}]: {e}")
-        return []
+        return FetchResult(error=f"获取失败: {e}")
 
 
 def fetch_articles(platform: str, platform_id: str, limit: int = 20) -> list[dict]:
@@ -448,19 +469,21 @@ def parse_channel_info(channel_url: str, platform: str) -> dict:
     return {}
 
 
-def fetch_all_for_subscription(subscription, limit: int = 20) -> list[dict]:
+def fetch_all_for_subscription(subscription, limit: int = 20, progress_callback=None) -> FetchResult:
     """合并视频+图文，返回统一格式的动态列表"""
     results = []
-    # yt-dlp 获取视频（limit=0 或 None 表示获取全部）
+    errors = []
+
     effective_limit = limit if limit else 0
-    videos = fetch_videos(subscription.channel_url, subscription.platform, effective_limit or None)
-    for v in videos:
+    video_result = fetch_videos(subscription.channel_url, subscription.platform, effective_limit or None, progress_callback=progress_callback)
+    for v in video_result.items:
         v["user_id"] = subscription.user_id
         v["subscription_id"] = subscription.id
         v["platform"] = subscription.platform
-    results.extend(videos)
+    results.extend(video_result.items)
+    if video_result.error:
+        errors.append(f"视频: {video_result.error}")
 
-    # RSSHub 获取图文（如果平台支持）
     if subscription.platform_id:
         articles = fetch_articles(subscription.platform, subscription.platform_id, limit)
         for a in articles:
@@ -469,7 +492,8 @@ def fetch_all_for_subscription(subscription, limit: int = 20) -> list[dict]:
             a["platform"] = subscription.platform
         results.extend(articles)
 
-    return results
+    combined_error = "; ".join(errors) if errors else None
+    return FetchResult(items=results, error=combined_error)
 
 
 def _parse_rss_date(date_str: str) -> Optional[str]:

@@ -64,6 +64,7 @@ class VideoRequest(BaseModel):
     video_interval: Optional[int] = 0
     grid_size: Optional[list] = []
     output_language: Optional[str] = None
+    smart_mode: Optional[bool] = False  # 是否启用智能优选
 
     @field_validator("video_url")
     def validate_supported_url(cls, v):
@@ -144,11 +145,13 @@ def save_note_to_file(task_id: str, note):
 
     # 将当前 markdown 添加为新版本
     from app.models.notes_model import NoteVersion
+    # 使用实际使用的模型名称（智能优选模式下）
+    actual_model_name = note.used_model_name if hasattr(note, 'used_model_name') and note.used_model_name else note.model_name
     new_version = NoteVersion(
         ver_id=f"{task_id}-{uuid.uuid4()}",
         content=note.markdown,
         style=note.style,
-        model_name=note.model_name,
+        model_name=actual_model_name,
         created_at=datetime.now().isoformat()
     )
 
@@ -160,16 +163,22 @@ def save_note_to_file(task_id: str, note):
         "markdown": note.markdown,  # 保持兼容性
         "transcript": existing_transcript or asdict(note.transcript) if note.transcript else {},
         "audio_meta": existing_audio_meta or asdict(note.audio_meta) if note.audio_meta else {},
-        "model_name": note.model_name or '未知模型',
+        "model_name": actual_model_name or '未知模型',
         "style": note.style or 'detailed',
         "versions": all_versions  # 新增版本数组
     }
+
+    # 智能优选信息（如果有）
+    if hasattr(note, 'smart_switched') and note.smart_switched:
+        save_data["smart_switched"] = note.smart_switched
+        save_data["used_model_name"] = note.used_model_name or note.model_name
+        save_data["used_provider_name"] = note.used_provider_name
 
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(save_data, f, ensure_ascii=False, indent=2)
 
 
-def _save_queued_task_params(task_id: str, data: VideoRequest):
+def _save_queued_task_params(task_id: str, data: VideoRequest, user_id: int = None):
     """保存排队任务的参数到文件，供后续拉起时读取"""
     queue_path = get_note_file_path(task_id, None, "queue")
     params = {
@@ -187,6 +196,8 @@ def _save_queued_task_params(task_id: str, data: VideoRequest):
         "video_interval": data.video_interval,
         "grid_size": data.grid_size,
         "output_language": data.output_language,
+        "smart_mode": data.smart_mode,
+        "user_id": user_id,
     }
     with open(queue_path, "w", encoding="utf-8") as f:
         json.dump(params, f, ensure_ascii=False)
@@ -215,10 +226,12 @@ def _start_queued_task(task_id: str):
 def run_note_task(task_id: str, video_url: str, platform: str, quality: DownloadQuality,
                   link: bool = False, screenshot: bool = False, model_name: str = None, provider_id: str = None,
                   _format: list = None, style: str = None, extras: str = None, video_understanding: bool = False,
-                  video_interval=0, grid_size=[], output_language: str = None
+                  video_interval=0, grid_size=[], output_language: str = None,
+                  smart_mode: bool = False, user_id: int = None
                   ):
     try:
-        if not model_name or not provider_id:
+        # 智能模式不需要验证 model_name/provider_id
+        if not smart_mode and (not model_name or not provider_id):
             raise HTTPException(status_code=400, detail="请选择模型和提供者")
 
         note = NoteGenerator().generate(
@@ -232,11 +245,13 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
             _format=_format,
             style=style,
             extras=extras,
-            screenshot=screenshot
-            , video_understanding=video_understanding,
+            screenshot=screenshot,
+            video_understanding=video_understanding,
             video_interval=video_interval,
             grid_size=grid_size,
-            output_language=output_language
+            output_language=output_language,
+            smart_mode=smart_mode,
+            user_id=user_id,
         )
         logger.info(f"Note generated: {task_id}")
         if not note or not note.markdown:
@@ -346,9 +361,9 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
             background_tasks.add_task(run_note_task, task_id, data.video_url, data.platform, data.quality, data.link,
                                       data.screenshot, data.model_name, data.provider_id, data.format, data.style,
                                       data.extras, data.video_understanding, data.video_interval, data.grid_size,
-                                      data.output_language)
+                                      data.output_language, data.smart_mode, current_user.id)
         else:
-            _save_queued_task_params(task_id, data)
+            _save_queued_task_params(task_id, data, current_user.id)
 
         return R.success({"task_id": task_id})
     except Exception as e:
@@ -362,8 +377,11 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)):
 
     # 优先读状态文件
     if status_path.exists():
-        with open(status_path, "r", encoding="utf-8") as f:
-            status_content = json.load(f)
+        try:
+            with open(status_path, "r", encoding="utf-8") as f:
+                status_content = json.load(f)
+        except (json.JSONDecodeError, Exception):
+            status_content = {}
 
         status = status_content.get("status")
         message = status_content.get("message", "")
@@ -371,12 +389,16 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)):
         if status == TaskStatus.SUCCESS.value:
             # 成功状态的话，继续读取最终笔记内容
             if os.path.exists(result_path):
-                with open(result_path, "r", encoding="utf-8") as rf:
-                    result_content = json.load(rf)
-                return R.success({
-                    "status": status,
-                    "result": result_content,
-                    "message": message,
+                try:
+                    with open(result_path, "r", encoding="utf-8") as rf:
+                        result_content = json.load(rf)
+                except (json.JSONDecodeError, Exception):
+                    result_content = None
+                if result_content:
+                    return R.success({
+                        "status": status,
+                        "result": result_content,
+                        "message": message,
                     "task_id": task_id
                 })
             else:
@@ -403,8 +425,12 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)):
 
     # 没有状态文件，但有结果
     if result_path.exists():
-        with open(result_path, "r", encoding="utf-8") as f:
-            result_content = json.load(f)
+        try:
+            with open(result_path, "r", encoding="utf-8") as f:
+                result_content = json.load(f)
+        except (json.JSONDecodeError, Exception):
+            result_content = None
+        if result_content:
         return R.success({
             "status": TaskStatus.SUCCESS.value,
             "result": result_content,
@@ -670,17 +696,29 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)):
 
         for task in db_tasks:
             task_id = task.task_id
-            status_path = get_note_file_path(task_id, None, "status")
-            result_path = get_note_file_path(task_id, None, "note")
+            task_title = task.title
+            status_path = get_note_file_path(task_id, task_title, "status")
+            result_path = get_note_file_path(task_id, task_title, "note")
 
             # 读取状态文件，获取任务进度
-            status = "SUCCESS"  # 默认值（已完成）
+            status = "PENDING"
             message = ""
             if status_path.exists():
-                with open(status_path, "r", encoding="utf-8") as f:
-                    status_data = json.load(f)
-                    status = status_data.get("status", "PENDING")
-                    message = status_data.get("message", "")
+                try:
+                    with open(status_path, "r", encoding="utf-8") as f:
+                        status_data = json.load(f)
+                        status = status_data.get("status", "PENDING")
+                        message = status_data.get("message", "")
+                except (json.JSONDecodeError, Exception):
+                    status = "UNKNOWN"
+                    message = "状态文件损坏"
+            elif result_path.exists():
+                # 无状态文件但有结果文件，说明已完成
+                status = "SUCCESS"
+            elif task_title:
+                # 有标题（下载成功）但没有笔记文件，说明生成中断
+                status = "FAILED"
+                message = "笔记生成中断"
 
             # 读取笔记内容（如果存在）
             note_data = None

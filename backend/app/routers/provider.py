@@ -10,7 +10,7 @@ from app.services.model import ModelService
 from app.utils.response import ResponseWrapper as R
 from app.services.provider import ProviderService
 from app.utils.logger import get_logger
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_admin, get_current_user
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -52,7 +52,7 @@ def add_provider(data: ProviderRequest, current_user=Depends(require_admin)):
         return R.error(msg=e)
 
 @router.get("/get_all_providers")
-def get_all_providers(current_user=Depends(require_admin)):
+def get_all_providers(current_user=Depends(get_current_user)):
     try:
         res = ProviderService.get_all_providers_safe()
         return R.success(data=res)

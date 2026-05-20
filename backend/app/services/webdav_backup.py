@@ -17,8 +17,14 @@ logger = get_logger(__name__)
 # 使用统一的路径管理工具
 from app.utils.path_helper import NOTE_OUTPUT_DIR, PROJECT_ROOT
 
-# 数据库文件
-DB_FILE = PROJECT_ROOT / "backend" / "videonote.db"
+# 从环境变量获取数据库路径，与 engine.py 保持一致
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///video_note.db")
+if DATABASE_URL.startswith("sqlite:///"):
+    DB_FILE = PROJECT_ROOT / DATABASE_URL.replace("sqlite:///", "")
+    DB_FILENAME = DB_FILE.name
+else:
+    DB_FILE = None
+    DB_FILENAME = None
 # 临时备份目录
 BACKUP_TEMP_DIR = PROJECT_ROOT / ".backup_temp"
 
@@ -128,7 +134,7 @@ class WebDAVBackup:
                     files.append(file_path)
 
         # 添加数据库文件
-        if DB_FILE.exists():
+        if DB_FILE and DB_FILE.exists():
             files.append(DB_FILE)
 
         if progress:
@@ -164,7 +170,7 @@ class WebDAVBackup:
             for i, file_path in enumerate(files):
                 # 计算相对路径
                 if file_path == DB_FILE:
-                    arcname = f"videonote.db"
+                    arcname = DB_FILENAME
                 else:
                     try:
                         rel_path = file_path.relative_to(NOTE_OUTPUT_DIR)
@@ -426,19 +432,19 @@ class WebDAVBackup:
                 progress.update(40, "正在解压备份文件...")
 
             # 3. 解压备份
-            with zipfile.ZipFile(local_zip_path, 'wb') as zipf:
+            with zipfile.ZipFile(local_zip_path, 'r') as zipf:
                 zipf.extractall(restore_temp_dir)
 
             if progress:
                 progress.update(60, "正在恢复数据库...")
 
             # 4. 恢复数据库
-            restored_db = restore_temp_dir / "videonote.db"
-            if restored_db.exists():
+            restored_db = restore_temp_dir / DB_FILENAME
+            if restored_db.exists() and DB_FILE:
                 # 备份当前数据库
                 if DB_FILE.exists():
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    backup_db_path = DB_FILE.parent / f"videonote_pre_restore_{timestamp}.db"
+                    backup_db_path = DB_FILE.parent / f"{DB_FILENAME}_pre_restore_{timestamp}"
                     shutil.copy2(DB_FILE, backup_db_path)
 
                 # 替换数据库
@@ -562,9 +568,9 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
             zip_ref.extractall(restore_temp_dir)
 
         # 2. 验证备份内容
-        extracted_db = restore_temp_dir / "videonote.db"
-        if not extracted_db.exists():
-            raise Exception("备份文件中缺少数据库文件")
+        extracted_db = restore_temp_dir / DB_FILENAME
+        if not extracted_db.exists() or not DB_FILE:
+            raise Exception("备份文件中缺少数据库文件或数据库配置不支持恢复")
 
         # 3. 备份当前数据
         if progress_callback:
@@ -575,8 +581,8 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         pre_restore_backup_dir.mkdir(parents=True, exist_ok=True)
 
         # 备份当前数据库
-        if DB_FILE.exists():
-            shutil.copy2(DB_FILE, pre_restore_backup_dir / "videonote.db")
+        if DB_FILE and DB_FILE.exists():
+            shutil.copy2(DB_FILE, pre_restore_backup_dir / DB_FILENAME)
 
         # 备份当前笔记目录
         if NOTE_OUTPUT_DIR.exists():
@@ -587,7 +593,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
             progress_callback(60, "正在恢复数据库...")
 
         # 关闭数据库连接
-        from app.db.database import SessionLocal
+        from app.db.engine import SessionLocal
         SessionLocal.remove()
 
         # 替换数据库文件
@@ -762,10 +768,10 @@ def _rollback_restore(backup_dir: Path):
             return
 
         # 恢复数据库
-        backup_db = backup_dir / "videonote.db"
-        if backup_db.exists():
+        backup_db = backup_dir / DB_FILENAME
+        if backup_db.exists() and DB_FILE:
             # 关闭数据库连接
-            from app.db.database import SessionLocal
+            from app.db.engine import SessionLocal
             SessionLocal.remove()
             shutil.copy2(backup_db, DB_FILE)
 

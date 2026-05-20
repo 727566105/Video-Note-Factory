@@ -125,7 +125,7 @@ export default function AboutPage() {
                 </div>
               </div>
               <p>
-                访问：<code className="bg-muted rounded px-2 py-1">http://localhost:5173</code>
+                访问：<code className="bg-muted rounded px-2 py-1">http://localhost:3015</code>
               </p>
             </TabsContent>
             <TabsContent value="docker" className="mt-6 space-y-6">

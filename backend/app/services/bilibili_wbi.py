@@ -10,6 +10,14 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# WBI mixin key 置换表（B站固定值）
+_MIXIN_KEY_ENC_TAB = [
+    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
+    33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40,
+    61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11,
+    36, 20, 34, 44, 52
+]
+
 # WBI key 缓存（有效期 20 分钟）
 _wbi_keys_cache: Optional[tuple[str, str, datetime]] = None
 _wbi_cache_lock = threading.Lock()
@@ -91,10 +99,17 @@ def extract_key_from_url(url: str) -> str:
     return key
 
 
+def _get_mixin_key(img_key: str, sub_key: str) -> str:
+    """通过置换表计算 mixin_key"""
+    combined = img_key + sub_key
+    return "".join(combined[i] for i in _MIXIN_KEY_ENC_TAB)[:32]
+
+
 def sign_wbi_params(params: dict) -> dict:
     """对参数进行 WBI 签名（返回新字典，不修改入参）"""
     params = dict(params)
     img_key, sub_key = get_wbi_keys()
+    mixin_key = _get_mixin_key(img_key, sub_key)
 
     # 添加时间戳
     params["wts"] = int(time.time())
@@ -113,9 +128,8 @@ def sign_wbi_params(params: dict) -> dict:
 
     query_string = "&".join(query_parts)
 
-    # 添加 key 并计算 MD5
-    to_sign = query_string + img_key + sub_key
-    w_rid = hashlib.md5(to_sign.encode()).hexdigest()
+    # 使用 mixin_key 计算 MD5
+    w_rid = hashlib.md5((query_string + mixin_key).encode()).hexdigest()
 
     params["w_rid"] = w_rid
 

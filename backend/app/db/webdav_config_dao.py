@@ -7,14 +7,32 @@ import os
 
 logger = get_logger(__name__)
 
-# 加载加密密钥
+# 加载加密密钥（不强制要求，使用 WebDAV 时才检查）
 ENCRYPTION_KEY = os.getenv('WEBDAV_ENCRYPTION_KEY')
+_key_not_set = False
+
 if not ENCRYPTION_KEY:
-    # 如果环境变量未设置，生成一个临时密钥（仅用于开发环境）
-    ENCRYPTION_KEY = Fernet.generate_key().decode()
-    logger.warning("WEBDAV_ENCRYPTION_KEY not set, using temporary key")
+    env_mode = os.getenv('ENV', 'development')
+    if env_mode == 'production':
+        _key_not_set = True
+        ENCRYPTION_KEY = 'placeholder_key_not_for_actual_use_32b='
+        logger.warning("WEBDAV_ENCRYPTION_KEY 未设置。启用 WebDAV 时需先设置密钥！")
+    else:
+        # 开发环境使用固定密钥
+        ENCRYPTION_KEY = 'dev_only_key_not_for_production_32bytes=='
+        logger.warning("WEBDAV_ENCRYPTION_KEY 未设置，使用开发默认密钥。切勿在生产环境使用！")
 
 cipher_suite = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
+
+
+def _check_key_available():
+    """检查密钥是否可用，使用 WebDAV 前调用"""
+    if _key_not_set:
+        raise RuntimeError(
+            "生产环境必须设置 WEBDAV_ENCRYPTION_KEY 才能使用 WebDAV 功能。\n"
+            "生成密钥: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"\n"
+            "然后添加到 .env: WEBDAV_ENCRYPTION_KEY=<生成的密钥>"
+        )
 
 
 def get_config() -> WebDAVConfig | None:
@@ -30,6 +48,7 @@ def get_config() -> WebDAVConfig | None:
 def upsert_config(url: str, username: str, password: str, path: str = '/',
                  auto_backup_enabled: int = 0, auto_backup_schedule: str = '0 2 * * *') -> int:
     """保存或更新 WebDAV 配置"""
+    _check_key_available()  # 检查密钥是否可用
     db = next(get_db())
     try:
         config = db.query(WebDAVConfig).first()
@@ -80,6 +99,7 @@ def update_config(config_id: int, **kwargs) -> bool:
 
         # 如果更新密码，需要加密
         if 'password' in kwargs:
+            _check_key_available()  # 检查密钥是否可用
             kwargs['password'] = cipher_suite.encrypt(kwargs['password'].encode()).decode()
 
         for key, value in kwargs.items():
@@ -174,6 +194,7 @@ def update_last_backup_time():
 
 def get_decrypted_password() -> str | None:
     """获取解密后的密码（仅用于内存中使用）"""
+    _check_key_available()  # 检查密钥是否可用
     config = get_config()
     if not config:
         return None

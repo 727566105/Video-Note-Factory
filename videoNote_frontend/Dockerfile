@@ -4,8 +4,11 @@ FROM node:18-alpine AS builder
 # 安装 pnpm
 RUN npm install -g pnpm
 
-# 使用淘宝镜像加速
-RUN pnpm config set registry https://registry.npmmirror.com
+# 可配置镜像源（构建时可通过 --build-arg 覆盖）
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
+# 使用镜像加速
+RUN pnpm config set registry ${NPM_REGISTRY}
 
 # 设置工作目录
 WORKDIR /app

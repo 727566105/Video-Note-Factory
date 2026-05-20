@@ -1,3 +1,4 @@
+import os
 from app.db.models.users import User
 from app.db.engine import get_db
 from app.utils.logger import get_logger
@@ -126,14 +127,16 @@ def seed_default_user():
     try:
         existing = db.query(User).filter_by(username="admin").first()
         if not existing:
+            default_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "change_me_on_first_login")
             user = User(
                 username="admin",
-                password_hash=hash_password("123456"),
+                password_hash=hash_password(default_password),
                 role="admin",
             )
             db.add(user)
             db.commit()
-            logger.info("默认管理员账号已创建: admin/123456")
+            logger.info(f"默认管理员账号已创建: admin/{default_password}")
+            logger.warning("请立即修改默认管理员密码！")
     except Exception as e:
         db.rollback()
         logger.error(f"种子默认用户失败: {e}")
