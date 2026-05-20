@@ -31,7 +31,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
           // Headings with improved styling and anchor links
           h1: ({ children, ...props }) => (
             <h1
-              className="text-primary my-6 scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl"
+              className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl"
               {...props}
             >
               {children}
@@ -39,7 +39,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
           ),
           h2: ({ children, ...props }) => (
             <h2
-              className="text-primary mt-10 mb-4 scroll-m-20 border-b pb-2 text-2xl font-semibold tracking-tight first:mt-0"
+              className="scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0"
               {...props}
             >
               {children}
@@ -47,7 +47,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
           ),
           h3: ({ children, ...props }) => (
             <h3
-              className="text-primary mt-8 mb-4 scroll-m-20 text-xl font-semibold tracking-tight"
+              className="scroll-m-20 text-2xl font-semibold tracking-tight"
               {...props}
             >
               {children}
@@ -55,7 +55,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
           ),
           h4: ({ children, ...props }) => (
             <h4
-              className="text-primary mt-6 mb-2 scroll-m-20 text-lg font-semibold tracking-tight"
+              className="scroll-m-20 text-xl font-semibold tracking-tight"
               {...props}
             >
               {children}
@@ -136,7 +136,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
 
           // Better strong/bold text
           strong: ({ children, ...props }) => (
-            <strong className="text-primary font-bold" {...props}>
+            <strong className="font-bold" {...props}>
               {children}
             </strong>
           ),
@@ -148,7 +148,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
 
             if (isFakeHeading) {
               return (
-                <div className="text-primary my-4 text-lg font-bold">{children}</div>
+                <div className="my-4 text-lg font-bold">{children}</div>
               )
             }
 
@@ -184,7 +184,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
           // Enhanced blockquotes
           blockquote: ({ children, ...props }) => (
             <blockquote
-              className="border-primary/20 text-muted-foreground mt-6 border-l-4 pl-4 italic"
+              className="mt-6 border-l-2 pl-6 italic"
               {...props}
             >
               {children}
@@ -234,7 +234,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
             // Inline code styling
             return (
               <code
-                className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm"
+                className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold"
                 {...props}
               >
                 {children}
