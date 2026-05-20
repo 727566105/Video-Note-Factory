@@ -12,6 +12,9 @@ import {
   FileText,
   Sparkles,
   X,
+  LayoutList,
+  LayoutGrid,
+  Columns3,
 } from 'lucide-react'
 import {
   useReactTable,
@@ -305,9 +308,9 @@ export const NoteListPage: FC = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="table">表格</SelectItem>
-              <SelectItem value="card">卡片</SelectItem>
-              <SelectItem value="masonry">瀑布流</SelectItem>
+              <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
+              <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
+              <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
             </SelectContent>
           </Select>
         </div>

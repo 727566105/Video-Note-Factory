@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Trash2, Power, PowerOff, Rss } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Empty,
   EmptyContent,
@@ -68,30 +69,25 @@ export default function ChannelsPage() {
         <h1 className="text-xl font-bold">频道管理</h1>
       </div>
 
-      <div className="flex gap-4 px-6 pt-4">
-        <button
-          className={`pb-2 text-sm font-medium border-b-2 transition-colors ${tab === 'subscribed' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}
-          onClick={() => setTab('subscribed')}
-        >已订阅的频道</button>
-        <button
-          className={`pb-2 text-sm font-medium border-b-2 transition-colors ${tab === 'summarized' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}
-          onClick={() => setTab('summarized')}
-        >已总结过的频道</button>
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'summarized' | 'subscribed')} className="flex flex-col flex-1 min-h-0">
+        <div className="px-6 pt-4">
+          <TabsList>
+            <TabsTrigger value="subscribed">已订阅的频道</TabsTrigger>
+            <TabsTrigger value="summarized">已总结过的频道</TabsTrigger>
+          </TabsList>
+        </div>
 
-      <div className="px-6 py-4 flex gap-3">
-        <Input placeholder="粘贴频道URL或视频URL" value={subscribeUrl}
-          onChange={e => setSubscribeUrl(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
-          className="max-w-md" />
-        <Button onClick={handleSubscribe} disabled={subscribing}>
-          <Plus className="w-4 h-4 mr-1" />订阅
-        </Button>
-        <Input placeholder="搜索频道..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs ml-auto" />
-      </div>
-
-      <div className="flex-1 overflow-auto px-6">
-        {tab === 'subscribed' ? (
+        <TabsContent value="subscribed" className="flex-1 min-h-0 overflow-auto mt-0 px-6 pt-4">
+          <div className="flex gap-3 mb-4">
+            <Input placeholder="粘贴频道URL或视频URL" value={subscribeUrl}
+              onChange={e => setSubscribeUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
+              className="max-w-md" />
+            <Button onClick={handleSubscribe} disabled={subscribing}>
+              <Plus className="w-4 h-4 mr-1" />订阅
+            </Button>
+            <Input placeholder="搜索频道..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs ml-auto" />
+          </div>
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted">
               <th className="px-4 py-2 text-left font-medium">频道</th>
@@ -142,7 +138,9 @@ export default function ChannelsPage() {
               )}
             </tbody>
           </table>
-        ) : (
+        </TabsContent>
+
+        <TabsContent value="summarized" className="flex-1 min-h-0 overflow-auto mt-0 px-6 pt-4">
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted">
               <th className="px-4 py-2 text-left font-medium">频道</th>
@@ -173,8 +171,8 @@ export default function ChannelsPage() {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
