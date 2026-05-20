@@ -431,11 +431,11 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)):
         except (json.JSONDecodeError, Exception):
             result_content = None
         if result_content:
-        return R.success({
-            "status": TaskStatus.SUCCESS.value,
-            "result": result_content,
-            "task_id": task_id
-        })
+            return R.success({
+                "status": TaskStatus.SUCCESS.value,
+                "result": result_content,
+                "task_id": task_id
+            })
 
     # 什么都没有，默认PENDING
     return R.success({
