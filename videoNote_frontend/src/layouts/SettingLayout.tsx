@@ -55,10 +55,6 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           <div className="text-base font-bold text-foreground md:text-lg">设置</div>
         </div>
         <div className="flex items-center gap-1">
-          <Link to={'/'}>
-            <ArrowLeft className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary md:h-5 md:w-5" />
-          </Link>
-          <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent transition-colors">
