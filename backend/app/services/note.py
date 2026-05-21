@@ -49,8 +49,6 @@ from app.utils.path_helper import (
     get_note_file_path,
     get_note_file_path_v2,
     move_note_files_to_video_folder,
-    get_media_file_path,
-    MEDIA_DIR,
 )
 
 # 日志配置
@@ -567,9 +565,30 @@ class NoteGenerator:
                     return audio_meta
 
                 # 需要视频，检查视频是否已缓存（使用 video_id 查找）
-                if self._check_video_cached(audio_meta.video_id):
+                _author_name = None
+                if audio_meta.raw_info:
+                    owner = audio_meta.raw_info.get("owner", {})
+                    _author_name = owner.get("name", "") if owner else ""
+                    if not _author_name:
+                        _author_name = audio_meta.raw_info.get("uploader", "")
+                    if not _author_name:
+                        _author_name = audio_meta.raw_info.get("channel", "")
+
+                if self._check_video_cached(
+                    audio_meta.video_id,
+                    author_id=audio_meta.author_id,
+                    author_name=_author_name,
+                    title=audio_meta.title,
+                    platform=audio_meta.platform,
+                ):
                     logger.info("视频已缓存，跳过下载")
-                    self._restore_cached_video(audio_meta.video_id, grid_size, video_interval)
+                    self._restore_cached_video(
+                        audio_meta.video_id, grid_size, video_interval,
+                        author_id=audio_meta.author_id,
+                        author_name=_author_name,
+                        title=audio_meta.title,
+                        platform=audio_meta.platform,
+                    )
                     return audio_meta
 
                 # 音频有缓存但视频没有，只下载视频
@@ -632,35 +651,67 @@ class NoteGenerator:
             self._handle_exception(task_id, exc)
             raise
 
-    def _check_video_cached(self, video_id: str) -> bool:
+    def _check_video_cached(
+        self,
+        video_id: str,
+        author_id: Optional[str] = None,
+        author_name: Optional[str] = None,
+        title: Optional[str] = None,
+        platform: str = "",
+    ) -> bool:
         """
-        检查视频是否已缓存（通过检查视频文件是否存在）
+        检查视频是否已缓存（在三级目录中查找）
 
         :param video_id: 视频ID（如 BV号、数字ID）
+        :param author_id: 博主唯一 ID
+        :param author_name: 博主名称
+        :param title: 视频标题
+        :param platform: 平台标识
         """
-        # 检查媒体目录中的视频文件
-        video_patterns = [
-            MEDIA_DIR / "video" / f"{video_id}.mp4",
-            MEDIA_DIR / "video" / f"{video_id}.mkv",
-            MEDIA_DIR / "video" / f"{video_id}.webm",
-        ]
-        return any(p.exists() for p in video_patterns)
+        if not author_id:
+            return False
 
-    def _restore_cached_video(self, video_id: str, grid_size: List[int], video_interval: int):
-        """从缓存中恢复视频路径和缩略图
+        from app.utils.path_helper import get_video_folder, sanitize_path_name
+        video_folder = get_video_folder(author_id, author_name, video_id, title, platform)
+        for ext in [".mp4", ".mkv", ".webm"]:
+            candidate = video_folder / f"{sanitize_path_name(video_id or 'video')}{ext}"
+            if candidate.exists():
+                return True
+        return False
+
+    def _restore_cached_video(
+        self,
+        video_id: str,
+        grid_size: List[int],
+        video_interval: int,
+        author_id: Optional[str] = None,
+        author_name: Optional[str] = None,
+        title: Optional[str] = None,
+        platform: str = "",
+    ):
+        """从缓存中恢复视频路径和缩略图（在三级目录中查找）
 
         :param video_id: 视频ID（如 BV号、数字ID）
+        :param grid_size: 缩略图网格大小
+        :param video_interval: 视频帧截取间隔
+        :param author_id: 博主唯一 ID
+        :param author_name: 博主名称
+        :param title: 视频标题
+        :param platform: 平台标识
         """
-        video_patterns = [
-            MEDIA_DIR / "video" / f"{video_id}.mp4",
-            MEDIA_DIR / "video" / f"{video_id}.mkv",
-            MEDIA_DIR / "video" / f"{video_id}.webm",
-        ]
-        for p in video_patterns:
-            if p.exists():
-                self.video_path = p
+        if not author_id:
+            logger.warning("无法恢复视频缓存：缺少 author_id")
+            return
+
+        from app.utils.path_helper import get_video_folder, sanitize_path_name
+        video_folder = get_video_folder(author_id, author_name, video_id, title, platform)
+        for ext in [".mp4", ".mkv", ".webm"]:
+            candidate = video_folder / f"{sanitize_path_name(video_id or 'video')}{ext}"
+            if candidate.exists():
+                self.video_path = candidate
                 logger.info(f"恢复视频缓存路径：{self.video_path}")
                 break
+
         if grid_size and self.video_path:
             try:
                 self.video_img_urls = VideoReader(

@@ -15,7 +15,6 @@ from app.downloaders.douyin_helper.abogus import ABogus
 from app.enmus.note_enums import DownloadQuality
 from app.models.audio_model import AudioDownloadResult, VideoInfoResult
 from app.services.cookie_manager import CookieConfigManager
-from app.utils.path_helper import get_audio_dir, get_video_dir
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -338,9 +337,7 @@ class DouyinDownloader(Downloader):
                 f"正在下载视频: {video_url}，保存路径: {output_dir}，质量: {quality}"
             )
             if output_dir is None:
-                output_dir = get_audio_dir()
-            if not output_dir:
-                output_dir = self.cache_data
+                raise ValueError("output_dir 不能为空，必须传入三级目录路径")
             os.makedirs(output_dir, exist_ok=True)
 
             output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
@@ -389,9 +386,7 @@ class DouyinDownloader(Downloader):
         try:
 
             if output_dir is None:
-                output_dir = get_video_dir()
-            if not output_dir:
-                output_dir = self.cache_data
+                raise ValueError("output_dir 不能为空，必须传入三级目录路径")
             os.makedirs(output_dir, exist_ok=True)
 
             video_id = self.extract_video_id(video_url)

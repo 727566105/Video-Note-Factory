@@ -9,7 +9,6 @@ from app.downloaders.base import Downloader
 from app.downloaders.kuaishou_helper.kuaishou import KuaiShou
 from app.enmus.note_enums import DownloadQuality
 from app.models.audio_model import AudioDownloadResult, VideoInfoResult
-from app.utils.path_helper import get_audio_dir, get_video_dir
 
 
 class KuaiShouDownloader(Downloader, ABC):
@@ -49,9 +48,7 @@ class KuaiShouDownloader(Downloader, ABC):
             need_video: Optional[bool] = False
     ) -> AudioDownloadResult:
         if output_dir is None:
-            output_dir = get_audio_dir()
-        if not output_dir:
-            output_dir = self.cache_data
+            raise ValueError("output_dir 不能为空，必须传入三级目录路径")
         os.makedirs(output_dir, exist_ok=True)
 
         ks = KuaiShou()

@@ -5,7 +5,6 @@ from typing import Optional, Union
 
 from app.enmus.note_enums import DownloadQuality
 from app.models.audio_model import AudioDownloadResult, VideoInfoResult
-from app.utils.path_helper import MEDIA_DIR
 
 QUALITY_MAP = {
     "fast": "32",
@@ -17,7 +16,6 @@ QUALITY_MAP = {
 class Downloader(ABC):
     def __init__(self):
         self.quality = QUALITY_MAP.get('fast')
-        self.cache_data = str(MEDIA_DIR)
 
     @abstractmethod
     def download(self, video_url: str, output_dir: str = None,
@@ -26,7 +24,7 @@ class Downloader(ABC):
 
         :param need_video:
         :param video_url: 资源链接
-        :param output_dir: 输出路径 默认根目录data
+        :param output_dir: 输出路径（必须传入三级目录路径）
         :param quality: 音频质量 fast | medium | slow
         :return:返回一个 AudioDownloadResult 类
         '''

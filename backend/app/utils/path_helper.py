@@ -17,7 +17,6 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.resolve()
 # 从环境变量读取配置，默认值相对于项目根目录
 DATA_DIR = PROJECT_ROOT / os.getenv("DATA_DIR", "data")
 NOTE_OUTPUT_DIR = PROJECT_ROOT / os.getenv("NOTE_OUTPUT_DIR", "data/notes")
-MEDIA_DIR = PROJECT_ROOT / os.getenv("MEDIA_DIR", "data/media")
 CACHE_DIR = PROJECT_ROOT / os.getenv("CACHE_DIR", "data/cache")
 EXPORT_DIR = PROJECT_ROOT / os.getenv("EXPORT_DIR", "data/exports")
 
@@ -343,7 +342,7 @@ def move_note_files_to_video_folder(
                     audio_data["file_path"] = str(new_audio_path)
                     _moved = True
 
-            # 迁移视频文件（优先从 audio.json 的 video_path，否则按 video_id 查找）
+            # 迁移视频文件（从 audio.json 的 video_path）
             old_video_path = audio_data.get("video_path")
             if old_video_path and os.path.exists(old_video_path):
                 new_name = f"{sanitize_path_name(video_id or 'video')}{Path(old_video_path).suffix}"
@@ -352,17 +351,6 @@ def move_note_files_to_video_folder(
                     shutil.move(old_video_path, str(new_video_path))
                     audio_data["video_path"] = str(new_video_path)
                     _moved = True
-            elif video_id:
-                # video_path 未记录，按 video_id 在 media/video/ 目录查找
-                for ext in [".mp4", ".mkv", ".webm", ".avi"]:
-                    candidate = MEDIA_DIR / "video" / f"{video_id}{ext}"
-                    if candidate.exists():
-                        new_video_path = target_folder / f"{sanitize_path_name(video_id)}{ext}"
-                        if not new_video_path.exists():
-                            shutil.move(str(candidate), str(new_video_path))
-                            audio_data["video_path"] = str(new_video_path)
-                            _moved = True
-                        break
 
             # 更新 audio.json 中的路径
             if _moved:
@@ -402,20 +390,6 @@ def get_export_file_path(task_id: str, title: str, export_format: str) -> Path:
     return exports_folder / f"{safe_title}.{export_format}"
 
 
-def get_media_file_path(task_id: str, media_type: str, extension: str) -> Path:
-    """
-    获取媒体文件（音频/视频）的存储路径
-    
-    :param task_id: 任务 ID
-    :param media_type: 媒体类型 (audio, video)
-    :param extension: 文件扩展名（不含点）
-    :return: 媒体文件路径
-    """
-    media_folder = MEDIA_DIR / media_type
-    media_folder.mkdir(parents=True, exist_ok=True)
-    return media_folder / f"{task_id}.{extension}"
-
-
 def get_data_dir() -> str:
     """
     获取数据目录路径（用于下载器）
@@ -423,28 +397,6 @@ def get_data_dir() -> str:
     :return: 数据目录的字符串路径
     """
     return str(DATA_DIR)
-
-
-def get_audio_dir() -> str:
-    """
-    获取音频文件存储目录
-
-    :return: 音频目录的字符串路径 (data/media/audio/)
-    """
-    audio_dir = MEDIA_DIR / "audio"
-    audio_dir.mkdir(parents=True, exist_ok=True)
-    return str(audio_dir)
-
-
-def get_video_dir() -> str:
-    """
-    获取视频文件存储目录
-
-    :return: 视频目录的字符串路径 (data/media/video/)
-    """
-    video_dir = MEDIA_DIR / "video"
-    video_dir.mkdir(parents=True, exist_ok=True)
-    return str(video_dir)
 
 
 def get_model_dir(subdir: str = None) -> str:
@@ -477,13 +429,10 @@ def ensure_directories():
     directories = [
         DATA_DIR,
         NOTE_OUTPUT_DIR,
-        MEDIA_DIR,
-        MEDIA_DIR / "audio",
-        MEDIA_DIR / "video",
         CACHE_DIR,
         EXPORT_DIR,
     ]
-    
+
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -497,7 +446,6 @@ if __name__ == "__main__":
     print(f"项目根目录: {PROJECT_ROOT}")
     print(f"数据目录: {DATA_DIR}")
     print(f"笔记目录: {NOTE_OUTPUT_DIR}")
-    print(f"媒体目录: {MEDIA_DIR}")
     print(f"缓存目录: {CACHE_DIR}")
     print(f"导出目录: {EXPORT_DIR}")
     

@@ -34,7 +34,6 @@ from app.enmus.task_status_enums import TaskStatus
 from app.utils.path_helper import (
     get_note_file_path,
     get_note_folder,
-    get_media_file_path,
     find_note_file,
     get_note_file_path_v2,
     get_video_folder,
@@ -989,18 +988,28 @@ task_queue.register_start_callback(_start_queued_task)
 def get_screenshot(task_id: str, t: float = 0) -> dict:
     """根据 task_id 和时间戳生成/返回视频截图（无需认证，图片不敏感）"""
     from app.utils.video_helper import generate_screenshot
+    from app.db.video_task_dao import get_task_by_task_id
+    from app.utils.path_helper import sanitize_path_name
 
-    # 查找视频文件（在媒体目录中）
-    video_patterns = [
-        get_media_file_path(task_id, "video", "mp4"),
-        get_media_file_path(task_id, "video", "mkv"),
-        get_media_file_path(task_id, "video", "webm"),
-    ]
+    # 从数据库获取任务信息
+    db_task = get_task_by_task_id(task_id)
+
     video_path = None
-    for p in video_patterns:
-        if p.exists():
-            video_path = str(p)
-            break
+
+    # 在三级目录查找
+    if db_task and db_task.author_id:
+        video_folder = get_video_folder(
+            db_task.author_id,
+            db_task.author_name,
+            db_task.video_id,
+            db_task.title,
+            db_task.platform,
+        )
+        for ext in ["mp4", "mkv", "webm"]:
+            candidate = video_folder / f"{sanitize_path_name(db_task.video_id or 'video')}.{ext}"
+            if candidate.exists():
+                video_path = str(candidate)
+                break
 
     if not video_path:
         raise HTTPException(status_code=404, detail="视频文件不存在")

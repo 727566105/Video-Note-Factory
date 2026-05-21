@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 文件存储迁移脚本
-将旧路径 data/notes/{task_id}_{title}/ + data/media/ 迁移到
+将旧路径 data/notes/{task_id}_{title}/ 迁移到
 新路径 data/{author_id}_{author_name}/{video_id}_{title}/
 
 使用方法: cd backend && python3 tools/migrate_storage.py [--dry-run]
@@ -21,7 +21,6 @@ from app.db.models.video_tasks import VideoTask
 from app.utils.path_helper import (
     DATA_DIR,
     NOTE_OUTPUT_DIR,
-    MEDIA_DIR,
     sanitize_path_name,
     get_author_folder_name,
     get_video_folder_name,
@@ -144,15 +143,6 @@ def migrate(dry_run: bool = False):
                 for item in source_dir.iterdir():
                     if item.is_file():
                         shutil.copy2(item, target_dir / item.name)
-
-                # 迁移媒体文件
-                for media_type in ["audio", "video"]:
-                    for ext in ["mp3", "mp4", "mkv", "webm", "m4a"]:
-                        media_src = MEDIA_DIR / media_type / f"{task.task_id}.{ext}"
-                        if not media_src.exists():
-                            media_src = MEDIA_DIR / media_type / f"{task.video_id}.{ext}"
-                        if media_src.exists():
-                            shutil.copy2(media_src, target_dir / media_src.name)
 
             stats["migrated"] += 1
             print(f"  ✓ {task.task_id[:8]} → {folder_author}/{folder_video}")

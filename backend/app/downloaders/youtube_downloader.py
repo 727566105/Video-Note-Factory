@@ -6,7 +6,6 @@ import yt_dlp
 
 from app.downloaders.base import Downloader, DownloadQuality
 from app.models.audio_model import AudioDownloadResult, VideoInfoResult
-from app.utils.path_helper import get_audio_dir, get_video_dir
 from app.utils.url_parser import extract_video_id
 
 
@@ -23,9 +22,7 @@ class YoutubeDownloader(Downloader, ABC):
         need_video:Optional[bool]=False
     ) -> AudioDownloadResult:
         if output_dir is None:
-            output_dir = get_audio_dir()
-        if not output_dir:
-            output_dir=self.cache_data
+            raise ValueError("output_dir 不能为空，必须传入三级目录路径")
         os.makedirs(output_dir, exist_ok=True)
 
         output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
@@ -93,7 +90,7 @@ class YoutubeDownloader(Downloader, ABC):
         下载视频，返回视频文件路径
         """
         if output_dir is None:
-            output_dir = get_video_dir()
+            raise ValueError("output_dir 不能为空，必须传入三级目录路径")
         video_id = extract_video_id(video_url, "youtube")
         video_path = os.path.join(output_dir, f"{video_id}.mp4")
         if os.path.exists(video_path):
