@@ -238,67 +238,6 @@ export default function RightPanel({ task }: RightPanelProps) {
         </div>
       </div>
 
-      {/* 信息行：版本切换 + 徽章 + 时间 */}
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-2">
-          {isMultiVersion && (
-            <Select value={currentVerId} onValueChange={setCurrentVerId}>
-              <SelectTrigger className="h-7 w-[140px] text-xs">
-                <SelectValue>
-                  {currentVerId ? `版本（${currentVerId.slice(-6)}）` : '选择版本'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {((task.markdown as Markdown[]) || []).map(v => (
-                  <SelectItem key={v.ver_id} value={v.ver_id}>
-                    版本（{v.ver_id.slice(-6)}）
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {modelName && (
-            <Badge variant="secondary" className="bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs">
-              {modelName}
-            </Badge>
-          )}
-          {styleName && (
-            <Badge variant="secondary" className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 text-xs">
-              {styleName}
-            </Badge>
-          )}
-          {createTime && (
-            <span className="text-xs text-muted-foreground">{formatDate(createTime)}</span>
-          )}
-        </div>
-
-        {/* 操作按钮 */}
-        <div className="flex items-center gap-1">
-          <ActionBtn icon={<Copy className="w-3.5 h-3.5" />} label="复制" onClick={handleCopy} />
-          <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="下载" onClick={handleDownload} />
-          {task.id && <ExportPDFButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
-          {task.id && <ExportImageButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
-          {task.id && <ExportSiyuanButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 h-8 px-2 rounded-md border border-border text-xs hover:bg-accent transition-colors">
-                <MoreHorizontal className="w-3.5 h-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={handleDownload}>
-                <Download className="mr-2 h-4 w-4" /> 导出 Markdown
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-red-600 focus:text-red-600">
-                <Trash className="mr-2 h-4 w-4" /> 删除笔记
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
       {/* 状态行 */}
       <div className="flex items-center justify-end px-4 py-1">
         <div className="flex items-center gap-2">
@@ -309,53 +248,116 @@ export default function RightPanel({ task }: RightPanelProps) {
       </div>
 
       {/* 内容区 */}
-      <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-border bg-accent/30 m-4 p-4">
-        {activeTab === 'summary' && (
-          <MarkdownRenderer content={selectedContent} />
-        )}
-        {activeTab === 'transcript' && (
-          <TranscriptViewer />
-        )}
-        {activeTab === 'mindmap' && (
-          <MarkmapEditor
-            value={selectedContent}
-            onChange={() => {}}
-            height="100%"
-            title={task.audioMeta?.title || '思维导图'}
-          />
-        )}
-        {activeTab === 'original' && (
-          task.transcript?.segments?.length > 0 ? (
-            <div className="space-y-3">
-              {groupSegments(task.transcript.segments).map((group, idx) => (
-                <div key={idx} className="rounded-lg border border-border bg-background overflow-hidden">
-                  <ScreenshotImg taskId={task.id} time={group.startTime} />
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono font-medium">
-                        {fmtTime(group.startTime)}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        - {fmtTime(group.endTime)}
-                      </span>
-                    </div>
-                    <div className="text-sm leading-relaxed text-foreground">
-                      {twToCn(group.text)}
+      <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-border bg-accent/30 m-4">
+        {/* Sticky 工具栏 */}
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
+          <div className="flex items-center gap-2">
+            {isMultiVersion && (
+              <Select value={currentVerId} onValueChange={setCurrentVerId}>
+                <SelectTrigger className="h-7 w-[140px] text-xs">
+                  <SelectValue>
+                    {currentVerId ? `版本（${currentVerId.slice(-6)}）` : '选择版本'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {((task.markdown as Markdown[]) || []).map(v => (
+                    <SelectItem key={v.ver_id} value={v.ver_id}>
+                      版本（{v.ver_id.slice(-6)}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {modelName && (
+              <Badge variant="secondary" className="bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs">
+                {modelName}
+              </Badge>
+            )}
+            {styleName && (
+              <Badge variant="secondary" className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 text-xs">
+                {styleName}
+              </Badge>
+            )}
+            {createTime && (
+              <span className="text-xs text-muted-foreground">{formatDate(createTime)}</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <ActionBtn icon={<Copy className="w-3.5 h-3.5" />} label="复制" onClick={handleCopy} />
+            <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="下载" onClick={handleDownload} />
+            {task.id && <ExportPDFButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
+            {task.id && <ExportImageButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
+            {task.id && <ExportSiyuanButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1 h-8 px-2 rounded-md border border-border text-xs hover:bg-accent transition-colors">
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={handleDownload}>
+                  <Download className="mr-2 h-4 w-4" /> 导出 Markdown
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-red-600 focus:text-red-600">
+                  <Trash className="mr-2 h-4 w-4" /> 删除笔记
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* 内容区域 */}
+        <div className="p-4">
+          {activeTab === 'summary' && (
+            <MarkdownRenderer content={selectedContent} />
+          )}
+          {activeTab === 'transcript' && (
+            <TranscriptViewer />
+          )}
+          {activeTab === 'mindmap' && (
+            <MarkmapEditor
+              value={selectedContent}
+              onChange={() => {}}
+              height="100%"
+              title={task.audioMeta?.title || '思维导图'}
+            />
+          )}
+          {activeTab === 'original' && (
+            task.transcript?.segments?.length > 0 ? (
+              <div className="space-y-3">
+                {groupSegments(task.transcript.segments).map((group, idx) => (
+                  <div key={idx} className="rounded-lg border border-border bg-background overflow-hidden">
+                    <ScreenshotImg taskId={task.id} time={group.startTime} />
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono font-medium">
+                          {fmtTime(group.startTime)}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          - {fmtTime(group.endTime)}
+                        </span>
+                      </div>
+                      <div className="text-sm leading-relaxed text-foreground">
+                        {twToCn(group.text)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : task.transcript?.full_text ? (
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-              {twToCn(task.transcript.full_text)}
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              暂无转写原文
-            </div>
-          )
-        )}
+                ))}
+              </div>
+            ) : task.transcript?.full_text ? (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                {twToCn(task.transcript.full_text)}
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground">
+                暂无转写原文
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       {/* 生成设置对话框（独立于全局设置） */}
