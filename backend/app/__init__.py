@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from .routers import note, provider, model, config, export, siyuan, webdav, config_backup, health, auth, user, subscription, feed, channels
+from .routers import note, provider, model, config, export, siyuan, webdav, config_backup, health, auth, user, subscription, feed, channels, authors
 
 
 def create_app(lifespan) -> FastAPI:
@@ -19,5 +19,6 @@ def create_app(lifespan) -> FastAPI:
     app.include_router(subscription.router)
     app.include_router(feed.router)
     app.include_router(channels.router)
+    app.include_router(authors.router)
 
     return app
