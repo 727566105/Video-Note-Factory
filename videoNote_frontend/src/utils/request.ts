@@ -16,7 +16,7 @@ const baseURL = getApiBaseURL();
 // 创建实例
  const request: AxiosInstance = axios.create({
   baseURL: baseURL || '/api',
-  timeout: 10000,
+  timeout: 30000,
 });
 
 // 请求拦截器：注入 token

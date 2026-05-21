@@ -478,10 +478,10 @@ class NoteGenerator:
                 if not need_video:
                     return audio_meta
 
-                # 需要视频，检查视频是否已缓存
-                if self._check_video_cached(task_id):
+                # 需要视频，检查视频是否已缓存（使用 video_id 查找）
+                if self._check_video_cached(audio_meta.video_id):
                     logger.info("视频已缓存，跳过下载")
-                    self._restore_cached_video(task_id, grid_size, video_interval)
+                    self._restore_cached_video(audio_meta.video_id, grid_size, video_interval)
                     return audio_meta
 
                 # 音频有缓存但视频没有，只下载视频
@@ -544,24 +544,29 @@ class NoteGenerator:
             self._handle_exception(task_id, exc)
             raise
 
-    def _check_video_cached(self, task_id: str) -> bool:
+    def _check_video_cached(self, video_id: str) -> bool:
         """
         检查视频是否已缓存（通过检查视频文件是否存在）
+
+        :param video_id: 视频ID（如 BV号、数字ID）
         """
         # 检查媒体目录中的视频文件
         video_patterns = [
-            get_media_file_path(task_id, "video", "mp4"),
-            get_media_file_path(task_id, "video", "mkv"),
-            get_media_file_path(task_id, "video", "webm"),
+            MEDIA_DIR / "video" / f"{video_id}.mp4",
+            MEDIA_DIR / "video" / f"{video_id}.mkv",
+            MEDIA_DIR / "video" / f"{video_id}.webm",
         ]
         return any(p.exists() for p in video_patterns)
 
-    def _restore_cached_video(self, task_id: str, grid_size: List[int], video_interval: int):
-        """从缓存中恢复视频路径和缩略图"""
+    def _restore_cached_video(self, video_id: str, grid_size: List[int], video_interval: int):
+        """从缓存中恢复视频路径和缩略图
+
+        :param video_id: 视频ID（如 BV号、数字ID）
+        """
         video_patterns = [
-            get_media_file_path(task_id, "video", "mp4"),
-            get_media_file_path(task_id, "video", "mkv"),
-            get_media_file_path(task_id, "video", "webm"),
+            MEDIA_DIR / "video" / f"{video_id}.mp4",
+            MEDIA_DIR / "video" / f"{video_id}.mkv",
+            MEDIA_DIR / "video" / f"{video_id}.webm",
         ]
         for p in video_patterns:
             if p.exists():

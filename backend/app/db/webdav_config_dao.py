@@ -151,7 +151,8 @@ def test_connection(url: str, username: str, password: str) -> tuple[bool, str]:
         client = Client({
             'webdav_hostname': url,
             'webdav_login': username,
-            'webdav_password': password
+            'webdav_password': password,
+            'webdav_timeout': 30
         })
 
         # 尝试列出根目录来验证连接（使用空路径表示根目录）

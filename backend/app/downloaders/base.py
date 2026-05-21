@@ -5,7 +5,8 @@ from typing import Optional, Union
 
 from app.enmus.note_enums import DownloadQuality
 from app.models.notes_model import AudioDownloadResult
-from os import getenv
+from app.utils.path_helper import MEDIA_DIR
+
 QUALITY_MAP = {
     "fast": "32",
     "medium": "64",
@@ -15,9 +16,8 @@ QUALITY_MAP = {
 
 class Downloader(ABC):
     def __init__(self):
-        #TODO 需要修改为可配置
         self.quality = QUALITY_MAP.get('fast')
-        self.cache_data=getenv('DATA_DIR')
+        self.cache_data = str(MEDIA_DIR)
 
     @abstractmethod
     def download(self, video_url: str, output_dir: str = None,

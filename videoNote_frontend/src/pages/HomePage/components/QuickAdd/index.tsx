@@ -212,6 +212,13 @@ export function QuickAdd({ className }: QuickAddProps) {
       return
     }
 
+    // URL 格式校验
+    const urlPattern = /^https?:\/\/.+\..+/i
+    if (!urlPattern.test(inputValue.trim())) {
+      toast.error('请输入有效的视频链接（以 http:// 或 https:// 开头）')
+      return
+    }
+
     // 智能优选模式下跳过模型验证
     if (!isSmartMode && !selectedModelInfo) {
       toast.error('请选择模型')

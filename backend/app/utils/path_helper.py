@@ -134,10 +134,32 @@ def get_media_file_path(task_id: str, media_type: str, extension: str) -> Path:
 def get_data_dir() -> str:
     """
     获取数据目录路径（用于下载器）
-    
+
     :return: 数据目录的字符串路径
     """
     return str(DATA_DIR)
+
+
+def get_audio_dir() -> str:
+    """
+    获取音频文件存储目录
+
+    :return: 音频目录的字符串路径 (data/media/audio/)
+    """
+    audio_dir = MEDIA_DIR / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    return str(audio_dir)
+
+
+def get_video_dir() -> str:
+    """
+    获取视频文件存储目录
+
+    :return: 视频目录的字符串路径 (data/media/video/)
+    """
+    video_dir = MEDIA_DIR / "video"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    return str(video_dir)
 
 
 def get_model_dir(subdir: str = None) -> str:

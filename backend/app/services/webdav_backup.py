@@ -72,7 +72,8 @@ class WebDAVBackup:
         return Client({
             'webdav_hostname': url,
             'webdav_login': self.config.username,
-            'webdav_password': password
+            'webdav_password': password,
+            'webdav_timeout': 60
         })
 
     def test_connection(self) -> tuple[bool, str]:

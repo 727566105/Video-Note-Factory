@@ -102,7 +102,7 @@ def test_connection(api_url: str, api_token: str) -> tuple[bool, str]:
         logger.info(f"Testing Siyuan connection: {url}")
         logger.info(f"Using token: {api_token[:8]}...")
         
-        response = requests.post(url, headers=headers, json={}, timeout=10)
+        response = requests.post(url, headers=headers, json={}, timeout=20)
         
         logger.info(f"Response status: {response.status_code}")
         logger.info(f"Response headers: {dict(response.headers)}")
