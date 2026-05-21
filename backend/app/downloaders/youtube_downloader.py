@@ -55,7 +55,8 @@ class YoutubeDownloader(Downloader, ABC):
             platform="youtube",
             video_id=video_id,
             raw_info={'tags':info.get('tags'), 'uploader': info.get('uploader') or info.get('channel', '')},
-            video_path=None  # ❗音频下载不包含视频路径
+            video_path=None,  # ❗音频下载不包含视频路径
+            author_id=info.get("channel_id"),
         )
 
     def download_video(

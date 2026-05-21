@@ -132,7 +132,8 @@ class BilibiliDownloader(Downloader, ABC):
                 video_id=video_id,
                 raw_info=info,
                 video_path=None,
-                description=description
+                description=description,
+                author_id=str(info.get("uploader_id", "")) or str(info.get("channel_id", "")),
             )
         except DownloadError as e:
             error_msg = str(e)

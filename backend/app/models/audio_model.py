@@ -13,4 +13,5 @@ class AudioDownloadResult:
     raw_info: dict               # yt-dlp 的原始 info 字典
     video_path: Optional[str] = None  #  新增字段：可选视频文件路径
     description: Optional[str] = None  # 视频描述
+    author_id: Optional[str] = None
 

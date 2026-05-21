@@ -349,7 +349,8 @@ class DouyinDownloader(Downloader):
                     'width': video_data['aweme_detail']['video'].get('width', 0),
                     'height': video_data['aweme_detail']['video'].get('height', 0),
                 },
-                video_path=None  # ❗音频下载不包含视频路径
+                video_path=None,  # ❗音频下载不包含视频路径
+                author_id=str(video_data['aweme_detail'].get('author', {}).get('uid', '')),
             )
         except Exception as e:
             raise e

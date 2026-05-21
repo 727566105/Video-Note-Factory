@@ -39,6 +39,7 @@ class KuaiShouDownloader(Downloader, ABC):
         mp3_path = os.path.join(output_dir, f"{video_id}.mp3")
         ks_author = (video_raw_info.get('visionVideoDetail', {}).get('author', {}).get('name', '')
                       or video_raw_info.get('visionVideoDetail', {}).get('photo', {}).get('userName', ''))
+        ks_author_id = str(video_raw_info.get('visionVideoDetail', {}).get('author', {}).get('id', ''))
 
         if os.path.exists(mp3_path):
             print(f"[已存在] 跳过下载: {mp3_path}")
@@ -54,7 +55,8 @@ class KuaiShouDownloader(Downloader, ABC):
                     'owner': {'name': ks_author},
                     'uploader': ks_author,
                 },
-                video_path=mp4_path
+                video_path=mp4_path,
+                author_id=ks_author_id,
             )
 
         # 下载 mp4 视频
@@ -82,9 +84,12 @@ class KuaiShouDownloader(Downloader, ABC):
             platform="kuaishou",
             video_id=video_id,
             raw_info={
-                'tags': ','.join(tag['name'] for tag in video_raw_info.get('tags', []) if tag.get('name'))
+                'tags': ','.join(tag['name'] for tag in video_raw_info.get('tags', []) if tag.get('name')),
+                'owner': {'name': ks_author},
+                'uploader': ks_author,
             },
-            video_path=mp4_path
+            video_path=mp4_path,
+            author_id=ks_author_id,
         )
 
     def download_video(
