@@ -56,6 +56,94 @@ def sanitize_folder_name(name: str, max_length: int = 100) -> str:
     return safe_name
 
 
+def sanitize_path_name(name: str, max_length: int = 80) -> str:
+    """严格过滤文件/目录名，用于三级层级目录命名"""
+    if not name:
+        return "untitled"
+    name = re.sub(r'[\x00-\x1f]', '', name)
+    name = re.sub(r'[\\/:*?"<>|]', '_', name)
+    name = name.replace(' ', '_')
+    name = re.sub(r'_+', '_', name)
+    name = name.strip('_')
+    if not name:
+        return "untitled"
+    if len(name) > max_length:
+        name = name[:max_length].rstrip('_') + '...'
+    return name
+
+
+def get_author_folder_name(author_id: str, author_name: str, platform: str = "") -> str:
+    """生成博主目录名: {author_id}_{author_name}"""
+    if not author_id and not author_name:
+        return "local"
+    if not author_id:
+        return f"unknown_{platform}" if platform else "unknown"
+    if not author_name:
+        return sanitize_path_name(str(author_id))
+    return f"{sanitize_path_name(str(author_id))}_{sanitize_path_name(author_name)}"
+
+
+def get_video_folder_name(video_id: str, title: str) -> str:
+    """生成视频目录名: {video_id}_{title}"""
+    if not video_id:
+        return sanitize_path_name(title or "untitled")
+    if not title:
+        return sanitize_path_name(str(video_id))
+    return f"{sanitize_path_name(str(video_id))}_{sanitize_path_name(title)}"
+
+
+def get_author_folder(author_id: str, author_name: str, platform: str = "") -> Path:
+    """获取博主级目录: data/{author_folder_name}/"""
+    folder_name = get_author_folder_name(author_id, author_name, platform)
+    author_dir = DATA_DIR / folder_name
+    author_dir.mkdir(parents=True, exist_ok=True)
+    return author_dir
+
+
+def get_video_folder(author_id: str, author_name: str, video_id: str, title: str,
+                     platform: str = "") -> Path:
+    """获取视频级目录: data/{author_folder_name}/{video_folder_name}/"""
+    author_dir = get_author_folder(author_id, author_name, platform)
+    video_dir_name = get_video_folder_name(video_id, title)
+    video_dir = author_dir / video_dir_name
+    video_dir.mkdir(parents=True, exist_ok=True)
+    return video_dir
+
+
+def get_video_file_path(author_id: str, author_name: str, video_id: str, title: str,
+                        file_type: str, platform: str = "") -> Path:
+    """在三级目录结构下获取指定类型文件路径"""
+    video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+    file_map = {
+        "note": "note.json",
+        "audio_cache": "audio.json",
+        "transcript": "transcript.json",
+        "markdown": "note.md",
+        "status": "status.json",
+        "queue": "queue.json",
+        "metadata": "metadata.json",
+    }
+    filename = file_map.get(file_type, f"{file_type}.json")
+    return video_dir / filename
+
+
+def get_media_in_video_folder(author_id: str, author_name: str, video_id: str, title: str,
+                               media_type: str, extension: str, platform: str = "") -> Path:
+    """获取视频目录下的媒体文件路径（音频/视频）"""
+    video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+    return video_dir / f"{sanitize_path_name(video_id or 'media')}.{extension}"
+
+
+def get_export_in_video_folder(author_id: str, author_name: str, video_id: str, title: str,
+                                export_format: str, platform: str = "") -> Path:
+    """获取视频目录下 exports/ 子目录的导出文件路径"""
+    video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+    exports_dir = video_dir / "exports"
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    safe_title = sanitize_path_name(title or "untitled")
+    return exports_dir / f"{safe_title}.{export_format}"
+
+
 def get_note_folder(task_id: str, title: str = None) -> Path:
     """
     获取笔记存储文件夹路径
