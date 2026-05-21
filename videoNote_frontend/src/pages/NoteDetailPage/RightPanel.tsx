@@ -52,6 +52,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ButtonGroup } from '@/components/ui/button-group'
 
 type TabKey = 'summary' | 'transcript' | 'mindmap' | 'original'
 
@@ -285,27 +286,29 @@ export default function RightPanel({ task }: RightPanelProps) {
 
           <div className="flex items-center gap-1">
             <ActionBtn icon={<Copy className="w-3.5 h-3.5" />} label="复制" onClick={handleCopy} />
-            <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="下载" onClick={handleDownload} />
-            {task.id && <ExportPDFButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
-            {task.id && <ExportImageButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
-            {task.id && <ExportSiyuanButton taskId={task.id} variant="ghost" size="sm" className="h-8 px-2 text-xs" />}
+            <ButtonGroup>
+              <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="下载" onClick={handleDownload} />
+              {task.id && <ExportPDFButton taskId={task.id} variant="outline" size="sm" className="h-8 px-2 text-xs" />}
+              {task.id && <ExportImageButton taskId={task.id} variant="outline" size="sm" className="h-8 px-2 text-xs" />}
+              {task.id && <ExportSiyuanButton taskId={task.id} variant="outline" size="sm" className="h-8 px-2 text-xs" />}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 h-8 px-2 rounded-md border border-border text-xs hover:bg-accent transition-colors">
-                  <MoreHorizontal className="w-3.5 h-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={handleDownload}>
-                  <Download className="mr-2 h-4 w-4" /> 导出 Markdown
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-red-600 focus:text-red-600">
-                  <Trash className="mr-2 h-4 w-4" /> 删除笔记
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1 h-8 px-2 rounded-md border border-border text-xs hover:bg-accent transition-colors">
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={handleDownload}>
+                    <Download className="mr-2 h-4 w-4" /> 导出 Markdown
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-red-600 focus:text-red-600">
+                    <Trash className="mr-2 h-4 w-4" /> 删除笔记
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
           </div>
         </div>
 
