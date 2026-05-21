@@ -964,6 +964,8 @@ class NoteGenerator:
         try:
             from app.db.video_task_dao import update_task_metadata
             author = ""
+            author_id = audio_meta.author_id if hasattr(audio_meta, 'author_id') else None
+            author_name = None
             if audio_meta.raw_info:
                 owner = audio_meta.raw_info.get("owner", {})
                 author = owner.get("name", "") if owner else ""
@@ -971,6 +973,15 @@ class NoteGenerator:
                     author = audio_meta.raw_info.get("uploader", "")
                 if not author:
                     author = audio_meta.raw_info.get("channel", "")
+                # 如果下载器没提取 author_id，尝试从 raw_info 提取
+                if not author_id:
+                    if owner:
+                        author_id = str(owner.get("mid", "")) or str(owner.get("uid", "")) or None
+                    if not author_id:
+                        author_id = audio_meta.raw_info.get("channel_id") or audio_meta.raw_info.get("uploader_id")
+                        if author_id:
+                            author_id = str(author_id)
+                author_name = author if author else None
             update_task_metadata(
                 task_id=task_id,
                 title=audio_meta.title,
@@ -978,7 +989,9 @@ class NoteGenerator:
                 duration=audio_meta.duration,
                 author=author,
                 description=audio_meta.description,
+                author_id=author_id,
+                author_name=author_name,
             )
-            logger.info(f"已保存元数据到数据库 (task_id={task_id}, title={audio_meta.title})")
+            logger.info(f"已保存元数据 (task_id={task_id}, author_id={author_id})")
         except Exception as e:
-            logger.error(f"保存元数据失败：{e}")
+            logger.error(f"保存元数据失败: {e}")
