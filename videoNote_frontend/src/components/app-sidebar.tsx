@@ -17,6 +17,7 @@ import {
   LogOut,
   Settings,
   User,
+  Users,
 } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -185,6 +186,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <button className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent text-sidebar-foreground transition-colors">
               <Flame className="w-[18px] h-[18px]" />
             </button>
+            {/* 10. Users 博主 */}
+            <button
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
+                location.pathname.startsWith("/authors")
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "hover:bg-accent text-sidebar-foreground"
+              )}
+              onClick={() => navigate("/authors")}
+            >
+              <Users className="w-[18px] h-[18px]" />
+            </button>
           </SidebarContent>
 
           <SidebarFooter className="flex flex-col items-center !p-0 !pb-3 mt-auto">
@@ -317,6 +330,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     label="热门"
                     hasDropdown
                     onClick={() => alert('暂无开发')}
+                  />
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <NavItem
+                    icon={<Users className="w-4 h-4" />}
+                    label="博主"
+                    active={location.pathname.startsWith("/authors")}
+                    onClick={() => navigate("/authors")}
                   />
                 </SidebarMenuItem>
               </SidebarMenu>

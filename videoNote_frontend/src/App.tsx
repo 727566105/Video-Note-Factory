@@ -19,6 +19,8 @@ import NoteDetailPage from '@/pages/NoteDetailPage'
 import FeedPage from '@/pages/FeedPage'
 import ChannelsPage from '@/pages/ChannelsPage'
 import ChannelDetailPage from '@/pages/ChannelDetailPage'
+import { AuthorsPage } from './pages/AuthorsPage'
+import AuthorDetailPage from './pages/AuthorDetailPage'
 import SubscriptionSettings from '@/pages/SettingPage/Subscription'
 import { useEffect, ReactNode } from 'react'
 import { systemCheck } from '@/services/system.ts'
@@ -98,6 +100,8 @@ function App() {
             <Route path="feed" element={<FeedPage />} />
             <Route path="channels" element={<ChannelsPage />} />
             <Route path="channel/:platform/:id" element={<ChannelDetailPage />} />
+            <Route path="authors" element={<AuthorsPage />} />
+            <Route path="authors/:id" element={<AuthorDetailPage />} />
             <Route path="settings" element={<SettingPage />}>
               <Route index element={<Navigate to="about" replace />} />
               <Route path="model" element={<AdminRoute><Model /></AdminRoute>}>
