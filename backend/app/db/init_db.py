@@ -69,6 +69,18 @@ def migrate_video_tasks_table():
             db.execute(text("ALTER TABLE video_tasks ADD COLUMN description VARCHAR"))
             db.commit()
             logger.info("description 列添加成功")
+
+        if 'author_id' not in columns:
+            logger.info("author_id 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN author_id VARCHAR"))
+            db.commit()
+            logger.info("author_id 列添加成功")
+
+        if 'author_name' not in columns:
+            logger.info("author_name 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN author_name VARCHAR"))
+            db.commit()
+            logger.info("author_name 列添加成功")
     except Exception as e:
         logger.error(f"数据库迁移失败: {e}")
     finally:

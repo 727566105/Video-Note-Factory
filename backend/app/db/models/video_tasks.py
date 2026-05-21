@@ -20,3 +20,5 @@ class VideoTask(Base):
     duration = Column(Float, nullable=True)     # 视频时长（秒）
     author = Column(String, nullable=True)      # 作者名
     description = Column(String, nullable=True)  # 视频描述
+    author_id = Column(String, nullable=True)       # 博主唯一ID（B站 mid、抖音 uid、YouTube channel_id）
+    author_name = Column(String, nullable=True)     # 博主名称（冗余存储）

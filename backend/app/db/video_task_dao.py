@@ -7,7 +7,8 @@ logger = get_logger(__name__)
 
 
 # 插入任务（已存在则跳过）
-def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None, user_id: int = 1):
+def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None,
+                      user_id: int = 1, author_id: str = None, author_name: str = None):
     db = next(get_db())
     try:
         existing = db.query(VideoTask).filter_by(task_id=task_id).first()
@@ -18,7 +19,9 @@ def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str
             platform=platform,
             task_id=task_id,
             video_url=video_url,
-            user_id=user_id
+            user_id=user_id,
+            author_id=author_id,
+            author_name=author_name
         )
         db.add(task)
         db.commit()
@@ -109,7 +112,8 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
 
 
 def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
-                         duration: float = None, author: str = None, description: str = None):
+                         duration: float = None, author: str = None, description: str = None,
+                         author_id: str = None, author_name: str = None):
     """更新任务的元数据（标题、封面、时长、作者、描述）"""
     db = next(get_db())
     try:
@@ -125,6 +129,10 @@ def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
                 task.author = author
             if description is not None:
                 task.description = description
+            if author_id is not None:
+                task.author_id = author_id
+            if author_name is not None:
+                task.author_name = author_name
             db.commit()
             logger.info(f"Task metadata updated: {task_id}, title={title}")
         else:
@@ -196,6 +204,8 @@ def clone_task_to_user(original_task_id: str, new_user_id: int,
             duration=original.duration if original else None,
             author=original.author if original else None,
             description=original.description if original else None,
+            author_id=original.author_id if original else None,
+            author_name=original.author_name if original else None,
         )
         db.add(task)
         db.commit()
