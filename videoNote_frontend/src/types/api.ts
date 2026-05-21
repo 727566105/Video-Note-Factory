@@ -69,6 +69,8 @@ export interface BackendTask {
   cover_url?: string | null
   duration?: number | null
   author?: string | null
+  author_id?: string | null
+  author_name?: string | null
 }
 
 // Config backup 相关

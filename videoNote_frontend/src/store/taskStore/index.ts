@@ -18,6 +18,8 @@ export interface AudioMeta {
   video_id: string
   author?: string  // 作者名
   description?: string  // 视频描述
+  author_id?: string
+  author_name?: string
 }
 
 export interface Segment {
@@ -49,6 +51,8 @@ export interface Task {
   createdAt: string
   platform: string
   message?: string  // 错误信息，用于展示失败原因
+  author_id?: string
+  author_name?: string
   smart_switched?: boolean  // 智能优选是否发生过切换
   used_model_name?: string  // 实际使用的模型名称
   formData: {
@@ -269,8 +273,12 @@ export const useTaskStore = create<TaskStore>()(
                   video_id: t.video_id,
                   author: t.author || t.note?.audio_meta?.raw_info?.owner?.name || '',
                   description: t.description || t.note?.audio_meta?.description || '',
+                  author_id: t.author_id || '',
+                  author_name: t.author_name || '',
                 },
                 platform: t.platform,
+                author_id: t.author_id || '',
+                author_name: t.author_name || '',
                 formData: {
                   video_url: t.video_url || '',
                   link: false,

@@ -807,6 +807,8 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
                 "cover_url": task.cover_url,
                 "duration": task.duration,
                 "author": task.author,
+                "author_id": task.author_id,
+                "author_name": task.author_name,
             })
 
         return R.success({"tasks": result})
