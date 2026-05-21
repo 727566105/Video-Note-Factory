@@ -18,7 +18,7 @@ export interface AuthorVideo {
 }
 
 export const getAuthors = () =>
-  request.get<AuthorInfo[]>('/authors')
+  request.get<{ authors: AuthorInfo[] }>('/authors')
 
 export const getAuthorVideos = (authorId: string, limit = 50, offset = 0) =>
   request.get<{ videos: AuthorVideo[]; total: number }>(`/authors/${authorId}/videos`, { params: { limit, offset } })

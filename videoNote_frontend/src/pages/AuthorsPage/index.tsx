@@ -11,7 +11,7 @@ export function AuthorsPage() {
   useEffect(() => {
     setLoading(true)
     getAuthors()
-      .then((data) => setAuthors(data || []))
+      .then((data) => setAuthors(data?.authors || []))
       .catch(() => setAuthors([]))
       .finally(() => setLoading(false))
   }, [])
