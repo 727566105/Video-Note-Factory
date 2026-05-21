@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -14,4 +14,18 @@ class AudioDownloadResult:
     video_path: Optional[str] = None  #  新增字段：可选视频文件路径
     description: Optional[str] = None  # 视频描述
     author_id: Optional[str] = None
+
+
+@dataclass
+class VideoInfoResult:
+    """视频元数据（不下载文件，仅获取信息）"""
+    title: str
+    duration: float
+    cover_url: Optional[str]
+    platform: str
+    video_id: str
+    author_id: Optional[str] = None
+    author_name: Optional[str] = None
+    description: Optional[str] = None
+    raw_info: dict = field(default_factory=dict)
 

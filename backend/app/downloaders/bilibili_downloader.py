@@ -8,6 +8,7 @@ import yt_dlp
 from yt_dlp.utils import DownloadError
 
 from app.downloaders.base import Downloader, DownloadQuality, QUALITY_MAP
+from app.models.audio_model import VideoInfoResult
 from app.models.notes_model import AudioDownloadResult
 from app.services.cookie_manager import CookieConfigManager
 from app.utils.path_helper import get_audio_dir, get_video_dir
@@ -78,6 +79,31 @@ class BilibiliDownloader(Downloader, ABC):
                 os.remove(cookiefile)
             except Exception:
                 pass
+
+    def get_video_info(self, video_url: str) -> VideoInfoResult:
+        cookiefile = self._write_cookiefile()
+        try:
+            ydl_opts = {'noplaylist': True, 'quiet': True}
+            if cookiefile:
+                ydl_opts['cookiefile'] = cookiefile
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(video_url, download=False)
+                video_id = info.get("id", "")
+                title = info.get("title", "")
+                duration = info.get("duration", 0) or 0
+                cover_url = info.get("thumbnail")
+                author_id = str(info.get("uploader_id", "")) or str(info.get("channel_id", ""))
+                owner = info.get("owner", {})
+                author_name = owner.get("name", "") if owner else info.get("uploader", "")
+                description = self._fetch_description(video_id)
+                return VideoInfoResult(
+                    title=title, duration=duration, cover_url=cover_url,
+                    platform="bilibili", video_id=video_id,
+                    author_id=author_id or None, author_name=author_name or None,
+                    description=description, raw_info=info,
+                )
+        finally:
+            self._cleanup_cookiefile(cookiefile)
 
     def download(
         self,

@@ -47,6 +47,8 @@ from app.utils.path_helper import (
     IMAGE_OUTPUT_DIR,
     IMAGE_BASE_URL,
     get_note_file_path,
+    get_note_file_path_v2,
+    move_note_files_to_video_folder,
     get_media_file_path,
     MEDIA_DIR,
 )
@@ -130,11 +132,41 @@ class NoteGenerator:
             if not smart_mode:
                 gpt = self._get_gpt(model_name, provider_id)
 
-            # 缓存文件路径（暂时不使用标题，因为下载前还没有标题）
-            audio_cache_file = get_note_file_path(task_id, None, "audio")
-            transcript_cache_file = get_note_file_path(task_id, None, "transcript")
-            markdown_cache_file = get_note_file_path(task_id, None, "markdown")
-            print(audio_cache_file)
+            # 预获取视频信息（不下载文件），用于确定三级目录
+            video_info = None
+            try:
+                video_info = downloader.get_video_info(str(video_url))
+                logger.info(f"预获取视频信息: video_id={video_info.video_id}, author_id={video_info.author_id}")
+            except Exception as e:
+                logger.warning(f"预获取视频信息失败，将在下载后确定路径: {e}")
+
+            # 根据预获取的信息确定三级目录路径
+            author_id = video_info.author_id if video_info else None
+            author_name = video_info.author_name if video_info else None
+            video_id = video_info.video_id if video_info else None
+            _title = video_info.title if video_info else None
+
+            if author_id:
+                # 直接使用三级目录路径
+                audio_cache_file = get_note_file_path_v2(
+                    task_id, author_id, author_name, video_id, _title, "audio", platform
+                )
+                transcript_cache_file = get_note_file_path_v2(
+                    task_id, author_id, author_name, video_id, _title, "transcript", platform
+                )
+                markdown_cache_file = get_note_file_path_v2(
+                    task_id, author_id, author_name, video_id, _title, "markdown", platform
+                )
+                # 媒体文件直接下载到三级目录
+                if not output_path:
+                    from app.utils.path_helper import get_video_folder
+                    output_path = str(get_video_folder(author_id, author_name, video_id, _title, platform))
+            else:
+                # 回退旧版临时路径
+                audio_cache_file = get_note_file_path(task_id, None, "audio")
+                transcript_cache_file = get_note_file_path(task_id, None, "transcript")
+                markdown_cache_file = get_note_file_path(task_id, None, "markdown")
+
             # 1. 下载音频/视频
             audio_meta = self._download_media(
                 downloader=downloader,
@@ -150,8 +182,51 @@ class NoteGenerator:
                 grid_size=grid_size,
             )
 
-            # 下载完成后立即保存元数据（封面图等），避免后续步骤失败导致封面丢失
+            # 下载完成后保存元数据
             self._save_audio_metadata(task_id=task_id, audio_meta=audio_meta)
+
+            # 如果预获取失败，下载后重新确定三级路径
+            if not author_id:
+                author_id = audio_meta.author_id if hasattr(audio_meta, 'author_id') else None
+                author_name = None
+                if audio_meta.raw_info:
+                    owner = audio_meta.raw_info.get("owner", {})
+                    _author = owner.get("name", "") if owner else ""
+                    if not _author:
+                        _author = audio_meta.raw_info.get("uploader", "")
+                    if not _author:
+                        _author = audio_meta.raw_info.get("channel", "")
+                    if not author_id:
+                        if owner:
+                            author_id = str(owner.get("mid", "")) or str(owner.get("uid", "")) or None
+                        if not author_id:
+                            author_id = audio_meta.raw_info.get("channel_id") or audio_meta.raw_info.get("uploader_id")
+                            if author_id:
+                                author_id = str(author_id)
+                    author_name = _author if _author else None
+                video_id = audio_meta.video_id
+                _title = audio_meta.title
+
+                # 迁移临时文件到三级目录
+                if author_id:
+                    try:
+                        move_note_files_to_video_folder(
+                            task_id=task_id, author_id=author_id, author_name=author_name,
+                            video_id=video_id, title=_title, platform=platform,
+                        )
+                        transcript_cache_file = get_note_file_path_v2(
+                            task_id, author_id, author_name, video_id, _title, "transcript", platform
+                        )
+                        markdown_cache_file = get_note_file_path_v2(
+                            task_id, author_id, author_name, video_id, _title, "markdown", platform
+                        )
+                        logger.info(f"已迁移到三级目录 (author_id={author_id}, video_id={video_id})")
+                    except Exception as e:
+                        logger.warning(f"迁移三级目录失败，继续使用临时路径: {e}")
+            else:
+                # 预获取成功，更新 audio_meta 中的路径（如果需要）
+                video_id = audio_meta.video_id
+                _title = audio_meta.title
 
             # 2. 转写文字
             transcript = self._transcribe_audio(
@@ -205,13 +280,17 @@ class NoteGenerator:
                 )
 
             # 5. 保存记录到数据库
-            self._update_status(task_id, TaskStatus.SAVING)
+            self._update_status(task_id, TaskStatus.SAVING,
+                                title=_title, author_id=author_id, author_name=author_name,
+                                video_id=video_id, platform=platform)
             self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id, video_url=str(video_url))
             # 保存视频元数据到数据库
             self._save_audio_metadata(task_id=task_id, audio_meta=audio_meta)
 
             # 6. 完成
-            self._update_status(task_id, TaskStatus.SUCCESS)
+            self._update_status(task_id, TaskStatus.SUCCESS,
+                                title=_title, author_id=author_id, author_name=author_name,
+                                video_id=video_id, platform=platform)
             logger.info(f"笔记生成成功 (task_id={task_id})")
 
             result_kwargs = dict(
@@ -380,19 +459,28 @@ class NoteGenerator:
         logger.info(f"使用下载器：{downloader_cls.__class__}")
         return instance
 
-    def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus], message: Optional[str] = None, title: Optional[str] = None):
+    def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus],
+                       message: Optional[str] = None, title: Optional[str] = None,
+                       author_id: Optional[str] = None, author_name: Optional[str] = None,
+                       video_id: Optional[str] = None, platform: str = ""):
         """
         创建或更新状态文件，记录当前任务状态
 
         :param task_id: 任务唯一 ID
         :param status: TaskStatus 枚举或自定义状态字符串
         :param message: 可选消息，用于记录失败原因等
-        :param title: 笔记标题（可选，用于确定文件夹）
+        :param title: 笔记标题
+        :param author_id: 博主唯一 ID（用于三级路径）
+        :param author_name: 博主名称
+        :param video_id: 视频 ID
+        :param platform: 平台标识
         """
         if not task_id:
             return
 
-        status_file = get_note_file_path(task_id, title, "status")
+        status_file = get_note_file_path_v2(
+            task_id, author_id, author_name, video_id, title, "status", platform
+        )
         print(f"写入状态文件: {status_file} 当前状态: {status}")
         data = {"status": status.value if isinstance(status, TaskStatus) else status}
         if message:
@@ -487,7 +575,7 @@ class NoteGenerator:
                 # 音频有缓存但视频没有，只下载视频
                 logger.info("音频已缓存，仅下载视频")
                 try:
-                    video_result = downloader.download_video(video_url, None)
+                    video_result = downloader.download_video(video_url, output_path)
                     if video_result:
                         self.video_path = Path(video_result)
                         logger.info(f"视频下载完成：{self.video_path}")
@@ -619,7 +707,7 @@ class NoteGenerator:
             video_future = executor.submit(
                 downloader.download_video,
                 video_url,
-                None,  # output_dir
+                output_path,
             )
 
             # 提交音频下载任务

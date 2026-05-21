@@ -4,6 +4,7 @@ from typing import Optional
 
 from app.downloaders.base import Downloader
 from app.enmus.note_enums import DownloadQuality
+from app.models.audio_model import VideoInfoResult
 from app.models.notes_model import AudioDownloadResult
 
 
@@ -14,6 +15,14 @@ AUDIO_EXTENSIONS = {'.mp3', '.wav', '.aac', '.ogg', '.flac', '.m4a', '.wma', '.o
 class LocalAudioDownloader(Downloader, ABC):
     def __init__(self):
         super().__init__()
+
+    def get_video_info(self, video_url: str) -> VideoInfoResult:
+        file_name = os.path.basename(video_url)
+        title, _ = os.path.splitext(file_name)
+        return VideoInfoResult(
+            title=title, duration=0, cover_url=None,
+            platform="local_audio", video_id=title,
+        )
 
     def download(
             self,

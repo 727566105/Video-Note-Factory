@@ -16,7 +16,8 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 # 使用统一的路径管理工具
-from app.utils.path_helper import get_note_file_path, get_export_file_path, NOTE_OUTPUT_DIR
+from app.utils.path_helper import get_note_file_path, get_export_file_path, NOTE_OUTPUT_DIR, find_note_file
+from app.db.video_task_dao import get_task_by_task_id
 
 EXPORT_HISTORY_FILE = NOTE_OUTPUT_DIR / ".export_history.json"
 
@@ -420,10 +421,20 @@ async def export_pdf(
         PDF 文件流
     """
     try:
-        markdown_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+        # 兼容查找 Markdown 文件
+        task = get_task_by_task_id(task_id)
+        markdown_file = find_note_file(
+            task_id,
+            author_id=getattr(task, 'author_id', None),
+            author_name=getattr(task, 'author_name', None),
+            video_id=getattr(task, 'video_id', None),
+            title=getattr(task, 'title', None),
+            file_type="markdown",
+            platform=getattr(task, 'platform', "") or ""
+        ) if task else None
 
         # 检查文件是否存在
-        if not markdown_file.exists():
+        if not markdown_file or not markdown_file.exists():
             logger.warning(f"PDF 导出失败：笔记不存在 (task_id={task_id})")
             raise HTTPException(
                 status_code=404,
@@ -439,8 +450,16 @@ async def export_pdf(
 
         # 读取笔记标题（用于文件名）
         title = None
-        audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
-        if audio_cache_file.exists():
+        audio_cache_file = find_note_file(
+            task_id,
+            author_id=getattr(task, 'author_id', None),
+            author_name=getattr(task, 'author_name', None),
+            video_id=getattr(task, 'video_id', None),
+            title=getattr(task, 'title', None),
+            file_type="audio",
+            platform=getattr(task, 'platform', "") or ""
+        ) if task else None
+        if audio_cache_file and audio_cache_file.exists():
             try:
                 import json
                 audio_meta = json.loads(audio_cache_file.read_text(encoding="utf-8"))
@@ -551,16 +570,34 @@ async def batch_export_pdf(
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         for task_id in task_ids:
             try:
-                markdown_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+                # 兼容查找 Markdown 文件
+                task = get_task_by_task_id(task_id)
+                markdown_file = find_note_file(
+                    task_id,
+                    author_id=getattr(task, 'author_id', None),
+                    author_name=getattr(task, 'author_name', None),
+                    video_id=getattr(task, 'video_id', None),
+                    title=getattr(task, 'title', None),
+                    file_type="markdown",
+                    platform=getattr(task, 'platform', "") or ""
+                ) if task else None
 
-                if not markdown_file.exists():
+                if not markdown_file or not markdown_file.exists():
                     failed_tasks.append({"task_id": task_id, "reason": "笔记不存在"})
                     continue
 
                 # 读取标题用于文件名
                 title = f"note_{task_id[:8]}"
-                audio_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
-                if audio_file.exists():
+                audio_file = find_note_file(
+                    task_id,
+                    author_id=getattr(task, 'author_id', None),
+                    author_name=getattr(task, 'author_name', None),
+                    video_id=getattr(task, 'video_id', None),
+                    title=getattr(task, 'title', None),
+                    file_type="audio",
+                    platform=getattr(task, 'platform', "") or ""
+                ) if task else None
+                if audio_file and audio_file.exists():
                     try:
                         import json
                         audio_meta = json.loads(audio_file.read_text(encoding="utf-8"))

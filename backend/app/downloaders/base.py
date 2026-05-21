@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 from app.enmus.note_enums import DownloadQuality
-from app.models.notes_model import AudioDownloadResult
+from app.models.audio_model import AudioDownloadResult, VideoInfoResult
 from app.utils.path_helper import MEDIA_DIR
 
 QUALITY_MAP = {
@@ -30,6 +30,11 @@ class Downloader(ABC):
         :param quality: 音频质量 fast | medium | slow
         :return:返回一个 AudioDownloadResult 类
         '''
+        pass
+
+    @abstractmethod
+    def get_video_info(self, video_url: str) -> VideoInfoResult:
+        """只获取视频元数据，不下载文件"""
         pass
 
     @staticmethod

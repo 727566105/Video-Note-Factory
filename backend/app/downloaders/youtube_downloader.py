@@ -5,7 +5,7 @@ from typing import Union, Optional
 import yt_dlp
 
 from app.downloaders.base import Downloader, DownloadQuality
-from app.models.notes_model import AudioDownloadResult
+from app.models.audio_model import AudioDownloadResult, VideoInfoResult
 from app.utils.path_helper import get_audio_dir, get_video_dir
 from app.utils.url_parser import extract_video_id
 
@@ -57,6 +57,31 @@ class YoutubeDownloader(Downloader, ABC):
             raw_info={'tags':info.get('tags'), 'uploader': info.get('uploader') or info.get('channel', '')},
             video_path=None,  # ❗音频下载不包含视频路径
             author_id=info.get("channel_id"),
+        )
+
+    def get_video_info(self, video_url: str) -> VideoInfoResult:
+        """只获取视频元数据，不下载文件"""
+        ydl_opts = {
+            'quiet': True,
+            'noplaylist': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+
+        author_name = info.get("uploader") or info.get("channel") or ""
+        return VideoInfoResult(
+            title=info.get("title", ""),
+            duration=info.get("duration", 0) or 0,
+            cover_url=info.get("thumbnail"),
+            platform="youtube",
+            video_id=info.get("id", ""),
+            author_id=info.get("channel_id"),
+            author_name=author_name,
+            description=info.get("description"),
+            raw_info={
+                'tags': info.get('tags'),
+                'uploader': author_name,
+            },
         )
 
     def download_video(

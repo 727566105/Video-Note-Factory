@@ -8,13 +8,38 @@ import requests
 from app.downloaders.base import Downloader
 from app.downloaders.kuaishou_helper.kuaishou import KuaiShou
 from app.enmus.note_enums import DownloadQuality
-from app.models.audio_model import AudioDownloadResult
+from app.models.audio_model import AudioDownloadResult, VideoInfoResult
 from app.utils.path_helper import get_audio_dir, get_video_dir
 
 
 class KuaiShouDownloader(Downloader, ABC):
     def __init__(self):
         super().__init__()
+
+    def get_video_info(self, video_url: str) -> VideoInfoResult:
+        """只获取视频元数据，不下载文件"""
+        ks = KuaiShou()
+        video_raw_info = ks.run(video_url)
+        photo_info = video_raw_info['visionVideoDetail']['photo']
+        author_info = video_raw_info.get('visionVideoDetail', {}).get('author', {})
+
+        ks_author = author_info.get('name', '') or photo_info.get('userName', '')
+        ks_author_id = str(author_info.get('id', ''))
+
+        return VideoInfoResult(
+            title=photo_info.get('caption', '').strip().replace('\n', '').replace(' ', '_')[:50],
+            duration=photo_info.get('duration', 0) or 0,
+            cover_url=photo_info.get('coverUrl'),
+            platform="kuaishou",
+            video_id=photo_info.get('id', ''),
+            author_id=ks_author_id,
+            author_name=ks_author,
+            description=photo_info.get('caption', ''),
+            raw_info={
+                'tags': ','.join(tag['name'] for tag in video_raw_info.get('tags', []) if tag.get('name')),
+                'owner': {'name': ks_author},
+            },
+        )
 
     def download(
             self,

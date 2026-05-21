@@ -6,7 +6,8 @@ from app.db.siyuan_config_dao import get_config, get_decrypted_config, get_decry
 from app.db.siyuan_export_history_dao import add_export_record
 
 # 使用统一的路径管理工具
-from app.utils.path_helper import get_note_file_path
+from app.utils.path_helper import get_note_file_path, find_note_file
+from app.db.video_task_dao import get_task_by_task_id
 
 logger = get_logger(__name__)
 
@@ -80,9 +81,18 @@ class SiyuanExporter:
             dict: 包含思源笔记文档 ID 和路径
         """
         try:
-            # 读取 Markdown 内容
-            markdown_file = get_note_file_path(task_id, None, "markdown")
-            if not markdown_file.exists():
+            # 读取 Markdown 内容（兼容查找）
+            task = get_task_by_task_id(task_id)
+            markdown_file = find_note_file(
+                task_id,
+                author_id=getattr(task, 'author_id', None),
+                author_name=getattr(task, 'author_name', None),
+                video_id=getattr(task, 'video_id', None),
+                title=getattr(task, 'title', None),
+                file_type="markdown",
+                platform=getattr(task, 'platform', "") or ""
+            ) if task else None
+            if not markdown_file or not markdown_file.exists():
                 raise FileNotFoundError(f"笔记文件不存在: {task_id}")
 
             markdown_content = markdown_file.read_text(encoding="utf-8")

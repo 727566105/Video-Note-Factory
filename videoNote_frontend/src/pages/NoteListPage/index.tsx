@@ -150,27 +150,23 @@ export const NoteListPage: FC = () => {
       )
       if (pendingNotes.length === 0) return
 
+      const completedIds: string[] = []
+
       for (const note of pendingNotes) {
         try {
           const res = await get_task_status(note.task_id)
-          const taskStatus = res?.status as string
+          const taskStatus = (typeof res === 'string' ? res : res?.status) as string
+
           if (taskStatus && taskStatus !== note.status) {
-              if (taskStatus === 'SUCCESS') {
-                const taskData = res?.result
-                setNotes(prev => prev.map(n =>
-                  n.task_id === note.task_id
-                    ? {
-                    ...n,
-                    status: taskStatus,
-                    cover: getProxiedCoverUrl(taskData?.audio_meta?.cover_url || '', n.platform),
-                    title: taskData?.audio_meta?.title || taskData?.title || n.title,
-                    author: taskData?.audio_meta?.raw_info?.owner?.name
-                      || taskData?.audio_meta?.raw_info?.uploader || n.author,
-                    note: taskData?.markdown || '',
-                  }
+            if (taskStatus === 'SUCCESS') {
+              completedIds.push(note.task_id)
+              toast.success('笔记生成成功')
+            } else if (taskStatus === 'FAILED') {
+              setNotes(prev => prev.map(n =>
+                n.task_id === note.task_id
+                  ? { ...n, status: taskStatus }
                   : n
               ))
-              toast.success('笔记生成成功')
             } else {
               setNotes(prev => prev.map(n =>
                 n.task_id === note.task_id
@@ -182,6 +178,11 @@ export const NoteListPage: FC = () => {
         } catch (e) {
           console.error('轮询任务状态失败:', e)
         }
+      }
+
+      // 有任务完成时，刷新整个列表确保数据一致
+      if (completedIds.length > 0) {
+        await fetchNotes()
       }
     }, 3000)
 

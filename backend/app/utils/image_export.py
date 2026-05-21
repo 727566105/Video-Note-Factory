@@ -15,7 +15,8 @@ from app.utils.response import ResponseWrapper as R
 logger = get_logger(__name__)
 
 # 使用统一的路径管理工具
-from app.utils.path_helper import get_note_file_path, get_export_file_path
+from app.utils.path_helper import get_note_file_path, get_export_file_path, find_note_file
+from app.db.video_task_dao import get_task_by_task_id
 
 # 图片格式类型
 ImageFormat = Literal["png", "jpg", "jpeg"]
@@ -936,10 +937,19 @@ async def export_note_as_image(
     Returns:
         (图片二进制数据列表, 标题)
     """
-    # 检查 Markdown 文件是否存在
-    markdown_file = get_note_file_path(task_id, None, "markdown")
+    # 检查 Markdown 文件是否存在（兼容查找）
+    task = get_task_by_task_id(task_id)
+    markdown_file = find_note_file(
+        task_id,
+        author_id=getattr(task, 'author_id', None),
+        author_name=getattr(task, 'author_name', None),
+        video_id=getattr(task, 'video_id', None),
+        title=getattr(task, 'title', None),
+        file_type="markdown",
+        platform=getattr(task, 'platform', "") or ""
+    ) if task else None
 
-    if not markdown_file.exists():
+    if not markdown_file or not markdown_file.exists():
         raise FileNotFoundError(f"笔记不存在 (task_id={task_id})")
 
     # 读取 Markdown 内容
@@ -953,8 +963,16 @@ async def export_note_as_image(
     platform = ""
     date_str = ""
 
-    audio_cache_file = get_note_file_path(task_id, None, "audio")
-    if audio_cache_file.exists():
+    audio_cache_file = find_note_file(
+        task_id,
+        author_id=getattr(task, 'author_id', None),
+        author_name=getattr(task, 'author_name', None),
+        video_id=getattr(task, 'video_id', None),
+        title=getattr(task, 'title', None),
+        file_type="audio",
+        platform=getattr(task, 'platform', "") or ""
+    ) if task else None
+    if audio_cache_file and audio_cache_file.exists():
         try:
             audio_meta = json.loads(audio_cache_file.read_text(encoding="utf-8"))
             title = audio_meta.get("title", "").strip()

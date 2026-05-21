@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from app.downloaders.base import Downloader
 from app.downloaders.douyin_helper.abogus import ABogus
 from app.enmus.note_enums import DownloadQuality
-from app.models.audio_model import AudioDownloadResult
+from app.models.audio_model import AudioDownloadResult, VideoInfoResult
 from app.services.cookie_manager import CookieConfigManager
 from app.utils.path_helper import get_audio_dir, get_video_dir
 from dotenv import load_dotenv
@@ -296,6 +296,35 @@ class DouyinDownloader(Downloader):
         except Exception as e:
             logger.error(f"获取视频信息失败: {e}", exc_info=True)
             raise ValueError(f"获取抖音视频信息失败: {e}")
+
+    def get_video_info(self, video_url: str) -> VideoInfoResult:
+        """只获取视频元数据，不下载文件"""
+        video_data = self.fetch_video_info(video_url)
+        aweme = video_data['aweme_detail']
+        author_info = aweme.get('author', {})
+
+        # 提取封面 URL
+        cover = aweme.get('video', {}).get('cover_original_scale', {})
+        cover_url_list = cover.get('url_list', [])
+        cover_url = cover_url_list[0] if cover_url_list else None
+        if not cover_url and aweme.get('video', {}).get('cover'):
+            cover_url_list = aweme['video']['cover'].get('url_list', [])
+            cover_url = cover_url_list[0] if cover_url_list else None
+
+        return VideoInfoResult(
+            title=aweme.get('item_title', '') or aweme.get('desc', ''),
+            duration=aweme.get('video', {}).get('duration', 0) or 0,
+            cover_url=cover_url,
+            platform="douyin",
+            video_id=aweme.get('aweme_id', ''),
+            author_id=str(author_info.get('uid', '')),
+            author_name=author_info.get('nickname', ''),
+            description=aweme.get('desc', ''),
+            raw_info={
+                'tags': aweme.get('caption', ''),
+                'owner': {'name': author_info.get('nickname', '')},
+            },
+        )
 
     def download(
             self,

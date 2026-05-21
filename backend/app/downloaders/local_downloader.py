@@ -5,7 +5,7 @@ from typing import Optional
 
 from app.downloaders.base import Downloader
 from app.enmus.note_enums import DownloadQuality
-from app.models.audio_model import AudioDownloadResult
+from app.models.audio_model import AudioDownloadResult, VideoInfoResult
 import os
 import subprocess
 
@@ -17,6 +17,44 @@ class LocalDownloader(Downloader, ABC):
 
         super().__init__()
 
+
+    def get_video_info(self, video_url: str) -> VideoInfoResult:
+        """只获取视频元数据，不下载文件"""
+        # 处理本地文件路径
+        file_path = video_url
+        if video_url.startswith('/uploads'):
+            project_root = os.getcwd()
+            file_path = os.path.join(project_root, video_url.lstrip('/'))
+            file_path = os.path.normpath(file_path)
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"本地文件不存在: {file_path}")
+
+        file_name = os.path.basename(file_path)
+        title, _ = os.path.splitext(file_name)
+
+        # 使用 ffmpeg 获取视频时长
+        duration = 0
+        try:
+            result = subprocess.run([
+                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', file_path
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            duration = float(result.stdout.decode().strip() or 0)
+        except (subprocess.CalledProcessError, ValueError):
+            duration = 0
+
+        return VideoInfoResult(
+            title=title,
+            duration=duration,
+            cover_url=None,  # 本地文件暂无封面 URL
+            platform="local",
+            video_id=title,
+            author_id=None,
+            author_name=None,
+            description=None,
+            raw_info={'path': file_path},
+        )
 
     def extract_cover(self, input_path: str, output_dir: Optional[str] = None) -> str:
         """

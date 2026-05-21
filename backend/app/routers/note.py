@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File,
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, field_validator
 
-from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task, find_completed_task_by_video, clone_task_to_user
+from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task, find_completed_task_by_video, clone_task_to_user, get_task_by_task_id
 from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
@@ -35,6 +35,9 @@ from app.utils.path_helper import (
     get_note_file_path,
     get_note_folder,
     get_media_file_path,
+    find_note_file,
+    get_note_file_path_v2,
+    get_video_folder,
 )
 
 router = APIRouter()
@@ -113,18 +116,36 @@ def sanitize_filename(filename: str) -> str:
 
 def save_note_to_file(task_id: str, note):
     """
-    保存笔记到文件，使用新的目录结构（按标题建文件夹）
-    
+    保存笔记到文件，使用三级目录结构
+
     :param task_id: 任务 ID
     :param note: NoteResult 对象
     """
-    # 获取标题（从 audio_meta 中）
+    # 获取标题和博主信息（从 audio_meta 中）
     title = None
+    author_id = None
+    author_name = None
+    video_id = None
+    platform = ""
+
     if note.audio_meta and hasattr(note.audio_meta, 'title'):
         title = note.audio_meta.title
-    
-    # 使用新的路径管理
-    result_path = get_note_file_path(task_id, title, "note")
+        video_id = note.audio_meta.video_id
+        platform = getattr(note.audio_meta, 'platform', '')
+        author_id = getattr(note.audio_meta, 'author_id', None)
+        # 从 raw_info 获取 author_name
+        if note.audio_meta.raw_info:
+            owner = note.audio_meta.raw_info.get("owner", {})
+            author_name = owner.get("name", "") if owner else ""
+            if not author_name:
+                author_name = note.audio_meta.raw_info.get("uploader", "")
+            if not author_name:
+                author_name = note.audio_meta.raw_info.get("channel", "")
+
+    # 使用三级路径保存
+    result_path = get_note_file_path_v2(
+        task_id, author_id, author_name, video_id, title, "note", platform
+    )
 
     # 检查是否存在旧版本
     existing_versions = []
@@ -271,14 +292,35 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
         if data.task_id:
             # 删除数据库记录
             delete_task_by_id(data.task_id)
-            
-            # 删除整个笔记文件夹（包含所有相关文件）
+
+            # 删除笔记文件夹（兼容三级目录和旧版目录）
+            import shutil
+            # 查找数据库中的 author 信息
+            db_task = get_task_by_task_id(data.task_id)
+            if db_task and db_task.author_id:
+                # 三级目录
+                try:
+                    video_folder = get_video_folder(
+                        db_task.author_id, db_task.author_name,
+                        db_task.video_id, db_task.title, db_task.platform
+                    )
+                    if video_folder.exists():
+                        # 删除整个博主目录下该视频的文件夹
+                        shutil.rmtree(video_folder)
+                        logger.info(f"已删除三级目录: {video_folder}")
+                        # 如果博主目录为空，也删除
+                        author_dir = video_folder.parent
+                        if author_dir.exists() and not any(author_dir.iterdir()):
+                            shutil.rmtree(author_dir)
+                except Exception as e:
+                    logger.warning(f"删除三级目录失败: {e}")
+
+            # 旧版目录
             note_folder = get_note_folder(data.task_id, None)
             if note_folder.exists():
-                import shutil
                 shutil.rmtree(note_folder)
-                logger.info(f"已删除笔记文件夹: {note_folder}")
-            
+                logger.info(f"已删除旧版笔记文件夹: {note_folder}")
+
             # 清理队列
             task_queue.remove(data.task_id)
         else:
@@ -338,10 +380,18 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
 
         if video_id and not data.task_id:
             # 先检查当前用户是否已生成过该视频的笔记（避免重复提交）
-            user_own_task = get_task_by_video(video_id, data.platform, current_user.id)
-            if user_own_task:
-                note_path = get_note_file_path(user_own_task, None, "note")
-                if note_path.exists():
+            user_own_task_id = get_task_by_video(video_id, data.platform, current_user.id)
+            if user_own_task_id:
+                # 查完整信息做兼容查找
+                db_task = get_task_by_task_id(user_own_task_id)
+                if db_task:
+                    note_path = find_note_file(
+                        user_own_task_id, db_task.author_id, db_task.author_name,
+                        db_task.video_id, db_task.title, "note", db_task.platform
+                    )
+                else:
+                    note_path = get_note_file_path(user_own_task_id, None, "note")
+                if note_path and note_path.exists():
                     return R.error("该视频已生成过笔记，请直接查看或点击「重新生成」")
 
             # 检查是否有其他用户已生成过该视频的笔记（复用）
@@ -378,11 +428,20 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
 
 @router.get("/task_status/{task_id}")
 def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dict:
-    status_path = get_note_file_path(task_id, None, "status")
-    result_path = get_note_file_path(task_id, None, "note")
+    # 从数据库获取 author 信息用于兼容查找
+    from app.db.video_task_dao import get_task_by_task_id
+    db_task = get_task_by_task_id(task_id)
+    _author_id = db_task.author_id if db_task else None
+    _author_name = db_task.author_name if db_task else None
+    _video_id = db_task.video_id if db_task else None
+    _title = db_task.title if db_task else None
+    _platform = db_task.platform if db_task else ""
+
+    status_path = find_note_file(task_id, _author_id, _author_name, _video_id, _title, "status", _platform)
+    result_path = find_note_file(task_id, _author_id, _author_name, _video_id, _title, "note", _platform)
 
     # 优先读状态文件
-    if status_path.exists():
+    if status_path and status_path.exists():
         try:
             with open(status_path, "r", encoding="utf-8") as f:
                 status_content = json.load(f)
@@ -394,7 +453,7 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
 
         if status == TaskStatus.SUCCESS.value:
             # 成功状态的话，继续读取最终笔记内容
-            if os.path.exists(result_path):
+            if result_path and os.path.exists(result_path):
                 try:
                     with open(result_path, "r", encoding="utf-8") as rf:
                         result_content = json.load(rf)
@@ -430,7 +489,7 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
         })
 
     # 没有状态文件，但有结果
-    if result_path.exists():
+    if result_path and result_path.exists():
         try:
             with open(result_path, "r", encoding="utf-8") as f:
                 result_content = json.load(f)
@@ -734,8 +793,12 @@ def quick_view_note(task_id: str, current_user=Depends(get_current_user)) -> dic
     from app.db.video_task_dao import get_task_by_task_id
     task = get_task_by_task_id(task_id)
 
-    result_path = get_note_file_path(task_id, task.title if task else None, "note")
-    if not result_path.exists():
+    result_path = find_note_file(
+        task_id, task.author_id if task else None, task.author_name if task else None,
+        task.video_id if task else None, task.title if task else None, "note",
+        task.platform if task else ""
+    )
+    if not result_path or not result_path.exists():
         raise HTTPException(status_code=404, detail="笔记文件不存在")
 
     try:
@@ -764,13 +827,21 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
         for task in db_tasks:
             task_id = task.task_id
             task_title = task.title
-            status_path = get_note_file_path(task_id, task_title, "status")
-            result_path = get_note_file_path(task_id, task_title, "note")
+
+            # 使用兼容查找（支持三级路径 + 旧版路径）
+            status_path = find_note_file(
+                task_id, task.author_id, task.author_name,
+                task.video_id, task_title, "status", task.platform
+            )
+            result_path = find_note_file(
+                task_id, task.author_id, task.author_name,
+                task.video_id, task_title, "note", task.platform
+            )
 
             # 读取状态文件，获取任务进度
             status = "PENDING"
             message = ""
-            if status_path.exists():
+            if status_path and status_path.exists():
                 try:
                     with open(status_path, "r", encoding="utf-8") as f:
                         status_data = json.load(f)
@@ -779,7 +850,7 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
                 except (json.JSONDecodeError, Exception):
                     status = "UNKNOWN"
                     message = "状态文件损坏"
-            elif result_path.exists():
+            elif result_path and result_path.exists():
                 # 无状态文件但有结果文件，说明已完成
                 status = "SUCCESS"
             elif task_title:
@@ -789,7 +860,7 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
 
             # 读取笔记内容（如果存在）
             note_data = None
-            if result_path.exists():
+            if result_path and result_path.exists():
                 with open(result_path, "r", encoding="utf-8") as f:
                     note_data = json.load(f)
 
@@ -965,8 +1036,14 @@ def get_screenshot(task_id: str, t: float = 0) -> dict:
 @router.get("/audio/{task_id}")
 def download_audio(task_id: str, current_user=Depends(get_current_user)) -> dict:
     """下载任务对应的音频文件"""
-    audio_path = get_note_file_path(task_id, None, "audio")
-    if not audio_path.exists():
+    # 从数据库获取 author 信息用于兼容查找
+    db_task = get_task_by_task_id(task_id)
+    audio_path = find_note_file(
+        task_id, db_task.author_id if db_task else None, db_task.author_name if db_task else None,
+        db_task.video_id if db_task else None, db_task.title if db_task else None, "audio",
+        db_task.platform if db_task else ""
+    )
+    if not audio_path or not audio_path.exists():
         raise HTTPException(status_code=404, detail="音频元数据不存在")
 
     try:

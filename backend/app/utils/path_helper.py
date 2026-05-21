@@ -2,8 +2,10 @@
 路径管理工具模块
 统一管理项目中所有数据存储路径，确保路径一致性
 """
+import json
 import os
 import re
+import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -166,15 +168,15 @@ def get_note_folder(task_id: str, title: str = None) -> Path:
 
 def get_note_file_path(task_id: str, title: str = None, file_type: str = "note") -> Path:
     """
-    获取笔记相关文件的完整路径
-    
+    获取笔记相关文件的完整路径（旧版，保持兼容）
+
     :param task_id: 任务 ID
     :param title: 笔记标题（可选）
     :param file_type: 文件类型 (note, audio, transcript, markdown, status, export)
     :return: 文件完整路径
     """
     folder = get_note_folder(task_id, title)
-    
+
     file_map = {
         "note": "note.json",
         "audio": "audio.json",
@@ -183,9 +185,204 @@ def get_note_file_path(task_id: str, title: str = None, file_type: str = "note")
         "status": "status.json",
         "queue": "queue.json",
     }
-    
+
     filename = file_map.get(file_type, f"{file_type}.json")
     return folder / filename
+
+
+def get_note_file_path_v2(
+    task_id: str,
+    author_id: str | None,
+    author_name: str | None,
+    video_id: str | None,
+    title: str | None,
+    file_type: str,
+    platform: str = ""
+) -> Path:
+    """
+    获取笔记文件路径（新版三级路径）
+
+    - 有 author_id 时：三级路径 data/{author_id}_{author_name}/{video_id}_{title}/
+    - 无 author_id 时：回退到旧版 data/notes/{task_id}/
+
+    :param task_id: 任务 ID（用于无 author_id 时的回退路径）
+    :param author_id: 博主唯一 ID
+    :param author_name: 博主名称
+    :param video_id: 视频 ID（BV号/抖音ID等）
+    :param title: 笔记标题
+    :param file_type: 文件类型
+    :param platform: 平台标识
+    :return: 文件完整路径
+    """
+    if author_id:
+        # 三级路径
+        return get_video_file_path(author_id, author_name, video_id, title, file_type, platform)
+    else:
+        # 回退旧版
+        return get_note_file_path(task_id, title, file_type)
+
+
+def find_note_file(
+    task_id: str,
+    author_id: str | None,
+    author_name: str | None,
+    video_id: str | None,
+    title: str | None,
+    file_type: str,
+    platform: str = ""
+) -> Path | None:
+    """
+    兼容查找笔记文件（按优先级在多种路径中查找）
+
+    查找优先级：
+    1. 三级路径 data/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
+    2. 扁平路径 data/notes/{task_id}/{file_type}.json
+    3. 扁平路径带标题 data/notes/{task_id[:8]}_{title}/{file_type}.json
+
+    :param task_id: 任务 ID
+    :param author_id: 博主唯一 ID
+    :param author_name: 博主名称
+    :param video_id: 视频 ID
+    :param title: 笔记标题
+    :param file_type: 文件类型
+    :param platform: 平台标识
+    :return: 找到的文件路径，或 None
+    """
+    file_map = {
+        "note": "note.json",
+        "audio": "audio.json",
+        "transcript": "transcript.json",
+        "markdown": "note.md",
+        "status": "status.json",
+        "queue": "queue.json",
+        "metadata": "metadata.json",
+    }
+    filename = file_map.get(file_type, f"{file_type}.json")
+
+    # 1. 三级路径（优先）
+    if author_id:
+        video_folder = get_video_folder(author_id, author_name, video_id, title, platform)
+        path = video_folder / filename
+        if path.exists():
+            return path
+
+    # 2. 扁平路径（纯 task_id）
+    path = NOTE_OUTPUT_DIR / task_id / filename
+    if path.exists():
+        return path
+
+    # 3. 扁平路径（带标题）
+    if title:
+        folder_name = f"{task_id[:8]}_{sanitize_folder_name(title)}"
+        path = NOTE_OUTPUT_DIR / folder_name / filename
+        if path.exists():
+            return path
+
+    return None
+
+
+def move_note_files_to_video_folder(
+    task_id: str,
+    author_id: str,
+    author_name: str,
+    video_id: str,
+    title: str,
+    platform: str = ""
+) -> Path:
+    """
+    将临时目录下的笔记文件迁移到三级目录，同时迁移关联的媒体文件
+
+    :param task_id: 任务 ID
+    :param author_id: 博主唯一 ID
+    :param author_name: 博主名称
+    :param video_id: 视频 ID
+    :param title: 笔记标题
+    :param platform: 平台标识
+    :return: 目标视频目录路径
+    """
+    # 目标目录
+    target_folder = get_video_folder(author_id, author_name, video_id, title, platform)
+
+    # 临时目录
+    temp_folder = NOTE_OUTPUT_DIR / task_id
+    temp_folder_with_title = NOTE_OUTPUT_DIR / f"{task_id[:8]}_{sanitize_folder_name(title)}" if title else None
+
+    # 迁移文件
+    file_types = ["audio.json", "transcript.json", "note.md", "status.json", "note.json", "metadata.json"]
+
+    for filename in file_types:
+        # 从纯 task_id 目录迁移
+        src = temp_folder / filename
+        if src.exists():
+            dst = target_folder / filename
+            if not dst.exists():
+                shutil.move(str(src), str(dst))
+
+        # 从带标题目录迁移
+        if temp_folder_with_title:
+            src = temp_folder_with_title / filename
+            if src.exists():
+                dst = target_folder / filename
+                if not dst.exists():
+                    shutil.move(str(src), str(dst))
+
+    # 迁移关联的媒体文件（音频/视频）并更新 audio.json 中的路径
+    audio_json_path = target_folder / "audio.json"
+    if audio_json_path.exists():
+        try:
+            audio_data = json.loads(audio_json_path.read_text(encoding="utf-8"))
+            _moved = False
+
+            # 迁移音频文件
+            old_audio_path = audio_data.get("file_path")
+            if old_audio_path and os.path.exists(old_audio_path):
+                new_name = f"{sanitize_path_name(video_id or 'audio')}{Path(old_audio_path).suffix}"
+                new_audio_path = target_folder / new_name
+                if not new_audio_path.exists():
+                    shutil.move(old_audio_path, str(new_audio_path))
+                    audio_data["file_path"] = str(new_audio_path)
+                    _moved = True
+
+            # 迁移视频文件（优先从 audio.json 的 video_path，否则按 video_id 查找）
+            old_video_path = audio_data.get("video_path")
+            if old_video_path and os.path.exists(old_video_path):
+                new_name = f"{sanitize_path_name(video_id or 'video')}{Path(old_video_path).suffix}"
+                new_video_path = target_folder / new_name
+                if not new_video_path.exists():
+                    shutil.move(old_video_path, str(new_video_path))
+                    audio_data["video_path"] = str(new_video_path)
+                    _moved = True
+            elif video_id:
+                # video_path 未记录，按 video_id 在 media/video/ 目录查找
+                for ext in [".mp4", ".mkv", ".webm", ".avi"]:
+                    candidate = MEDIA_DIR / "video" / f"{video_id}{ext}"
+                    if candidate.exists():
+                        new_video_path = target_folder / f"{sanitize_path_name(video_id)}{ext}"
+                        if not new_video_path.exists():
+                            shutil.move(str(candidate), str(new_video_path))
+                            audio_data["video_path"] = str(new_video_path)
+                            _moved = True
+                        break
+
+            # 更新 audio.json 中的路径
+            if _moved:
+                audio_json_path.write_text(json.dumps(audio_data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    # 清理空目录
+    if temp_folder.exists():
+        try:
+            shutil.rmtree(temp_folder)
+        except Exception:
+            pass
+    if temp_folder_with_title and temp_folder_with_title.exists():
+        try:
+            shutil.rmtree(temp_folder_with_title)
+        except Exception:
+            pass
+
+    return target_folder
 
 
 def get_export_file_path(task_id: str, title: str, export_format: str) -> Path:
