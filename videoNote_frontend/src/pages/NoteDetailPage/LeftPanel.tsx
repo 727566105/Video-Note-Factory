@@ -9,6 +9,7 @@ import {
   X,
   Headphones,
   Rss,
+  ChevronDown,
 } from 'lucide-react'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -335,13 +336,26 @@ export default function LeftPanel({ task }: LeftPanelProps) {
       <div className="px-4 py-2 flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-foreground leading-snug">{title}</h2>
         {description && (
-          <div className="text-sm text-muted-foreground">
-            <p className={descExpanded ? '' : 'line-clamp-2'}>{description}</p>
-            <button
-              className="text-primary hover:underline text-xs mt-1"
-              onClick={() => setDescExpanded(!descExpanded)}
+          <div className="rounded-lg bg-muted p-2 text-sm text-muted-foreground">
+            <p
+              className={cn(
+                'whitespace-pre-wrap',
+                descExpanded ? '' : 'max-h-5 overflow-hidden'
+              )}
             >
-              {descExpanded ? '收起' : '展开'}
+              {description}
+            </p>
+            <button
+              className="flex items-center justify-end text-muted-foreground hover:text-foreground transition-colors mt-1"
+              onClick={() => setDescExpanded(!descExpanded)}
+              aria-label={descExpanded ? '收起描述' : '展开描述'}
+            >
+              <ChevronDown
+                className={cn(
+                  'size-4 transition-transform',
+                  descExpanded ? 'rotate-180' : ''
+                )}
+              />
             </button>
           </div>
         )}

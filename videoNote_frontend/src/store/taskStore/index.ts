@@ -17,6 +17,7 @@ export interface AudioMeta {
   title: string
   video_id: string
   author?: string  // 作者名
+  description?: string  // 视频描述
 }
 
 export interface Segment {
@@ -267,6 +268,7 @@ export const useTaskStore = create<TaskStore>()(
                   title: t.title || t.note?.audio_meta?.title || t.note?.title || '',
                   video_id: t.video_id,
                   author: t.author || t.note?.audio_meta?.raw_info?.owner?.name || '',
+                  description: t.description || t.note?.audio_meta?.description || '',
                 },
                 platform: t.platform,
                 formData: {

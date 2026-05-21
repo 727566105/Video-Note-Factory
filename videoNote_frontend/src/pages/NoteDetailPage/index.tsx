@@ -236,7 +236,7 @@ export default function NoteDetailPage() {
         onMouseDown={onMouseDown}
       >
         {/* 分割线条 */}
-        <div className="w-0.5 h-full bg-border" />
+        <div className="h-full bg-border" style={{ width: '0.5px' }} />
         {/* 拖拽手柄 */}
         <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-3 h-12 rounded-md bg-background shadow-sm flex flex-col items-center justify-center gap-1">
           <div className="w-1.5 h-[1.5px] rounded-full bg-muted-foreground" />
