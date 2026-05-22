@@ -158,7 +158,14 @@ class LocalDownloader(Downloader, ABC):
         print(title, file_name,video_url)
         file_path=self.convert_to_mp3(video_url)
         cover_path = self.extract_cover(video_url)
-        cover_url = save_cover_to_static(cover_path)
+        if cover_path and output_dir:
+            from app.utils.video_helper import save_cover_to_video_dir
+            cover_url = save_cover_to_video_dir(
+                cover_path, output_dir, "local", "local", title
+            )
+            os.remove(cover_path)
+        else:
+            cover_url = None
 
         print('file——path',file_path)
         return AudioDownloadResult(

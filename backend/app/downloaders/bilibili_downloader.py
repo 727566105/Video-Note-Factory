@@ -146,6 +146,27 @@ class BilibiliDownloader(Downloader, ABC):
                 # 获取B站视频描述
                 description = self._fetch_description(video_id)
 
+                # 下载封面到视频目录
+                author_id = str(info.get("uploader_id", "")) or str(info.get("channel_id", ""))
+                if cover_url and output_dir:
+                    try:
+                        resp = requests.get(
+                            cover_url,
+                            headers={"Referer": "https://www.bilibili.com/"},
+                            timeout=10,
+                        )
+                        if resp.status_code == 200:
+                            temp_cover = os.path.join(output_dir, "_temp_cover.jpg")
+                            with open(temp_cover, "wb") as f:
+                                f.write(resp.content)
+                            from app.utils.video_helper import save_cover_to_video_dir
+                            cover_url = save_cover_to_video_dir(
+                                temp_cover, output_dir, "bilibili", author_id, video_id
+                            )
+                            os.remove(temp_cover)
+                    except Exception as e:
+                        logger.warning(f"封面下载失败: {e}")
+
             return AudioDownloadResult(
                 file_path=audio_path,
                 title=title,
@@ -156,7 +177,7 @@ class BilibiliDownloader(Downloader, ABC):
                 raw_info=info,
                 video_path=None,
                 description=description,
-                author_id=str(info.get("uploader_id", "")) or str(info.get("channel_id", "")),
+                author_id=author_id,
             )
         except DownloadError as e:
             error_msg = str(e)

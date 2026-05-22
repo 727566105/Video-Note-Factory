@@ -358,14 +358,39 @@ class DouyinDownloader(Downloader):
                 if tag['tag_name']:
                     tags.append(tag['tag_name'])
 
+            cover_url = (video_data['aweme_detail']['video']['cover_original_scale']['url_list'][0]
+                if video_data['aweme_detail']['video'].get('cover')
+                else video_data['video']['big_thumbs']['img_url'])
+            video_id = video_data['aweme_detail']['aweme_id']
+            author_id = str(video_data['aweme_detail'].get('author', {}).get('uid', ''))
+
+            # 下载封面到视频目录
+            if cover_url and output_dir:
+                try:
+                    resp = requests.get(
+                        cover_url,
+                        headers={"Referer": "https://www.douyin.com/"},
+                        timeout=10,
+                    )
+                    if resp.status_code == 200:
+                        temp_cover = os.path.join(output_dir, "_temp_cover.jpg")
+                        with open(temp_cover, "wb") as f:
+                            f.write(resp.content)
+                        from app.utils.video_helper import save_cover_to_video_dir
+                        cover_url = save_cover_to_video_dir(
+                            temp_cover, output_dir, "douyin", author_id, video_id
+                        )
+                        os.remove(temp_cover)
+                except Exception:
+                    pass
+
             return AudioDownloadResult(
                 file_path=output_path,
                 title=video_data['aweme_detail']['item_title'],
                 duration=video_data['aweme_detail']['video']['duration'],
-                cover_url=video_data['aweme_detail']['video']['cover_original_scale']['url_list'][0] if
-                video_data['aweme_detail']['video']['cover'] else video_data['video']['big_thumbs']['img_url'],
+                cover_url=cover_url,
                 platform="douyin",
-                video_id=video_data['aweme_detail']['aweme_id'],
+                video_id=video_id,
                 raw_info={
                     'tags': video_data['aweme_detail']['caption'] + ''.join(tags),
                     'owner': {
@@ -375,8 +400,8 @@ class DouyinDownloader(Downloader):
                     'width': video_data['aweme_detail']['video'].get('width', 0),
                     'height': video_data['aweme_detail']['video'].get('height', 0),
                 },
-                video_path=None,  # ❗音频下载不包含视频路径
-                author_id=str(video_data['aweme_detail'].get('author', {}).get('uid', '')),
+                video_path=None,
+                author_id=author_id,
             )
         except Exception as e:
             raise e

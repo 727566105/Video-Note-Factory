@@ -63,13 +63,34 @@ class KuaiShouDownloader(Downloader, ABC):
                       or video_raw_info.get('visionVideoDetail', {}).get('photo', {}).get('userName', ''))
         ks_author_id = str(video_raw_info.get('visionVideoDetail', {}).get('author', {}).get('id', ''))
 
+        # 下载封面到视频目录
+        cover_url = photo_info['coverUrl']
+        if cover_url and output_dir:
+            try:
+                resp = requests.get(
+                    cover_url,
+                    headers={"Referer": "https://www.kuaishou.com/"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    temp_cover = os.path.join(output_dir, "_temp_cover.jpg")
+                    with open(temp_cover, "wb") as f:
+                        f.write(resp.content)
+                    from app.utils.video_helper import save_cover_to_video_dir
+                    cover_url = save_cover_to_video_dir(
+                        temp_cover, output_dir, "kuaishou", ks_author_id, video_id
+                    )
+                    os.remove(temp_cover)
+            except Exception:
+                pass
+
         if os.path.exists(mp3_path):
             print(f"[已存在] 跳过下载: {mp3_path}")
             return AudioDownloadResult(
                 file_path=mp3_path,
                 title=title,
                 duration=photo_info['duration'],
-                cover_url=photo_info['coverUrl'],
+                cover_url=cover_url,
                 platform="kuaishou",
                 video_id=video_id,
                 raw_info={
@@ -102,7 +123,7 @@ class KuaiShouDownloader(Downloader, ABC):
             file_path=mp3_path,
             title=photo_info['caption'],
             duration=photo_info['duration'],
-            cover_url=photo_info['coverUrl'],
+            cover_url=cover_url,
             platform="kuaishou",
             video_id=video_id,
             raw_info={

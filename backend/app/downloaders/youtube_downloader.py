@@ -1,4 +1,5 @@
 import os
+import requests as http_requests
 from abc import ABC
 from typing import Union, Optional
 
@@ -7,6 +8,9 @@ import yt_dlp
 from app.downloaders.base import Downloader, DownloadQuality
 from app.models.audio_model import AudioDownloadResult, VideoInfoResult
 from app.utils.url_parser import extract_video_id
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class YoutubeDownloader(Downloader, ABC):
@@ -43,6 +47,27 @@ class YoutubeDownloader(Downloader, ABC):
             ext = info.get("ext", "m4a")  # 兜底用 m4a
             audio_path = os.path.join(output_dir, f"{video_id}.{ext}")
         print('os.path.join(output_dir, f"{video_id}.{ext}")',os.path.join(output_dir, f"{video_id}.{ext}"))
+
+        # 下载封面到视频目录
+        author_id = info.get("channel_id") or ""
+        if cover_url and output_dir:
+            try:
+                resp = http_requests.get(
+                    cover_url,
+                    headers={"Referer": "https://www.youtube.com/"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    temp_cover = os.path.join(output_dir, "_temp_cover.jpg")
+                    with open(temp_cover, "wb") as f:
+                        f.write(resp.content)
+                    from app.utils.video_helper import save_cover_to_video_dir
+                    cover_url = save_cover_to_video_dir(
+                        temp_cover, output_dir, "youtube", author_id, video_id
+                    )
+                    os.remove(temp_cover)
+            except Exception as e:
+                logger.warning(f"封面下载失败: {e}")
 
         return AudioDownloadResult(
             file_path=audio_path,
