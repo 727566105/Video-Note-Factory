@@ -693,8 +693,6 @@ class NoteGenerator:
                 quality=quality,
                 output_dir=output_path,
                 need_video=False,
-                author_id=author_id,
-                author_name=author_name,
             )
             audio_cache_file.parent.mkdir(parents=True, exist_ok=True)
             audio_cache_file.write_text(json.dumps(asdict(audio), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -824,8 +822,6 @@ class NoteGenerator:
                 output_path,
                 quality,
                 True,  # need_video
-                author_id,
-                author_name,
             )
 
             # 等待两个任务完成，处理结果
