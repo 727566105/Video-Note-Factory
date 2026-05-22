@@ -21,9 +21,8 @@ const twToCn = OpenCC.Converter({ from: 'tw', to: 'cn' })
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import MarkmapEditor from '@/pages/HomePage/components/MarkmapComponent'
 import TranscriptViewer from '@/pages/HomePage/components/transcriptViewer'
-import { ExportPDFButton } from '@/components/ExportPDFButton'
+import { ExportDialog } from '@/components/ExportDialog'
 import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
-import { ExportImageButton } from '@/components/ExportImageButton'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useTaskStore, type Task, type Markdown } from '@/store/taskStore'
 import { useModelStore } from '@/store/modelStore'
@@ -84,6 +83,7 @@ export default function RightPanel({ task }: RightPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   // 独立的生成配置，不受全局 summarySettings 影响
   const [localSettings, setLocalSettings] = useState<LocalSettings>({
@@ -287,9 +287,7 @@ export default function RightPanel({ task }: RightPanelProps) {
           <div className="flex items-center gap-1">
             <ActionBtn icon={<Copy className="w-3.5 h-3.5" />} label="复制" onClick={handleCopy} />
             <ButtonGroup>
-              <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="下载" onClick={handleDownload} />
-              {task.id && <ExportPDFButton taskId={task.id} variant="outline" size="sm" className="h-8 px-2 text-xs" />}
-              {task.id && <ExportImageButton taskId={task.id} variant="outline" size="sm" className="h-8 px-2 text-xs" />}
+              <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="导出" onClick={() => setExportDialogOpen(true)} />
               {task.id && <ExportSiyuanButton taskId={task.id} variant="outline" size="sm" className="h-8 px-2 text-xs" />}
 
               <DropdownMenu>
@@ -462,6 +460,13 @@ export default function RightPanel({ task }: RightPanelProps) {
         confirmText="删除"
         variant="destructive"
         onConfirm={handleDelete}
+      />
+
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        task={task}
+        selectedContent={selectedContent}
       />
     </div>
   )
