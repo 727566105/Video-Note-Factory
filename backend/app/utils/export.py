@@ -135,39 +135,40 @@ class ExportUtils:
         print("图片路径处理完成")
         return result
 
-    def _to_pdf(self, content: str, title: str, task_id: str = None):
+    def _to_pdf(self, content: str, title: str, task_id: str = None,
+                author_id: str = None, author_name: str = None,
+                video_id: str = None, platform: str = ""):
         """
         将 Markdown 内容转换为 PDF
-        
+
         :param content: Markdown 内容
         :param title: 标题
         :param task_id: 任务 ID（用于确定保存路径）
+        :param author_id: 博主 ID（四级目录）
+        :param author_name: 博主名称
+        :param video_id: 视频 ID
+        :param platform: 平台标识
         """
         try:
-            # 创建 PDF 对象，启用优化
-            pdf = MarkdownPdf(
-                optimize=True,
-                # 添加一些可能有助于图片显示的配置
-                # toc=False,
-                # paper_size='A4',
-                # margin=dict(top='1cm', bottom='1cm', left='1cm', right='1cm')
-            )
-
-            # 添加内容段落
+            pdf = MarkdownPdf(optimize=True)
             pdf.add_section(Section(content))
 
-            # 使用新的路径管理
-            if task_id:
+            # 优先四级目录，其次旧版路径
+            if task_id and author_id:
+                from app.utils.path_helper import get_export_cache_path
+                save_path = get_export_cache_path(
+                    author_id, author_name, video_id, title,
+                    task_id, "default", "pdf", platform
+                )
+            elif task_id:
                 save_path = get_export_file_path(task_id, title, "pdf")
             else:
-                # 兼容旧的调用方式（直接使用标题）
                 from app.utils.path_helper import EXPORT_DIR, sanitize_folder_name
                 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
                 safe_title = sanitize_folder_name(title)
                 save_path = EXPORT_DIR / f"{safe_title}.pdf"
-            
-            pdf.save(str(save_path))
 
+            pdf.save(str(save_path))
             print(f"PDF 导出成功: {save_path}")
             return str(save_path)
 
@@ -175,18 +176,23 @@ class ExportUtils:
             print(f"PDF 导出失败: {str(e)}")
             print("尝试使用基本配置...")
             try:
-                # 尝试最基本的配置
                 pdf = MarkdownPdf()
                 pdf.add_section(Section(content))
-                
-                if task_id:
+
+                if task_id and author_id:
+                    from app.utils.path_helper import get_export_cache_path
+                    save_path = get_export_cache_path(
+                        author_id, author_name, video_id, title,
+                        task_id, "default", "pdf", platform
+                    )
+                elif task_id:
                     save_path = get_export_file_path(task_id, title, "pdf")
                 else:
                     from app.utils.path_helper import EXPORT_DIR, sanitize_folder_name
                     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
                     safe_title = sanitize_folder_name(title)
                     save_path = EXPORT_DIR / f"{safe_title}.pdf"
-                
+
                 pdf.save(str(save_path))
                 print(f"基本配置 PDF 导出成功: {save_path}")
                 return str(save_path)
@@ -194,7 +200,9 @@ class ExportUtils:
                 print(f"基本配置也失败: {str(e2)}")
                 raise e2
 
-    def export(self, output_format: str, title: str, content: str, task_id: str = None) -> str:
+    def export(self, output_format: str, title: str, content: str, task_id: str = None,
+               author_id: str = None, author_name: str = None,
+               video_id: str = None, platform: str = "") -> str:
         """
         导出内容为指定格式
         支持格式：pdf, html, word/docx, image/png
@@ -214,7 +222,7 @@ class ExportUtils:
 
         try:
             if output_format == "pdf":
-                save_path = self._to_pdf(content, title, task_id)
+                save_path = self._to_pdf(content, title, task_id, author_id, author_name, video_id, platform)
             elif output_format == "html":
                 save_path = self._to_html(content, title, task_id)
             elif output_format in ["word", "docx"]:

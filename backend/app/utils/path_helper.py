@@ -189,6 +189,62 @@ def get_export_in_video_folder(author_id: str, author_name: str, video_id: str, 
     return exports_dir / f"{safe_title}.{export_format}"
 
 
+def get_export_cache_path(
+    author_id: str, author_name: str, video_id: str, title: str,
+    task_id: str, style: str, export_format: str = "pdf",
+    platform: str = ""
+) -> Path:
+    """获取四级目录下 exports/ 子目录的缓存文件路径
+
+    格式: data/video/{platform}/{author}/{video}/exports/{task_id}_{style}.{format}
+    """
+    video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+    exports_dir = video_dir / "exports"
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    return exports_dir / f"{task_id}_{style}.{export_format}"
+
+
+def get_export_history_path(
+    author_id: str, author_name: str, video_id: str, title: str,
+    platform: str = ""
+) -> Path:
+    """获取四级目录下 exports/ 子目录的导出历史文件路径
+
+    格式: data/video/{platform}/{author}/{video}/exports/export_history.json
+    """
+    video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+    exports_dir = video_dir / "exports"
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    return exports_dir / "export_history.json"
+
+
+def find_export_cache(
+    task_id: str, style: str, author_id: str = None, author_name: str = None,
+    video_id: str = None, title: str = None, platform: str = "",
+    export_format: str = "pdf"
+) -> Path | None:
+    """查找导出缓存文件（兼容新旧路径）
+
+    优先级：
+    1. 四级目录 exports/{task_id}_{style}.{format}
+    2. 旧路径 data/notes/{task_id}_{style}.{format}
+    """
+    if author_id:
+        cache = get_export_cache_path(
+            author_id, author_name, video_id, title,
+            task_id, style, export_format, platform
+        )
+        if cache.exists():
+            return cache
+
+    # 兼容旧路径
+    old_cache = NOTE_OUTPUT_DIR / f"{task_id}_{style}.{export_format}"
+    if old_cache.exists():
+        return old_cache
+
+    return None
+
+
 def get_note_folder(task_id: str, title: str = None) -> Path:
     """
     获取笔记存储文件夹路径
