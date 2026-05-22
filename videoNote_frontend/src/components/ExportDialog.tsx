@@ -264,9 +264,11 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
               {contentSections.map(section => (
                 <div key={section.id} className="rounded-md border">
                   <div className="flex">
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => toggleSection(section.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection(section.id) } }}
                       className={cn(
                         "flex-1 justify-between font-medium flex cursor-pointer items-center gap-3 p-3 transition-colors",
                         expandedSections.includes(section.id) && "rounded-b-none",
@@ -292,7 +294,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                         "size-4 shrink-0 transition-transform duration-200",
                         expandedSections.includes(section.id) && "rotate-180"
                       )} />
-                    </button>
+                    </div>
                   </div>
 
                   {expandedSections.includes(section.id) && section.items.length > 0 && (
