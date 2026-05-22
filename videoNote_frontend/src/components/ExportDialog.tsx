@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useAuthStore } from '@/store/authStore'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Task } from '@/store/taskStore'
@@ -222,15 +222,14 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   // 格式按钮配置
   const formatButtons = [
     { id: 'md', label: 'Markdown', icon: <FileTextIcon className="size-6" />, ext: '.md', enabled: true },
-    { id: 'textbundle', label: 'TextBundle', icon: <FolderArchive className="size-6" />, ext: '.textbundle', enabled: false, badge: 'Gem' },
     { id: 'txt', label: 'Text', icon: <Type className="size-6" />, ext: '.txt', enabled: true },
-    { id: 'pdf', label: 'PDF', icon: <Paperclip className="size-6" />, ext: '.pdf', enabled: true, badge: 'Gem' },
+    { id: 'pdf', label: 'PDF', icon: <Paperclip className="size-6" />, ext: '.pdf', enabled: true },
     { id: 'docx', label: 'Word', icon: <FileTextIcon className="size-6" />, ext: '.docx', enabled: true },
     { id: 'epub', label: 'EPUB', icon: <BookOpen className="size-6" />, ext: '.epub', enabled: true },
     { id: 'html', label: 'HTML', icon: <FileTextIcon className="size-6" />, ext: '.html', enabled: true },
-    { id: 'png', label: 'Image', icon: <Image className="size-6" />, ext: '.png', enabled: true, badge: 'Gem' },
-    { id: 'srt', label: 'SRT', icon: <List className="size-6" />, ext: '.srt', enabled: false, badge: 'Gem' },
-    { id: 'vtt', label: 'VTT', icon: <List className="size-6" />, ext: '.vtt', enabled: false, badge: 'Gem' },
+    { id: 'png', label: 'Image', icon: <Image className="size-6" />, ext: '.png', enabled: true },
+    { id: 'srt', label: 'SRT', icon: <List className="size-6" />, ext: '.srt', enabled: false },
+    { id: 'vtt', label: 'VTT', icon: <List className="size-6" />, ext: '.vtt', enabled: false },
   ]
 
   const handleFormatClick = (format: typeof formatButtons[0]) => {
@@ -248,8 +247,8 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col overflow-y-auto">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Package className="size-6 text-pink-400" />
             导出内容
@@ -259,7 +258,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-6 py-4 md:grid-cols-[1fr_2fr]">
+        <div className="grid grid-cols-1 gap-6 py-4 md:grid-cols-[1fr_2fr] min-h-0">
           {/* 左侧：选择内容部分 */}
           <div className="space-y-2">
             <div className="mb-0 text-base font-semibold">选择内容部分</div>
@@ -377,9 +376,9 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                     <h4 className="font-medium">Markdown 预览</h4>
                     <p className="text-sm text-muted-foreground">预览选中内容的渲染效果</p>
                   </div>
-                  <ScrollArea className="h-[500px] p-6">
+                  <div className="p-6">
                     <MarkdownRenderer content={selectedContent} />
-                  </ScrollArea>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -400,11 +399,6 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                       {format.icon}
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{format.label}</span>
-                        {format.badge && (
-                          <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors border-transparent bg-primary text-primary-foreground text-xs">
-                            <Sparkles className="size-3" />
-                          </span>
-                        )}
                       </div>
                       <code className="text-xs">{format.ext}</code>
                     </button>

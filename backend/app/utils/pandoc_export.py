@@ -2,9 +2,11 @@
 import subprocess
 import shutil
 import tempfile
+import re
 from pathlib import Path
 
 from app.utils.logger import get_logger
+from app.utils.path_helper import get_video_folder
 
 logger = get_logger(__name__)
 
@@ -15,12 +17,53 @@ def is_pandoc_available() -> bool:
     return shutil.which("pandoc") is not None
 
 
+def _resolve_image_paths(
+    markdown_content: str,
+    video_folder: Path | None,
+) -> str:
+    """
+    将 Markdown 中的 API 图片 URL 转换为本地绝对路径。
+
+    匹配模式：
+    - /api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}
+    - /api/video_cover/{platform}/{author_id}/{video_id}
+    - /api/image_proxy?url=...
+    """
+    if not video_folder or not video_folder.exists():
+        return markdown_content
+
+    # 匹配截图 URL: /api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}
+    screenshot_pattern = r'/api/video_screenshots/[^/]+/[^/]+/[^/]+/([^)]+)'
+    def replace_screenshot(match):
+        filename = match.group(1)
+        local_path = video_folder / "screenshots" / filename
+        if local_path.exists():
+            return str(local_path.absolute())
+        logger.warning(f"截图文件不存在: {local_path}")
+        return match.group(0)  # 保持原样
+
+    markdown_content = re.sub(screenshot_pattern, replace_screenshot, markdown_content)
+
+    # 匹配封面 URL: /api/video_cover/{platform}/{author_id}/{video_id}
+    cover_pattern = r'/api/video_cover/[^/]+/[^/]+/[^/]+'
+    def replace_cover(match):
+        local_path = video_folder / "cover.jpg"
+        if local_path.exists():
+            return str(local_path.absolute())
+        return match.group(0)
+
+    markdown_content = re.sub(cover_pattern, replace_cover, markdown_content)
+
+    return markdown_content
+
+
 def export_with_pandoc(
     markdown_content: str,
     output_format: str,
     output_path: Path,
     title: str = "",
     cover_path: Path | None = None,
+    video_folder: Path | None = None,
 ) -> Path:
     """
     用 Pandoc 将 Markdown 转换为目标格式。
@@ -31,6 +74,7 @@ def export_with_pandoc(
         output_path: 输出文件路径
         title: 文档标题
         cover_path: 封面图路径（仅 EPUB 使用）
+        video_folder: 视频四级目录路径（用于解析本地图片）
 
     Returns:
         输出文件路径
@@ -40,6 +84,9 @@ def export_with_pandoc(
 
     if not is_pandoc_available():
         raise RuntimeError("Pandoc 未安装，请先安装: brew install pandoc (macOS) 或 apt install pandoc (Linux)")
+
+    # 将 API 图片 URL 转换为本地绝对路径
+    markdown_content = _resolve_image_paths(markdown_content, video_folder)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
