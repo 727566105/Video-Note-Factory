@@ -85,14 +85,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center justify-between">
+              {/* Logo 按钮：展开态导航首页，折叠态 hover 显示展开按钮 */}
               <SidebarMenuButton
                 size="lg"
-                className="flex items-center gap-2 cursor-pointer"
-                onClick={() => navigate("/")}
+                className="flex items-center gap-2 cursor-pointer relative group/logo"
+                onClick={() => {
+                  if (state === "collapsed") {
+                    toggleSidebar()
+                  } else {
+                    navigate("/")
+                  }
+                }}
               >
-                <Sparkles className="w-5 h-5 text-foreground shrink-0" />
-                <span className="text-base font-semibold text-foreground">VideoNote</span>
+                {/* Sparkles — 展开态 + 折叠态默认显示 */}
+                <Sparkles className="w-5 h-5 text-foreground shrink-0 transition-opacity group-data-[collapsible=icon]:group-hover/logo:opacity-0" />
+                {/* PanelLeft — 折叠态 hover 显示 */}
+                <PanelLeft className="w-5 h-5 text-foreground shrink-0 absolute opacity-0 transition-opacity group-data-[collapsible=icon]:group-hover/logo:opacity-100" />
+                <span className="text-base font-semibold text-foreground group-data-[collapsible=icon]:hidden">VideoNote</span>
               </SidebarMenuButton>
+              {/* 展开态折叠按钮 */}
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
                 <button
                   className="p-1 hover:bg-accent rounded-md transition-colors"
