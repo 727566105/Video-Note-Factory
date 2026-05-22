@@ -163,7 +163,7 @@ class LocalDownloader(Downloader, ABC):
         if cover_path and output_dir:
             from app.utils.video_helper import save_cover_to_video_dir
             cover_url = save_cover_to_video_dir(
-                cover_path, output_dir, "local", "local", title
+                cover_path, output_dir, "local", author_id or "local", title
             )
             os.remove(cover_path)
         else:

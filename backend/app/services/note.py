@@ -653,6 +653,8 @@ class NoteGenerator:
                 output_path=output_path,
                 grid_size=grid_size,
                 video_interval=video_interval,
+                author_id=author_id,
+                author_name=author_name,
             )
 
         # 单独下载音频（保持原有逻辑）
@@ -760,6 +762,8 @@ class NoteGenerator:
         output_path: Optional[str],
         grid_size: List[int],
         video_interval: int,
+        author_id: Optional[str] = None,
+        author_name: Optional[str] = None,
     ) -> AudioDownloadResult:
         """
         并行下载视频和音频，使用 asyncio.gather 提升效率
@@ -792,6 +796,8 @@ class NoteGenerator:
                 output_path,
                 quality,
                 True,  # need_video
+                author_id,
+                author_name,
             )
 
             # 等待两个任务完成，处理结果
