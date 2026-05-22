@@ -67,3 +67,18 @@ def save_cover_to_static(local_cover_path: str, subfolder: Optional[str] = "cove
     url_path = f"{BACKEND_BASE_URL.rstrip('/')}/{image_relative_path.lstrip('/')}"
     # 返回前端可访问的路径
     return url_path
+
+
+def save_cover_to_video_dir(local_cover_path: str, video_dir: str, platform: str, author_id: str, video_id: str) -> str:
+    """
+    将封面图片保存到视频目录下，并返回前端可访问的 API 路径
+    :param local_cover_path: 本地原封面路径（如提取或下载的 jpg）
+    :param video_dir: 视频目录路径
+    :param platform: 平台名
+    :param author_id: 博主 ID
+    :param video_id: 视频 ID
+    :return: 前端可访问的 API 路径
+    """
+    target_path = os.path.join(video_dir, "cover.jpg")
+    shutil.copy2(local_cover_path, target_path)
+    return f"/api/video_cover/{platform}/{author_id}/{video_id}"
