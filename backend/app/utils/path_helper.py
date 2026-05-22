@@ -476,17 +476,184 @@ def ensure_directories():
 ensure_directories()
 
 
+def migrate_to_platform_structure():
+    """启动时自动将旧三级目录迁移到四级目录 video/{platform}/{author}/{video}/"""
+    import json as json_mod
+    from app.utils.logger import get_logger
+    migrate_logger = get_logger("migration")
+
+    if not DATA_DIR.exists():
+        return
+
+    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 查数据库获取 author_id -> platform 映射
+    try:
+        from app.db.video_task_dao import get_session
+        from app.db.models.video_tasks import VideoTask
+        session = get_session()
+        tasks = session.query(
+            VideoTask.author_id, VideoTask.platform, VideoTask.video_id
+        ).filter(VideoTask.author_id.isnot(None)).all()
+
+        author_platform_map = {}
+        video_author_map = {}
+        for author_id, platform, video_id in tasks:
+            if author_id:
+                author_platform_map[author_id] = platform or "unknown"
+                if video_id:
+                    video_author_map[video_id] = author_id
+        session.close()
+    except Exception as e:
+        migrate_logger.warning(f"迁移：无法查询数据库，跳过迁移: {e}")
+        return
+
+    # 扫描 data/ 下的博主目录（匹配 {author_id}_{author_name} 格式）
+    for item in DATA_DIR.iterdir():
+        if not item.is_dir():
+            continue
+        if item.name in ("video", "exports", "models", "local", "notes", "cache"):
+            continue
+
+        parts = item.name.split("_", 1)
+        author_id = parts[0]
+        platform = author_platform_map.get(author_id, "_other")
+        platform_dir = _get_platform_dir(platform)
+
+        target = VIDEO_DIR / platform_dir / item.name
+        if target.exists():
+            migrate_logger.info(f"迁移：跳过已存在 {target}")
+            continue
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            shutil.move(str(item), str(target))
+            migrate_logger.info(f"迁移：{item.name} -> video/{platform_dir}/{item.name}")
+        except Exception as e:
+            migrate_logger.error(f"迁移失败 {item.name}: {e}")
+
+    # 迁移截图
+    _migrate_screenshots(video_author_map, author_platform_map, migrate_logger)
+
+    migrate_logger.info("四级目录迁移完成")
+
+
+def _migrate_screenshots(video_author_map, author_platform_map, logger):
+    """将 backend/static/screenshots/ 中的截图迁移到对应视频目录"""
+    old_screenshot_dir = PROJECT_ROOT / "backend" / "static" / "screenshots"
+    if not old_screenshot_dir.exists():
+        return
+
+    for ss_file in old_screenshot_dir.iterdir():
+        if not ss_file.is_file() or not ss_file.name.endswith(".jpg"):
+            continue
+
+        filename = ss_file.name
+        found = False
+
+        for platform_dir in VIDEO_DIR.iterdir():
+            if not platform_dir.is_dir() or found:
+                break
+            for author_dir in platform_dir.iterdir():
+                if not author_dir.is_dir() or found:
+                    break
+                for video_dir in author_dir.iterdir():
+                    if not video_dir.is_dir() or found:
+                        break
+                    note_json = video_dir / "note.json"
+                    if note_json.exists():
+                        try:
+                            with open(note_json, "r", encoding="utf-8") as f:
+                                content = f.read()
+                            if filename in content:
+                                ss_target_dir = video_dir / "screenshots"
+                                ss_target_dir.mkdir(parents=True, exist_ok=True)
+                                target_path = ss_target_dir / filename
+                                if not target_path.exists():
+                                    shutil.move(str(ss_file), str(target_path))
+                                    _update_screenshot_urls(note_json, filename, video_dir)
+                                    md_file = video_dir / "note.md"
+                                    if md_file.exists():
+                                        _update_screenshot_urls_md(md_file, filename, video_dir)
+                                    logger.info(f"截图迁移：{filename} -> {video_dir.name}/screenshots/")
+                                found = True
+                        except Exception:
+                            pass
+
+    if old_screenshot_dir.exists() and not any(old_screenshot_dir.iterdir()):
+        old_screenshot_dir.rmdir()
+        logger.info("已清理空的旧截图目录")
+
+
+def _update_screenshot_urls(note_json_path, filename, video_dir):
+    """更新 note.json 中的截图 URL"""
+    import json as json_mod
+    with open(note_json_path, "r", encoding="utf-8") as f:
+        data = json_mod.load(f)
+
+    old_url = f"/static/screenshots/{filename}"
+    parts = video_dir.parts
+    video_idx = parts.index("video")
+    platform = parts[video_idx + 1]
+    author_folder = parts[video_idx + 2]
+    author_id = author_folder.split("_", 1)[0]
+    video_folder = parts[video_idx + 3]
+    video_id = video_folder.split("_", 1)[0]
+    new_url = f"/api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}"
+
+    _replace_url_in_dict(data, old_url, new_url)
+
+    with open(note_json_path, "w", encoding="utf-8") as f:
+        json_mod.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def _update_screenshot_urls_md(md_path, filename, video_dir):
+    """更新 note.md 中的截图 URL"""
+    parts = video_dir.parts
+    video_idx = parts.index("video")
+    platform = parts[video_idx + 1]
+    author_folder = parts[video_idx + 2]
+    author_id = author_folder.split("_", 1)[0]
+    video_folder = parts[video_idx + 3]
+    video_id = video_folder.split("_", 1)[0]
+    old_url = f"/static/screenshots/{filename}"
+    new_url = f"/api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}"
+
+    with open(md_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    content = content.replace(old_url, new_url)
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def _replace_url_in_dict(obj, old_url, new_url):
+    """递归替换 dict/list 中的 URL 字符串"""
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if isinstance(value, str):
+                obj[key] = value.replace(old_url, new_url)
+            else:
+                _replace_url_in_dict(value, old_url, new_url)
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            if isinstance(item, str):
+                obj[i] = item.replace(old_url, new_url)
+            else:
+                _replace_url_in_dict(item, old_url, new_url)
+
+
 if __name__ == "__main__":
     # 测试代码
     print(f"项目根目录: {PROJECT_ROOT}")
     print(f"数据目录: {DATA_DIR}")
     print(f"笔记目录: {NOTE_OUTPUT_DIR}")
     print(f"导出目录: {EXPORT_DIR}")
-    
+
     # 测试路径生成
     test_task_id = "test-123-456"
     test_title = "这是一个测试标题：包含特殊字符<>?*"
-    
+
     print(f"\n测试标题: {test_title}")
     print(f"安全文件夹名: {sanitize_folder_name(test_title)}")
     print(f"笔记文件夹: {get_note_folder(test_task_id, test_title)}")
