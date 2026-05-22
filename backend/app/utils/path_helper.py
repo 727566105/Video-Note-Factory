@@ -543,6 +543,9 @@ def migrate_to_platform_structure():
     # 更新已迁移目录中 audio.json 的 file_path
     _update_audio_paths(migrate_logger)
 
+    # 迁移封面图
+    _migrate_covers(migrate_logger)
+
     migrate_logger.info("四级目录迁移完成")
 
 
@@ -688,6 +691,87 @@ def _update_audio_paths(logger):
                         logger.info(f"更新路径: {video_dir.name}/audio.json")
                 except Exception as e:
                     logger.warning(f"更新 audio.json 失败 {audio_json}: {e}")
+
+
+def _migrate_covers(logger):
+    """将 static/covers/ 中的封面迁移到对应视频目录"""
+    import hashlib
+    from app.db.video_task_dao import batch_update_cover_url
+
+    old_cover_dir = PROJECT_ROOT / "static" / "covers"
+    if not old_cover_dir.exists():
+        return
+
+    # 从数据库构建 URL hash -> video 映射
+    try:
+        from app.db.engine import get_db
+        from app.db.models.video_tasks import VideoTask
+        db = next(get_db())
+        tasks = db.query(VideoTask).filter(
+            VideoTask.cover_url.isnot(None),
+            VideoTask.video_id.isnot(None)
+        ).all()
+
+        hash_video_map = {}
+        for task in tasks:
+            cover_url = task.cover_url or ""
+            if cover_url.startswith("/api/video_cover"):
+                continue
+            url_hash = hashlib.md5(cover_url.encode()).hexdigest()[:16]
+            hash_video_map[url_hash] = (
+                task.video_id,
+                task.platform or "unknown",
+                task.author_id or ""
+            )
+        db.close()
+    except Exception as e:
+        logger.warning(f"封面迁移：无法查询数据库: {e}")
+        return
+
+    # 遍历旧封面目录
+    for platform_dir in old_cover_dir.iterdir():
+        if not platform_dir.is_dir():
+            continue
+        for cover_file in platform_dir.iterdir():
+            if not cover_file.is_file():
+                continue
+            filename = cover_file.name
+            hash_part = filename.split(".")[0]
+
+            if hash_part not in hash_video_map:
+                logger.warning(f"封面迁移：未找到匹配视频 {filename}")
+                continue
+
+            video_id, platform, author_id = hash_video_map[hash_part]
+            platform_subdir = _get_platform_dir(platform)
+
+            # 在 VIDEO_DIR 中查找对应视频目录
+            found = False
+            plat_path = VIDEO_DIR / platform_subdir
+            if plat_path.exists():
+                for author_folder in plat_path.iterdir():
+                    if not author_folder.is_dir() or found:
+                        continue
+                    if author_id and not author_folder.name.startswith(author_id):
+                        continue
+                    for video_folder in author_folder.iterdir():
+                        if not video_folder.is_dir() or found:
+                            continue
+                        if not video_folder.name.startswith(video_id):
+                            continue
+                        target_path = video_folder / "cover.jpg"
+                        if not target_path.exists():
+                            shutil.move(str(cover_file), str(target_path))
+                            new_cover_url = f"/api/video_cover/{platform_subdir}/{author_id}/{video_id}"
+                            batch_update_cover_url(video_id, platform, new_cover_url)
+                            logger.info(f"封面迁移：{filename} -> {video_folder.name}/cover.jpg")
+                        found = True
+                        break
+
+    # 清理空的旧封面目录
+    if old_cover_dir.exists() and not any(old_cover_dir.iterdir()):
+        shutil.rmtree(old_cover_dir)
+        logger.info("已清理空的旧封面目录 static/covers/")
 
 
 if __name__ == "__main__":
