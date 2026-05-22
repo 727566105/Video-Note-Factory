@@ -81,7 +81,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar {...props} className="border-r border-border" collapsible="icon">
       {/* ===== HEADER ===== */}
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center justify-between">
@@ -125,7 +125,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* 快捷添加笔记 */}
         <button
           onClick={() => navigate("/")}
-          className="flex items-center justify-center gap-2 px-3 py-2 mt-2 bg-[#0087ff] text-white rounded-md hover:bg-[#0087ff]/90 transition-colors w-full group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mt-2"
+          className="flex items-center justify-center gap-2 px-3 py-2 mt-2 bg-[#0087ff] text-white rounded-md hover:bg-[#0087ff]/90 transition-colors w-full group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mt-2"
         >
           <StickyNote className="w-4 h-4 shrink-0" />
           <span className="text-sm font-normal group-data-[collapsible=icon]:hidden">快捷添加笔记</span>
