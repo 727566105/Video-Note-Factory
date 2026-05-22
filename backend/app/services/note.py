@@ -48,6 +48,8 @@ from app.utils.path_helper import (
     IMAGE_BASE_URL,
     get_note_file_path,
     get_note_file_path_v2,
+    get_screenshot_dir,
+    get_screenshot_url_base,
     move_note_files_to_video_folder,
 )
 
@@ -1031,7 +1033,9 @@ class NoteGenerator:
         """
         if "screenshot" in formats and video_path:
             try:
-                markdown = self._insert_screenshots(markdown, video_path)
+                markdown = self._insert_screenshots(
+                    markdown, video_path, audio_meta, platform
+                )
             except Exception as exc:
                 logger.warning("截图插入失败，跳过该步骤")
 
@@ -1043,21 +1047,25 @@ class NoteGenerator:
 
         return markdown
 
-    def _insert_screenshots(self, markdown: str, video_path: Path) -> str | None | Any:
+    def _insert_screenshots(self, markdown: str, video_path: Path,
+                            audio_meta: AudioDownloadResult, platform: str) -> str | None | Any:
         """
         扫描 Markdown 文本中所有 Screenshot 标记，并替换为实际生成的截图链接。
-
-        :param markdown: 含有 *Screenshot-mm:ss 或 Screenshot-[mm:ss] 标记的 Markdown 文本
-        :param video_path: 本地视频文件路径
-        :return: 替换后的 Markdown 字符串
         """
+        author_id = audio_meta.author_id if hasattr(audio_meta, 'author_id') else None
+        author_name = audio_meta.author_name if hasattr(audio_meta, 'author_name') else None
+        video_id = audio_meta.video_id
+        title = audio_meta.title
+
+        ss_dir = str(get_screenshot_dir(author_id, author_name, video_id, title, platform))
+        ss_url_base = get_screenshot_url_base(author_id or "", video_id, platform)
+
         matches: List[Tuple[str, int]] = self._extract_screenshot_timestamps(markdown)
         for idx, (marker, ts) in enumerate(matches):
             try:
-                img_path = generate_screenshot(str(video_path), str(IMAGE_OUTPUT_DIR), ts, idx)
+                img_path = generate_screenshot(str(video_path), ss_dir, ts, idx)
                 filename = Path(img_path).name
-                # 构建前端可访问的 URL，例如 /static/screenshots/{filename}
-                img_url = f"{IMAGE_BASE_URL.rstrip('/')}/{filename}"
+                img_url = f"{ss_url_base}/{filename}"
                 markdown = markdown.replace(marker, f"![]({img_url})", 1)
             except Exception as exc:
                 logger.error(f"生成截图失败 (timestamp={ts})：{exc}")
