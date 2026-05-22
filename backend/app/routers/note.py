@@ -699,7 +699,32 @@ def get_image_headers(url: str, request: Request) -> dict:
 @router.get("/image_proxy")
 async def image_proxy(request: Request, url: str) -> dict:
     """图片代理接口，支持本地缓存"""
-    # 0. SSRF 安全检查
+    # 0. 本地封面 API 路径直接重定向
+    if url.startswith("/api/video_cover/"):
+        # 解析路径: /api/video_cover/{platform}/{author_id}/{video_id}
+        from app.utils.path_helper import VIDEO_DIR, _get_platform_dir
+        parts = url.split("/")
+        if len(parts) >= 5:
+            platform = parts[3]
+            author_id = parts[4]
+            video_id = parts[5]
+            platform_dir = _get_platform_dir(platform)
+            plat_path = VIDEO_DIR / platform_dir
+            if plat_path.exists():
+                for author_folder in plat_path.iterdir():
+                    if author_folder.is_dir() and author_folder.name.startswith(author_id):
+                        for video_folder in author_folder.iterdir():
+                            if video_folder.is_dir() and video_folder.name.startswith(video_id):
+                                cover_path = video_folder / "cover.jpg"
+                                if cover_path.exists():
+                                    return FileResponse(
+                                        str(cover_path),
+                                        media_type="image/jpeg",
+                                        headers={"Cache-Control": "public, max-age=31536000"}
+                                    )
+        raise HTTPException(status_code=404, detail="Cover not found")
+
+    # 1. SSRF 安全检查
     is_safe, error_msg = is_safe_url(url)
     if not is_safe:
         logger.warning(f"SSRF 攻击尝试被拦截: {url[:50]}... 原因: {error_msg}")
