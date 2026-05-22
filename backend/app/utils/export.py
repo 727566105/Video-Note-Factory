@@ -10,7 +10,7 @@ load_dotenv()
 # 使用统一的路径管理工具
 from app.utils.path_helper import (
     PROJECT_ROOT,
-    get_export_file_path,
+    get_export_cache_path,
     IMAGE_BASE_URL,
 )
 
@@ -139,34 +139,27 @@ class ExportUtils:
                 author_id: str = None, author_name: str = None,
                 video_id: str = None, platform: str = ""):
         """
-        将 Markdown 内容转换为 PDF
+        将 Markdown 内容转换为 PDF，存到四级目录
 
         :param content: Markdown 内容
         :param title: 标题
-        :param task_id: 任务 ID（用于确定保存路径）
-        :param author_id: 博主 ID（四级目录）
+        :param task_id: 任务 ID
+        :param author_id: 博主 ID（必须）
         :param author_name: 博主名称
         :param video_id: 视频 ID
         :param platform: 平台标识
         """
+        if not author_id:
+            raise ValueError("导出 PDF 需要 author_id 参数")
+
         try:
             pdf = MarkdownPdf(optimize=True)
             pdf.add_section(Section(content))
 
-            # 优先四级目录，其次旧版路径
-            if task_id and author_id:
-                from app.utils.path_helper import get_export_cache_path
-                save_path = get_export_cache_path(
-                    author_id, author_name, video_id, title,
-                    task_id, "default", "pdf", platform
-                )
-            elif task_id:
-                save_path = get_export_file_path(task_id, title, "pdf")
-            else:
-                from app.utils.path_helper import EXPORT_DIR, sanitize_folder_name
-                EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-                safe_title = sanitize_folder_name(title)
-                save_path = EXPORT_DIR / f"{safe_title}.pdf"
+            save_path = get_export_cache_path(
+                author_id, author_name, video_id, title,
+                task_id, "default", "pdf", platform
+            )
 
             pdf.save(str(save_path))
             print(f"PDF 导出成功: {save_path}")
@@ -179,19 +172,10 @@ class ExportUtils:
                 pdf = MarkdownPdf()
                 pdf.add_section(Section(content))
 
-                if task_id and author_id:
-                    from app.utils.path_helper import get_export_cache_path
-                    save_path = get_export_cache_path(
-                        author_id, author_name, video_id, title,
-                        task_id, "default", "pdf", platform
-                    )
-                elif task_id:
-                    save_path = get_export_file_path(task_id, title, "pdf")
-                else:
-                    from app.utils.path_helper import EXPORT_DIR, sanitize_folder_name
-                    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-                    safe_title = sanitize_folder_name(title)
-                    save_path = EXPORT_DIR / f"{safe_title}.pdf"
+                save_path = get_export_cache_path(
+                    author_id, author_name, video_id, title,
+                    task_id, "default", "pdf", platform
+                )
 
                 pdf.save(str(save_path))
                 print(f"基本配置 PDF 导出成功: {save_path}")

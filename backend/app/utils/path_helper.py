@@ -218,33 +218,6 @@ def get_export_history_path(
     return exports_dir / "export_history.json"
 
 
-def find_export_cache(
-    task_id: str, style: str, author_id: str = None, author_name: str = None,
-    video_id: str = None, title: str = None, platform: str = "",
-    export_format: str = "pdf"
-) -> Path | None:
-    """查找导出缓存文件（兼容新旧路径）
-
-    优先级：
-    1. 四级目录 exports/{task_id}_{style}.{format}
-    2. 旧路径 data/notes/{task_id}_{style}.{format}
-    """
-    if author_id:
-        cache = get_export_cache_path(
-            author_id, author_name, video_id, title,
-            task_id, style, export_format, platform
-        )
-        if cache.exists():
-            return cache
-
-    # 兼容旧路径
-    old_cache = NOTE_OUTPUT_DIR / f"{task_id}_{style}.{export_format}"
-    if old_cache.exists():
-        return old_cache
-
-    return None
-
-
 def get_note_folder(task_id: str, title: str = None) -> Path:
     """
     获取笔记存储文件夹路径
@@ -482,23 +455,6 @@ def move_note_files_to_video_folder(
     return target_folder
 
 
-def get_export_file_path(task_id: str, title: str, export_format: str) -> Path:
-    """
-    获取导出文件的路径
-    
-    :param task_id: 任务 ID
-    :param title: 笔记标题
-    :param export_format: 导出格式 (pdf, html, docx, png)
-    :return: 导出文件路径
-    """
-    folder = get_note_folder(task_id, title)
-    exports_folder = folder / "exports"
-    exports_folder.mkdir(parents=True, exist_ok=True)
-    
-    safe_title = sanitize_folder_name(title)
-    return exports_folder / f"{safe_title}.{export_format}"
-
-
 def get_data_dir() -> str:
     """
     获取数据目录路径（用于下载器）
@@ -538,7 +494,6 @@ def ensure_directories():
     directories = [
         DATA_DIR,
         VIDEO_DIR,
-        EXPORT_DIR,
     ]
 
     for directory in directories:

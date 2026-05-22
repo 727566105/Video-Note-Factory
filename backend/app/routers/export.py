@@ -17,9 +17,7 @@ router = APIRouter()
 
 # 使用统一的路径管理工具
 from app.utils.path_helper import (
-    get_note_file_path, get_export_file_path, NOTE_OUTPUT_DIR, find_note_file,
-    get_export_cache_path, get_export_history_path, find_export_cache,
-    get_video_folder
+    find_note_file, get_export_cache_path, get_export_history_path, get_video_folder
 )
 from app.db.video_task_dao import get_task_by_task_id
 
@@ -33,20 +31,17 @@ ImageTemplate = Literal["xiaohongshu", "simple", "academic"]
 
 def _add_export_history(task_id: str, style: str, title: str | None = None, task=None):
     """记录导出历史到视频目录下的 exports/export_history.json"""
+    if not task or not getattr(task, 'author_id', None):
+        logger.warning(f"跳过导出历史记录：缺少 task 或 author_id (task_id={task_id})")
+        return
     try:
-        history_file = None
-        if task and getattr(task, 'author_id', None):
-            history_file = get_export_history_path(
-                author_id=task.author_id,
-                author_name=getattr(task, 'author_name', ''),
-                video_id=getattr(task, 'video_id', ''),
-                title=getattr(task, 'title', ''),
-                platform=getattr(task, 'platform', '') or ""
-            )
-
-        if not history_file:
-            # 兼容旧路径
-            history_file = NOTE_OUTPUT_DIR / ".export_history.json"
+        history_file = get_export_history_path(
+            author_id=task.author_id,
+            author_name=getattr(task, 'author_name', ''),
+            video_id=getattr(task, 'video_id', ''),
+            title=getattr(task, 'title', ''),
+            platform=getattr(task, 'platform', '') or ""
+        )
 
         history = []
         if history_file.exists():
@@ -68,23 +63,17 @@ def _add_export_history(task_id: str, style: str, title: str | None = None, task
 
 
 def _get_export_history(limit: int = 50, task=None) -> list:
-    """获取导出历史（优先从视频目录读取，兜底全局文件）"""
+    """获取导出历史（从视频目录读取）"""
+    if not task or not getattr(task, 'author_id', None):
+        return []
     try:
-        history_file = None
-        if task and getattr(task, 'author_id', None):
-            history_file = get_export_history_path(
-                author_id=task.author_id,
-                author_name=getattr(task, 'author_name', ''),
-                video_id=getattr(task, 'video_id', ''),
-                title=getattr(task, 'title', ''),
-                platform=getattr(task, 'platform', '') or ""
-            )
-            if not history_file.exists():
-                history_file = None
-
-        if not history_file:
-            history_file = NOTE_OUTPUT_DIR / ".export_history.json"
-
+        history_file = get_export_history_path(
+            author_id=task.author_id,
+            author_name=getattr(task, 'author_name', ''),
+            video_id=getattr(task, 'video_id', ''),
+            title=getattr(task, 'title', ''),
+            platform=getattr(task, 'platform', '') or ""
+        )
         if history_file.exists():
             history = json.loads(history_file.read_text(encoding="utf-8"))
             return history[:limit]
@@ -498,15 +487,18 @@ async def export_pdf(
                 logger.warning(f"读取标题失败 (task_id={task_id}): {e}")
 
         # PDF 缓存机制（包含样式后缀）
-        pdf_cache_file = find_export_cache(
-            task_id, style,
-            author_id=getattr(task, 'author_id', None),
-            author_name=getattr(task, 'author_name', None),
-            video_id=getattr(task, 'video_id', None),
-            title=getattr(task, 'title', None),
-            platform=getattr(task, 'platform', "") or ""
+        if not task or not getattr(task, 'author_id', None):
+            raise HTTPException(status_code=400, detail="缺少 author_id 信息，无法导出")
+
+        pdf_cache_file = get_export_cache_path(
+            author_id=task.author_id,
+            author_name=getattr(task, 'author_name', ''),
+            video_id=getattr(task, 'video_id', ''),
+            title=getattr(task, 'title', ''),
+            task_id=task_id, style=style,
+            platform=getattr(task, 'platform', '') or ""
         )
-        if pdf_cache_file and pdf_cache_file.exists():
+        if pdf_cache_file.exists():
             md_mtime = markdown_file.stat().st_mtime
             pdf_mtime = pdf_cache_file.stat().st_mtime
             if pdf_mtime >= md_mtime:
@@ -537,17 +529,6 @@ async def export_pdf(
 
             # 保存到缓存
             try:
-                if task and getattr(task, 'author_id', None):
-                    pdf_cache_file = get_export_cache_path(
-                        author_id=task.author_id,
-                        author_name=getattr(task, 'author_name', ''),
-                        video_id=getattr(task, 'video_id', ''),
-                        title=getattr(task, 'title', ''),
-                        task_id=task_id, style=style,
-                        platform=getattr(task, 'platform', '') or ""
-                    )
-                elif not pdf_cache_file:
-                    pdf_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_{style}.pdf"
                 pdf_cache_file.write_bytes(pdf_content)
                 logger.info(f"PDF 已缓存 (task_id={task_id}, style={style})")
             except Exception as e:
@@ -656,17 +637,21 @@ async def batch_export_pdf(
                         pass
 
                 # 检查缓存
-                pdf_cache_file = find_export_cache(
-                    task_id, style,
-                    author_id=getattr(task, 'author_id', None),
-                    author_name=getattr(task, 'author_name', None),
-                    video_id=getattr(task, 'video_id', None),
-                    title=getattr(task, 'title', None),
-                    platform=getattr(task, 'platform', "") or ""
+                if not task or not getattr(task, 'author_id', None):
+                    failed_tasks.append({"task_id": task_id, "reason": "缺少 author_id"})
+                    continue
+
+                pdf_cache_file = get_export_cache_path(
+                    author_id=task.author_id,
+                    author_name=getattr(task, 'author_name', ''),
+                    video_id=getattr(task, 'video_id', ''),
+                    title=getattr(task, 'title', ''),
+                    task_id=task_id, style=style,
+                    platform=getattr(task, 'platform', '') or ""
                 )
                 pdf_content = None
 
-                if pdf_cache_file and pdf_cache_file.exists():
+                if pdf_cache_file.exists():
                     md_mtime = markdown_file.stat().st_mtime
                     pdf_mtime = pdf_cache_file.stat().st_mtime
                     if pdf_mtime >= md_mtime:
@@ -693,17 +678,6 @@ async def batch_export_pdf(
 
                     # 保存缓存
                     try:
-                        if task and getattr(task, 'author_id', None):
-                            pdf_cache_file = get_export_cache_path(
-                                author_id=task.author_id,
-                                author_name=getattr(task, 'author_name', ''),
-                                video_id=getattr(task, 'video_id', ''),
-                                title=getattr(task, 'title', ''),
-                                task_id=task_id, style=style,
-                                platform=getattr(task, 'platform', '') or ""
-                            )
-                        elif not pdf_cache_file:
-                            pdf_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_{style}.pdf"
                         pdf_cache_file.write_bytes(pdf_content)
                     except Exception:
                         pass
@@ -761,17 +735,20 @@ async def redownload_pdf(
     style: StyleType = Query(default="default", description="PDF 样式主题"),
     current_user=Depends(get_current_user)
 ) -> dict:
-    """重新下载历史 PDF（优先使用缓存）"""
+    """重新下载历史 PDF（使用缓存）"""
     task = get_task_by_task_id(task_id)
-    pdf_cache_file = find_export_cache(
-        task_id, style,
-        author_id=getattr(task, 'author_id', None) if task else None,
-        author_name=getattr(task, 'author_name', None) if task else None,
-        video_id=getattr(task, 'video_id', None) if task else None,
-        title=getattr(task, 'title', None) if task else None,
-        platform=getattr(task, 'platform', "") if task else ""
+    if not task or not getattr(task, 'author_id', None):
+        raise HTTPException(status_code=400, detail="缺少 author_id 信息")
+
+    pdf_cache_file = get_export_cache_path(
+        author_id=task.author_id,
+        author_name=getattr(task, 'author_name', ''),
+        video_id=getattr(task, 'video_id', ''),
+        title=getattr(task, 'title', ''),
+        task_id=task_id, style=style,
+        platform=getattr(task, 'platform', '') or ""
     )
-    if not pdf_cache_file or not pdf_cache_file.exists():
+    if not pdf_cache_file.exists():
         raise HTTPException(status_code=404, detail="PDF 缓存不存在，请先导出一次")
 
     return FileResponse(
