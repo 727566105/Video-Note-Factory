@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import {
-  Sparkles,
+  GalleryVerticalEnd,
+  PanelLeft,
   Search,
   StickyNote,
   Library,
@@ -65,40 +66,59 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar {...props} className="border-r border-border" collapsible="icon">
       {/* ===== HEADER ===== */}
-      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
+      <SidebarHeader>
         {/* Logo */}
         <SidebarMenu>
           <SidebarMenuItem>
+            {/* 展开态: 完整 Logo + 切换按钮 */}
             <SidebarMenuButton
               size="lg"
-              tooltip="VideoNote"
-              className="cursor-pointer"
-              onClick={() => {
-                if (state === "collapsed") {
-                  toggleSidebar()
-                } else {
-                  navigate("/")
-                }
-              }}
+              className="cursor-pointer group-data-[collapsible=icon]:hidden"
+              onClick={() => navigate("/")}
             >
-              <Sparkles className="size-5" />
-              <span className="text-base font-semibold">VideoNote</span>
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <GalleryVerticalEnd className="size-4" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">VideoNote</span>
+                <span className="truncate text-xs">AI 视频笔记</span>
+              </div>
+              <button
+                className="inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-all outline-none hover:bg-accent hover:text-accent-foreground size-7 -ml-1"
+                onClick={toggleSidebar}
+              >
+                <PanelLeft className="size-4" />
+                <span className="sr-only">Toggle Sidebar</span>
+              </button>
             </SidebarMenuButton>
+            {/* 折叠态: 仅切换按钮 */}
+            <button
+              className="hidden group-data-[collapsible=icon]:inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-all outline-none hover:bg-accent hover:text-accent-foreground size-8"
+              onClick={toggleSidebar}
+            >
+              <PanelLeft className="size-4" />
+              <span className="sr-only">Toggle Sidebar</span>
+            </button>
           </SidebarMenuItem>
         </SidebarMenu>
 
-        {/* 搜索 + 快捷添加 */}
+        {/* 搜索 — 展开态为输入框，折叠态消失 */}
+        <div className="px-2 group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-sidebar-accent rounded-md">
+            <Search className="size-4 text-sidebar-foreground/60 shrink-0" />
+            <input
+              type="text"
+              placeholder="全局搜索"
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-sidebar-foreground/60"
+            />
+          </div>
+        </div>
+
+        {/* 快捷添加笔记 */}
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="全局搜索">
-              <Search />
-              <span>全局搜索</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="快捷添加笔记"
-              className="bg-[#0087ff] text-white hover:bg-[#0087ff]/90 active:bg-[#0087ff]/80 data-[active=true]:bg-[#0087ff]"
               onClick={() => navigate("/")}
             >
               <StickyNote />
@@ -109,7 +129,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       {/* ===== CONTENT ===== */}
-      <SidebarContent className="px-2">
+      <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>资源</SidebarGroupLabel>
           <SidebarMenu>
@@ -183,7 +203,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       {/* ===== FOOTER ===== */}
-      <SidebarFooter className="p-4 group-data-[collapsible=icon]:p-2">
+      <SidebarFooter>
         <div className="group-data-[collapsible=icon]:hidden">
           <TaskQueuePanel />
         </div>

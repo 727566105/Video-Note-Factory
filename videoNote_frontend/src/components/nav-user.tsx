@@ -62,7 +62,7 @@ export function NavUser({
               </div>
 
               {/* 用户信息 */}
-              <div className="grid flex-1 text-left text-sm leading-tight">
+              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-semibold text-sidebar-foreground">
                   {user.name}
                 </span>
@@ -74,7 +74,7 @@ export function NavUser({
               </div>
 
               {/* 设置图标 */}
-              <Settings className="ml-auto size-4 text-muted-foreground" />
+              <Settings className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent

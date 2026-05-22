@@ -31,7 +31,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { useModelStore } from '@/store/modelStore'
 import { fetchUserPreferences } from '@/services/userPreferences'
-import { SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -77,12 +77,12 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="flex h-screen w-full overflow-hidden">
-        <AppSidebar />
-        <main className="flex-1 overflow-auto">
+      <AppSidebar />
+      <SidebarInset>
+        <div className="flex-1 overflow-auto">
           {children}
-        </main>
-      </div>
+        </div>
+      </SidebarInset>
     </SidebarProvider>
   )
 }
