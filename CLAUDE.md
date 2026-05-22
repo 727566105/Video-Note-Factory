@@ -207,16 +207,40 @@ Chrome 插件 "VideoNote Helper"，功能：
 | `VITE_API_BASE_URL` | 前端访问后端地址 | `http://127.0.0.1:8483` |
 | `WEBDAV_ENCRYPTION_KEY` | WebDAV 加密密钥 | 需自行设置 |
 
-## 缓存机制
+## 存储结构
 
-后端会在 `data/notes/{folder}/` 目录缓存以下文件以加速重试:
-- `note.json`: 最终笔记（含 markdown、audio_meta 等）
-- `{task_id}_audio.json`: 音频元信息
-- `{task_id}_transcript.json`: 转写结果
-- `{task_id}.md`: GPT 生成的 Markdown
-- `{task_id}.status.json`: 任务实时状态
+后端使用四级目录结构 `data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/`：
 
-文件路径由 `app/utils/path_helper.py` 的 `get_note_file_path()` 统一管理。
+```
+data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
+├── {video_id}.mp3          # 音频
+├── {video_id}.mp4          # 视频（可选）
+├── cover.jpg               # 封面图
+├── screenshots/            # 帧截图
+│   └── screenshot_{idx}_{uuid}.jpg
+├── note.json               # 最终笔记（含 markdown、audio_meta）
+├── audio.json              # 音频元信息
+├── transcript.json         # 转写结果
+├── note.md                 # GPT 生成的 Markdown
+└── status.json             # 任务实时状态
+```
+
+**平台目录映射**（`constant.py` 的 `PLATFORM_DIR_MAP`）：bilibili, youtube, douyin (含 tiktok), kuaishou, xiaohongshu, local (含 local_audio), `_other`（未知平台兜底）
+
+**API 路由**：
+- 封面图: `GET /api/video_cover/{platform}/{author_id}/{video_id}`
+- 截图: `GET /api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}`
+- 图片代理: `GET /api/image_proxy?url=<url>`（支持本地封面路径和远程图片）
+
+**路径管理核心文件**：`app/utils/path_helper.py`
+- `get_video_folder()`: 生成四级目录路径 `video/{platform}/{author}/{video}/`
+- `get_note_file_path_v2()`: 新旧路径桥接（有 author_id 走四级，否则回退 `data/notes/`）
+- `find_note_file()`: 兼容查找，优先四级路径 → 三级路径 → 扁平路径（不创建目录）
+- `get_note_folder()` / `get_note_file_path()`: 旧版路径（`data/notes/`），不自动创建目录
+- `move_note_files_to_video_folder()`: 旧路径迁移到四级目录
+- `migrate_to_platform_structure()`: 启动时自动迁移旧数据 + 封面图
+
+**注意**: 读取场景用 `find_note_file()`（不创建目录），写入场景用 `get_note_file_path_v2()` 并在写入前 `parent.mkdir(parents=True, exist_ok=True)`。
 
 ## 数据库
 
