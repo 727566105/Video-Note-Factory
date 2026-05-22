@@ -290,30 +290,29 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
     try:
         # 优先使用 task_id 删除（更精确）
         if data.task_id:
+            # 先查询数据库获取 author 信息（删除前查询）
+            db_task = get_task_by_task_id(data.task_id)
+
             # 删除数据库记录
             delete_task_by_id(data.task_id)
 
-            # 删除笔记文件夹（兼容三级目录和旧版目录）
+            # 删除笔记文件夹（兼容四级目录和旧版目录）
             import shutil
-            # 查找数据库中的 author 信息
-            db_task = get_task_by_task_id(data.task_id)
             if db_task and db_task.author_id:
-                # 三级目录
                 try:
                     video_folder = get_video_folder(
                         db_task.author_id, db_task.author_name,
                         db_task.video_id, db_task.title, db_task.platform
                     )
                     if video_folder.exists():
-                        # 删除整个博主目录下该视频的文件夹
                         shutil.rmtree(video_folder)
-                        logger.info(f"已删除三级目录: {video_folder}")
+                        logger.info(f"已删除四级目录: {video_folder}")
                         # 如果博主目录为空，也删除
                         author_dir = video_folder.parent
                         if author_dir.exists() and not any(author_dir.iterdir()):
                             shutil.rmtree(author_dir)
                 except Exception as e:
-                    logger.warning(f"删除三级目录失败: {e}")
+                    logger.warning(f"删除四级目录失败: {e}")
 
             # 旧版目录
             note_folder = get_note_folder(data.task_id, None)
