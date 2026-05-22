@@ -17,12 +17,18 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.resolve()
 # 从环境变量读取配置，默认值相对于项目根目录
 DATA_DIR = PROJECT_ROOT / os.getenv("DATA_DIR", "data")
 NOTE_OUTPUT_DIR = PROJECT_ROOT / os.getenv("NOTE_OUTPUT_DIR", "data/notes")
-CACHE_DIR = PROJECT_ROOT / os.getenv("CACHE_DIR", "data/cache")
 EXPORT_DIR = PROJECT_ROOT / os.getenv("EXPORT_DIR", "data/exports")
 
+def _get_platform_dir(platform: str) -> str:
+    """延迟导入避免循环依赖"""
+    from app.services.constant import get_platform_dir
+    return get_platform_dir(platform)
+
+VIDEO_DIR = DATA_DIR / "video"
+
 # 静态文件目录（保持在 backend 下，因为需要被 FastAPI 服务）
-IMAGE_OUTPUT_DIR = PROJECT_ROOT / "backend" / os.getenv("OUT_DIR", "static/screenshots")
-IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL", "/static/screenshots")
+IMAGE_OUTPUT_DIR = PROJECT_ROOT / "backend" / os.getenv("OUT_DIR", "static/screenshots")  # deprecated: 截图将迁移到视频目录 screenshots/
+IMAGE_BASE_URL = os.getenv("IMAGE_BASE_URL", "/static/screenshots")  # deprecated: 截图将迁移到视频目录 screenshots/
 
 
 def sanitize_folder_name(name: str, max_length: int = 100) -> str:
@@ -94,9 +100,10 @@ def get_video_folder_name(video_id: str, title: str) -> str:
 
 
 def get_author_folder(author_id: str, author_name: str, platform: str = "") -> Path:
-    """获取博主级目录: data/{author_folder_name}/"""
+    """获取博主级目录: data/video/{platform}/{author_folder_name}/"""
+    platform_dir = _get_platform_dir(platform)
     folder_name = get_author_folder_name(author_id, author_name, platform)
-    author_dir = DATA_DIR / folder_name
+    author_dir = VIDEO_DIR / platform_dir / folder_name
     author_dir.mkdir(parents=True, exist_ok=True)
     return author_dir
 
@@ -126,6 +133,21 @@ def get_video_file_path(author_id: str, author_name: str, video_id: str, title: 
     }
     filename = file_map.get(file_type, f"{file_type}.json")
     return video_dir / filename
+
+
+def get_screenshot_dir(author_id: str, author_name: str, video_id: str, title: str,
+                       platform: str = "") -> Path:
+    """获取视频目录下的 screenshots/ 子目录"""
+    video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+    ss_dir = video_dir / "screenshots"
+    ss_dir.mkdir(parents=True, exist_ok=True)
+    return ss_dir
+
+
+def get_screenshot_url_base(author_id: str, video_id: str, platform: str = "") -> str:
+    """获取截图的 API URL 前缀"""
+    platform_dir = _get_platform_dir(platform)
+    return f"/api/video_screenshots/{platform_dir}/{author_id}/{video_id}"
 
 
 def get_media_in_video_folder(author_id: str, author_name: str, video_id: str, title: str,
@@ -234,9 +256,10 @@ def find_note_file(
     兼容查找笔记文件（按优先级在多种路径中查找）
 
     查找优先级：
-    1. 三级路径 data/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
-    2. 扁平路径 data/notes/{task_id}/{file_type}.json
-    3. 扁平路径带标题 data/notes/{task_id[:8]}_{title}/{file_type}.json
+    1. 四级路径 data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
+    2. 三级路径 data/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
+    3. 扁平路径 data/notes/{task_id}/{file_type}.json
+    4. 扁平路径带标题 data/notes/{task_id[:8]}_{title}/{file_type}.json
 
     :param task_id: 任务 ID
     :param author_id: 博主唯一 ID
@@ -258,19 +281,27 @@ def find_note_file(
     }
     filename = file_map.get(file_type, f"{file_type}.json")
 
-    # 1. 三级路径（优先）
     if author_id:
-        video_folder = get_video_folder(author_id, author_name, video_id, title, platform)
-        path = video_folder / filename
-        if path.exists():
-            return path
+        author_folder = get_author_folder_name(author_id, author_name, platform)
+        video_folder = get_video_folder_name(video_id, title)
 
-    # 2. 扁平路径（纯 task_id）
+        # 1. 四级路径（新）
+        platform_dir_name = _get_platform_dir(platform)
+        four_level_path = VIDEO_DIR / platform_dir_name / author_folder / video_folder / filename
+        if four_level_path.exists():
+            return four_level_path
+
+        # 2. 三级路径（旧，向后兼容）
+        three_level_path = DATA_DIR / author_folder / video_folder / filename
+        if three_level_path.exists():
+            return three_level_path
+
+    # 3. 扁平路径（纯 task_id）
     path = NOTE_OUTPUT_DIR / task_id / filename
     if path.exists():
         return path
 
-    # 3. 扁平路径（带标题）
+    # 4. 扁平路径（带标题）
     if title:
         folder_name = f"{task_id[:8]}_{sanitize_folder_name(title)}"
         path = NOTE_OUTPUT_DIR / folder_name / filename
@@ -428,13 +459,17 @@ def ensure_directories():
     """
     directories = [
         DATA_DIR,
-        NOTE_OUTPUT_DIR,
-        CACHE_DIR,
+        VIDEO_DIR,
         EXPORT_DIR,
     ]
 
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
+
+    from app.services.constant import PLATFORM_DIR_MAP
+    for pdir in set(PLATFORM_DIR_MAP.values()):
+        (VIDEO_DIR / pdir).mkdir(parents=True, exist_ok=True)
+    (VIDEO_DIR / "_other").mkdir(parents=True, exist_ok=True)
 
 
 # 初始化时创建必要的目录
@@ -446,7 +481,6 @@ if __name__ == "__main__":
     print(f"项目根目录: {PROJECT_ROOT}")
     print(f"数据目录: {DATA_DIR}")
     print(f"笔记目录: {NOTE_OUTPUT_DIR}")
-    print(f"缓存目录: {CACHE_DIR}")
     print(f"导出目录: {EXPORT_DIR}")
     
     # 测试路径生成

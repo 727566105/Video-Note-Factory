@@ -21,3 +21,19 @@ CHANNEL_URL_MAP = {
     "youtube": "https://www.youtube.com/channel/{platform_id}",
     "douyin": "https://www.douyin.com/user/{platform_id}",
 }
+
+# 平台目录映射（四级目录结构 video/{platform}/{author}/{video})
+PLATFORM_DIR_MAP = {
+    "bilibili": "bilibili",
+    "youtube": "youtube",
+    "douyin": "douyin",
+    "tiktok": "douyin",
+    "kuaishou": "kuaishou",
+    "local": "local",
+    "local_audio": "local",
+}
+
+
+def get_platform_dir(platform: str) -> str:
+    """根据平台标识获取目录名，未知平台返回 '_other'"""
+    return PLATFORM_DIR_MAP.get(platform.lower(), "_other")
