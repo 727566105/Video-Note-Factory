@@ -100,6 +100,7 @@ class KuaiShouDownloader(Downloader, ABC):
                 },
                 video_path=mp4_path,
                 author_id=ks_author_id,
+                author_name=ks_author or None,
             )
 
         # 下载 mp4 视频
@@ -133,6 +134,7 @@ class KuaiShouDownloader(Downloader, ABC):
             },
             video_path=mp4_path,
             author_id=ks_author_id,
+            author_name=ks_author or None,
         )
 
     def download_video(

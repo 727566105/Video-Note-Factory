@@ -148,6 +148,8 @@ class BilibiliDownloader(Downloader, ABC):
 
                 # 下载封面到视频目录
                 author_id = str(info.get("uploader_id", "")) or str(info.get("channel_id", ""))
+                owner = info.get("owner", {})
+                author_name = owner.get("name", "") if owner else info.get("uploader", "")
                 if cover_url and output_dir:
                     try:
                         resp = requests.get(
@@ -178,6 +180,7 @@ class BilibiliDownloader(Downloader, ABC):
                 video_path=None,
                 description=description,
                 author_id=author_id,
+                author_name=author_name or None,
             )
         except DownloadError as e:
             error_msg = str(e)

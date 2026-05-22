@@ -14,6 +14,7 @@ class AudioDownloadResult:
     video_path: Optional[str] = None  #  新增字段：可选视频文件路径
     description: Optional[str] = None  # 视频描述
     author_id: Optional[str] = None
+    author_name: Optional[str] = None  # 博主名称
 
 
 @dataclass

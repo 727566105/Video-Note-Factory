@@ -402,6 +402,7 @@ class DouyinDownloader(Downloader):
                 },
                 video_path=None,
                 author_id=author_id,
+                author_name=video_data['aweme_detail'].get('author', {}).get('nickname', '') or None,
             )
         except Exception as e:
             raise e

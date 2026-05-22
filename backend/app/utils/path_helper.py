@@ -102,6 +102,28 @@ def get_video_folder_name(video_id: str, title: str) -> str:
 def get_author_folder(author_id: str, author_name: str, platform: str = "") -> Path:
     """获取博主级目录: data/video/{platform}/{author_folder_name}/"""
     platform_dir = _get_platform_dir(platform)
+    plat_path = VIDEO_DIR / platform_dir
+
+    # 自愈合：查找同平台下已有的 author_id 开头的目录
+    if author_id and plat_path.exists():
+        author_id_prefix = sanitize_path_name(str(author_id)) + "_"
+        try:
+            for existing in plat_path.iterdir():
+                if not existing.is_dir():
+                    continue
+                if existing.name == sanitize_path_name(str(author_id)):
+                    # 找到纯 author_id 目录，检查是否需要补充名称
+                    if author_name:
+                        renamed = plat_path / get_author_folder_name(author_id, author_name, platform)
+                        if not renamed.exists():
+                            existing.rename(renamed)
+                            return renamed
+                    return existing
+                if existing.name.startswith(author_id_prefix):
+                    return existing
+        except Exception:
+            pass
+
     folder_name = get_author_folder_name(author_id, author_name, platform)
     author_dir = VIDEO_DIR / platform_dir / folder_name
     author_dir.mkdir(parents=True, exist_ok=True)

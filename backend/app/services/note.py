@@ -188,7 +188,7 @@ class NoteGenerator:
             # 如果预获取失败，下载后重新确定三级路径
             if not author_id:
                 author_id = audio_meta.author_id if hasattr(audio_meta, 'author_id') else None
-                author_name = None
+                author_name = audio_meta.author_name if hasattr(audio_meta, 'author_name') else None
                 if audio_meta.raw_info:
                     owner = audio_meta.raw_info.get("owner", {})
                     _author = owner.get("name", "") if owner else ""
@@ -203,7 +203,8 @@ class NoteGenerator:
                             author_id = audio_meta.raw_info.get("channel_id") or audio_meta.raw_info.get("uploader_id")
                             if author_id:
                                 author_id = str(author_id)
-                    author_name = _author if _author else None
+                    if not author_name:
+                        author_name = _author if _author else None
                 video_id = audio_meta.video_id
                 _title = audio_meta.title
 
