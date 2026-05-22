@@ -20,6 +20,7 @@ from app.utils.path_helper import (
     find_note_file, get_export_cache_path, get_export_history_path, get_video_folder
 )
 from app.db.video_task_dao import get_task_by_task_id
+from app.utils.pandoc_export import export_with_pandoc, is_pandoc_available
 
 # PDF 样式主题
 StyleType = Literal["default", "simple", "print", "academic"]
@@ -877,3 +878,142 @@ async def export_image(
     except Exception as e:
         logger.error(f"图文导出异常 (task_id={task_id}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"图文生成失败：{str(e)}")
+
+
+# ── Pandoc 格式导出（HTML / DOCX / EPUB） ──────────────────────────
+
+PandocFormat = Literal["html", "docx", "epub"]
+
+
+def _export_pandoc_format(task_id: str, fmt: PandocFormat, current_user) -> Response:
+    """通用的 Pandoc 格式导出"""
+    if not is_pandoc_available():
+        raise HTTPException(
+            status_code=501,
+            detail="服务器未安装 Pandoc，无法导出此格式"
+        )
+
+    task = get_task_by_task_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    markdown_file = find_note_file(
+        task_id,
+        author_id=getattr(task, 'author_id', None),
+        author_name=getattr(task, 'author_name', None),
+        video_id=getattr(task, 'video_id', None),
+        title=getattr(task, 'title', None),
+        file_type="markdown",
+        platform=getattr(task, 'platform', '') or ""
+    )
+    if not markdown_file or not markdown_file.exists():
+        raise HTTPException(status_code=404, detail="笔记不存在")
+
+    markdown_content = markdown_file.read_text(encoding="utf-8")
+    if not markdown_content.strip():
+        raise HTTPException(status_code=400, detail="笔记内容为空")
+
+    if not getattr(task, 'author_id', None):
+        raise HTTPException(status_code=400, detail="缺少 author_id 信息，无法导出")
+
+    # 读取标题
+    note_title = ""
+    audio_cache_file = find_note_file(
+        task_id,
+        author_id=task.author_id,
+        author_name=getattr(task, 'author_name', ''),
+        video_id=getattr(task, 'video_id', ''),
+        title=getattr(task, 'title', ''),
+        file_type="audio",
+        platform=getattr(task, 'platform', '') or ""
+    )
+    if audio_cache_file and audio_cache_file.exists():
+        try:
+            audio_meta = json.loads(audio_cache_file.read_text(encoding="utf-8"))
+            note_title = audio_meta.get("title", "").strip()
+        except Exception:
+            pass
+
+    # 缓存路径
+    cache_file = get_export_cache_path(
+        author_id=task.author_id,
+        author_name=getattr(task, 'author_name', ''),
+        video_id=getattr(task, 'video_id', ''),
+        title=getattr(task, 'title', ''),
+        task_id=task_id,
+        style="pandoc",
+        export_format=fmt,
+        platform=getattr(task, 'platform', '') or ""
+    )
+
+    # 检查缓存
+    if cache_file.exists():
+        md_mtime = markdown_file.stat().st_mtime
+        cache_mtime = cache_file.stat().st_mtime
+        if cache_mtime >= md_mtime:
+            logger.info(f"返回缓存的 {fmt.upper()} (task_id={task_id})")
+            _add_export_history(task_id, fmt, note_title, task=task)
+            return _build_pandoc_response(cache_file, note_title or task_id, fmt)
+
+    # 查找封面图（EPUB 用）
+    cover_path = None
+    if fmt == "epub":
+        video_folder = get_video_folder(
+            task.author_id,
+            getattr(task, 'author_name', ''),
+            getattr(task, 'video_id', ''),
+            getattr(task, 'title', ''),
+            getattr(task, 'platform', '') or ""
+        )
+        candidate = video_folder / "cover.jpg"
+        if candidate.exists():
+            cover_path = candidate
+
+    # 执行 Pandoc 转换
+    export_with_pandoc(
+        markdown_content=markdown_content,
+        output_format=fmt,
+        output_path=cache_file,
+        title=note_title,
+        cover_path=cover_path,
+    )
+
+    _add_export_history(task_id, fmt, note_title, task=task)
+    return _build_pandoc_response(cache_file, note_title or task_id, fmt)
+
+
+def _build_pandoc_response(file_path: Path, title: str, fmt: str) -> FileResponse:
+    """构建 Pandoc 导出的文件下载响应"""
+    mime_map = {
+        "html": "text/html",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "epub": "application/epub+zip",
+    }
+    safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+    filename = quote(f"{safe_title}.{fmt}")
+    return FileResponse(
+        path=str(file_path),
+        media_type=mime_map.get(fmt, "application/octet-stream"),
+        filename=f"{safe_title}.{fmt}",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}"
+        }
+    )
+
+
+@router.get("/html/{task_id}")
+async def export_html(task_id: str, current_user=Depends(get_current_user)):
+    """导出笔记为 HTML"""
+    return _export_pandoc_format(task_id, "html", current_user)
+
+
+@router.get("/docx/{task_id}")
+async def export_docx(task_id: str, current_user=Depends(get_current_user)):
+    """导出笔记为 Word (.docx)"""
+    return _export_pandoc_format(task_id, "docx", current_user)
+
+
+@router.get("/epub/{task_id}")
+async def export_epub(task_id: str, current_user=Depends(get_current_user)):
+    """导出笔记为 EPUB"""
+    return _export_pandoc_format(task_id, "epub", current_user)

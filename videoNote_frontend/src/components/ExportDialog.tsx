@@ -191,15 +191,36 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
     }
   }
 
+  const handleDownloadPandocFormat = async (format: string, ext: string) => {
+    if (!task.id) return
+    try {
+      const response = await fetch(`/api/export/${format}/${task.id}`)
+      if (!response.ok) throw new Error()
+      const blob = await response.blob()
+      const filename = task.audioMeta?.title || '笔记'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${filename}.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast.success(`${ext.toUpperCase()} 导出成功`)
+    } catch {
+      toast.error(`${ext.toUpperCase()} 导出失败`)
+    }
+  }
+
   // 格式按钮配置
   const formatButtons = [
     { id: 'md', label: 'Markdown', icon: <FileTextIcon className="size-6" />, ext: '.md', enabled: true },
     { id: 'textbundle', label: 'TextBundle', icon: <FolderArchive className="size-6" />, ext: '.textbundle', enabled: false, badge: 'Gem' },
     { id: 'txt', label: 'Text', icon: <Type className="size-6" />, ext: '.txt', enabled: true },
     { id: 'pdf', label: 'PDF', icon: <Paperclip className="size-6" />, ext: '.pdf', enabled: true, badge: 'Gem' },
-    { id: 'docx', label: 'Word', icon: <FileTextIcon className="size-6" />, ext: '.docx', enabled: false, badge: 'Gem' },
-    { id: 'epub', label: 'EPUB', icon: <BookOpen className="size-6" />, ext: '.epub', enabled: false, badge: 'Gem' },
-    { id: 'html', label: 'HTML', icon: <FileTextIcon className="size-6" />, ext: '.html', enabled: false, badge: 'Gem' },
+    { id: 'docx', label: 'Word', icon: <FileTextIcon className="size-6" />, ext: '.docx', enabled: true },
+    { id: 'epub', label: 'EPUB', icon: <BookOpen className="size-6" />, ext: '.epub', enabled: true },
+    { id: 'html', label: 'HTML', icon: <FileTextIcon className="size-6" />, ext: '.html', enabled: true },
     { id: 'png', label: 'Image', icon: <Image className="size-6" />, ext: '.png', enabled: true, badge: 'Gem' },
     { id: 'srt', label: 'SRT', icon: <List className="size-6" />, ext: '.srt', enabled: false, badge: 'Gem' },
     { id: 'vtt', label: 'VTT', icon: <List className="size-6" />, ext: '.vtt', enabled: false, badge: 'Gem' },
@@ -211,6 +232,9 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
       case 'md': handleDownloadMarkdown(); break
       case 'txt': handleDownloadText(); break
       case 'pdf': handleDownloadPdf(); break
+      case 'html': handleDownloadPandocFormat('html', 'html'); break
+      case 'docx': handleDownloadPandocFormat('docx', 'docx'); break
+      case 'epub': handleDownloadPandocFormat('epub', 'epub'); break
       case 'png': toast.info('请在工具栏点击「导出图文」按钮'); break
     }
   }
