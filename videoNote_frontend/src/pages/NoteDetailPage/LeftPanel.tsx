@@ -320,16 +320,6 @@ export default function LeftPanel({ task }: LeftPanelProps) {
             </>
           )}
         </div>
-
-        {/* 控制栏 */}
-        <div className="flex items-center justify-between py-2 text-xs text-muted-foreground">
-          <span>{isEmbedActive && embedUrl ? '嵌入播放器' : '视频播放器'}</span>
-          {videoUrl && (
-            <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-              在网页中打开
-            </a>
-          )}
-        </div>
       </div>
 
       {/* 视频信息 */}
