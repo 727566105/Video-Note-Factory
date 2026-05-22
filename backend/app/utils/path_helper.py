@@ -466,10 +466,14 @@ def ensure_directories():
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
 
-    from app.services.constant import PLATFORM_DIR_MAP
-    for pdir in set(PLATFORM_DIR_MAP.values()):
-        (VIDEO_DIR / pdir).mkdir(parents=True, exist_ok=True)
-    (VIDEO_DIR / "_other").mkdir(parents=True, exist_ok=True)
+    # 延迟创建平台子目录，避免循环导入
+    try:
+        from app.services.constant import PLATFORM_DIR_MAP
+        for pdir in set(PLATFORM_DIR_MAP.values()):
+            (VIDEO_DIR / pdir).mkdir(parents=True, exist_ok=True)
+        (VIDEO_DIR / "_other").mkdir(parents=True, exist_ok=True)
+    except ImportError:
+        pass
 
 
 # 初始化时创建必要的目录
@@ -489,10 +493,10 @@ def migrate_to_platform_structure():
 
     # 查数据库获取 author_id -> platform 映射
     try:
-        from app.db.video_task_dao import get_session
+        from app.db.engine import get_db
         from app.db.models.video_tasks import VideoTask
-        session = get_session()
-        tasks = session.query(
+        db = next(get_db())
+        tasks = db.query(
             VideoTask.author_id, VideoTask.platform, VideoTask.video_id
         ).filter(VideoTask.author_id.isnot(None)).all()
 
@@ -503,7 +507,7 @@ def migrate_to_platform_structure():
                 author_platform_map[author_id] = platform or "unknown"
                 if video_id:
                     video_author_map[video_id] = author_id
-        session.close()
+        db.close()
     except Exception as e:
         migrate_logger.warning(f"迁移：无法查询数据库，跳过迁移: {e}")
         return
