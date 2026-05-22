@@ -84,11 +84,29 @@ function NavItem({ icon, label, active, hasDropdown, badge, onClick }: NavItemPr
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { state, toggleSidebar } = useSidebar()
+  const { state, setOpen, toggleSidebar } = useSidebar()
   const { unreadCount, fetchUnreadCount } = useSubscriptionStore()
   const authUser = useAuthStore(state => state.user)
 
   React.useEffect(() => { fetchUnreadCount() }, [fetchUnreadCount])
+
+  // 用 ref 存储 setOpen，避免依赖变化导致 useEffect 重跑覆盖用户操作
+  const setOpenRef = React.useRef(setOpen)
+  React.useEffect(() => { setOpenRef.current = setOpen }, [setOpen])
+
+  // 响应式：跨越 1200px 断点时自动折叠/展开（用户手动操作不受影响）
+  React.useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1199px)')
+    // 初始状态
+    setOpenRef.current(!mql.matches)
+
+    // 仅在断点跨越时触发
+    const handler = (e: MediaQueryListEvent) => {
+      setOpenRef.current(!e.matches)
+    }
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, []) // 空依赖，只在挂载时运行一次
 
   const user = {
     name: authUser?.username || '未登录',
