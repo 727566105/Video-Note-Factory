@@ -218,3 +218,22 @@ def clone_task_to_user(original_task_id: str, new_user_id: int,
         raise
     finally:
         db.close()
+
+
+def batch_update_cover_url(video_id: str, platform: str, new_cover_url: str):
+    """批量更新指定视频的 cover_url"""
+    db = next(get_db())
+    try:
+        tasks = db.query(VideoTask).filter(
+            VideoTask.video_id == video_id,
+            VideoTask.platform == platform
+        ).all()
+        for task in tasks:
+            task.cover_url = new_cover_url
+        db.commit()
+        return len(tasks)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
