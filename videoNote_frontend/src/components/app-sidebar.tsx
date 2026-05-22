@@ -14,14 +14,13 @@ import {
   Rss,
   Flame,
   NotebookPen,
-  LogOut,
   Settings,
   User,
   Users,
+  LogOut,
 } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import {
   Sidebar,
   SidebarContent,
@@ -30,6 +29,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -49,38 +49,6 @@ import { TaskQueuePanel } from "@/components/TaskQueuePanel"
 import { useSubscriptionStore } from "@/store/subscriptionStore"
 import { useAuthStore } from "@/store/authStore"
 
-interface NavItemProps {
-  icon: React.ReactNode
-  label: string
-  active?: boolean
-  hasDropdown?: boolean
-  badge?: React.ReactNode
-  onClick?: () => void
-}
-
-function NavItem({ icon, label, active, hasDropdown, badge, onClick }: NavItemProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center justify-between w-full px-3 py-2 rounded-md transition-colors group",
-        active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "hover:bg-accent text-sidebar-foreground"
-      )}
-    >
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-sm">{label}</span>
-      </div>
-      {badge}
-      {hasDropdown && !badge ? (
-        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-      ) : null}
-    </button>
-  )
-}
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -90,23 +58,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   React.useEffect(() => { fetchUnreadCount() }, [fetchUnreadCount])
 
-  // 用 ref 存储 setOpen，避免依赖变化导致 useEffect 重跑覆盖用户操作
   const setOpenRef = React.useRef(setOpen)
   React.useEffect(() => { setOpenRef.current = setOpen }, [setOpen])
 
-  // 响应式：跨越 1200px 断点时自动折叠/展开（用户手动操作不受影响）
+  // 响应式：跨越 1200px 断点时自动折叠/展开
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 1199px)')
-    // 初始状态
     setOpenRef.current(!mql.matches)
-
-    // 仅在断点跨越时触发
     const handler = (e: MediaQueryListEvent) => {
       setOpenRef.current(!e.matches)
     }
     mql.addEventListener('change', handler)
     return () => mql.removeEventListener('change', handler)
-  }, []) // 空依赖，只在挂载时运行一次
+  }, [])
 
   const user = {
     name: authUser?.username || '未登录',
@@ -116,166 +80,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar {...props} className="border-r border-border" collapsible="icon">
-      {state === "collapsed" ? (
-        /* ====== 折叠态 — 图标与展开态一一对应 ====== */
-        <div className="flex flex-col h-full animate-in fade-in-0 duration-300">
-          <SidebarHeader className="flex flex-col items-center gap-2 !p-2 !pt-3">
-            {/* 1. Sparkles logo / 展开按钮 */}
-            <button
-              onClick={toggleSidebar}
-              className="group/icon relative w-5 h-5 cursor-pointer mb-2"
-            >
-              <Sparkles className="w-5 h-5 text-foreground absolute inset-0 transition-opacity group-hover/icon:opacity-0" />
-              <PanelLeft className="w-5 h-5 text-foreground absolute inset-0 opacity-0 transition-opacity group-hover/icon:opacity-100" />
-            </button>
-            {/* 2. Search 全局搜索 */}
-            <button className="flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors">
-              <Search className="w-[18px] h-[18px] text-sidebar-foreground" />
-            </button>
-            {/* 3. StickyNote 快捷添加笔记 */}
-            <button
-              onClick={() => navigate("/")}
-              className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#0087ff] hover:bg-[#0087ff]/90 transition-colors"
-            >
-              <StickyNote className="w-[18px] h-[18px] text-white" />
-            </button>
-          </SidebarHeader>
-
-          <div className="flex justify-center py-1">
-            <div className="w-8 h-px bg-border" />
-          </div>
-
-          <SidebarContent className="flex flex-col items-center gap-1 !px-0 !overflow-hidden !py-2">
-            {/* 4. NotebookPen 笔记列表 */}
-            <button
-              className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
-                location.pathname === "/notes"
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "hover:bg-accent text-sidebar-foreground"
-              )}
-              onClick={() => navigate("/notes")}
-            >
-              <NotebookPen className="w-[18px] h-[18px]" />
-            </button>
-            {/* 5. Library 资源库 */}
-            <button className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent text-sidebar-foreground transition-colors">
-              <Library className="w-[18px] h-[18px]" />
-            </button>
-            {/* 6. Box 产出物 */}
-            <button className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent text-sidebar-foreground transition-colors">
-              <Box className="w-[18px] h-[18px]" />
-            </button>
-          </SidebarContent>
-
-          <div className="flex justify-center py-1">
-            <div className="w-8 h-px bg-border" />
-          </div>
-
-          <SidebarContent className="flex flex-col items-center gap-1 !px-0 !overflow-hidden !py-2">
-            {/* 7. Rss 动态 */}
-            <button
-              className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-lg transition-colors relative",
-                location.pathname === "/feed"
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "hover:bg-accent text-sidebar-foreground"
-              )}
-              onClick={() => navigate("/feed")}
-            >
-              <Rss className="w-[18px] h-[18px]" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">{unreadCount > 9 ? '9+' : unreadCount}</span>
-              )}
-            </button>
-            {/* 8. Activity 频道 */}
-            <button
-              className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
-                location.pathname === "/channels"
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "hover:bg-accent text-sidebar-foreground"
-              )}
-              onClick={() => navigate("/channels")}
-            >
-              <Activity className="w-[18px] h-[18px]" />
-            </button>
-            {/* 9. Flame 热门 */}
-            <button className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-accent text-sidebar-foreground transition-colors">
-              <Flame className="w-[18px] h-[18px]" />
-            </button>
-            {/* 10. Users 博主 */}
-            <button
-              className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
-                location.pathname.startsWith("/authors")
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "hover:bg-accent text-sidebar-foreground"
-              )}
-              onClick={() => navigate("/authors")}
-            >
-              <Users className="w-[18px] h-[18px]" />
-            </button>
-          </SidebarContent>
-
-          <SidebarFooter className="flex flex-col items-center !p-0 !pb-3 mt-auto">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="w-8 h-8 rounded-md bg-orange-500 flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-colors">
-                  <span className="text-white text-xs font-semibold">
-                    {user.name.slice(0, 2)}
-                  </span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="end" sideOffset={8} className="w-56 rounded-lg">
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <div className="w-8 h-8 rounded-md bg-orange-500 flex items-center justify-center">
-                      <span className="text-xs font-semibold text-white">
-                        {user.name.slice(0, 2)}
-                      </span>
-                    </div>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">{user.name}</span>
-                      <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-                    </div>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    个人资料
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/settings')}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    设置
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  退出登录
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarFooter>
-        </div>
-      ) : (
-        /* ====== 展开态 ====== */
-        <div className="flex flex-col h-full animate-in fade-in-0 duration-300">
-          <SidebarHeader className="p-4">
-            {/* Logo 区域 */}
-            <div className="flex items-center justify-between h-10 mb-3">
+      {/* ===== HEADER ===== */}
+      <SidebarHeader className="p-4">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <div className="flex items-center justify-between">
               <SidebarMenuButton
                 size="lg"
                 className="flex items-center gap-2 cursor-pointer"
                 onClick={() => navigate("/")}
               >
-                <Sparkles className="w-5 h-5 text-foreground" />
+                <Sparkles className="w-5 h-5 text-foreground shrink-0" />
                 <span className="text-base font-semibold text-foreground">VideoNote</span>
               </SidebarMenuButton>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
                 <button
                   className="p-1 hover:bg-accent rounded-md transition-colors"
                   onClick={toggleSidebar}
@@ -284,96 +102,109 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </button>
               </div>
             </div>
+          </SidebarMenuItem>
+        </SidebarMenu>
 
-            {/* 全局搜索 */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-background rounded-md border border-border/50">
-              <Search className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm text-sidebar-foreground">全局搜索</span>
-            </div>
-
-            {/* 快捷添加笔记按钮 */}
-            <button
-              onClick={() => navigate("/")}
-              className="flex items-center justify-center gap-2 px-3 py-2 mt-2 bg-[#0087ff] text-white rounded-md hover:bg-[#0087ff]/90 transition-colors"
-            >
-              <StickyNote className="w-4 h-4" />
-              <span className="text-sm font-normal">快捷添加笔记</span>
-            </button>
-          </SidebarHeader>
-
-          <SidebarContent className="px-2">
-            <SidebarGroup>
-              <SidebarGroupLabel>资源</SidebarGroupLabel>
-              <SidebarMenu className="flex flex-col gap-1">
-                <SidebarMenuItem>
-                  <NavItem
-                    icon={<NotebookPen className="w-4 h-4" />}
-                    label="笔记列表"
-                    active={location.pathname === "/notes"}
-                    onClick={() => navigate("/notes")}
-                  />
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <NavItem icon={<Library className="w-4 h-4" />} label="知 - 资源库 (2)" hasDropdown />
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <NavItem icon={<Box className="w-4 h-4" />} label="行 - 产出物" hasDropdown />
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
-
-            <SidebarGroup>
-              <SidebarGroupLabel>探索</SidebarGroupLabel>
-              <SidebarMenu className="flex flex-col gap-1">
-                <SidebarMenuItem>
-                  <NavItem
-                    icon={<Rss className="w-4 h-4" />}
-                    label="动态"
-                    badge={unreadCount > 0 ? <Badge variant="secondary" className="ml-auto text-xs">{unreadCount}</Badge> : undefined}
-                    active={location.pathname === "/feed"}
-                    onClick={() => navigate("/feed")}
-                  />
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <NavItem
-                    icon={<Activity className="w-4 h-4" />}
-                    label="频道管理"
-                    active={location.pathname === "/channels"}
-                    onClick={() => navigate("/channels")}
-                  />
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <NavItem
-                    icon={<Flame className="w-4 h-4" />}
-                    label="热门"
-                    hasDropdown
-                    onClick={() => alert('暂无开发')}
-                  />
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <NavItem
-                    icon={<Users className="w-4 h-4" />}
-                    label="博主"
-                    active={location.pathname.startsWith("/authors")}
-                    onClick={() => navigate("/authors")}
-                  />
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
-          </SidebarContent>
-
-          <SidebarFooter className="p-4">
-            <TaskQueuePanel />
-            <NavUser
-              user={{
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar || undefined,
-              }}
-            />
-          </SidebarFooter>
+        {/* 搜索框 — 展开态 */}
+        <div className="flex items-center gap-2 px-3 py-2 bg-background rounded-md border border-border/50 group-data-[collapsible=icon]:hidden">
+          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="text-sm text-sidebar-foreground">全局搜索</span>
         </div>
-      )}
+
+        {/* 快捷添加笔记 */}
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center justify-center gap-2 px-3 py-2 mt-2 bg-[#0087ff] text-white rounded-md hover:bg-[#0087ff]/90 transition-colors w-full group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mt-2"
+        >
+          <StickyNote className="w-4 h-4 shrink-0" />
+          <span className="text-sm font-normal group-data-[collapsible=icon]:hidden">快捷添加笔记</span>
+        </button>
+      </SidebarHeader>
+
+      {/* ===== CONTENT ===== */}
+      <SidebarContent className="px-2">
+        <SidebarGroup>
+          <SidebarGroupLabel>资源</SidebarGroupLabel>
+          <SidebarMenu className="flex flex-col gap-1">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={location.pathname === "/notes"}
+                onClick={() => navigate("/notes")}
+              >
+                <NotebookPen />
+                <span>笔记列表</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton>
+                <Library />
+                <span>知 - 资源库 (2)</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton>
+                <Box />
+                <span>行 - 产出物</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>探索</SidebarGroupLabel>
+          <SidebarMenu className="flex flex-col gap-1">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={location.pathname === "/feed"}
+                onClick={() => navigate("/feed")}
+              >
+                <Rss />
+                <span>动态</span>
+                {unreadCount > 0 && <SidebarMenuBadge>{unreadCount}</SidebarMenuBadge>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={location.pathname === "/channels"}
+                onClick={() => navigate("/channels")}
+              >
+                <Activity />
+                <span>频道管理</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => alert('暂无开发')}>
+                <Flame />
+                <span>热门</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={location.pathname.startsWith("/authors")}
+                onClick={() => navigate("/authors")}
+              >
+                <Users />
+                <span>博主</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+
+      {/* ===== FOOTER ===== */}
+      <SidebarFooter className="p-4">
+        <div className="group-data-[collapsible=icon]:hidden">
+          <TaskQueuePanel />
+        </div>
+        <NavUser
+          user={{
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar || undefined,
+          }}
+        />
+      </SidebarFooter>
+
       <SidebarRail />
     </Sidebar>
   )
