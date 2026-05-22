@@ -159,16 +159,17 @@ def get_task_by_task_id(task_id: str) -> Optional[VideoTask]:
 
 def find_completed_task_by_video(video_id: str, platform: str) -> Optional[VideoTask]:
     """跨用户查找已完成笔记的任务（用于复用）"""
-    from app.utils.path_helper import get_note_file_path
+    from app.utils.path_helper import find_note_file
     db = next(get_db())
     try:
         tasks = db.query(VideoTask).filter_by(
             video_id=video_id, platform=platform
         ).order_by(VideoTask.created_at.desc()).all()
         for task in tasks:
-            # 使用 path_helper 检查笔记文件是否存在
-            note_path = get_note_file_path(task.task_id, task.title if hasattr(task, 'title') else None, "note")
-            if note_path.exists():
+            # 使用 find_note_file 查找笔记文件（不创建目录）
+            note_path = find_note_file(task.task_id, task.author_id, task.author_name,
+                                        task.video_id, task.title, "note", platform)
+            if note_path and note_path.exists():
                 logger.info(f"找到可复用笔记: video_id={video_id}, task_id={task.task_id}")
                 return task
         return None

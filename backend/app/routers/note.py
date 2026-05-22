@@ -217,6 +217,7 @@ def _save_queued_task_params(task_id: str, data: VideoRequest, user_id: int = No
         "smart_mode": data.smart_mode,
         "user_id": user_id,
     }
+    queue_path.parent.mkdir(parents=True, exist_ok=True)
     with open(queue_path, "w", encoding="utf-8") as f:
         json.dump(params, f, ensure_ascii=False)
 

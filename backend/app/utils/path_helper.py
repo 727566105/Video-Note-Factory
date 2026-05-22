@@ -183,7 +183,7 @@ def get_note_folder(task_id: str, title: str = None) -> Path:
         folder_name = task_id
     
     note_folder = NOTE_OUTPUT_DIR / folder_name
-    note_folder.mkdir(parents=True, exist_ok=True)
+    # 不立即创建目录，让文件写入时按需创建
     return note_folder
 
 

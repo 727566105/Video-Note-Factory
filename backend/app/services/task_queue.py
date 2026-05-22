@@ -108,6 +108,7 @@ class TaskQueueManager:
     def _write_queued_status(self, task_id: str, position: int):
         """写入排队状态文件。"""
         status_path = get_note_file_path(task_id, None, "status")
+        status_path.parent.mkdir(parents=True, exist_ok=True)
         status_data = {
             "status": "QUEUED",
             "message": f"排队中（第 {position} 位）",

@@ -487,6 +487,8 @@ class NoteGenerator:
             data["message"] = message
 
         try:
+            # Ensure parent directory exists
+            status_file.parent.mkdir(parents=True, exist_ok=True)
             # First create a temporary file
             temp_file = status_file.with_suffix('.tmp')
 
@@ -645,6 +647,7 @@ class NoteGenerator:
                 output_dir=output_path,
                 need_video=False,
             )
+            audio_cache_file.parent.mkdir(parents=True, exist_ok=True)
             audio_cache_file.write_text(json.dumps(asdict(audio), ensure_ascii=False, indent=2), encoding="utf-8")
             logger.info(f"音频下载并缓存成功 ({audio_cache_file})")
             return audio
@@ -806,6 +809,7 @@ class NoteGenerator:
             try:
                 # 获取音频下载结果
                 audio_result = audio_future.result()
+                audio_cache_file.parent.mkdir(parents=True, exist_ok=True)
                 audio_cache_file.write_text(
                     json.dumps(asdict(audio_result), ensure_ascii=False, indent=2),
                     encoding="utf-8"
@@ -857,6 +861,7 @@ class NoteGenerator:
         try:
             logger.info("开始转写音频")
             transcript = self.transcriber.transcript(file_path=audio_file)
+            transcript_cache_file.parent.mkdir(parents=True, exist_ok=True)
             transcript_cache_file.write_text(json.dumps(asdict(transcript), ensure_ascii=False, indent=2), encoding="utf-8")
             logger.info(f"转写并缓存成功 ({transcript_cache_file})")
             return transcript
@@ -900,6 +905,7 @@ class NoteGenerator:
         # style=raw 时，跳过 GPT，直接输出转写原文
         if style == 'raw':
             markdown = self._generate_raw_markdown(audio_meta, transcript, formats)
+            markdown_cache_file.parent.mkdir(parents=True, exist_ok=True)
             markdown_cache_file.write_text(markdown, encoding="utf-8")
             logger.info(f"原文模式，跳过 GPT，直接缓存 ({markdown_cache_file})")
             return markdown
@@ -919,6 +925,7 @@ class NoteGenerator:
 
         try:
             markdown = gpt.summarize(source)
+            markdown_cache_file.parent.mkdir(parents=True, exist_ok=True)
             markdown_cache_file.write_text(markdown, encoding="utf-8")
             logger.info(f"GPT 总结并缓存成功 ({markdown_cache_file})")
             return markdown
@@ -954,6 +961,7 @@ class NoteGenerator:
         # raw 模式不需要 GPT
         if style == 'raw':
             markdown = self._generate_raw_markdown(audio_meta, transcript, formats)
+            markdown_cache_file.parent.mkdir(parents=True, exist_ok=True)
             markdown_cache_file.write_text(markdown, encoding="utf-8")
             return markdown, None
 
@@ -974,6 +982,7 @@ class NoteGenerator:
 
         try:
             result = selector.summarize_with_retry(source, task_id)
+            markdown_cache_file.parent.mkdir(parents=True, exist_ok=True)
             markdown_cache_file.write_text(result.markdown, encoding="utf-8")
             logger.info(
                 f"智能优选 GPT 总结成功 ({markdown_cache_file}), "

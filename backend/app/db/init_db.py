@@ -107,8 +107,8 @@ def migrate_feed_items_table():
 
 def backfill_task_metadata():
     """从 JSON 文件回填已有任务的元数据到数据库"""
-    from app.utils.path_helper import get_note_file_path
-    
+    from app.utils.path_helper import find_note_file
+
     db = next(get_db())
     backfilled = 0
     try:
@@ -117,8 +117,9 @@ def backfill_task_metadata():
             # 如果已有 title，跳过
             if task.title:
                 continue
-            result_path = get_note_file_path(task.task_id, None, "note")
-            if result_path.exists():
+            result_path = find_note_file(task.task_id, task.author_id, task.author_name,
+                                          task.video_id, None, "note", task.platform)
+            if result_path and result_path.exists():
                 try:
                     with open(result_path, "r", encoding="utf-8") as f:
                         note_data = json.load(f)

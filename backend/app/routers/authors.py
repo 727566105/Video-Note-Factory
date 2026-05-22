@@ -48,7 +48,7 @@ def get_author_videos(author_id: str, limit: int = 50, offset: int = 0,
                       current_user=Depends(get_current_user)) -> dict:
     """获取博主下的视频列表"""
     import json
-    from app.utils.path_helper import get_note_file_path
+    from app.utils.path_helper import find_note_file
 
     db = next(get_db())
     try:
@@ -63,17 +63,19 @@ def get_author_videos(author_id: str, limit: int = 50, offset: int = 0,
         videos = []
         for task in tasks:
             status = "PENDING"
-            status_path = get_note_file_path(task.task_id, task.title, "status")
-            result_path = get_note_file_path(task.task_id, task.title, "note")
+            status_path = find_note_file(task.task_id, task.author_id, task.author_name,
+                                         task.video_id, task.title, "status", task.platform)
+            result_path = find_note_file(task.task_id, task.author_id, task.author_name,
+                                         task.video_id, task.title, "note", task.platform)
 
-            if status_path.exists():
+            if status_path and status_path.exists():
                 try:
                     with open(status_path, "r", encoding="utf-8") as f:
                         status_data = json.load(f)
                         status = status_data.get("status", "PENDING")
                 except Exception:
                     pass
-            elif result_path.exists():
+            elif result_path and result_path.exists():
                 status = "SUCCESS"
 
             videos.append({
