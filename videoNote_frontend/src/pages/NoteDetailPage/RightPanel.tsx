@@ -288,7 +288,6 @@ export default function RightPanel({ task }: RightPanelProps) {
             <ActionBtn icon={<Copy className="w-3.5 h-3.5" />} label="复制" onClick={handleCopy} />
             <ButtonGroup>
               <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="导出" onClick={() => setExportDialogOpen(true)} />
-              {task.id && <ExportSiyuanButton taskId={task.id} variant="outline" size="sm" className="h-8 px-2 text-xs" />}
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -297,10 +296,6 @@ export default function RightPanel({ task }: RightPanelProps) {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={handleDownload}>
-                    <Download className="mr-2 h-4 w-4" /> 导出 Markdown
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-red-600 focus:text-red-600">
                     <Trash className="mr-2 h-4 w-4" /> 删除笔记
                   </DropdownMenuItem>
