@@ -240,13 +240,22 @@ def get_note_folder(task_id: str, title: str = None) -> Path:
 
 def get_note_file_path(task_id: str, title: str = None, file_type: str = "note") -> Path:
     """
-    获取笔记相关文件的完整路径（旧版，保持兼容）
+    获取笔记相关文件的完整路径（已废弃，仅用于迁移脚本）
+
+    .. deprecated::
+        请使用 get_note_file_path_v2 或 VIDEO_DIR/_pending，新任务禁止使用此函数。
 
     :param task_id: 任务 ID
     :param title: 笔记标题（可选）
     :param file_type: 文件类型 (note, audio, transcript, markdown, status, export)
     :return: 文件完整路径
     """
+    import warnings
+    warnings.warn(
+        "get_note_file_path 已废弃，请使用 get_note_file_path_v2 或 VIDEO_DIR/_pending",
+        DeprecationWarning,
+        stacklevel=2
+    )
     folder = get_note_folder(task_id, title)
 
     file_map = {
@@ -836,5 +845,7 @@ if __name__ == "__main__":
     print(f"\n测试标题: {test_title}")
     print(f"安全文件夹名: {sanitize_folder_name(test_title)}")
     print(f"笔记文件夹: {get_note_folder(test_task_id, test_title)}")
-    print(f"笔记文件: {get_note_file_path(test_task_id, test_title, 'note')}")
+    # 使用新版函数测试（旧函数已废弃）
+    print(f"笔记文件（四级目录）: {get_note_file_path_v2(test_task_id, 'author123', '测试博主', 'vid456', test_title, 'note', 'bilibili')}")
+    print(f"笔记文件（_pending）: {get_note_file_path_v2(test_task_id, None, None, None, None, 'note', '')}")
     print(f"导出文件: {get_export_file_path(test_task_id, test_title, 'pdf')}")

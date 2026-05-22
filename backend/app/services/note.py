@@ -44,14 +44,13 @@ BACKEND_BASE_URL = f"{API_BASE_URL}:{BACKEND_PORT}"
 
 # 使用统一的路径管理工具
 from app.utils.path_helper import (
-    NOTE_OUTPUT_DIR,
     IMAGE_OUTPUT_DIR,
     IMAGE_BASE_URL,
-    get_note_file_path,
     get_note_file_path_v2,
     get_screenshot_dir,
     get_screenshot_url_base,
     move_note_files_to_video_folder,
+    VIDEO_DIR,
 )
 
 # 日志配置
@@ -183,10 +182,12 @@ class NoteGenerator:
                     from app.utils.path_helper import get_video_folder
                     output_path = str(get_video_folder(author_id, author_name, video_id, _title, platform))
             else:
-                # 回退旧版临时路径
-                audio_cache_file = get_note_file_path(task_id, None, "audio")
-                transcript_cache_file = get_note_file_path(task_id, None, "transcript")
-                markdown_cache_file = get_note_file_path(task_id, None, "markdown")
+                # 使用 _pending 临时目录
+                pending_dir = VIDEO_DIR / "_pending" / task_id
+                pending_dir.mkdir(parents=True, exist_ok=True)
+                audio_cache_file = pending_dir / "audio.json"
+                transcript_cache_file = pending_dir / "transcript.json"
+                markdown_cache_file = pending_dir / "note.md"
 
             # 1. 下载音频/视频
             audio_meta = self._download_media(

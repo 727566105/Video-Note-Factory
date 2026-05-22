@@ -8,7 +8,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # 使用统一的路径管理工具
-from app.utils.path_helper import get_note_file_path
+from app.utils.path_helper import VIDEO_DIR
 
 
 class TaskQueueManager:
@@ -106,9 +106,10 @@ class TaskQueueManager:
             self._start_queued_task(next_task_id)
 
     def _write_queued_status(self, task_id: str, position: int):
-        """写入排队状态文件。"""
-        status_path = get_note_file_path(task_id, None, "status")
-        status_path.parent.mkdir(parents=True, exist_ok=True)
+        """写入排队状态文件到 _pending 临时目录。"""
+        pending_dir = VIDEO_DIR / "_pending" / task_id
+        pending_dir.mkdir(parents=True, exist_ok=True)
+        status_path = pending_dir / "status.json"
         status_data = {
             "status": "QUEUED",
             "message": f"排队中（第 {position} 位）",

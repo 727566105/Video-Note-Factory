@@ -32,11 +32,11 @@ from app.enmus.task_status_enums import TaskStatus
 
 # 使用统一的路径管理工具
 from app.utils.path_helper import (
-    get_note_file_path,
     get_note_folder,
     find_note_file,
     get_note_file_path_v2,
     get_video_folder,
+    VIDEO_DIR,
 )
 
 router = APIRouter()
@@ -198,8 +198,10 @@ def save_note_to_file(task_id: str, note):
 
 
 def _save_queued_task_params(task_id: str, data: VideoRequest, user_id: int = None):
-    """保存排队任务的参数到文件，供后续拉起时读取"""
-    queue_path = get_note_file_path(task_id, None, "queue")
+    """保存排队任务的参数到 _pending 目录"""
+    pending_dir = VIDEO_DIR / "_pending" / task_id
+    pending_dir.mkdir(parents=True, exist_ok=True)
+    queue_path = pending_dir / "queue.json"
     params = {
         "video_url": data.video_url,
         "platform": data.platform,
@@ -224,8 +226,8 @@ def _save_queued_task_params(task_id: str, data: VideoRequest, user_id: int = No
 
 
 def _start_queued_task(task_id: str):
-    """从队列文件读取参数并在新线程中启动排队任务"""
-    queue_path = get_note_file_path(task_id, None, "queue")
+    """从 _pending 目录读取参数并启动排队任务"""
+    queue_path = VIDEO_DIR / "_pending" / task_id / "queue.json"
     if not queue_path.exists():
         logger.error(f"排队任务参数文件不存在: {task_id}")
         return
@@ -317,11 +319,17 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
                 except Exception as e:
                     logger.warning(f"删除四级目录失败: {e}")
 
-            # 旧版目录
+            # 旧版目录（兼容旧数据清理）
             note_folder = get_note_folder(data.task_id, None)
             if note_folder.exists():
                 shutil.rmtree(note_folder)
                 logger.info(f"已删除旧版笔记文件夹: {note_folder}")
+
+            # _pending 临时目录
+            pending_dir = VIDEO_DIR / "_pending" / data.task_id
+            if pending_dir.exists():
+                shutil.rmtree(pending_dir)
+                logger.info(f"已删除 _pending 目录: {pending_dir}")
 
             # 清理队列
             task_queue.remove(data.task_id)
@@ -398,7 +406,7 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
                         db_task.video_id, db_task.title, "note", db_task.platform
                     )
                 else:
-                    note_path = get_note_file_path(user_own_task_id, None, "note")
+                    note_path = find_note_file(user_own_task_id, None, None, None, None, "note", "")
                 if note_path and note_path.exists():
                     return R.error("该视频已生成过笔记，请直接查看或点击「重新生成」")
 

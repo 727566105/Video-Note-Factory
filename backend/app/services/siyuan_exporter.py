@@ -6,7 +6,7 @@ from app.db.siyuan_config_dao import get_config, get_decrypted_config, get_decry
 from app.db.siyuan_export_history_dao import add_export_record
 
 # 使用统一的路径管理工具
-from app.utils.path_helper import get_note_file_path, find_note_file
+from app.utils.path_helper import find_note_file
 from app.db.video_task_dao import get_task_by_task_id
 
 logger = get_logger(__name__)
