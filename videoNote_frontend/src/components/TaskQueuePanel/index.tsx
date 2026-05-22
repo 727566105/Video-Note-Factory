@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useTaskStore, type Task } from '@/store/taskStore'
 import { getBaseURL } from '@/utils/api'
+import { toast } from 'sonner'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   DropdownMenu,
@@ -149,10 +150,15 @@ const TaskQueueItem: FC<{
   const title = getTaskTitle(task)
   const isLocal = task.platform === 'local' || task.platform === 'local_audio'
 
+  // 判断 cover_url 是否是有效的远程 URL（非 /api/video_cover/ 本地路径）
+  const rawCoverUrl = task.audioMeta.cover_url || ''
+  const isLocalCoverPath = rawCoverUrl.startsWith('/api/video_cover/')
+  const isValidRemoteUrl = rawCoverUrl && !isLocalCoverPath && (rawCoverUrl.startsWith('http://') || rawCoverUrl.startsWith('https://') || rawCoverUrl.startsWith('/static/') || rawCoverUrl.startsWith('data/'))
+
   const thumbnailSrc = isLocal
-    ? task.audioMeta.cover_url || (task.platform === 'local_audio' ? '/local-audio-cover.svg' : '/local-video-cover.svg')
-    : task.audioMeta.cover_url
-      ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+    ? (isValidRemoteUrl ? rawCoverUrl : (task.platform === 'local_audio' ? '/local-audio-cover.svg' : '/local-video-cover.svg'))
+    : rawCoverUrl
+      ? (isValidRemoteUrl ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}` : '/placeholder.png')
       : '/placeholder.png'
 
   return (
@@ -294,11 +300,19 @@ export const TaskQueuePanel: FC = () => {
     return { completed, processing, failed, pending, total: tasks.length }
   }, [tasks])
 
-  // 点击外部关闭
+  // 点击外部关闭（排除 Radix Portal 元素）
   useEffect(() => {
     if (!isOpen) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      // 检查是否在 Radix Portal 内（dropdown、dialog、popover 等）
+      const isInRadixPortal = target instanceof Element && (
+        target.closest('[data-radix-popper-content-wrapper]') ||
+        target.closest('[role="menu"]') ||
+        target.closest('[role="dialog"]') ||
+        target.closest('[role="listbox"]')
+      )
+      if (panelRef.current && !panelRef.current.contains(target) && !isInRadixPortal) {
         setIsOpen(false)
       }
     }
@@ -354,6 +368,42 @@ export const TaskQueuePanel: FC = () => {
     }
   }
 
+  const handleClearCompleted = async () => {
+    const completed = tasks.filter(t => t.status === 'SUCCESS')
+    if (completed.length === 0) return
+    let failed = 0
+    for (const t of completed) {
+      try {
+        await removeTask(t.id)
+      } catch {
+        failed++
+      }
+    }
+    if (failed > 0) {
+      toast.error(`${failed} 个任务清除失败`)
+    } else {
+      toast.success(`已清除 ${completed.length} 个已完成任务`)
+    }
+  }
+
+  const handleClearFailed = async () => {
+    const failedTasks = tasks.filter(t => t.status === 'FAILED')
+    if (failedTasks.length === 0) return
+    let failed = 0
+    for (const t of failedTasks) {
+      try {
+        await removeTask(t.id)
+      } catch {
+        failed++
+      }
+    }
+    if (failed > 0) {
+      toast.error(`${failed} 个任务清除失败`)
+    } else {
+      toast.success(`已清除 ${failedTasks.length} 个失败任务`)
+    }
+  }
+
   return (
     <>
       {/* 触发器徽章 */}
@@ -399,14 +449,10 @@ export const TaskQueuePanel: FC = () => {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => {
-                        Promise.all(tasks.filter(t => t.status === 'SUCCESS').map(t => removeTask(t.id).catch((e) => console.error('清除已完成任务失败:', e))))
-                      }}>
+                      <DropdownMenuItem onSelect={handleClearCompleted}>
                         清除已完成
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        Promise.all(tasks.filter(t => t.status === 'FAILED').map(t => removeTask(t.id).catch((e) => console.error('清除失败任务失败:', e))))
-                      }}>
+                      <DropdownMenuItem onSelect={handleClearFailed}>
                         清除失败任务
                       </DropdownMenuItem>
                     </DropdownMenuContent>

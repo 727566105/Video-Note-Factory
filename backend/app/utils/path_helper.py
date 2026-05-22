@@ -272,12 +272,12 @@ def get_note_file_path_v2(
     platform: str = ""
 ) -> Path:
     """
-    获取笔记文件路径（新版三级路径）
+    获取笔记文件路径（四级目录结构）
 
-    - 有 author_id 时：三级路径 data/{author_id}_{author_name}/{video_id}_{title}/
-    - 无 author_id 时：回退到旧版 data/notes/{task_id}/
+    - 有 author_id 时：四级路径 data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
+    - 无 author_id 时：临时路径 data/video/_pending/{task_id}/
 
-    :param task_id: 任务 ID（用于无 author_id 时的回退路径）
+    :param task_id: 任务 ID
     :param author_id: 博主唯一 ID
     :param author_name: 博主名称
     :param video_id: 视频 ID（BV号/抖音ID等）
@@ -287,11 +287,21 @@ def get_note_file_path_v2(
     :return: 文件完整路径
     """
     if author_id:
-        # 三级路径
         return get_video_file_path(author_id, author_name, video_id, title, file_type, platform)
     else:
-        # 回退旧版
-        return get_note_file_path(task_id, title, file_type)
+        # 无 author_id 时使用 _pending 临时目录，不回退旧版 data/notes
+        pending_dir = VIDEO_DIR / "_pending" / task_id
+        file_map = {
+            "note": "note.json",
+            "audio_cache": "audio.json",
+            "transcript": "transcript.json",
+            "markdown": "note.md",
+            "status": "status.json",
+            "queue": "queue.json",
+            "metadata": "metadata.json",
+        }
+        filename = file_map.get(file_type, f"{file_type}.json")
+        return pending_dir / filename
 
 
 def find_note_file(
@@ -304,13 +314,13 @@ def find_note_file(
     platform: str = ""
 ) -> Path | None:
     """
-    兼容查找笔记文件（按优先级在多种路径中查找）
+    查找笔记文件（按优先级在多种路径中查找）
 
     查找优先级：
     1. 四级路径 data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
     2. 三级路径 data/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
-    3. 扁平路径 data/notes/{task_id}/{file_type}.json
-    4. 扁平路径带标题 data/notes/{task_id[:8]}_{title}/{file_type}.json
+    3. 临时路径 data/video/_pending/{task_id}/{file_type}.json
+    4. 旧版路径 data/notes/{task_id}/{file_type}.json（兼容已有数据）
 
     :param task_id: 任务 ID
     :param author_id: 博主唯一 ID
@@ -336,23 +346,28 @@ def find_note_file(
         author_folder = get_author_folder_name(author_id, author_name, platform)
         video_folder = get_video_folder_name(video_id, title)
 
-        # 1. 四级路径（新）
+        # 1. 四级路径
         platform_dir_name = _get_platform_dir(platform)
         four_level_path = VIDEO_DIR / platform_dir_name / author_folder / video_folder / filename
         if four_level_path.exists():
             return four_level_path
 
-        # 2. 三级路径（旧，向后兼容）
+        # 2. 三级路径（向后兼容）
         three_level_path = DATA_DIR / author_folder / video_folder / filename
         if three_level_path.exists():
             return three_level_path
 
-    # 3. 扁平路径（纯 task_id）
+    # 3. 临时路径（无 author_id 时的新写入位置）
+    pending_path = VIDEO_DIR / "_pending" / task_id / filename
+    if pending_path.exists():
+        return pending_path
+
+    # 4. 旧版路径（兼容已有数据，仅读取）
     path = NOTE_OUTPUT_DIR / task_id / filename
     if path.exists():
         return path
 
-    # 4. 扁平路径（带标题）
+    # 5. 旧版路径带标题（兼容已有数据，仅读取）
     if title:
         folder_name = f"{task_id[:8]}_{sanitize_folder_name(title)}"
         path = NOTE_OUTPUT_DIR / folder_name / filename

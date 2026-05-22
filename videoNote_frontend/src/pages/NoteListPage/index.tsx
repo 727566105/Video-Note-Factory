@@ -95,10 +95,6 @@ function NoteEmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent className="flex-row justify-center gap-2">
-        <Button onClick={onQuickAdd}>
-          <Sparkles className="size-4" />
-          快捷生成
-        </Button>
         <Button variant="outline" onClick={() => window.open('/', '_self')}>
           浏览首页
         </Button>
