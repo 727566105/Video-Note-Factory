@@ -138,6 +138,19 @@ videoNote/
                                                                              存储/展示
 ```
 
+### 数据存储
+
+```
+data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
+├── cover.jpg           # 视频封面图
+├── screenshots/        # 视频帧截图
+├── note.md / note.json # AI 生成的笔记
+├── audio.json          # 音频缓存
+└── transcript.json     # 转写缓存
+```
+
+支持平台: bilibili, youtube, douyin, kuaishou, xiaohongshu, local
+
 ## 📸 截图预览
 
 ![screenshot](./doc/image1.png)
@@ -161,7 +174,7 @@ mv .env.example .env
 ```bash
 cd backend
 pip install -r requirements.txt
-python main.py
+python3 main.py
 ```
 
 ### 3. 启动前端（Vite + React）
