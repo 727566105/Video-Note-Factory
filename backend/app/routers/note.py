@@ -132,8 +132,9 @@ def save_note_to_file(task_id: str, note):
         video_id = note.audio_meta.video_id
         platform = getattr(note.audio_meta, 'platform', '')
         author_id = getattr(note.audio_meta, 'author_id', None)
-        # 从 raw_info 获取 author_name
-        if note.audio_meta.raw_info:
+        author_name = getattr(note.audio_meta, 'author_name', None)
+        # 如果字段没有，再从 raw_info 获取
+        if not author_name and note.audio_meta.raw_info:
             owner = note.audio_meta.raw_info.get("owner", {})
             author_name = owner.get("name", "") if owner else ""
             if not author_name:
@@ -251,7 +252,9 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
     try:
         # 智能模式不需要验证 model_name/provider_id
         if not smart_mode and (not model_name or not provider_id):
-            raise HTTPException(status_code=400, detail="请选择模型和提供者")
+            NoteGenerator()._update_status(task_id, TaskStatus.FAILED, message="请选择模型和提供者")
+            logger.warning(f"任务 {task_id} 缺少模型配置，跳过执行")
+            return
 
         note = NoteGenerator().generate(
             video_url=video_url,
@@ -376,6 +379,12 @@ async def upload(file: UploadFile = File(...), current_user=Depends(get_current_
 def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current_user=Depends(get_current_user)) -> dict:
     try:
         video_id = extract_video_id(data.video_url, data.platform)
+
+        # 本地文件特殊处理：从上传路径提取 video_id
+        if not video_id and data.platform in ("local", "local_audio") and data.video_url:
+            import os
+            filename = os.path.basename(data.video_url)
+            video_id, _ = os.path.splitext(filename)  # 使用文件名作为 video_id
 
         if video_id and not data.task_id:
             # 先检查当前用户是否已生成过该视频的笔记（避免重复提交）

@@ -123,7 +123,19 @@ class NoteGenerator:
 
         try:
             logger.info(f"开始生成笔记 (task_id={task_id}, smart_mode={smart_mode})")
-            self._update_status(task_id, TaskStatus.PARSING)
+
+            # 重试场景：先从数据库获取已存的 author 信息
+            from app.db.video_task_dao import get_task_by_task_id
+            existing_task = get_task_by_task_id(task_id)
+            existing_author_id = existing_task.author_id if existing_task else None
+            existing_author_name = existing_task.author_name if existing_task else None
+            existing_video_id = existing_task.video_id if existing_task else None
+            existing_platform = existing_task.platform if existing_task else ""
+            existing_title = existing_task.title if existing_task else None
+
+            self._update_status(task_id, TaskStatus.PARSING,
+                                author_id=existing_author_id, author_name=existing_author_name,
+                                video_id=existing_video_id, title=existing_title, platform=existing_platform)
 
             # 获取下载器
             downloader = self._get_downloader(platform)
@@ -281,6 +293,7 @@ class NoteGenerator:
                     extras=extras,
                     video_img_urls=self.video_img_urls,
                     output_language=output_language,
+                    task_id=task_id,
                 )
 
             # 4. 截图 & 链接替换
@@ -491,6 +504,20 @@ class NoteGenerator:
         """
         if not task_id:
             return
+
+        # 如果没有 author_id，尝试从数据库获取已有任务的作者信息
+        if not author_id:
+            try:
+                from app.db.video_task_dao import get_task_by_task_id
+                db_task = get_task_by_task_id(task_id)
+                if db_task:
+                    author_id = db_task.author_id
+                    author_name = db_task.author_name
+                    video_id = video_id or db_task.video_id
+                    title = title or db_task.title
+                    platform = platform or db_task.platform
+            except Exception:
+                pass
 
         status_file = get_note_file_path_v2(
             task_id, author_id, author_name, video_id, title, "status", platform
@@ -910,6 +937,7 @@ class NoteGenerator:
         extras: Optional[str],
             video_img_urls: List[str],
             output_language: Optional[str] = None,
+            task_id: Optional[str] = None,
     ) -> str | None:
         """
         调用 GPT 对转写结果进行总结，生成 Markdown 文本并缓存。
@@ -925,8 +953,8 @@ class NoteGenerator:
         :param extras: GPT 额外参数
         :return: 生成的 Markdown 字符串
         """
-        task_id = markdown_cache_file.stem
-        self._update_status(task_id, TaskStatus.SUMMARIZING)
+        if task_id:
+            self._update_status(task_id, TaskStatus.SUMMARIZING)
         logger.info(f"GPT output_language: {output_language}")
 
         # style=raw 时，跳过 GPT，直接输出转写原文
@@ -1148,7 +1176,7 @@ class NoteGenerator:
             from app.db.video_task_dao import update_task_metadata
             author = ""
             author_id = audio_meta.author_id if hasattr(audio_meta, 'author_id') else None
-            author_name = None
+            author_name = getattr(audio_meta, 'author_name', None)
             if audio_meta.raw_info:
                 owner = audio_meta.raw_info.get("owner", {})
                 author = owner.get("name", "") if owner else ""
@@ -1164,7 +1192,8 @@ class NoteGenerator:
                         author_id = audio_meta.raw_info.get("channel_id") or audio_meta.raw_info.get("uploader_id")
                         if author_id:
                             author_id = str(author_id)
-                author_name = author if author else None
+                if not author_name:
+                    author_name = author if author else None
             update_task_metadata(
                 task_id=task_id,
                 title=audio_meta.title,
