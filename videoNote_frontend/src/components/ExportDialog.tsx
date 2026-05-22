@@ -3,6 +3,7 @@ import { Package, FileText, Type, Highlighter, List, ChevronDown, Check, Minus, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { useAuthStore } from '@/store/authStore'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -173,7 +174,10 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   const handleDownloadPdf = async () => {
     if (!task.id) return
     try {
-      const response = await fetch(`/api/export/pdf/${task.id}`)
+      const token = useAuthStore.getState().token
+      const response = await fetch(`/api/export/pdf/${task.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
       if (!response.ok) throw new Error('PDF 导出失败')
       const blob = await response.blob()
       const filename = task.audioMeta?.title || 'note'
@@ -194,7 +198,10 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   const handleDownloadPandocFormat = async (format: string, ext: string) => {
     if (!task.id) return
     try {
-      const response = await fetch(`/api/export/${format}/${task.id}`)
+      const token = useAuthStore.getState().token
+      const response = await fetch(`/api/export/${format}/${task.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
       if (!response.ok) throw new Error()
       const blob = await response.blob()
       const filename = task.audioMeta?.title || '笔记'
