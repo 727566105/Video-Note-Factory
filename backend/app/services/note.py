@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from app.downloaders.base import Downloader
 from app.db.video_task_dao import delete_task_by_video, insert_video_task
+from app.db.user_dao import get_user_by_id
 from app.enmus.exception import NoteErrorEnum, ProviderErrorEnum
 from app.enmus.task_status_enums import TaskStatus
 from app.enmus.note_enums import DownloadQuality
@@ -146,6 +147,14 @@ class NoteGenerator:
             video_id = video_info.video_id if video_info else None
             _title = video_info.title if video_info else None
 
+            # 本地文件特殊处理：使用当前用户作为作者
+            if platform in ("local", "local_audio") and not author_id and user_id:
+                user = get_user_by_id(user_id)
+                if user:
+                    author_id = str(user.id)
+                    author_name = user.username
+                video_id = _title
+
             if author_id:
                 # 直接使用三级目录路径
                 audio_cache_file = get_note_file_path_v2(
@@ -181,6 +190,8 @@ class NoteGenerator:
                 video_interval=video_interval,
                 grid_size=grid_size,
                 task_id=task_id,
+                author_id=author_id,
+                author_name=author_name,
             )
 
             # 下载完成后保存元数据
@@ -536,6 +547,8 @@ class NoteGenerator:
         video_interval: int,
         grid_size: List[int],
         task_id: Optional[str] = None,
+        author_id: Optional[str] = None,
+        author_name: Optional[str] = None,
     ) -> AudioDownloadResult | None:
         """
         1. 检查音频缓存；若不存在，则根据需要下载音频或视频（若需截图/可视化）。
@@ -646,10 +659,12 @@ class NoteGenerator:
         try:
             logger.info("开始下载音频")
             audio = downloader.download(
-                video_url=video_url,
+                video_url=str(video_url),
                 quality=quality,
                 output_dir=output_path,
                 need_video=False,
+                author_id=author_id,
+                author_name=author_name,
             )
             audio_cache_file.parent.mkdir(parents=True, exist_ok=True)
             audio_cache_file.write_text(json.dumps(asdict(audio), ensure_ascii=False, indent=2), encoding="utf-8")

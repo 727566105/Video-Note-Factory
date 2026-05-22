@@ -140,7 +140,9 @@ class LocalDownloader(Downloader, ABC):
             video_url: str,
             output_dir: str = None,
             quality: DownloadQuality = "fast",
-            need_video: Optional[bool] = False
+            need_video: Optional[bool] = False,
+            author_id: Optional[str] = None,
+            author_name: Optional[str] = None,
     ) -> AudioDownloadResult:
         """
         处理本地文件路径，返回音频元信息
@@ -178,5 +180,7 @@ class LocalDownloader(Downloader, ABC):
             raw_info={
                 'path':  file_path
             },
-            video_path=None
+            video_path=None,
+            author_id=author_id,
+            author_name=author_name,
         )
