@@ -540,6 +540,9 @@ def migrate_to_platform_structure():
     # 迁移截图
     _migrate_screenshots(video_author_map, author_platform_map, migrate_logger)
 
+    # 更新已迁移目录中 audio.json 的 file_path
+    _update_audio_paths(migrate_logger)
+
     migrate_logger.info("四级目录迁移完成")
 
 
@@ -645,6 +648,46 @@ def _replace_url_in_dict(obj, old_url, new_url):
                 obj[i] = item.replace(old_url, new_url)
             else:
                 _replace_url_in_dict(item, old_url, new_url)
+
+
+def _update_audio_paths(logger):
+    """更新迁移后 audio.json 中的 file_path 和 video_path"""
+    import json as json_mod
+    if not VIDEO_DIR.exists():
+        return
+
+    for platform_dir in VIDEO_DIR.iterdir():
+        if not platform_dir.is_dir():
+            continue
+        for author_dir in platform_dir.iterdir():
+            if not author_dir.is_dir():
+                continue
+            for video_dir in author_dir.iterdir():
+                if not video_dir.is_dir():
+                    continue
+                audio_json = video_dir / "audio.json"
+                if not audio_json.exists():
+                    continue
+                try:
+                    with open(audio_json, "r", encoding="utf-8") as f:
+                        data = json_mod.load(f)
+                    changed = False
+                    for key in ("file_path", "video_path"):
+                        old_path = data.get(key, "")
+                        if old_path and str(DATA_DIR) in old_path and str(VIDEO_DIR) not in old_path:
+                            # 替换 data/ -> data/video/{platform}/
+                            new_path = old_path.replace(
+                                str(DATA_DIR) + "/",
+                                str(VIDEO_DIR / platform_dir.name) + "/"
+                            )
+                            data[key] = new_path
+                            changed = True
+                    if changed:
+                        with open(audio_json, "w", encoding="utf-8") as f:
+                            json_mod.dump(data, f, ensure_ascii=False, indent=2)
+                        logger.info(f"更新路径: {video_dir.name}/audio.json")
+                except Exception as e:
+                    logger.warning(f"更新 audio.json 失败 {audio_json}: {e}")
 
 
 if __name__ == "__main__":

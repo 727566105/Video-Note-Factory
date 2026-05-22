@@ -20,8 +20,9 @@ async def get_video_screenshot(
         raise HTTPException(status_code=404, detail="Platform directory not found")
 
     # 防止路径遍历攻击
-    if ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
+    for part in (platform, author_id, video_id, filename):
+        if ".." in part or "/" in part or "\\" in part:
+            raise HTTPException(status_code=400, detail="Invalid parameter")
 
     for author_folder in plat_path.iterdir():
         if not author_folder.is_dir():
