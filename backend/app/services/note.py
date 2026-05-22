@@ -180,6 +180,7 @@ class NoteGenerator:
                 video_understanding=video_understanding,
                 video_interval=video_interval,
                 grid_size=grid_size,
+                task_id=task_id,
             )
 
             # 下载完成后保存元数据
@@ -234,6 +235,7 @@ class NoteGenerator:
                 audio_file=audio_meta.file_path,
                 transcript_cache_file=transcript_cache_file,
                 status_phase=TaskStatus.TRANSCRIBING,
+                task_id=task_id,
             )
 
             # 3. GPT 总结
@@ -533,6 +535,7 @@ class NoteGenerator:
         video_understanding: bool,
         video_interval: int,
         grid_size: List[int],
+        task_id: Optional[str] = None,
     ) -> AudioDownloadResult | None:
         """
         1. 检查音频缓存；若不存在，则根据需要下载音频或视频（若需截图/可视化）。
@@ -552,8 +555,8 @@ class NoteGenerator:
         :param grid_size: 缩略图网格尺寸
         :return: AudioDownloadResult 对象
         """
-        task_id = audio_cache_file.stem.split("_")[0]
-        self._update_status(task_id, status_phase)
+        if task_id:
+            self._update_status(task_id, status_phase)
 
         # 判断是否需要下载视频
         need_video = screenshot or video_understanding
@@ -835,6 +838,7 @@ class NoteGenerator:
         audio_file: str,
         transcript_cache_file: Path,
         status_phase: TaskStatus,
+        task_id: Optional[str] = None,
     ) -> TranscriptResult | None:
         """
         1. 检查转写缓存；若存在则尝试加载，否则调用转写器生成并缓存。
@@ -843,10 +847,11 @@ class NoteGenerator:
         :param audio_file: 音频文件本地路径
         :param transcript_cache_file: 转写结果缓存路径
         :param status_phase: 对应的状态枚举，如 TaskStatus.TRANSCRIBING
+        :param task_id: 任务 ID
         :return: TranscriptResult 对象
         """
-        task_id = transcript_cache_file.stem.split("_")[0]
-        self._update_status(task_id, status_phase)
+        if task_id:
+            self._update_status(task_id, status_phase)
 
         # 已有缓存，尝试加载
         if transcript_cache_file.exists():
