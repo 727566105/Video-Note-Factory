@@ -3,10 +3,7 @@
 import * as React from "react"
 import {
   Sparkles,
-  PanelLeft,
-  PanelLeftClose,
   Search,
-  ChevronDown,
   StickyNote,
   Library,
   Box,
@@ -14,13 +11,9 @@ import {
   Rss,
   Flame,
   NotebookPen,
-  Settings,
-  User,
   Users,
-  LogOut,
 } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { cn } from "@/lib/utils"
 import {
   Sidebar,
   SidebarContent,
@@ -35,15 +28,6 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { NavUser } from "@/components/nav-user"
 import { TaskQueuePanel } from "@/components/TaskQueuePanel"
 import { useSubscriptionStore } from "@/store/subscriptionStore"
@@ -82,63 +66,56 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar {...props} className="border-r border-border" collapsible="icon">
       {/* ===== HEADER ===== */}
       <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
+        {/* Logo */}
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center justify-between">
-              {/* Logo 按钮：展开态导航首页，折叠态 hover 显示展开按钮 */}
-              <SidebarMenuButton
-                size="lg"
-                className="flex items-center gap-2 cursor-pointer relative group/logo"
-                onClick={() => {
-                  if (state === "collapsed") {
-                    toggleSidebar()
-                  } else {
-                    navigate("/")
-                  }
-                }}
-              >
-                {/* Sparkles — 展开态 + 折叠态默认显示 */}
-                <Sparkles className="w-5 h-5 text-foreground shrink-0 transition-opacity group-data-[collapsible=icon]:group-hover/logo:opacity-0" />
-                {/* PanelLeft — 折叠态 hover 显示 */}
-                <PanelLeft className="w-5 h-5 text-foreground shrink-0 absolute opacity-0 transition-opacity group-data-[collapsible=icon]:group-hover/logo:opacity-100" />
-                <span className="text-base font-semibold text-foreground group-data-[collapsible=icon]:hidden">VideoNote</span>
-              </SidebarMenuButton>
-              {/* 展开态折叠按钮 */}
-              <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-                <button
-                  className="p-1 hover:bg-accent rounded-md transition-colors"
-                  onClick={toggleSidebar}
-                >
-                  <PanelLeftClose className="w-[18px] h-[18px] text-muted-foreground" />
-                </button>
-              </div>
-            </div>
+            <SidebarMenuButton
+              size="lg"
+              tooltip="VideoNote"
+              className="cursor-pointer"
+              onClick={() => {
+                if (state === "collapsed") {
+                  toggleSidebar()
+                } else {
+                  navigate("/")
+                }
+              }}
+            >
+              <Sparkles className="size-5" />
+              <span className="text-base font-semibold">VideoNote</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
 
-        {/* 搜索框 — 展开态 */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-background rounded-md border border-border/50 group-data-[collapsible=icon]:hidden">
-          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="text-sm text-sidebar-foreground">全局搜索</span>
-        </div>
-
-        {/* 快捷添加笔记 */}
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center justify-center gap-2 px-3 py-2 mt-2 bg-[#0087ff] text-white rounded-md hover:bg-[#0087ff]/90 transition-colors w-full group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:mt-2"
-        >
-          <StickyNote className="w-4 h-4 shrink-0" />
-          <span className="text-sm font-normal group-data-[collapsible=icon]:hidden">快捷添加笔记</span>
-        </button>
+        {/* 搜索 + 快捷添加 */}
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="全局搜索">
+              <Search />
+              <span>全局搜索</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="快捷添加笔记"
+              className="bg-[#0087ff] text-white hover:bg-[#0087ff]/90 active:bg-[#0087ff]/80 data-[active=true]:bg-[#0087ff]"
+              onClick={() => navigate("/")}
+            >
+              <StickyNote />
+              <span>快捷添加笔记</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       {/* ===== CONTENT ===== */}
       <SidebarContent className="px-2">
         <SidebarGroup>
           <SidebarGroupLabel>资源</SidebarGroupLabel>
-          <SidebarMenu className="flex flex-col gap-1">
+          <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
+                tooltip="笔记列表"
                 isActive={location.pathname === "/notes"}
                 onClick={() => navigate("/notes")}
               >
@@ -147,13 +124,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton>
+              <SidebarMenuButton tooltip="知 - 资源库">
                 <Library />
                 <span>知 - 资源库 (2)</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton>
+              <SidebarMenuButton tooltip="行 - 产出物">
                 <Box />
                 <span>行 - 产出物</span>
               </SidebarMenuButton>
@@ -163,9 +140,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         <SidebarGroup>
           <SidebarGroupLabel>探索</SidebarGroupLabel>
-          <SidebarMenu className="flex flex-col gap-1">
+          <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
+                tooltip="动态"
                 isActive={location.pathname === "/feed"}
                 onClick={() => navigate("/feed")}
               >
@@ -176,6 +154,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
+                tooltip="频道管理"
                 isActive={location.pathname === "/channels"}
                 onClick={() => navigate("/channels")}
               >
@@ -184,13 +163,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton onClick={() => alert('暂无开发')}>
+              <SidebarMenuButton tooltip="热门" onClick={() => alert('暂无开发')}>
                 <Flame />
                 <span>热门</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
+                tooltip="博主"
                 isActive={location.pathname.startsWith("/authors")}
                 onClick={() => navigate("/authors")}
               >
@@ -203,7 +183,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       {/* ===== FOOTER ===== */}
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 group-data-[collapsible=icon]:p-2">
         <div className="group-data-[collapsible=icon]:hidden">
           <TaskQueuePanel />
         </div>
