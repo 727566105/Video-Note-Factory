@@ -22,46 +22,128 @@ import { noteFormats, noteStyles, outputLanguages } from '@/constant/note.ts'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { toast } from 'sonner'
 
+// 局部模式的值类型（用于详情页，不修改全局 store）
+export interface LocalSummaryValues {
+  style?: string
+  outputLanguage?: string
+  videoUnderstanding?: boolean
+  videoInterval?: number
+  gridCols?: number
+  gridRows?: number
+  selectedFormats?: string[]
+  extras?: string
+}
+
 interface SummarySettingsProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  mode?: 'global' | 'local'        // 默认 'global'
+  localValues?: LocalSummaryValues  // 局部模式：外部传入的值
+  onLocalChange?: (values: LocalSummaryValues) => void  // 局部模式：变更回调
 }
 
-export function SummarySettings({ open, onOpenChange }: SummarySettingsProps) {
+export function SummarySettings({
+  open,
+  onOpenChange,
+  mode = 'global',
+  localValues,
+  onLocalChange
+}: SummarySettingsProps) {
   const [activeTab, setActiveTab] = useState<'default' | 'custom'>('default')
 
-  // 从 store 读取默认配置
-  const {
-    style,
-    setStyle,
-    outputLanguage,
-    setOutputLanguage,
-    videoUnderstanding,
-    setVideoUnderstanding,
-    videoInterval,
-    setVideoInterval,
-    gridCols,
-    setGridCols,
-    gridRows,
-    setGridRows,
-    selectedFormats,
-    setSelectedFormats,
-    extras,
-    setExtras,
-  } = useSummarySettingsStore()
+  // 从全局 store 读取（仅 global 模式使用）
+  const globalStore = useSummarySettingsStore()
+
+  // 根据模式决定使用哪个数据源
+  const getStyle = () => mode === 'local' ? (localValues?.style || 'minimal') : globalStore.style
+  const getOutputLanguage = () => mode === 'local' ? (localValues?.outputLanguage || 'zh') : globalStore.outputLanguage
+  const getVideoUnderstanding = () => mode === 'local' ? (localValues?.videoUnderstanding ?? false) : globalStore.videoUnderstanding
+  const getVideoInterval = () => mode === 'local' ? (localValues?.videoInterval || 4) : globalStore.videoInterval
+  const getGridCols = () => mode === 'local' ? (localValues?.gridCols || 3) : globalStore.gridCols
+  const getGridRows = () => mode === 'local' ? (localValues?.gridRows || 3) : globalStore.gridRows
+  const getSelectedFormats = () => mode === 'local' ? (localValues?.selectedFormats || []) : globalStore.selectedFormats
+  const getExtras = () => mode === 'local' ? (localValues?.extras || '') : globalStore.extras
+
+  // 设置器：global 模式直接操作 store，local 模式调用回调
+  const setStyle = (value: string) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, style: value })
+    } else {
+      globalStore.setStyle(value)
+    }
+  }
+  const setOutputLanguage = (value: string) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, outputLanguage: value })
+    } else {
+      globalStore.setOutputLanguage(value)
+    }
+  }
+  const setVideoUnderstanding = (value: boolean) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, videoUnderstanding: value })
+    } else {
+      globalStore.setVideoUnderstanding(value)
+    }
+  }
+  const setVideoInterval = (value: number) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, videoInterval: value })
+    } else {
+      globalStore.setVideoInterval(value)
+    }
+  }
+  const setGridCols = (value: number) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, gridCols: value })
+    } else {
+      globalStore.setGridCols(value)
+    }
+  }
+  const setGridRows = (value: number) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, gridRows: value })
+    } else {
+      globalStore.setGridRows(value)
+    }
+  }
+  const setSelectedFormats = (value: string[]) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, selectedFormats: value })
+    } else {
+      globalStore.setSelectedFormats(value)
+    }
+  }
+  const setExtras = (value: string) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, extras: value })
+    } else {
+      globalStore.setExtras(value)
+    }
+  }
+
+  // 当前值（根据模式）
+  const style = getStyle()
+  const outputLanguage = getOutputLanguage()
+  const videoUnderstanding = getVideoUnderstanding()
+  const videoInterval = getVideoInterval()
+  const gridCols = getGridCols()
+  const gridRows = getGridRows()
+  const selectedFormats = getSelectedFormats()
+  const extras = getExtras()
 
   // 自定义总结状态（本地状态，不持久化）
   const [promptContent, setPromptContent] = useState('')
   const [promptName, setPromptName] = useState('')
 
-  // 保存默认配置
+  // 保存默认配置（仅 global 模式）
   const handleSaveDefaultSettings = () => {
-    // 配置已经通过 store 自动持久化，这里只是触发提示
-    toast.success('保存成功', {
-      icon: <Check className="w-4 h-4" />,
-      duration: 2000,
-    })
-    // 关闭弹窗
+    if (mode === 'global') {
+      toast.success('保存成功', {
+        icon: <Check className="w-4 h-4" />,
+        duration: 2000,
+      })
+    }
     onOpenChange(false)
   }
 

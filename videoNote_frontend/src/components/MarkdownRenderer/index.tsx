@@ -26,7 +26,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
     <div className="markdown-body w-full !bg-transparent">
       <ReactMarkdown
         remarkPlugins={[gfm, remarkMath]}
-        rehypePlugins={[[rehypeKatex, { strict: false }]]}
+        rehypePlugins={[[rehypeKatex, { strict: false, trust: true }]]}
         components={{
           // Headings with improved styling and anchor links
           h1: ({ children, ...props }) => (

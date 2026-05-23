@@ -15,11 +15,12 @@ import {
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { SummarySettings } from '@/components/SummarySettings'
+import { SummarySettings, type LocalSummaryValues } from '@/components/SummarySettings'
 import { ModelSelectDialog } from '@/components/ModelSelectDialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
 import type { Task } from '@/store/taskStore'
+import type { LocalSettings } from './RightPanel'
 import { getBaseURL } from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
@@ -33,9 +34,11 @@ const SUBSCRIBABLE_PLATFORMS = ['bilibili', 'youtube', 'douyin', 'kuaishou']
 
 interface LeftPanelProps {
   task: Task
+  localSettings: LocalSettings
+  onSettingsChange: (settings: LocalSettings) => void
 }
 
-export default function LeftPanel({ task }: LeftPanelProps) {
+export default function LeftPanel({ task, localSettings, onSettingsChange }: LeftPanelProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [isEmbedActive, setIsEmbedActive] = useState(false)
@@ -414,7 +417,22 @@ export default function LeftPanel({ task }: LeftPanelProps) {
         </div>
       </div>
 
-      <SummarySettings open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SummarySettings
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        mode="local"
+        localValues={{
+          style: localSettings.style,
+          outputLanguage: localSettings.outputLanguage,
+        }}
+        onLocalChange={(values) => {
+          onSettingsChange({
+            ...localSettings,
+            style: values.style ?? localSettings.style,
+            outputLanguage: values.outputLanguage ?? localSettings.outputLanguage,
+          })
+        }}
+      />
       <ModelSelectDialog open={modelOpen} onOpenChange={setModelOpen} />
     </div>
   )

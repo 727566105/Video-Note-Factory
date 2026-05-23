@@ -4,7 +4,7 @@ import { useTaskStore, type Task } from '@/store/taskStore'
 import { useSystemStore } from '@/store/configStore'
 import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
-import RightPanel from './RightPanel'
+import RightPanel, { type LocalSettings } from './RightPanel'
 import DetailNav from './DetailNav'
 import { Loader2 } from 'lucide-react'
 import { isProcessingStatus, hasMarkdownContent, ProcessingSpinner } from './processing'
@@ -91,6 +91,26 @@ export default function NoteDetailPage() {
   const [leftWidth, setLeftWidth] = useState(592)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
+
+  // 局部设置（隔离全局 store，仅影响当前笔记的重新生成）
+  const [localSettings, setLocalSettings] = useState<LocalSettings>({
+    style: task?.formData?.style || 'minimal',
+    outputLanguage: task?.formData?.output_language || 'zh',
+    modelName: task?.formData?.model_name || '',
+    providerId: task?.formData?.provider_id || '',
+  })
+
+  // taskId 变化时重新初始化局部设置
+  useEffect(() => {
+    if (task) {
+      setLocalSettings({
+        style: task.formData?.style || 'minimal',
+        outputLanguage: task.formData?.output_language || 'zh',
+        modelName: task.formData?.model_name || '',
+        providerId: task.formData?.provider_id || '',
+      })
+    }
+  }, [task?.id])
 
   // 从后端加载（如果 store 中没有）
   useEffect(() => {
@@ -216,7 +236,20 @@ export default function NoteDetailPage() {
           key={`left-${panelSwapped}`}
           className="flex-1 min-h-0 animate-in fade-in slide-in-from-right-4 duration-300"
         >
-          {panelSwapped ? <MemoRightPanel task={task} isProcessing={processing || queued} processingStatus={task.status} /> : <MemoLeftPanel task={task} />}
+          {panelSwapped ? (
+            <MemoRightPanel
+              task={task}
+              isProcessing={processing || queued}
+              processingStatus={task.status}
+              localSettings={localSettings}
+            />
+          ) : (
+            <MemoLeftPanel
+              task={task}
+              localSettings={localSettings}
+              onSettingsChange={setLocalSettings}
+            />
+          )}
         </div>
       </div>
 
@@ -242,7 +275,20 @@ export default function NoteDetailPage() {
           key={`right-${panelSwapped}`}
           className="h-full animate-in fade-in slide-in-from-left-4 duration-300"
         >
-          {panelSwapped ? <MemoLeftPanel task={task} /> : <MemoRightPanel task={task} isProcessing={processing || queued} processingStatus={task.status} />}
+          {panelSwapped ? (
+            <MemoLeftPanel
+              task={task}
+              localSettings={localSettings}
+              onSettingsChange={setLocalSettings}
+            />
+          ) : (
+            <MemoRightPanel
+              task={task}
+              isProcessing={processing || queued}
+              processingStatus={task.status}
+              localSettings={localSettings}
+            />
+          )}
         </div>
       </div>
 

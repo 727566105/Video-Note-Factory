@@ -71,7 +71,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useSystemStore } from '@/store/configStore'
-import { useTaskStore } from '@/store/taskStore'
+import { useTaskStore, type Task } from '@/store/taskStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { quickViewNote } from '@/services/subscription'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
@@ -105,6 +105,12 @@ function NoteEmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
   )
 }
 
+// 根据 taskStore 获取实时状态
+function getRealtimeStatus(item: NoteItem, taskStoreTasks: { id: string; status: string }[]): string {
+  const storeTask = taskStoreTasks.find(t => t.id === item.task_id)
+  return storeTask?.status || item.status
+}
+
 // 瀑布流卡片 - 带笔记内容懒加载（参考设计样式）
 function MasonryNoteCard({
   item,
@@ -115,6 +121,7 @@ function MasonryNoteCard({
   isSubscribed,
   failedCovers,
   handleCoverError,
+  realtimeStatus,
 }: {
   item: NoteItem
   onClick: () => void
@@ -124,13 +131,14 @@ function MasonryNoteCard({
   isSubscribed: boolean
   failedCovers: Set<string>
   handleCoverError: (id: string) => void
+  realtimeStatus: string
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [notePreview, setNotePreview] = useState<string | null>(null)
   const [loadingNote, setLoadingNote] = useState(false)
   const fetched = useRef(false)
 
-  const isSuccess = item.status === 'SUCCESS'
+  const isSuccess = realtimeStatus === 'SUCCESS'
 
   useEffect(() => {
     if (!cardRef.current || !isSuccess) return
@@ -173,7 +181,7 @@ function MasonryNoteCard({
             <PlatformIconSmall platform={item.platform} />
           </div>
         )}
-        {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+        {(realtimeStatus === 'PENDING' || realtimeStatus === 'RUNNING' || realtimeStatus === 'QUEUED') && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <LoaderCircle className="w-6 h-6 text-white animate-spin" />
           </div>
@@ -504,6 +512,7 @@ export const NoteListPage: FC = () => {
           onCoverError={handleCoverError}
           isSubscribed={isSubscribed}
           isSubscribable={isSubscribable}
+          taskStoreTasks={taskStoreTasks}
         />
       ) : noteViewMode === 'card' ? (
         /* 卡片视图 */
@@ -622,6 +631,7 @@ export const NoteListPage: FC = () => {
                   isSubscribed={isSubscribed(item.author)}
                   failedCovers={failedCovers}
                   handleCoverError={handleCoverError}
+                  realtimeStatus={getRealtimeStatus(item, taskStoreTasks)}
                 />
               ))}
             </div>
@@ -715,6 +725,7 @@ function DataTable({
   onCoverError,
   isSubscribed,
   isSubscribable,
+  taskStoreTasks,
 }: {
   data: NoteItem[]
   loading: boolean
@@ -729,6 +740,7 @@ function DataTable({
   onCoverError: (id: string) => void
   isSubscribed: (author: string) => boolean
   isSubscribable: (platform: string) => boolean
+  taskStoreTasks: Task[]
 }) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
@@ -747,8 +759,9 @@ function DataTable({
         onCoverError,
         isSubscribed,
         isSubscribable,
+        taskStoreTasks,
       }),
-    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable],
+    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable, taskStoreTasks],
   )
 
   const table = useReactTable({

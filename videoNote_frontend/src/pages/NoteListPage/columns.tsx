@@ -3,6 +3,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
+import type { Task } from '@/store/taskStore'
 
 export interface NoteItem {
   id: string
@@ -41,6 +42,13 @@ interface ColumnProps {
   onCoverError: (id: string) => void
   isSubscribed: (author: string) => boolean
   isSubscribable: (platform: string) => boolean
+  taskStoreTasks: Task[]
+}
+
+// 从 taskStore 获取实时状态，优先使用 taskStore 的值
+function getRealtimeStatus(item: NoteItem, taskStoreTasks: Task[]): string {
+  const storeTask = taskStoreTasks.find(t => t.id === item.task_id)
+  return storeTask?.status || item.status
 }
 
 const PROGRESS_STEPS = [
@@ -95,6 +103,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       size: 140,
       cell: ({ row }) => {
         const item = row.original
+        const status = getRealtimeStatus(item, props.taskStoreTasks)
         return (
           <div className="w-32">
             <div className="relative aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
@@ -111,7 +120,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                   <span className="text-xs text-muted-foreground">{item.author || item.platform}</span>
                 </div>
               )}
-              {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+              {(status === 'PENDING' || status === 'RUNNING' || status === 'QUEUED') && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <LoaderCircle className="w-6 h-6 text-white animate-spin" />
                 </div>
@@ -134,6 +143,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       ),
       cell: ({ row }) => {
         const item = row.original
+        const status = getRealtimeStatus(item, props.taskStoreTasks)
         return (
           <div className="min-w-0 py-1">
             <div className="font-medium text-foreground line-clamp-2">{item.title}</div>
@@ -160,8 +170,8 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                 </button>
               )}
             </div>
-            {isProcessingStatus(item.status) && (() => {
-              const { currentStep, stepLabel } = getStepProgress(item.status)
+            {isProcessingStatus(status) && (() => {
+              const { currentStep, stepLabel } = getStepProgress(status)
               return (
                 <div className="flex flex-col gap-1 mt-2">
                   <div className="flex items-center gap-2 text-xs">
@@ -183,13 +193,13 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                 </div>
               )
             })()}
-            {item.status === 'QUEUED' && (
+            {status === 'QUEUED' && (
               <div className="flex items-center gap-2 text-xs mt-2 text-muted-foreground">
                 <LoaderCircle className="w-3 h-3 animate-spin" />
                 排队等待中...
               </div>
             )}
-            {item.status === 'FAILED' && (
+            {status === 'FAILED' && (
               <div className="text-xs mt-2 text-red-500">生成失败</div>
             )}
           </div>
@@ -211,9 +221,10 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       size: 80,
       cell: ({ row }) => {
         const item = row.original
+        const status = getRealtimeStatus(item, props.taskStoreTasks)
         return (
           <div className="flex items-center justify-end gap-1">
-            {item.status === 'FAILED' && (
+            {status === 'FAILED' && (
               <button className="p-1.5 hover:bg-accent rounded-md transition-colors"
                 onClick={(e) => { e.stopPropagation(); props.onRegenerate(item) }}>
                 <RotateCw className="w-4 h-4 text-primary" />

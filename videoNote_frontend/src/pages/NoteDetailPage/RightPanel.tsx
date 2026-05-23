@@ -27,10 +27,9 @@ import ConfirmDialog from '@/components/ConfirmDialog'
 import { useTaskStore, type Task, type Markdown } from '@/store/taskStore'
 import { ProcessingSpinner } from './processing'
 import { useModelStore } from '@/store/modelStore'
-import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { useProviderStore } from '@/store/providerStore'
 import { getBaseURL } from '@/utils/api'
-import { noteStyles, outputLanguages } from '@/constant/note'
+import { noteStyles } from '@/constant/note'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -61,16 +60,17 @@ interface RightPanelProps {
   task: Task
   isProcessing?: boolean
   processingStatus?: string
+  localSettings: LocalSettings
 }
 
-interface LocalSettings {
+export interface LocalSettings {
   style: string
   outputLanguage: string
   modelName: string
   providerId: string
 }
 
-export default function RightPanel({ task, isProcessing, processingStatus }: RightPanelProps) {
+export default function RightPanel({ task, isProcessing, processingStatus, localSettings }: RightPanelProps) {
   const navigate = useNavigate()
   const removeTask = useTaskStore(state => state.removeTask)
   const retryTask = useTaskStore(state => state.retryTask)
@@ -81,41 +81,10 @@ export default function RightPanel({ task, isProcessing, processingStatus }: Rig
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
-  // 独立的生成配置，不受全局 summarySettings 影响
-  const [localSettings, setLocalSettings] = useState<LocalSettings>({
-    style: task.formData?.style || 'minimal',
-    outputLanguage: task.formData?.output_language || 'zh',
-    modelName: task.formData?.model_name || '',
-    providerId: task.formData?.provider_id || '',
-  })
-
   // 设置 currentTaskId，让 TranscriptViewer 等组件能读取当前任务
   useEffect(() => {
     setCurrentTask(task.id)
   }, [task.id, setCurrentTask])
-
-  // 同步全局设置到页面本地配置（重新生成时使用）
-  const summarySettings = useSummarySettingsStore()
-  const selectedModelId = useModelStore(state => state.selectedModel)
-
-  useEffect(() => {
-    // 同步风格和语言
-    const updates: Partial<LocalSettings> = {
-      style: summarySettings.style,
-      outputLanguage: summarySettings.outputLanguage,
-    }
-
-    // 同步模型：selectedModelId 是 model.id，需要查找 model_name 和 provider_id
-    if (selectedModelId && modelList.length > 0) {
-      const model = modelList.find(m => m.id === selectedModelId)
-      if (model) {
-        updates.modelName = model.model_name
-        updates.providerId = model.provider_id
-      }
-    }
-
-    setLocalSettings(prev => ({ ...prev, ...updates }))
-  }, [summarySettings.style, summarySettings.outputLanguage, selectedModelId, modelList])
 
   const isMultiVersion = Array.isArray(task.markdown)
   const [currentVerId, setCurrentVerId] = useState('')
