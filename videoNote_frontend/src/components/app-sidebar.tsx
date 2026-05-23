@@ -85,7 +85,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
               <button
                 className="inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-all outline-none hover:bg-accent hover:text-accent-foreground size-7 -ml-1"
-                onClick={toggleSidebar}
+                onClick={(e) => { e.stopPropagation(); toggleSidebar() }}
               >
                 <PanelLeft className="size-4" />
                 <span className="sr-only">Toggle Sidebar</span>

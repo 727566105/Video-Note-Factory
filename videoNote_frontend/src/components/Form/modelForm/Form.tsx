@@ -18,6 +18,7 @@ import { useModelStore } from '@/store/modelStore'
 import { toast } from 'sonner'
 import { testConnection, fetchModels, deleteModelById, uploadIcon, batchAddModels, BatchAddModelItem } from '@/services/model.ts'
 import { Eye, EyeOff, Check, AlertCircle, Plus, Loader2, Upload, X } from 'lucide-react'
+import { CardSkeleton } from '@/components/Skeletons'
 import AILogo from '@/components/Form/modelForm/Icons'
 import NewApiLogo from '@/assets/newapi.svg'
 import { ModelSelector } from '@/components/Form/modelForm/ModelSelector.tsx'
@@ -404,11 +405,8 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-          <div className="text-sm text-muted-foreground">正在加载...</div>
-        </div>
+      <div className="flex h-full flex-col gap-4 p-6 overflow-y-auto">
+        <CardSkeleton count={5} />
       </div>
     )
   }

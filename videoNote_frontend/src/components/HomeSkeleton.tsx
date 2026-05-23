@@ -1,112 +1,87 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import logo from '@/assets/logo.png'
 
 const HomeSkeleton = () => {
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      {/* 顶部导航栏骨架 */}
-      <header className="flex h-12 items-center justify-between border-b border-border bg-background px-3 md:h-14 md:px-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg md:h-8 md:w-8">
-            <img src={logo} alt="logo" className="h-full w-full object-contain" />
+    <div className="flex h-screen overflow-hidden">
+      {/* 侧边栏骨架 */}
+      <div className="w-64 shrink-0 border-r border-border bg-sidebar flex flex-col">
+        {/* Logo */}
+        <div className="p-2">
+          <div className="flex items-center gap-2 p-2">
+            <Skeleton className="size-8 rounded-lg" />
+            <div className="grid flex-1 gap-1">
+              <Skeleton className="h-4 w-20 rounded" />
+              <Skeleton className="h-3 w-16 rounded" />
+            </div>
+            <Skeleton className="size-7 rounded-md" />
           </div>
-          <Skeleton className="h-5 w-24 md:h-6 md:w-28" />
         </div>
-        <Skeleton className="h-4 w-4 md:h-5 md:w-5 rounded-full" />
-      </header>
-
-      {/* 三栏布局骨架 */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* 左侧面板 - 笔记表单骨架 */}
-        <div className="shrink-0 flex flex-col border-r border-border bg-background w-full md:w-80 lg:w-96">
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="p-3 md:p-4 space-y-4">
-              {/* 按钮骨架 */}
-              <Skeleton className="h-9 w-full" />
-
-              {/* 视频链接区域 */}
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-9 w-32" />
-                  <Skeleton className="h-9 flex-1" />
-                </div>
-              </div>
-
-              {/* 模型选择区域 */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-9 w-full" />
-                </div>
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-9 w-full" />
-                </div>
-              </div>
-
-              {/* 视频理解区域 */}
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-6 w-16" />
-              </div>
-
-              {/* 笔记格式区域 */}
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-5 w-20" />
-                  <Skeleton className="h-5 w-20" />
-                  <Skeleton className="h-5 w-20" />
-                </div>
-              </div>
-
-              {/* 备注区域 */}
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-20 w-full" />
-              </div>
+        {/* 搜索 */}
+        <div className="px-2 pb-2">
+          <Skeleton className="h-8 w-full rounded-md" />
+        </div>
+        {/* 快捷添加 */}
+        <div className="px-2 pb-2">
+          <Skeleton className="h-8 w-full rounded-md" />
+        </div>
+        {/* 菜单分组 */}
+        <div className="flex-1 overflow-hidden px-2 space-y-4">
+          <div className="space-y-1">
+            <Skeleton className="h-4 w-10 rounded mx-2" />
+            <Skeleton className="h-8 w-full rounded-md" />
+            <Skeleton className="h-8 w-full rounded-md" />
+            <Skeleton className="h-8 w-full rounded-md" />
+          </div>
+          <div className="space-y-1">
+            <Skeleton className="h-4 w-10 rounded mx-2" />
+            <Skeleton className="h-8 w-full rounded-md" />
+            <Skeleton className="h-8 w-full rounded-md" />
+            <Skeleton className="h-8 w-full rounded-md" />
+            <Skeleton className="h-8 w-full rounded-md" />
+          </div>
+        </div>
+        {/* 底部用户 */}
+        <div className="p-2 border-t border-border">
+          <div className="flex items-center gap-2 p-2">
+            <Skeleton className="size-8 rounded-md" />
+            <div className="flex-1 space-y-1">
+              <Skeleton className="h-4 w-16 rounded" />
+              <Skeleton className="h-3 w-12 rounded" />
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 中间面板 - 历史记录骨架 */}
-        <div className="shrink-0 flex flex-col border-r border-border bg-background w-full md:w-64 lg:w-80">
-          <div className="flex-1 min-h-0 overflow-hidden px-2.5 pt-2.5">
-            {/* 筛选栏骨架 */}
-            <div className="mb-2 flex gap-2">
-              <Skeleton className="h-8 w-20" />
-              <Skeleton className="h-8 w-[100px]" />
-            </div>
-            {/* 搜索框骨架 */}
-            <Skeleton className="mb-2 h-8 w-full" />
-
-            {/* 任务卡片骨架 */}
-            <div className="flex flex-col gap-2 pb-4">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="flex cursor-pointer flex-col rounded-md border border-border p-3">
-                  <div className="flex items-center gap-4">
-                    <Skeleton className="h-10 w-12 rounded-md" />
-                    <Skeleton className="h-4 flex-1 max-w-[180px]" />
-                  </div>
-                  <div className="mt-2 flex items-center gap-1">
-                    <Skeleton className="h-5 w-10 rounded" />
-                    <Skeleton className="h-5 w-16 rounded" />
-                  </div>
-                </div>
-              ))}
-            </div>
+      {/* 主内容区 - 居中 QuickAdd */}
+      <div className="flex-1 flex flex-col items-center justify-center bg-background">
+        <div className="w-full max-w-2xl px-6 space-y-6">
+          {/* 标题 */}
+          <div className="text-center space-y-2">
+            <Skeleton className="h-10 w-48 rounded mx-auto" />
+            <Skeleton className="h-4 w-64 rounded mx-auto" />
           </div>
-        </div>
-
-        {/* 右侧面板 - 预览骨架 */}
-        <div className="flex flex-1 flex-col bg-background">
-          <div className="flex-1 min-h-0 overflow-hidden flex items-center justify-center">
-            <div className="w-[300px] flex-col justify-items-center">
-              <Skeleton className="mb-4 h-16 w-16 rounded-full mx-auto" />
-              <Skeleton className="mb-2 h-4 w-[200px] mx-auto" />
-              <Skeleton className="h-3 w-[160px] mx-auto" />
+          {/* 标签按钮 */}
+          <div className="flex gap-2 justify-center">
+            <Skeleton className="h-8 w-16 rounded-md" />
+            <Skeleton className="h-8 w-16 rounded-md" />
+          </div>
+          {/* 输入区域 */}
+          <Skeleton className="h-32 w-full rounded-lg" />
+          {/* 控制栏 */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
             </div>
+            <Skeleton className="h-8 w-20 rounded-md" />
+          </div>
+          {/* 生成按钮 */}
+          <Skeleton className="h-10 w-32 rounded-full mx-auto" />
+          {/* 底部链接 */}
+          <div className="flex justify-center gap-4">
+            <Skeleton className="h-4 w-16 rounded" />
+            <Skeleton className="h-4 w-16 rounded" />
           </div>
         </div>
       </div>
