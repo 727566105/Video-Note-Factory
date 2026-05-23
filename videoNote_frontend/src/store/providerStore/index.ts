@@ -18,7 +18,7 @@ interface ProviderStore {
   getProviderById: (id: number) => IProvider | undefined
   getProviderList: () => IProvider[]
   fetchProviderList: () => Promise<void>
-  loadProviderById: (id: string) => Promise<void>
+  loadProviderById: (id: string) => Promise<IProvider>
   addNewProvider: (provider: IProvider) => Promise<void>
   addNewProviderWithModels: (provider: IProvider, models: string[]) => Promise<string>
   updateProvider: (provider: IProvider) => Promise<void>

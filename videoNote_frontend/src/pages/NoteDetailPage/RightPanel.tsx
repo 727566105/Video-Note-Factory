@@ -9,8 +9,8 @@ import {
   FileText,
   Trash,
   RefreshCw,
-  Settings,
   ScrollText,
+  Link,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -25,7 +25,9 @@ import { ExportDialog } from '@/components/ExportDialog'
 import { ExportSiyuanButton } from '@/components/ExportSiyuanButton'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useTaskStore, type Task, type Markdown } from '@/store/taskStore'
+import { ProcessingSpinner } from './processing'
 import { useModelStore } from '@/store/modelStore'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { useProviderStore } from '@/store/providerStore'
 import { getBaseURL } from '@/utils/api'
 import { noteStyles, outputLanguages } from '@/constant/note'
@@ -37,13 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,6 +59,8 @@ const tabs: { key: TabKey; label: string }[] = [
 
 interface RightPanelProps {
   task: Task
+  isProcessing?: boolean
+  processingStatus?: string
 }
 
 interface LocalSettings {
@@ -73,7 +70,7 @@ interface LocalSettings {
   providerId: string
 }
 
-export default function RightPanel({ task }: RightPanelProps) {
+export default function RightPanel({ task, isProcessing, processingStatus }: RightPanelProps) {
   const navigate = useNavigate()
   const removeTask = useTaskStore(state => state.removeTask)
   const retryTask = useTaskStore(state => state.retryTask)
@@ -82,7 +79,6 @@ export default function RightPanel({ task }: RightPanelProps) {
   const providers = useProviderStore(state => state.provider)
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   // 独立的生成配置，不受全局 summarySettings 影响
@@ -97,6 +93,29 @@ export default function RightPanel({ task }: RightPanelProps) {
   useEffect(() => {
     setCurrentTask(task.id)
   }, [task.id, setCurrentTask])
+
+  // 同步全局设置到页面本地配置（重新生成时使用）
+  const summarySettings = useSummarySettingsStore()
+  const selectedModelId = useModelStore(state => state.selectedModel)
+
+  useEffect(() => {
+    // 同步风格和语言
+    const updates: Partial<LocalSettings> = {
+      style: summarySettings.style,
+      outputLanguage: summarySettings.outputLanguage,
+    }
+
+    // 同步模型：selectedModelId 是 model.id，需要查找 model_name 和 provider_id
+    if (selectedModelId && modelList.length > 0) {
+      const model = modelList.find(m => m.id === selectedModelId)
+      if (model) {
+        updates.modelName = model.model_name
+        updates.providerId = model.provider_id
+      }
+    }
+
+    setLocalSettings(prev => ({ ...prev, ...updates }))
+  }, [summarySettings.style, summarySettings.outputLanguage, selectedModelId, modelList])
 
   const isMultiVersion = Array.isArray(task.markdown)
   const [currentVerId, setCurrentVerId] = useState('')
@@ -242,7 +261,6 @@ export default function RightPanel({ task }: RightPanelProps) {
       {/* 状态行 */}
       <div className="flex items-center justify-end px-4 py-1">
         <div className="flex items-center gap-2">
-          <ActionBtn icon={<Settings className="w-3.5 h-3.5" />} label="设置" onClick={() => setSettingsOpen(true)} />
           <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} />
           <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
         </div>
@@ -296,6 +314,13 @@ export default function RightPanel({ task }: RightPanelProps) {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => {
+                    const url = task.formData?.video_url || ''
+                    navigator.clipboard.writeText(url)
+                    toast.success(url ? '已复制视频链接' : '无可用链接')
+                  }}>
+                    <Link className="mr-2 h-4 w-4" /> 复制链接
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-red-600 focus:text-red-600">
                     <Trash className="mr-2 h-4 w-4" /> 删除笔记
                   </DropdownMenuItem>
@@ -306,22 +331,21 @@ export default function RightPanel({ task }: RightPanelProps) {
         </div>
 
         {/* 内容区域 */}
-        <div className="p-4">
-          {activeTab === 'summary' && (
+        <div className={cn("p-4", activeTab === 'mindmap' && "h-[600px]")}>
+          {isProcessing && processingStatus ? (
+            <ProcessingSpinner status={processingStatus} />
+          ) : activeTab === 'summary' ? (
             <MarkdownRenderer content={selectedContent} />
-          )}
-          {activeTab === 'transcript' && (
+          ) : activeTab === 'transcript' ? (
             <TranscriptViewer />
-          )}
-          {activeTab === 'mindmap' && (
+          ) : activeTab === 'mindmap' ? (
             <MarkmapEditor
               value={selectedContent}
               onChange={() => {}}
               height="100%"
               title={task.audioMeta?.title || '思维导图'}
             />
-          )}
-          {activeTab === 'original' && (
+          ) : activeTab === 'original' ? (
             task.transcript?.segments?.length > 0 ? (
               <div className="space-y-3">
                 {groupSegments(task.transcript.segments).map((group, idx) => (
@@ -352,100 +376,9 @@ export default function RightPanel({ task }: RightPanelProps) {
                 暂无转写原文
               </div>
             )
-          )}
+          ) : null}
         </div>
       </div>
-
-      {/* 生成设置对话框（独立于全局设置） */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-[440px] p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle className="text-lg font-semibold">重新生成设置</DialogTitle>
-            <DialogDescription className="sr-only">
-              配置当前笔记的重新生成参数
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-6 pb-6 space-y-5">
-            {/* 模型选择 */}
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-foreground">模型</span>
-              <Select
-                value={localSettings.modelName}
-                onValueChange={v => {
-                  const model = modelList.find(m => m.model_name === v)
-                  setLocalSettings(s => ({
-                    ...s,
-                    modelName: v,
-                    providerId: model?.provider_id || s.providerId,
-                  }))
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择模型" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelList.map(m => {
-                    const provider = providers.find(p => p.id === m.provider_id)
-                    const displayName = provider ? `${provider.name}/${m.model_name}` : m.model_name
-                    return (
-                      <SelectItem key={m.id} value={m.model_name}>
-                        {displayName}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 笔记风格 */}
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-foreground">笔记风格</span>
-              <Select
-                value={localSettings.style}
-                onValueChange={v => setLocalSettings(s => ({ ...s, style: v }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {noteStyles.find(s => s.value === localSettings.style)?.label || '选择风格'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {noteStyles.map(({ label, value, desc }) => (
-                    <SelectItem key={value} value={value}>
-                      <div className="flex flex-col gap-1 py-0.5">
-                        <span className="font-medium">{label}</span>
-                        <span className="text-xs text-muted-foreground">{desc}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 输出语言 */}
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-foreground">输出语言</span>
-              <Select
-                value={localSettings.outputLanguage}
-                onValueChange={v => setLocalSettings(s => ({ ...s, outputLanguage: v }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {outputLanguages.find(l => l.value === localSettings.outputLanguage)?.label || '中文'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {outputLanguages.map(({ label, value }) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog
         open={deleteDialogOpen}

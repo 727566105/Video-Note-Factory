@@ -149,7 +149,7 @@ const NoteForm = () => {
     const task = state.tasks.find(t => t.id === state.currentTaskId)
     return task || null
   })
-  const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint, smartSelectionEnabled } = useModelStore()
+  const { loadEnabledModels, modelList, smartSelectionEnabled } = useModelStore()
   const providers = useProviderStore(state => state.provider)
   const fetchProviderList = useProviderStore(state => state.fetchProviderList)
 

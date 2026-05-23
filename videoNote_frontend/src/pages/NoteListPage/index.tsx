@@ -58,7 +58,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getTasks, delete_task, get_task_status, generateNote } from '@/services/note'
+import { getTasks, delete_task, generateNote } from '@/services/note'
 import { TableSkeleton } from '@/components/Skeletons'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
@@ -71,6 +71,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useSystemStore } from '@/store/configStore'
+import { useTaskStore } from '@/store/taskStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
@@ -111,6 +112,7 @@ export const NoteListPage: FC = () => {
   const [loading, setLoading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState('')
+  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false)
   const [failedCovers, setFailedCovers] = useState<Set<string>>(new Set())
   const [playDialogOpen, setPlayDialogOpen] = useState(false)
   const [playItem, setPlayItem] = useState<NoteItem | null>(null)
@@ -139,51 +141,21 @@ export const NoteListPage: FC = () => {
     notesRef.current = notes
   }, [notes])
 
+  // 监听 taskStore 中任务状态变化，有任务完成时刷新列表
+  const taskStoreTasks = useTaskStore(state => state.tasks)
   useEffect(() => {
-    const timer = setInterval(async () => {
-      const pendingNotes = notesRef.current.filter(
-        note => note.status !== 'SUCCESS' && note.status !== 'FAILED'
-      )
-      if (pendingNotes.length === 0) return
-
-      const completedIds: string[] = []
-
-      for (const note of pendingNotes) {
-        try {
-          const res = await get_task_status(note.task_id)
-          const taskStatus = (typeof res === 'string' ? res : res?.status) as string
-
-          if (taskStatus && taskStatus !== note.status) {
-            if (taskStatus === 'SUCCESS') {
-              completedIds.push(note.task_id)
-              toast.success('笔记生成成功')
-            } else if (taskStatus === 'FAILED') {
-              setNotes(prev => prev.map(n =>
-                n.task_id === note.task_id
-                  ? { ...n, status: taskStatus }
-                  : n
-              ))
-            } else {
-              setNotes(prev => prev.map(n =>
-                n.task_id === note.task_id
-                  ? { ...n, status: taskStatus }
-                  : n
-              ))
-            }
-          }
-        } catch (e) {
-          console.error('轮询任务状态失败:', e)
-        }
-      }
-
-      // 有任务完成时，刷新整个列表确保数据一致
-      if (completedIds.length > 0) {
-        await fetchNotes()
-      }
-    }, 3000)
-
-    return () => clearInterval(timer)
-  }, [])
+    const hasPending = taskStoreTasks.some(
+      t => t.status !== 'SUCCESS' && t.status !== 'FAILED'
+    )
+    // 只有当前列表中有非终态任务且 store 里有完成的任务时才刷新
+    if (!hasPending) return
+    const completedInStore = taskStoreTasks.some(
+      t => t.status === 'SUCCESS' && notesRef.current.some(n => n.task_id === t.id && n.status !== 'SUCCESS')
+    )
+    if (completedInStore) {
+      fetchNotes()
+    }
+  }, [taskStoreTasks])
 
   const fetchNotes = async () => {
     setLoading(true)
@@ -237,6 +209,22 @@ export const NoteListPage: FC = () => {
       fetchNotes()
     } catch (error) {
       toast.error('删除失败')
+    }
+  }
+
+  const handleBatchDelete = async () => {
+    if (selectedRows.length === 0) return
+    try {
+      await Promise.all(
+        selectedRows.map(taskId => delete_task({ task_id: taskId }))
+      )
+      toast.success(`成功删除 ${selectedRows.length} 条笔记`)
+      setSelectedRows([])
+      setBatchDeleteDialogOpen(false)
+      fetchNotes()
+    } catch {
+      toast.error('部分笔记删除失败')
+      fetchNotes()
     }
   }
 
@@ -328,6 +316,16 @@ export const NoteListPage: FC = () => {
             <Button variant="outline" className="gap-2">
               <FolderPlus className="w-4 h-4" />
               添加到合集
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={selectedRows.length === 0 || noteViewMode !== 'table'}
+              title={noteViewMode !== 'table' ? '切换到表格视图进行批量删除' : ''}
+              onClick={() => setBatchDeleteDialogOpen(true)}
+            >
+              <Trash2 className="w-4 h-4" />
+              批量删除
             </Button>
                       </div>
           <div className="flex items-center gap-3">
@@ -604,6 +602,16 @@ export const NoteListPage: FC = () => {
         confirmText="删除"
         variant="destructive"
         onConfirm={handleDelete}
+      />
+
+      <ConfirmDialog
+        open={batchDeleteDialogOpen}
+        onOpenChange={setBatchDeleteDialogOpen}
+        title="删除选中笔记"
+        description={`确定要删除选中的 ${selectedRows.length} 条笔记吗？此操作不可恢复。`}
+        confirmText="删除"
+        variant="destructive"
+        onConfirm={handleBatchDelete}
       />
     </div>
   )
