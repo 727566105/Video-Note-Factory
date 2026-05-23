@@ -10,6 +10,7 @@ import {
   Headphones,
   Rss,
   ChevronDown,
+  Loader2,
 } from 'lucide-react'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -395,7 +396,12 @@ export default function LeftPanel({ task }: LeftPanelProps) {
               aria-label="订阅频道"
             >
               <Rss className="size-3" />
-              {isAuthorSubscribed ? '已订阅' : subscribing ? '订阅中...' : '订阅'}
+              {isAuthorSubscribed ? '已订阅' : subscribing ? (
+                <>
+                  <Loader2 className="size-3 animate-spin" />
+                  订阅中
+                </>
+              ) : '订阅'}
             </Toggle>
           )}
         </div>

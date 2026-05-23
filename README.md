@@ -3,7 +3,7 @@
     <p align="center">
   <img src="https://img.860114.xyz/logo-1_1778361840853.png" alt="videoNote Banner" width="50" height="50"  />
 </p>
-<h1 align="center" > videoNote v3.0.22</h1>
+<h1 align="center" > videoNote v3.0.23</h1>
 </div>
 
 <p align="center"><i>AI 视频笔记生成工具 让 AI 为你的视频做笔记</i></p>

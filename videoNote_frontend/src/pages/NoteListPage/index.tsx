@@ -254,6 +254,8 @@ export const NoteListPage: FC = () => {
       }
       const response = await generateNote(payload)
       if (response?.task_id) {
+        // 同步更新 taskStore 状态，确保详情页能立即响应
+        useTaskStore.getState().updateTaskContent(item.task_id, { status: 'PENDING' })
         toast.success('已重新提交生成任务')
         fetchNotes()
       }

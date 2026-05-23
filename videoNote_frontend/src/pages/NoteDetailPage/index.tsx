@@ -28,18 +28,47 @@ function QueuedView() {
   )
 }
 
-function FailedView({ message }: { message?: string }) {
+function FailedView({ message, taskId }: { message?: string; taskId: string }) {
   const navigate = useNavigate()
+  const [retrying, setRetrying] = useState(false)
+
+  const handleRetry = async () => {
+    if (retrying) return
+    setRetrying(true)
+    try {
+      await useTaskStore.getState().retryTask(taskId)
+    } catch {
+      // retryTask 内部已 toast
+      setRetrying(false)
+    }
+  }
+
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
       <div className="text-lg font-medium text-red-500">生成失败</div>
       {message && <div className="text-sm text-muted-foreground">{message}</div>}
-      <button
-        onClick={() => navigate('/notes')}
-        className="mt-4 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
-      >
-        返回列表
-      </button>
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={handleRetry}
+          disabled={retrying}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {retrying ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              重新生成中
+            </>
+          ) : (
+            '重新生成'
+          )}
+        </button>
+        <button
+          onClick={() => navigate('/notes')}
+          className="px-4 py-2 border rounded-md hover:bg-accent"
+        >
+          返回列表
+        </button>
+      </div>
     </div>
   )
 }
@@ -175,7 +204,7 @@ export default function NoteDetailPage() {
 
   // 任务失败时显示失败提示
   if (task.status === 'FAILED') {
-    return <FailedView message={task.message} />
+    return <FailedView message={task.message} taskId={task.id} />
   }
 
   return (
