@@ -6,6 +6,8 @@ from app.auth.dependencies import get_current_user
 from app.db import subscription_dao
 from app.services.channel_fetcher import identify_platform, fetch_all_for_subscription, parse_channel_info
 from app.db.subscription_dao import upsert_feed_items, get_channel_stats
+from app.db.channel_video_dao import get_or_create_fetch_status, get_channel_videos, count_channel_videos
+from app.services.channel_fetch_queue import channel_fetch_queue
 from app.services.fetch_progress import create_progress, get_progress, update_progress, complete_progress
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
@@ -46,14 +48,15 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
     if existing:
         raise HTTPException(status_code=400, detail="已订阅该频道")
 
-    # 检查是否有其他用户已订阅过该博主（复用）
     platform_id = info.get("platform_id")
+
+    # ── 复用分支：其他用户已订阅过该博主 ──
     reused_sub = None
     if platform_id:
         reused_sub = subscription_dao.find_subscription_by_platform_id(info["platform"], platform_id)
 
     if reused_sub:
-        # 复用：先尝试复制已有数据
+        # 复用：先创建当前用户的订阅记录
         sub = subscription_dao.add_subscription(
             user_id=user.id,
             channel_url=info["channel_url"],
@@ -62,91 +65,167 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
             platform_id=reused_sub.platform_id,
             avatar_url=reused_sub.avatar_url,
         )
-        copied = subscription_dao.copy_feed_items_to_user(reused_sub.id, user.id, sub.id)
-        subscription_dao.update_subscription_check(sub.id)
-        logger.info(f"订阅复用: 用户 {user.id} 复用了博主 {reused_sub.channel_name} 的数据，复制 {copied} 条动态")
 
-        # 获取频道统计提示
-        stats_hint = None
-        if platform_id:
-            stats_hint = get_channel_stats(info["platform"], platform_id)
+        # 尝试从共享缓存表 channel_videos 直接复制（零 API 调用）
+        cached_count = count_channel_videos(info["platform"], reused_sub.platform_id) if reused_sub.platform_id else 0
+        if cached_count > 0:
+            # 有缓存 → 从 channel_videos 创建 feed_items
+            existing_videos = get_channel_videos(info["platform"], reused_sub.platform_id)
+            subscription_dao.create_feed_items_from_channel_videos(user.id, sub.id, existing_videos, info["platform"])
+            subscription_dao.update_subscription_check(sub.id)
+            logger.info(f"订阅复用(缓存命中): 用户 {user.id} 复用了博主 {reused_sub.channel_name} 的缓存，共 {len(existing_videos)} 个视频")
 
-        if copied == 0:
-            # 复用数据为空，走正常获取流程
-            result = fetch_all_for_subscription(sub, limit=20)
-            added = upsert_feed_items(result.items) if result.items else 0
-            response_data = {
+            # 统计该用户实际的 feed_items 数量
+            actual_count = subscription_dao.count_feed_items_by_subscription(sub.id)
+            stats_hint = get_channel_stats(info["platform"], reused_sub.platform_id) if reused_sub.platform_id else None
+
+            resp = {
                 "id": sub.id,
                 "channel_name": sub.channel_name,
                 "platform": sub.platform,
-                "items_count": added,
+                "items_count": actual_count,
+                "fetch_status": "success",
             }
-            if result.error:
-                response_data["fetch_status"] = "failed"
-                response_data["warning"] = f"获取内容失败: {result.error}"
-            elif added == 0:
-                response_data["fetch_status"] = "empty"
-                response_data["warning"] = "该博主暂无可获取的内容"
-            else:
-                response_data["fetch_status"] = "success"
             if stats_hint:
-                response_data["stats_hint"] = stats_hint
-            return R.success(response_data)
+                resp["stats_hint"] = stats_hint
+            return R.success(resp)
 
-        resp = {
-            "id": sub.id,
-            "channel_name": sub.channel_name,
-            "platform": sub.platform,
-            "items_count": copied,
-            "fetch_status": "success",
-        }
-        if stats_hint:
-            resp["stats_hint"] = stats_hint
-        return R.success(resp)
-    else:
-        # 正常流程：获取频道详细信息并抓取
-        channel_info = parse_channel_info(info["channel_url"], info["platform"])
-
-        sub = subscription_dao.add_subscription(
-            user_id=user.id,
-            channel_url=info["channel_url"],
-            platform=info["platform"],
-            channel_name=channel_info.get("channel_name") or info.get("channel_name"),
-            platform_id=info.get("platform_id"),
-            avatar_url=channel_info.get("avatar_url"),
-        )
-
-        # 立即获取初始数据
-        result = fetch_all_for_subscription(sub, limit=20)
-        added = 0
-        if result.items:
-            added = upsert_feed_items(result.items)
+        # 缓存未命中 → 尝试复制已有 feed_items（旧逻辑兜底）
+        copied = subscription_dao.copy_feed_items_to_user(reused_sub.id, user.id, sub.id)
         subscription_dao.update_subscription_check(sub.id)
+        logger.info(f"订阅复用(feed_items复制): 用户 {user.id} 复制了 {copied} 条动态")
 
+        if copied > 0:
+            stats_hint = get_channel_stats(info["platform"], reused_sub.platform_id) if reused_sub.platform_id else None
+            resp = {
+                "id": sub.id,
+                "channel_name": sub.channel_name,
+                "platform": sub.platform,
+                "items_count": copied,
+                "fetch_status": "success",
+            }
+            if stats_hint:
+                resp["stats_hint"] = stats_hint
+            return R.success(resp)
+
+        # 复用数据为空 → 加入串行队列获取
+        if reused_sub.platform_id:
+            channel_fetch_queue.enqueue(info["platform"], reused_sub.platform_id, user.id, sub.id)
+            logger.info(f"订阅复用(无数据): 已加入串行队列获取 {reused_sub.channel_name} 的视频")
+            resp = {
+                "id": sub.id,
+                "channel_name": sub.channel_name,
+                "platform": sub.platform,
+                "items_count": 0,
+                "fetch_status": "queued",
+                "warning": "正在获取视频列表，请稍后刷新查看",
+            }
+            return R.success(resp)
+
+        # 没有 platform_id，走旧逻辑兜底
+        result = fetch_all_for_subscription(sub, limit=20)
+        added = upsert_feed_items(result.items) if result.items else 0
         response_data = {
             "id": sub.id,
             "channel_name": sub.channel_name,
             "platform": sub.platform,
             "items_count": added,
         }
-
         if result.error:
             response_data["fetch_status"] = "failed"
             response_data["warning"] = f"获取内容失败: {result.error}"
-            logger.warning(f"订阅 {sub.id} 初始获取失败: {result.error}")
         elif added == 0:
             response_data["fetch_status"] = "empty"
             response_data["warning"] = "该博主暂无可获取的内容"
         else:
             response_data["fetch_status"] = "success"
-
-        # 获取频道统计提示
-        if sub.platform_id:
-            stats = get_channel_stats(sub.platform, sub.platform_id)
-            if stats:
-                response_data["stats_hint"] = stats
-
         return R.success(response_data)
+
+    # ── 正常分支：首次订阅该博主 ──
+    channel_info = parse_channel_info(info["channel_url"], info["platform"])
+
+    sub = subscription_dao.add_subscription(
+        user_id=user.id,
+        channel_url=info["channel_url"],
+        platform=info["platform"],
+        channel_name=channel_info.get("channel_name") or info.get("channel_name"),
+        platform_id=info.get("platform_id"),
+        avatar_url=channel_info.get("avatar_url"),
+    )
+
+    # 检查共享缓存表是否已有该博主的视频
+    sub_platform_id = sub.platform_id or platform_id
+    if sub_platform_id:
+        cached_count = count_channel_videos(info["platform"], sub_platform_id)
+        if cached_count > 0:
+            # 有缓存 → 直接复制，零 API 调用
+            existing_videos = get_channel_videos(info["platform"], sub_platform_id)
+            subscription_dao.create_feed_items_from_channel_videos(user.id, sub.id, existing_videos, info["platform"])
+            subscription_dao.update_subscription_check(sub.id)
+            actual_count = subscription_dao.count_feed_items_by_subscription(sub.id)
+            logger.info(f"首次订阅(缓存命中): {sub.channel_name}, 缓存 {len(existing_videos)} 个视频")
+
+            stats_hint = get_channel_stats(info["platform"], sub_platform_id)
+            resp = {
+                "id": sub.id,
+                "channel_name": sub.channel_name,
+                "platform": sub.platform,
+                "items_count": actual_count,
+                "fetch_status": "success",
+            }
+            if stats_hint:
+                resp["stats_hint"] = stats_hint
+            return R.success(resp)
+
+        # 无缓存 → 加入串行队列，首批获取约 30 条
+        get_or_create_fetch_status(info["platform"], sub_platform_id)
+        channel_fetch_queue.enqueue(info["platform"], sub_platform_id, user.id, sub.id)
+        subscription_dao.update_subscription_check(sub.id)
+        logger.info(f"首次订阅(加入队列): {sub.channel_name}, platform_id={sub_platform_id}")
+
+        stats_hint = get_channel_stats(info["platform"], sub_platform_id)
+        resp = {
+            "id": sub.id,
+            "channel_name": sub.channel_name,
+            "platform": sub.platform,
+            "items_count": 0,
+            "fetch_status": "queued",
+            "warning": "正在获取视频列表，请稍后刷新查看",
+        }
+        if stats_hint:
+            resp["stats_hint"] = stats_hint
+        return R.success(resp)
+
+    # 没有 platform_id，走旧逻辑兜底（直接获取）
+    result = fetch_all_for_subscription(sub, limit=20)
+    added = 0
+    if result.items:
+        added = upsert_feed_items(result.items)
+    subscription_dao.update_subscription_check(sub.id)
+
+    response_data = {
+        "id": sub.id,
+        "channel_name": sub.channel_name,
+        "platform": sub.platform,
+        "items_count": added,
+    }
+
+    if result.error:
+        response_data["fetch_status"] = "failed"
+        response_data["warning"] = f"获取内容失败: {result.error}"
+        logger.warning(f"订阅 {sub.id} 初始获取失败: {result.error}")
+    elif added == 0:
+        response_data["fetch_status"] = "empty"
+        response_data["warning"] = "该博主暂无可获取的内容"
+    else:
+        response_data["fetch_status"] = "success"
+
+    if sub.platform_id:
+        stats = get_channel_stats(sub.platform, sub.platform_id)
+        if stats:
+            response_data["stats_hint"] = stats
+
+    return R.success(response_data)
 
 
 @router.delete("/{sub_id}")

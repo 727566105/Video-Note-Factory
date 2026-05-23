@@ -394,3 +394,46 @@ def get_channel_stats(platform: str, platform_id: str) -> dict:
         }
     finally:
         db.close()
+
+
+def create_feed_items_from_channel_videos(user_id: int, subscription_id: int,
+                                           channel_videos: list, platform: str):
+    """从共享视频表为用户创建 feed_items（按 content_id 去重）"""
+    db = next(get_db())
+    try:
+        # 获取该用户该平台已有的 content_id
+        existing_ids = set(
+            row[0] for row in db.query(FeedItem.content_id)
+            .filter_by(user_id=user_id, platform=platform)
+            .all()
+        )
+
+        created = 0
+        for cv in channel_videos:
+            if cv.content_id in existing_ids:
+                continue
+            item = FeedItem(
+                user_id=user_id,
+                subscription_id=subscription_id,
+                platform=platform,
+                content_type="video",
+                content_id=cv.content_id,
+                content_url=cv.content_url,
+                title=cv.title,
+                cover_url=cv.cover_url,
+                duration=cv.duration,
+                author=cv.author,
+                published_at=cv.published_at,
+                raw_info=cv.raw_info,
+            )
+            db.add(item)
+            created += 1
+
+        db.commit()
+        logger.info(f"从 channel_videos 创建 feed_items: user_id={user_id}, created={created}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"创建 feed_items 失败: {e}")
+        raise
+    finally:
+        db.close()

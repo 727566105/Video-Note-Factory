@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import shutil
 from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, Any
@@ -321,6 +322,12 @@ class NoteGenerator:
                                 video_id=video_id, platform=platform)
             logger.info(f"笔记生成成功 (task_id={task_id})")
 
+            # 清理 _pending 临时目录
+            _pending_dir = VIDEO_DIR / "_pending" / task_id
+            if _pending_dir.exists():
+                shutil.rmtree(_pending_dir)
+                logger.info(f"已清理 _pending 目录: {_pending_dir}")
+
             result_kwargs = dict(
                 markdown=markdown,
                 transcript=transcript,
@@ -343,7 +350,9 @@ class NoteGenerator:
 
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)
-            self._update_status(task_id, TaskStatus.FAILED, message=str(exc))
+            self._update_status(task_id, TaskStatus.FAILED, message=str(exc),
+                                title=_title, author_id=author_id, author_name=author_name,
+                                video_id=video_id, platform=platform)
             return None
 
     def generate_article_note(self, title: str, author: str, description: str,

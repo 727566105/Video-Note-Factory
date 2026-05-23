@@ -15,7 +15,7 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
   useTheme()
 
   return (
-    <div className="min-h-screen bg-background font-sans text-foreground">
+    <div className="h-full overflow-hidden bg-background font-sans text-foreground">
       <Toaster />
       {children}
     </div>

@@ -54,8 +54,9 @@ async def lifespan(app: FastAPI):
     seed_default_providers()
 
     # 自动迁移旧数据到四级目录
-    from app.utils.path_helper import migrate_to_platform_structure
+    from app.utils.path_helper import migrate_to_platform_structure, cleanup_stale_pending
     migrate_to_platform_structure()
+    cleanup_stale_pending()
 
     # 启动定时任务调度器
     from app.tasks.scheduler import start_scheduler

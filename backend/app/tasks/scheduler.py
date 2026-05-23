@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from app.db.webdav_config_dao import get_config
 from app.services.webdav_backup import WebDAVBackup
 from app.services.cache_cleaner import cache_cleaner_job, CACHE_TTL_DAYS
+from app.utils.path_helper import cleanup_stale_pending
 from app.utils.logger import get_logger
 
 load_dotenv()
@@ -103,6 +104,9 @@ def start_scheduler():
             # 添加缓存清理定时任务
             _setup_cache_cleaner_job()
 
+            # 添加 _pending 残留定时清理（每 30 分钟）
+            _setup_pending_cleanup_job()
+
             # 添加订阅轮询定时任务
             _setup_subscription_fetch_job()
         else:
@@ -188,6 +192,22 @@ def _setup_subscription_fetch_job():
         logger.info(f"已添加订阅轮询定时任务 (间隔={interval_minutes}分钟)")
     except Exception as e:
         logger.error(f"设置订阅轮询任务失败: {e}")
+
+
+def _setup_pending_cleanup_job():
+    """设置 _pending 残留目录定时清理"""
+    try:
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler.add_job(
+            cleanup_stale_pending,
+            trigger=IntervalTrigger(minutes=30),
+            id="pending_cleanup",
+            name="_pending 残留清理",
+            replace_existing=True,
+        )
+        logger.info("已添加 _pending 残留定时清理任务 (间隔=30分钟)")
+    except Exception as e:
+        logger.error(f"设置 _pending 清理任务失败: {e}")
 
 
 def shutdown_scheduler():

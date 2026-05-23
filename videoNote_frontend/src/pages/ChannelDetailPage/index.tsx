@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck, Download, Search, Eye, FileText } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck, Download, Search, Eye, FileText, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -19,9 +19,9 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
-import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers } from '@/services/subscription'
+import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers, getFetchStatus, fetchMoreVideos } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
-import type { FeedItem } from '@/services/subscription'
+import type { FeedItem, FetchStatus } from '@/services/subscription'
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useModelStore } from '@/store/modelStore'
 import { useTaskStore } from '@/store/taskStore'
@@ -82,6 +82,10 @@ export default function ChannelDetailPage() {
   const [progressText, setProgressText] = useState('')
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // 分批获取状态（加载更多）
+  const [fetchStatus, setFetchStatus] = useState<FetchStatus | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
+
   const { modelList, loadEnabledModels } = useModelStore()
   const { addPendingTask } = useTaskStore()
   const { style, outputLanguage, videoUnderstanding, videoInterval, gridCols, gridRows, selectedFormats, extras } = useSummarySettingsStore()
@@ -113,6 +117,15 @@ export default function ChannelDetailPage() {
         setSubscribers(res?.subscribers || [])
         setSubscribersTotal(res?.total || 0)
       }).catch((e) => console.error('获取订阅者列表失败:', e))
+    }
+  }, [platform, id])
+
+  // 加载分批获取状态
+  useEffect(() => {
+    if (platform && id) {
+      getFetchStatus(platform, id).then(res => {
+        setFetchStatus(res || null)
+      }).catch((e) => console.error('获取分批状态失败:', e))
     }
   }, [platform, id])
 
@@ -180,6 +193,30 @@ export default function ChannelDetailPage() {
     } catch {
       setFetching(false)
       toast.error('启动获取失败')
+    }
+  }
+
+  // 加载更多（分批获取）
+  const handleLoadMore = async () => {
+    if (!platform || !id) return
+    setLoadingMore(true)
+    try {
+      const res = await fetchMoreVideos(platform, id)
+      if (res?.queued) {
+        toast.success(res.message || '加载更多任务已提交')
+        // 刷新分批状态
+        const statusRes = await getFetchStatus(platform, id)
+        setFetchStatus(statusRes || null)
+        // 刷新视频列表
+        loadVideos()
+      } else if (res?.complete) {
+        toast.success('所有视频已加载完成')
+        setFetchStatus({ ...fetchStatus!, has_more: false, status: 'complete' })
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || '加载更多失败')
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -299,14 +336,14 @@ export default function ChannelDetailPage() {
   return (
     <div className="flex flex-col h-full">
       {/* 返回按钮 */}
-      <div className="px-6 pt-4">
+      <div className="shrink-0 px-6 pt-4">
         <button onClick={() => navigate('/channels')} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-5" />
         </button>
       </div>
 
       {/* 频道信息卡片 */}
-      <div className="mx-6 mb-4 flex flex-col rounded-lg bg-background p-4 shadow-md md:flex-row">
+      <div className="shrink-0 mx-6 mb-4 flex flex-col rounded-lg bg-background p-4 shadow-md md:flex-row">
         <div className="mb-4 flex w-full flex-row items-center gap-4">
           {sub?.avatar_url ? (
             <img src={sub.avatar_url} alt="" referrerPolicy="no-referrer" className="mb-auto size-20 rounded-full md:size-48" />
@@ -361,7 +398,7 @@ export default function ChannelDetailPage() {
         </div>
       </div>
 
-      <div className="px-6 py-3 flex gap-3">
+      <div className="shrink-0 px-6 py-3 flex gap-3 items-center">
         <Input placeholder="搜索标题..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
         <select className="rounded-md border px-3 py-2 text-sm bg-background" value={filter} onChange={e => setFilter(e.target.value as any)}>
           <option value="all">全部</option>
@@ -369,6 +406,28 @@ export default function ChannelDetailPage() {
           <option value="new">未总结</option>
         </select>
         <span className="text-sm text-muted-foreground ml-2">共 {total} 条</span>
+        {/* 分批获取状态提示 + 加载更多按钮 */}
+        {fetchStatus && fetchStatus.total > 0 && (
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-sm text-muted-foreground">
+              已获取 {fetchStatus.fetched}/{fetchStatus.total} 个视频
+            </span>
+            {fetchStatus.has_more && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleLoadMore}
+                disabled={loadingMore || fetching}
+              >
+                {loadingMore ? (
+                  <><LoaderCircle className="size-3.5 mr-1 animate-spin" />加载中...</>
+                ) : (
+                  <><ChevronDown className="size-3.5 mr-1" />加载更多</>
+                )}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto px-6">

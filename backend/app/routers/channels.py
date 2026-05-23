@@ -101,3 +101,75 @@ async def get_channel_subscribers(platform: str, platform_id: str, user=Depends(
         })
     finally:
         db.close()
+
+
+@router.get("/{platform}/{platform_id}/fetch-status")
+async def get_channel_fetch_status(platform: str, platform_id: str) -> dict:
+    """查询频道分批获取状态"""
+    from app.db.channel_video_dao import get_fetch_status, count_channel_videos
+
+    status = get_fetch_status(platform, platform_id)
+    if not status:
+        return R.success({
+            "fetched": 0,
+            "total": 0,
+            "status": "none",
+            "has_more": True,
+        })
+
+    current_count = count_channel_videos(platform, platform_id)
+
+    return R.success({
+        "fetched": current_count,
+        "total": status.total_videos,
+        "status": status.fetch_status,  # initial/partial/complete/error
+        "has_more": status.fetch_status != "complete",
+        "next_page": status.next_page,
+        "last_fetch_at": status.last_fetch_at.isoformat() if status.last_fetch_at else None,
+    })
+
+
+@router.post("/{platform}/{platform_id}/fetch-more")
+async def fetch_more_channel_videos(
+    platform: str,
+    platform_id: str,
+    user=Depends(get_current_user)
+) -> dict:
+    """触发频道加载更多视频"""
+    from app.db.channel_video_dao import get_fetch_status
+    from app.services.channel_fetch_queue import channel_fetch_queue
+
+    status = get_fetch_status(platform, platform_id)
+
+    # 已全部获取完成
+    if status and status.fetch_status == "complete":
+        return R.success({
+            "complete": True,
+            "fetched": status.fetched_count,
+            "total": status.total_videos,
+            "message": "所有视频已获取完成",
+        })
+
+    # 构造频道 URL 查找用户订阅
+    channel_url = CHANNEL_URL_MAP.get(platform, "").format(platform_id=platform_id)
+    sub = subscription_dao.get_subscription_by_url(user.id, channel_url) if channel_url else None
+    subscription_id = sub.id if sub else 0
+
+    # 加入串行队列
+    result = channel_fetch_queue.enqueue(
+        platform=platform,
+        platform_id=platform_id,
+        user_id=user.id,
+        subscription_id=subscription_id,
+    )
+
+    current_fetched = status.fetched_count if status else 0
+    current_total = status.total_videos if status else 0
+
+    return R.success({
+        "queued": True,
+        "fetched": current_fetched,
+        "total": current_total,
+        "message": result.get("message", "已加入获取队列"),
+        "already_queued": result.get("message") == "已在队列中",
+    })

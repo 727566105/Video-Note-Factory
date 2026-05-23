@@ -125,3 +125,30 @@ export interface ChannelSubscribers {
 
 export const fetchChannelSubscribers = (platform: string, platformId: string) =>
   request.get<ChannelSubscribers>(`/channels/${platform}/${platformId}/subscribers`)
+
+// ---- 分批获取相关 API ----
+
+/** 分批获取状态 */
+export interface FetchStatus {
+  fetched: number
+  total: number
+  status: 'initial' | 'partial' | 'complete' | 'error'
+  has_more: boolean
+}
+
+/** 查询频道分批获取状态 */
+export const getFetchStatus = (platform: string, platformId: string) =>
+  request.get<FetchStatus>(`/channels/${platform}/${platformId}/fetch-status`)
+
+/** 触发加载更多返回 */
+export interface FetchMoreResult {
+  queued: boolean
+  complete?: boolean
+  fetched: number
+  total: number
+  message: string
+}
+
+/** 触发加载更多视频 */
+export const fetchMoreVideos = (platform: string, platformId: string) =>
+  request.post<FetchMoreResult>(`/channels/${platform}/${platformId}/fetch-more`)

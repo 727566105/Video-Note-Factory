@@ -329,11 +329,7 @@ export const NoteListPage: FC = () => {
               <FolderPlus className="w-4 h-4" />
               添加到合集
             </Button>
-            <Button variant="outline" className="gap-2">
-              <Download className="w-4 h-4" />
-              批量导出
-            </Button>
-          </div>
+                      </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchNotes}>
               <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />

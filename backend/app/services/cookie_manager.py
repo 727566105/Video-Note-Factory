@@ -53,13 +53,12 @@ class CookieConfigManager:
         lines = netscape_cookie.strip().split('\n')
         
         # 如果只有一行或几行，但包含多个域名，说明是压缩格式
-        if len(lines) <= 3 and netscape_cookie.count('.douyin.com') > 5:
-            # 使用正则表达式或简单的字符串处理来分割
-            # 查找域名模式作为分隔符
-            import re
-            # 匹配域名开头的模式
-            entries = re.split(r'(?=(?:www\.)?\.?douyin\.com\t)', netscape_cookie)
-            lines = [entry.strip() for entry in entries if entry.strip()]
+        if len(lines) <= 3:
+            # 检测是否包含多个域名开头的 tab 分隔条目（压缩格式）
+            # 匹配任意域名模式：www.xxx.com 或 .xxx.com 或 xxx.com
+            entries = re.split(r'(?=(?:www\.)?\.?\w+\.com\t)', netscape_cookie)
+            if len(entries) > 1:
+                lines = [entry.strip() for entry in entries if entry.strip()]
         
         cookies = []
         

@@ -9,6 +9,7 @@ from app.db.models.users import User
 from app.db.models.user_preferences import UserPreference
 from app.db.models.subscriptions import Subscription, FeedItem
 from app.db.models.model_usage_history import ModelUsageHistory
+from app.db.models.channel_video import ChannelVideo, ChannelFetchStatus
 from app.db.engine import get_engine, Base, get_db
 from app.utils.logger import get_logger
 from sqlalchemy import text
@@ -99,6 +100,15 @@ def migrate_feed_items_table():
             db.execute(text("ALTER TABLE feed_items ADD COLUMN description VARCHAR"))
             db.commit()
             logger.info("feed_items: description 列添加成功")
+
+        # 添加 channel_video_id 列（关联频道视频共享表）
+        if 'channel_video_id' not in columns:
+            logger.info("feed_items: channel_video_id 列不存在，正在添加...")
+            db.execute(text(
+                "ALTER TABLE feed_items ADD COLUMN channel_video_id INTEGER"
+            ))
+            db.commit()
+            logger.info("feed_items: channel_video_id 列添加成功")
     except Exception as e:
         logger.error(f"feed_items 迁移失败: {e}")
     finally:

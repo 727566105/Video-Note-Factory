@@ -5,6 +5,7 @@ import uuid
 import hashlib
 import ipaddress
 import socket
+import shutil
 import threading
 import httpx
 from pathlib import Path
@@ -225,11 +226,20 @@ def _save_queued_task_params(task_id: str, data: VideoRequest, user_id: int = No
         json.dump(params, f, ensure_ascii=False)
 
 
+def _cleanup_pending(task_id: str):
+    """清理 _pending 目录中的任务残留"""
+    _pending = VIDEO_DIR / "_pending" / task_id
+    if _pending.exists():
+        shutil.rmtree(_pending, ignore_errors=True)
+        logger.info(f"已清理 _pending 目录: {_pending}")
+
+
 def _start_queued_task(task_id: str):
     """从 _pending 目录读取参数并启动排队任务"""
     queue_path = VIDEO_DIR / "_pending" / task_id / "queue.json"
     if not queue_path.exists():
         logger.error(f"排队任务参数文件不存在: {task_id}")
+        _cleanup_pending(task_id)
         return
     try:
         with open(queue_path, "r", encoding="utf-8") as f:
@@ -243,6 +253,7 @@ def _start_queued_task(task_id: str):
     except Exception as e:
         logger.error(f"启动排队任务失败: {task_id}, 错误: {e}")
         task_queue.release(task_id)
+        _cleanup_pending(task_id)
 
 
 def run_note_task(task_id: str, video_url: str, platform: str, quality: DownloadQuality,
@@ -283,6 +294,8 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
             return
         save_note_to_file(task_id, note)
     finally:
+        # 清理 _pending 残留（无论成功还是失败）
+        _cleanup_pending(task_id)
         # 释放执行槽位，触发下一个排队任务
         next_task_id = task_queue.release(task_id)
         if next_task_id:
@@ -302,7 +315,6 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
             delete_task_by_id(data.task_id)
 
             # 删除笔记文件夹（兼容四级目录和旧版目录）
-            import shutil
             if db_task and db_task.author_id:
                 try:
                     video_folder = get_video_folder(
@@ -326,10 +338,7 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
                 logger.info(f"已删除旧版笔记文件夹: {note_folder}")
 
             # _pending 临时目录
-            pending_dir = VIDEO_DIR / "_pending" / data.task_id
-            if pending_dir.exists():
-                shutil.rmtree(pending_dir)
-                logger.info(f"已删除 _pending 目录: {pending_dir}")
+            _cleanup_pending(data.task_id)
 
             # 清理队列
             task_queue.remove(data.task_id)

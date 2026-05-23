@@ -83,13 +83,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <span className="truncate font-medium">VideoNote</span>
                 <span className="truncate text-xs">AI 视频笔记</span>
               </div>
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 className="inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-all outline-none hover:bg-accent hover:text-accent-foreground size-7 -ml-1"
                 onClick={(e) => { e.stopPropagation(); toggleSidebar() }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); toggleSidebar() } }}
               >
                 <PanelLeft className="size-4" />
                 <span className="sr-only">Toggle Sidebar</span>
-              </button>
+              </div>
             </SidebarMenuButton>
             {/* 折叠态: 仅切换按钮 */}
             <button

@@ -6,8 +6,12 @@ import json
 import os
 import re
 import shutil
+import time
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -411,6 +415,7 @@ def move_note_files_to_video_folder(
     # 临时目录
     temp_folder = NOTE_OUTPUT_DIR / task_id
     temp_folder_with_title = NOTE_OUTPUT_DIR / f"{task_id[:8]}_{sanitize_folder_name(title)}" if title else None
+    pending_folder = VIDEO_DIR / "_pending" / task_id
 
     # 迁移文件
     file_types = ["audio.json", "transcript.json", "note.md", "status.json", "note.json", "metadata.json"]
@@ -430,6 +435,13 @@ def move_note_files_to_video_folder(
                 dst = target_folder / filename
                 if not dst.exists():
                     shutil.move(str(src), str(dst))
+
+        # 从 _pending 临时目录迁移
+        src = pending_folder / filename
+        if src.exists():
+            dst = target_folder / filename
+            if not dst.exists():
+                shutil.move(str(src), str(dst))
 
     # 迁移关联的媒体文件（音频/视频）并更新 audio.json 中的路径
     audio_json_path = target_folder / "audio.json"
@@ -473,6 +485,11 @@ def move_note_files_to_video_folder(
     if temp_folder_with_title and temp_folder_with_title.exists():
         try:
             shutil.rmtree(temp_folder_with_title)
+        except Exception:
+            pass
+    if pending_folder.exists():
+        try:
+            shutil.rmtree(pending_folder)
         except Exception:
             pass
 
@@ -829,6 +846,46 @@ def _migrate_covers(logger):
     if old_cover_dir.exists() and not any(old_cover_dir.iterdir()):
         shutil.rmtree(old_cover_dir)
         logger.info("已清理空的旧封面目录 static/covers/")
+
+
+def cleanup_stale_pending(max_age_hours: int = 2):
+    """清理 _pending 目录中超过指定时间的残留任务目录"""
+    pending_dir = VIDEO_DIR / "_pending"
+    if not pending_dir.exists():
+        return
+    now = time.time()
+    cleaned = 0
+    for task_dir in pending_dir.iterdir():
+        if not task_dir.is_dir():
+            continue
+        # 检查时间阈值
+        if (now - task_dir.stat().st_mtime) <= max_age_hours * 3600:
+            # 未超时但检查 status.json：非终态且超过 30 分钟也清理
+            status_file = task_dir / "status.json"
+            if status_file.exists():
+                try:
+                    data = json.loads(status_file.read_text(encoding="utf-8"))
+                    status = data.get("status", "")
+                    if status in ("SUCCESS", "FAILED"):
+                        # 已终态，直接清理
+                        pass
+                    elif (now - task_dir.stat().st_mtime) > 0.5 * 3600:
+                        # 非终态超过 30 分钟，视为中断残留
+                        pass
+                    else:
+                        continue
+                except Exception:
+                    continue
+            else:
+                continue
+        shutil.rmtree(task_dir)
+        logger.info(f"清理过期 _pending 目录: {task_dir.name}")
+        cleaned += 1
+    if cleaned:
+        logger.info(f"共清理 {cleaned} 个过期 _pending 目录")
+    # 如果 _pending 目录为空，也删除它
+    if pending_dir.exists() and not any(pending_dir.iterdir()):
+        pending_dir.rmdir()
 
 
 if __name__ == "__main__":

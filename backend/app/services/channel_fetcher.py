@@ -226,17 +226,19 @@ def _parse_duration(length_str) -> int:
 
 
 def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50,
-                              progress_callback=None) -> FetchResult:
+                              progress_callback=None, page_limit: int = None) -> FetchResult:
     """获取B站博主全部视频列表（分页）
 
     :param mid: 博主 ID（如 85742625）
     :param max_pages: 最大页数限制（防止无限循环）
     :param page_size: 每页数量（最大 50）
+    :param page_limit: 限制获取的页数（None = 不限制，向后兼容）
     :return: FetchResult，包含 items 和 error
     """
     results = []
     first_error = None
     pn = 1
+    pages_fetched = 0
 
     while pn <= max_pages:
         try:
@@ -324,6 +326,11 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
             logger.info(f"B站博主 {mid} 第 {pn} 页获取成功，本页 {len(vlist)} 条")
             if progress_callback:
                 progress_callback(pn, len(results))
+            pages_fetched += 1
+            # 分批获取：达到 page_limit 时暂停
+            if page_limit and pages_fetched >= page_limit:
+                logger.info(f"分批获取：达到 page_limit={page_limit}，暂停")
+                break
             pn += 1
             time.sleep(BILIBILI_PAGE_INTERVAL)
 
@@ -336,14 +343,21 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
     return FetchResult(items=results, error=first_error)
 
 
-def fetch_videos(channel_url: str, platform: str, limit: int | None = 20, progress_callback=None) -> FetchResult:
-    """获取频道视频列表"""
+def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
+                  progress_callback=None, page_limit: int = None) -> FetchResult:
+    """获取频道视频列表
+
+    :param page_limit: 限制获取的页数（仅 B站有效，其他平台暂不支持）
+    """
     if platform == "bilibili":
         mid = _extract_bilibili_mid(channel_url)
         if not mid:
             return FetchResult(error=f"无法提取B站博主ID: {channel_url}")
         max_pages = max(1, (limit // 50) + 1) if limit else 50
-        result = fetch_bilibili_all_videos(mid, max_pages=max_pages, progress_callback=progress_callback)
+        # page_limit 优先于 max_pages 计算
+        effective_max_pages = min(max_pages, page_limit) if page_limit else max_pages
+        result = fetch_bilibili_all_videos(mid, max_pages=effective_max_pages,
+                                           progress_callback=progress_callback, page_limit=page_limit)
         if limit and len(result.items) > limit:
             result.items = result.items[:limit]
         return result
@@ -469,13 +483,19 @@ def parse_channel_info(channel_url: str, platform: str) -> dict:
     return {}
 
 
-def fetch_all_for_subscription(subscription, limit: int = 20, progress_callback=None) -> FetchResult:
-    """合并视频+图文，返回统一格式的动态列表"""
+def fetch_all_for_subscription(subscription, limit: int = 20, progress_callback=None,
+                                page_limit: int = None) -> FetchResult:
+    """合并视频+图文，返回统一格式的动态列表
+
+    :param page_limit: 限制获取的页数（传递给平台获取函数）
+    """
     results = []
     errors = []
 
     effective_limit = limit if limit else 0
-    video_result = fetch_videos(subscription.channel_url, subscription.platform, effective_limit or None, progress_callback=progress_callback)
+    video_result = fetch_videos(subscription.channel_url, subscription.platform,
+                                effective_limit or None, progress_callback=progress_callback,
+                                page_limit=page_limit)
     for v in video_result.items:
         v["user_id"] = subscription.user_id
         v["subscription_id"] = subscription.id

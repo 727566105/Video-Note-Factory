@@ -41,4 +41,5 @@ class FeedItem(Base):
     raw_info = Column(Text, nullable=True)
     is_read = Column(Integer, default=0)
     task_id = Column(String, nullable=True)
+    channel_video_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

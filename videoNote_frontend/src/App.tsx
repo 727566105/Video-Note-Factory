@@ -78,8 +78,8 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset>
-        <div className="flex-1 overflow-auto">
+      <SidebarInset className="h-full overflow-hidden">
+        <div className="h-full overflow-auto">
           {children}
         </div>
       </SidebarInset>
