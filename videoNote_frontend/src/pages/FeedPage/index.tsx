@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity } from 'lucide-react'
+import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -18,6 +18,10 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { useTaskStore } from '@/store/taskStore'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
+import { generateNote } from '@/services/note'
+import { toast } from 'sonner'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
 import type { FeedItem } from '@/services/subscription'
 
@@ -45,17 +49,65 @@ const timeAgo = (iso?: string | null) => {
   return `${days}天前`
 }
 
+type ViewMode = 'grid' | 'list'
+
 export default function FeedPage() {
   const navigate = useNavigate()
   const { feedItems, loading, fetchFeed, markAllRead, refreshFeed, unreadCount } = useSubscriptionStore()
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const addPendingTask = useTaskStore(state => state.addPendingTask)
+  const { style, selectedFormats, outputLanguage } = useSummarySettingsStore()
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set())
 
   useEffect(() => { fetchFeed() }, [fetchFeed])
 
-  const handleGenerate = (item: FeedItem) => {
-    if (item.content_type === 'video' && item.content_url) {
-      navigate(`/?url=${encodeURIComponent(item.content_url)}`)
+  const handleGenerate = useCallback(async (item: FeedItem) => {
+    if (item.content_type !== 'video' || !item.content_url) return
+    setGeneratingIds(prev => new Set(prev).add(String(item.id)))
+    try {
+      const payload = {
+        video_url: item.content_url,
+        platform: item.platform,
+        quality: 'medium',
+        smart_mode: true,
+        model_name: '',
+        provider_id: '',
+        style: style || 'minimal',
+        format: selectedFormats || [],
+        output_language: outputLanguage || 'zh',
+      }
+      const res = await generateNote(payload)
+      if (res?.task_id) {
+        addPendingTask(res.task_id, item.platform, payload)
+        toast.success('生成任务已提交')
+      }
+    } catch {
+      toast.error('提交失败')
+    } finally {
+      setGeneratingIds(prev => { const next = new Set(prev); next.delete(String(item.id)); return next })
     }
+  }, [style, selectedFormats, outputLanguage, addPendingTask])
+
+  const handleViewNote = useCallback((item: FeedItem) => {
+    const taskId = item.task_id || item.available_task_id
+    if (taskId) navigate(`/notes/${taskId}`)
+  }, [navigate])
+
+  const renderButton = (item: FeedItem) => {
+    const isGenerating = generatingIds.has(item.id)
+    const hasNote = item.task_id || item.note_available
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={isGenerating}
+        onClick={() => hasNote ? handleViewNote(item) : handleGenerate(item)}
+      >
+        {isGenerating ? (
+          <><Loader2 className="size-4 animate-spin" />生成中...</>
+        ) : hasNote ? '查看笔记' : '生成笔记'}
+      </Button>
+    )
   }
 
   return (
@@ -72,7 +124,7 @@ export default function FeedPage() {
           <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
             <CheckCheck className="size-4 mr-1" />全部已读
           </Button>
-          <Select value={viewMode} onValueChange={(v) => setViewMode(v as 'grid' | 'list')}>
+          <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
             <SelectTrigger className="w-[120px] h-8">
               <SelectValue />
             </SelectTrigger>
@@ -101,9 +153,10 @@ export default function FeedPage() {
             </EmptyContent>
           </Empty>
         ) : viewMode === 'grid' ? (
+          /* 网格 */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {feedItems.map(item => (
-              <div key={item.id} className="rounded-lg border bg-card overflow-hidden">
+              <div key={item.id} className="rounded-lg border bg-card overflow-hidden flex flex-col">
                 <div className="relative aspect-video bg-muted">
                   {item.cover_url ? (
                     <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
@@ -123,20 +176,21 @@ export default function FeedPage() {
                     {item.content_type === 'video' ? '视频' : '图文'}
                   </span>
                 </div>
-                <div className="p-3">
+                <div className="p-3 flex flex-col flex-1">
                   <h3 className="font-medium text-sm line-clamp-2 mb-2">{item.title}</h3>
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-3">
                     <span>{item.author}</span>
                     <span>{timeAgo(item.published_at)}</span>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => handleGenerate(item)}>
-                    生成笔记
-                  </Button>
+                  <div className="mt-auto w-full">
+                    {renderButton(item)}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
+          /* 列表 */
           <div className="space-y-2">
             {feedItems.map(item => (
               <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg border hover:bg-accent/50">
@@ -156,7 +210,7 @@ export default function FeedPage() {
                     <span>{timeAgo(item.published_at)}</span>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => handleGenerate(item)}>生成笔记</Button>
+                {renderButton(item)}
               </div>
             ))}
           </div>

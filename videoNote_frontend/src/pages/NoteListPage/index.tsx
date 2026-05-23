@@ -73,6 +73,7 @@ import {
 import { useSystemStore } from '@/store/configStore'
 import { useTaskStore } from '@/store/taskStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
+import { quickViewNote } from '@/services/subscription'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
 
@@ -101,6 +102,152 @@ function NoteEmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
         </Button>
       </EmptyContent>
     </Empty>
+  )
+}
+
+// 瀑布流卡片 - 带笔记内容懒加载（参考设计样式）
+function MasonryNoteCard({
+  item,
+  onClick,
+  onDelete,
+  onPlay,
+  onSubscribe,
+  isSubscribed,
+  failedCovers,
+  handleCoverError,
+}: {
+  item: NoteItem
+  onClick: () => void
+  onDelete: () => void
+  onPlay: () => void
+  onSubscribe: () => void
+  isSubscribed: boolean
+  failedCovers: Set<string>
+  handleCoverError: (id: string) => void
+}) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [notePreview, setNotePreview] = useState<string | null>(null)
+  const [loadingNote, setLoadingNote] = useState(false)
+  const fetched = useRef(false)
+
+  const isSuccess = item.status === 'SUCCESS'
+
+  useEffect(() => {
+    if (!cardRef.current || !isSuccess) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !fetched.current) {
+          fetched.current = true
+          setLoadingNote(true)
+          quickViewNote(item.task_id)
+            .then(res => {
+              if (res?.markdown) setNotePreview(res.markdown.slice(0, 500))
+            })
+            .catch(() => {})
+            .finally(() => setLoadingNote(false))
+        }
+      },
+      { rootMargin: '200px' }
+    )
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [item.task_id, isSuccess])
+
+  return (
+    <div
+      ref={cardRef}
+      className="group rounded-xl border bg-card overflow-hidden cursor-pointer transition-shadow hover:shadow-md mb-4 break-inside-avoid"
+      onClick={onClick}
+    >
+      {/* 封面 */}
+      <div className="relative aspect-video bg-muted overflow-hidden">
+        {item.cover && !failedCovers.has(item.id) ? (
+          <img
+            src={item.cover}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={() => handleCoverError(item.id)}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full gap-1">
+            <PlatformIconSmall platform={item.platform} />
+          </div>
+        )}
+        {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <LoaderCircle className="w-6 h-6 text-white animate-spin" />
+          </div>
+        )}
+        {item.author && (
+          <div className="absolute bottom-0 left-0 flex items-center gap-1">
+            <span className="bg-opacity-50 rounded bg-gray-800 p-1 px-2 text-sm font-bold text-white">
+              {item.author}
+            </span>
+            {['bilibili', 'youtube', 'douyin', 'kuaishou'].includes(item.platform) && (
+              <button
+                className={cn(
+                  'p-1 rounded transition-all',
+                  isSubscribed
+                    ? 'bg-primary/80 text-white'
+                    : 'bg-foreground/60 text-background hover:bg-primary/80 hover:text-white'
+                )}
+                onClick={(e) => { e.stopPropagation(); onSubscribe() }}
+              >
+                <Rss className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
+        <button
+          className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* 标题 + 作者 + 笔记预览 */}
+      <div className="p-4">
+        <div className="text-base font-medium text-foreground line-clamp-2 leading-snug">{item.title}</div>
+        {item.author && (
+          <div className="mt-1 text-xs font-semibold text-sky-500">{item.author}</div>
+        )}
+
+        {/* 笔记预览 */}
+        {isSuccess && (
+          <div className="mt-2 relative">
+            {loadingNote ? (
+              <div className="space-y-1.5">
+                <div className="h-2.5 bg-muted rounded w-full" />
+                <div className="h-2.5 bg-muted rounded w-4/5" />
+                <div className="h-2.5 bg-muted rounded w-3/5" />
+              </div>
+            ) : notePreview ? (
+              <div className="relative max-h-48 overflow-hidden">
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  {notePreview.replace(/[#*_\[\]>`]/g, '')}
+                </div>
+                {/* 底部渐变遮罩 */}
+                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent" />
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* 完整总结按钮 */}
+      {isSuccess && (
+        <div className="flex justify-end px-4 pb-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); onClick() }}
+          >
+            完整总结
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -465,84 +612,17 @@ export const NoteListPage: FC = () => {
           ) : (
             <div className="columns-[280px] gap-4">
               {filteredNotes.map((item) => (
-                <div
+                <MasonryNoteCard
                   key={item.id}
-                  className="group rounded-xl border border-border bg-background overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/20 mb-4 break-inside-avoid"
+                  item={item}
                   onClick={() => handleNoteClick(item)}
-                >
-                  {/* 封面 */}
-                  <div className="relative aspect-video bg-muted overflow-hidden">
-                    {item.cover && !failedCovers.has(item.id) ? (
-                      <img src={item.cover} alt="" className="w-full h-full object-cover cursor-zoom-in" onError={() => handleCoverError(item.id)} onClick={(e) => { e.stopPropagation(); setCoverPreviewSrc(item.cover); setCoverPreviewOpen(true) }} />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full gap-1">
-                        <PlatformIconSmall platform={item.platform} />
-                      </div>
-                    )}
-                    {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <LoaderCircle className="w-6 h-6 text-white animate-spin" />
-                      </div>
-                    )}
-                    {(item.platform === 'local' || item.platform === 'local_audio') && item.video_url && (
-                      <button
-                        className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setPlayItem(item)
-                          setPlayDialogOpen(true)
-                        }}
-                      >
-                        <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
-                          <Play className="w-8 h-8 text-white ml-1" />
-                        </div>
-                      </button>
-                    )}
-                    {item.author && (
-                      <div className="absolute bottom-2 left-2 flex items-center gap-1">
-                        <span className="px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
-                          {item.author}
-                        </span>
-                        {isSubscribable(item.platform) && (
-                          <button
-                            className={cn(
-                              "p-1 rounded transition-all",
-                              isSubscribed(item.author)
-                                ? "bg-primary/80 text-white"
-                                : "bg-foreground/60 text-background hover:bg-primary/80 hover:text-white"
-                            )}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (isSubscribed(item.author)) {
-                                toast.info('已订阅该频道')
-                              } else {
-                                subscribe(item.video_url)
-                              }
-                            }}
-                          >
-                            <Rss className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <button
-                      className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteTargetId(item.task_id)
-                        setDeleteDialogOpen(true)
-                      }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="p-3">
-                    <div className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{item.title}</div>
-                    {item.author && (
-                      <div className="mt-1.5 text-xs text-primary">{item.author}</div>
-                    )}
-                  </div>
-                </div>
+                  onDelete={() => { setDeleteTargetId(item.task_id); setDeleteDialogOpen(true) }}
+                  onPlay={() => { setPlayItem(item); setPlayDialogOpen(true) }}
+                  onSubscribe={() => isSubscribed(item.author) ? toast.info('已订阅该频道') : subscribe(item.video_url)}
+                  isSubscribed={isSubscribed(item.author)}
+                  failedCovers={failedCovers}
+                  handleCoverError={handleCoverError}
+                />
               ))}
             </div>
           )}

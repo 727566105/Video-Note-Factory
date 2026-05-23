@@ -289,6 +289,7 @@ export const TaskQueuePanel: FC = () => {
 
   const tasks = useTaskStore(state => state.tasks)
   const removeTask = useTaskStore(state => state.removeTask)
+  const dismissTasks = useTaskStore(state => state.dismissTasks)
   const setCurrentTask = useTaskStore(state => state.setCurrentTask)
   const retryTask = useTaskStore(state => state.retryTask)
 
@@ -368,40 +369,18 @@ export const TaskQueuePanel: FC = () => {
     }
   }
 
-  const handleClearCompleted = async () => {
-    const completed = tasks.filter(t => t.status === 'SUCCESS')
-    if (completed.length === 0) return
-    let failed = 0
-    for (const t of completed) {
-      try {
-        await removeTask(t.id)
-      } catch {
-        failed++
-      }
-    }
-    if (failed > 0) {
-      toast.error(`${failed} 个任务清除失败`)
-    } else {
-      toast.success(`已清除 ${completed.length} 个已完成任务`)
-    }
+  const handleClearCompleted = () => {
+    const count = tasks.filter(t => t.status === 'SUCCESS').length
+    if (count === 0) return
+    dismissTasks(['SUCCESS'])
+    toast.success(`已清除 ${count} 个已完成任务`)
   }
 
-  const handleClearFailed = async () => {
-    const failedTasks = tasks.filter(t => t.status === 'FAILED')
-    if (failedTasks.length === 0) return
-    let failed = 0
-    for (const t of failedTasks) {
-      try {
-        await removeTask(t.id)
-      } catch {
-        failed++
-      }
-    }
-    if (failed > 0) {
-      toast.error(`${failed} 个任务清除失败`)
-    } else {
-      toast.success(`已清除 ${failedTasks.length} 个失败任务`)
-    }
+  const handleClearFailed = () => {
+    const count = tasks.filter(t => t.status === 'FAILED').length
+    if (count === 0) return
+    dismissTasks(['FAILED'])
+    toast.success(`已清除 ${count} 个失败任务`)
   }
 
   return (

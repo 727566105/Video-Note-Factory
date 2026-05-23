@@ -75,6 +75,7 @@ interface TaskStore {
   updateTaskContent: (id: string, data: Partial<Omit<Task, 'id' | 'createdAt'>>) => void
   removeTask: (id: string) => Promise<void>
   clearTasks: () => void
+  dismissTasks: (statuses: TaskStatus[]) => void
   setCurrentTask: (taskId: string | null) => void
   getCurrentTask: () => Task | null
   retryTask: (id: string, payload?: Record<string, unknown>) => Promise<void>
@@ -224,6 +225,10 @@ export const useTaskStore = create<TaskStore>()(
       },
 
       clearTasks: () => set({ tasks: [], currentTaskId: null }),
+
+      dismissTasks: (statuses) => set(state => ({
+        tasks: state.tasks.filter(t => !statuses.includes(t.status)),
+      })),
 
       setCurrentTask: taskId => set({ currentTaskId: taskId }),
 
