@@ -128,7 +128,7 @@ class ChannelFetchQueue:
         return None
 
     def _fetch_batch(self, task: FetchTask):
-        """获取一批视频（约 30 条 = 1 页）"""
+        """获取一批视频"""
         from app.db.channel_video_dao import (
             get_or_create_fetch_status,
             update_fetch_status,
@@ -137,6 +137,7 @@ class ChannelFetchQueue:
         )
         from app.db.subscription_dao import create_feed_items_from_channel_videos
         from app.services.channel_fetcher import fetch_videos, FetchResult
+        from app.services.douyin_api import fetch_douyin_user_videos, DouyinFetchResult
 
         # 获取或创建状态记录
         status = get_or_create_fetch_status(task.platform, task.platform_id)
@@ -157,13 +158,67 @@ class ChannelFetchQueue:
             )
             return
 
-        # 获取 1 页视频
+        # 抖音分支：使用游标分页
+        if task.platform == "douyin":
+            cursor = int(status.next_cursor or "0") if status and status.next_cursor else 0
+            logger.info(f"抖音游标分页: sec_uid={task.platform_id}, cursor={cursor}")
+
+            result: DouyinFetchResult = fetch_douyin_user_videos(
+                sec_uid=task.platform_id,
+                max_cursor=cursor,
+                count=20,
+                page_limit=1,
+            )
+
+            if result.error:
+                logger.error(f"抖音 fetch 失败: {result.error}")
+                update_fetch_status(
+                    task.platform, task.platform_id,
+                    fetch_status="error", error_message=result.error,
+                )
+                return
+
+            videos = result.items
+            if not videos:
+                logger.info(f"抖音本页无视频，标记为 complete: {task.platform}/{task.platform_id}")
+                update_fetch_status(task.platform, task.platform_id, fetch_status="complete")
+                return
+
+            # upsert 到共享表
+            logger.info(f"抖音 upsert_channel_videos: count={len(videos)}")
+            channel_video_records = upsert_channel_videos(videos, task.platform, task.platform_id)
+
+            # 更新状态
+            current_count = count_channel_videos(task.platform, task.platform_id)
+            is_complete = not result.has_more
+
+            update_fetch_status(
+                task.platform, task.platform_id,
+                total_videos=max(status.total_videos, current_count),
+                fetched_count=current_count,
+                next_cursor=str(result.next_cursor),
+                fetch_status="complete" if is_complete else "partial",
+            )
+
+            # 为触发用户创建 feed_items
+            create_feed_items_from_channel_videos(
+                user_id=task.user_id,
+                subscription_id=task.subscription_id,
+                channel_videos=channel_video_records,
+                platform=task.platform,
+            )
+
+            logger.info(f"抖音批次获取完成: {task.platform}/{task.platform_id}, "
+                        f"本批={len(videos)}, 累计={current_count}, cursor={result.next_cursor}, complete={is_complete}")
+            return
+
+        # B站和其他平台分支
         logger.info(f"调用 fetch_videos: channel_url={channel_url}, page_limit=1")
         result: FetchResult = fetch_videos(
             channel_url=channel_url,
             platform=task.platform,
-            limit=None,  # 不限制
-            page_limit=1,  # 只获取 1 页
+            limit=None,
+            page_limit=1,
         )
 
         if result.error:
