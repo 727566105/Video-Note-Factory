@@ -205,7 +205,8 @@ def _extract_youtube_channel(url: str) -> Optional[str]:
 
 
 def _extract_douyin_uid(url: str) -> Optional[str]:
-    match = re.search(r"douyin\.com/user/([A-Za-z0-9_-]+)", url)
+    # sec_uid 格式包含字母、数字、点号、下划线、短横线
+    match = re.search(r"douyin\.com/user/([A-Za-z0-9_.\-]+)", url)
     return match.group(1) if match else None
 
 
