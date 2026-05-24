@@ -12,6 +12,7 @@ import requests
 
 from app.utils.logger import get_logger
 from app.services.bilibili_wbi import sign_wbi_params
+from app.services.douyin_api import fetch_douyin_user_videos
 
 logger = get_logger(__name__)
 
@@ -362,7 +363,26 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
             result.items = result.items[:limit]
         return result
 
-    # 其他平台：使用 yt-dlp
+    # 抖音：使用原生 API 分页获取
+    if platform == "douyin":
+        sec_uid = _extract_douyin_uid(channel_url)
+        if not sec_uid:
+            return FetchResult(error=f"无法从 URL 提取抖音用户 ID: {channel_url}")
+        max_pages = max(1, (limit // 20) + 1) if limit else 100
+        effective_max_pages = min(max_pages, page_limit) if page_limit else max_pages
+        result = fetch_douyin_user_videos(
+            sec_uid=sec_uid,
+            max_cursor=0,
+            count=20,
+            max_pages=effective_max_pages,
+            page_limit=page_limit,
+            progress_callback=progress_callback,
+        )
+        if limit and len(result.items) > limit:
+            result.items = result.items[:limit]
+        return FetchResult(items=result.items, error=result.error)
+
+    # 其他平台（YouTube 等）：使用 yt-dlp
     try:
         import yt_dlp
         ydl_opts = {
@@ -371,11 +391,6 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
             "extract_flat": True,
             "playlistend": limit,
         }
-        if platform == "douyin":
-            cfm = _get_cookie_manager()
-            cookie_str = cfm.get("douyin")
-            if cookie_str:
-                ydl_opts["cookiefile"] = _make_platform_cookiefile("douyin.com", cookie_str)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(channel_url, download=False)
