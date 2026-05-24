@@ -358,9 +358,16 @@ class DouyinDownloader(Downloader):
                 if tag['tag_name']:
                     tags.append(tag['tag_name'])
 
-            cover_url = (video_data['aweme_detail']['video']['cover_original_scale']['url_list'][0]
-                if video_data['aweme_detail']['video'].get('cover')
-                else video_data['video']['big_thumbs']['img_url'])
+            # 提取封面 URL（安全链式取值）
+            video_info = video_data['aweme_detail']['video']
+            cover_url = None
+            cover_original = video_info.get('cover_original_scale', {})
+            if cover_original and cover_original.get('url_list'):
+                cover_url = cover_original['url_list'][0]
+            elif video_info.get('cover', {}).get('url_list'):
+                cover_url = video_info['cover']['url_list'][0]
+            elif video_data.get('video', {}).get('big_thumbs', {}).get('img_url'):
+                cover_url = video_data['video']['big_thumbs']['img_url']
             video_id = video_data['aweme_detail']['aweme_id']
             author_id = str(video_data['aweme_detail'].get('author', {}).get('uid', ''))
 
