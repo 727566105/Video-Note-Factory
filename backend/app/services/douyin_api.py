@@ -207,3 +207,39 @@ def _gen_ms_token() -> str:
         return httpx.Cookies(resp.cookies).get("msToken") or ""
     except Exception:
         return ""
+
+
+def _fetch_douyin_user_info(sec_uid: str) -> Optional[dict]:
+    """调用抖音视频列表 API 获取用户信息（昵称、头像）"""
+    try:
+        result = fetch_douyin_user_videos(
+            sec_uid=sec_uid,
+            max_cursor=0,
+            count=1,
+            max_pages=1,
+        )
+        if result.error or not result.items:
+            logger.error(f"抖音用户信息获取失败 ({sec_uid}): {result.error}")
+            return None
+
+        first_item = result.items[0]
+        raw_info = json.loads(first_item.get("raw_info", "{}"))
+
+        author = raw_info.get("author", {})
+        if not author:
+            return None
+
+        avatar_url = ""
+        avatar_larger = author.get("avatar_larger", {})
+        if avatar_larger and avatar_larger.get("url_list"):
+            avatar_url = avatar_larger["url_list"][0]
+        elif author.get("avatar_thumb", {}).get("url_list"):
+            avatar_url = author["avatar_thumb"]["url_list"][0]
+
+        return {
+            "channel_name": author.get("nickname", ""),
+            "avatar_url": avatar_url,
+        }
+    except Exception as e:
+        logger.error(f"抖音用户信息获取异常 ({sec_uid}): {e}")
+    return None

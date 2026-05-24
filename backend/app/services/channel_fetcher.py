@@ -484,6 +484,15 @@ def parse_channel_info(channel_url: str, platform: str) -> dict:
             if info:
                 return info
 
+    # 抖音：使用抖音 API 获取用户信息
+    if platform == "douyin":
+        sec_uid = _extract_douyin_uid(channel_url)
+        if sec_uid:
+            from app.services.douyin_api import _fetch_douyin_user_info
+            info = _fetch_douyin_user_info(sec_uid)
+            if info:
+                return info
+
     # 其他平台：使用 yt-dlp
     try:
         import yt_dlp
