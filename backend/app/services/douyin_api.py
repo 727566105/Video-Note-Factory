@@ -108,13 +108,15 @@ def fetch_douyin_user_videos(
     except Exception:
         cookie_str = None
 
-    if not cookie_str:
-        return DouyinFetchResult(error="抖音 Cookie 未配置，请在设置中添加 ttwid 和 sessionid")
+    if not cookie_str or 'ttwid' not in cookie_str or 'sessionid' not in cookie_str:
+        return DouyinFetchResult(error="抖音 Cookie 缺少必要字段(ttwid/sessionid)，请重新配置")
 
     headers = {
         "User-Agent": DouyinConfig.HEADERS["User-Agent"],
         "Referer": "https://www.douyin.com/",
         "Cookie": cookie_str,
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9",
     }
 
     while pages_fetched < max_pages:
@@ -122,14 +124,13 @@ def fetch_douyin_user_videos(
             params = _build_douyin_params(sec_uid, cursor, count)
             params["msToken"] = _gen_ms_token()
             a_bogus = _sign_douyin_params(params)
-            params["a_bogus"] = a_bogus
 
-            resp = requests.get(
-                DOUYIN_API_URL,
-                params=params,
-                headers=headers,
-                timeout=15,
-            )
+            # 手动构建 URL（与 douyin_downloader.py 一致），避免 requests 自动编码导致签名不一致
+            from urllib.parse import urlencode
+            query_str = urlencode(params)
+            full_url = f"{DOUYIN_API_URL}?{query_str}&a_bogus={a_bogus}"
+
+            resp = requests.get(full_url, headers=headers, timeout=15)
             data = resp.json()
 
             status_code = data.get("status_code", -1)
