@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck, Download, Search, Eye, FileText, ChevronDown } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ExternalLink, LoaderCircle, UserPlus, UserCheck, Download, Search, Eye, FileText, ChevronDown, LayoutGrid, List } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -29,6 +29,7 @@ import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { generateNote } from '@/services/note'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { toast } from 'sonner'
+import { usePlatformFeatures } from '@/hooks/usePlatformFeatures'
 
 const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音' }
 const platformIcon: Record<string, React.ReactNode> = {
@@ -69,6 +70,9 @@ export default function ChannelDetailPage() {
   const [filter, setFilter] = useState<'all' | 'summarized' | 'new'>('all')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
 
+  // 视图模式
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+
   // 快速预览笔记
   const [previewNote, setPreviewNote] = useState<{ markdown: string; title: string | null } | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -91,6 +95,7 @@ export default function ChannelDetailPage() {
   const { style, outputLanguage, videoUnderstanding, videoInterval, gridCols, gridRows, selectedFormats, extras } = useSummarySettingsStore()
 
   const sub = subscriptions.find(s => s.platform === platform && s.platform_id === id)
+  const features = usePlatformFeatures(platform || 'bilibili')
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
@@ -362,7 +367,7 @@ export default function ChannelDetailPage() {
                 </a>
               )}
             </div>
-            {subscribersTotal > 0 && (
+            {features.subscribersDisplay && subscribersTotal > 0 && (
               <div className="flex items-center gap-2 mb-3">
                 <AvatarGroup>
                   {subscribers.slice(0, 4).map(s => (
@@ -406,8 +411,17 @@ export default function ChannelDetailPage() {
           <option value="new">未总结</option>
         </select>
         <span className="text-sm text-muted-foreground ml-2">共 {total} 条</span>
+        {/* 视图切换 */}
+        <div className="flex items-center gap-1 ml-2">
+          <Button variant={viewMode === 'grid' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('grid')}>
+            <LayoutGrid className="size-4" />
+          </Button>
+          <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('list')}>
+            <List className="size-4" />
+          </Button>
+        </div>
         {/* 分批获取状态提示 + 加载更多按钮 */}
-        {fetchStatus && fetchStatus.total > 0 && (
+        {features.batchFetch && fetchStatus && fetchStatus.total > 0 && (
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-sm text-muted-foreground">
               已获取 {fetchStatus.fetched}/{fetchStatus.total} 个视频
@@ -453,6 +467,53 @@ export default function ChannelDetailPage() {
               <EmptyDescription>尝试调整筛选条件</EmptyDescription>
             </EmptyHeader>
           </Empty>
+        ) : viewMode === 'grid' ? (
+          <div className={`grid gap-4 p-2 ${
+            features.portraitVideo
+              ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+              : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+          }`}>
+            {filtered.map(item => (
+              <div key={item.id} className="rounded-lg overflow-hidden border bg-card hover:shadow-md transition-shadow group">
+                <div className={`relative bg-muted ${features.portraitVideo ? 'aspect-[9/16]' : 'aspect-video'}`}>
+                  {item.cover_url && <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
+                  {features.videoDuration && item.duration && (
+                    <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white px-1.5 py-0.5 rounded text-[10px]">
+                      {formatDuration(item.duration)}
+                    </span>
+                  )}
+                </div>
+                <div className="p-2.5">
+                  <div className="text-sm font-medium line-clamp-2 min-h-[2.5rem]">{item.title}</div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-muted-foreground">{timeAgo(item.published_at)}</span>
+                    {item.task_id ? (
+                      <span className="text-green-500 text-xs">已有笔记</span>
+                    ) : item.note_available ? (
+                      <span className="inline-flex items-center gap-0.5 text-green-500 text-xs cursor-pointer hover:underline" onClick={() => handleQuickView(item)}>
+                        <FileText className="size-3" />可复用
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">暂无</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    {item.task_id && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => navigate(`/note/${item.task_id}`)}>
+                        <Eye className="size-3.5" />
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs flex-1"
+                      onClick={() => handleGenerate(item)}
+                      disabled={generatingId === item.id}>
+                      {generatingId === item.id && <LoaderCircle className="size-3 animate-spin mr-1" />}
+                      {generatingId === item.id ? '生成中...' : item.task_id ? '重新生成' : '生成笔记'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted">
@@ -468,7 +529,7 @@ export default function ChannelDetailPage() {
                   <td className="px-4 py-2">
                     <div className="w-24 h-14 bg-muted rounded overflow-hidden relative">
                       {item.cover_url && <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
-                      {item.duration && (
+                      {features.videoDuration && item.duration && (
                         <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">
                           {formatDuration(item.duration)}
                         </span>
