@@ -155,12 +155,30 @@ def backfill_task_metadata():
     finally:
         db.close()
 
+def migrate_channel_fetch_status_cursor():
+    """迁移：channel_fetch_status 添加 next_cursor 字段（抖音游标分页）"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(channel_fetch_status)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "next_cursor" not in columns:
+            logger.info("channel_fetch_status: next_cursor 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE channel_fetch_status ADD COLUMN next_cursor VARCHAR DEFAULT '0'"))
+            db.commit()
+            logger.info("channel_fetch_status: next_cursor 列添加成功")
+    except Exception as e:
+        logger.error(f"channel_fetch_status 迁移失败: {e}")
+    finally:
+        db.close()
+
+
 def init_db():
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
     # 执行数据库迁移检查
     migrate_video_tasks_table()
     migrate_feed_items_table()
+    migrate_channel_fetch_status_cursor()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户

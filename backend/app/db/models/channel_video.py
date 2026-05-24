@@ -34,7 +34,8 @@ class ChannelFetchStatus(Base):
     platform_id = Column(String, nullable=False)
     total_videos = Column(Integer, default=0)          # 博主总视频数
     fetched_count = Column(Integer, default=0)         # 已获取数量
-    next_page = Column(Integer, default=1)             # 下次获取的页码
+    next_page = Column(Integer, default=1)             # B站用（页码）
+    next_cursor = Column(String, default="0")          # 抖音用（游标）
     fetch_status = Column(String, default="initial")   # initial/partial/complete/error
     last_fetch_at = Column(DateTime)
     error_message = Column(Text)
