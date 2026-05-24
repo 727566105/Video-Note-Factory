@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 
 
 @dataclass
@@ -15,6 +15,8 @@ class AudioDownloadResult:
     description: Optional[str] = None  # 视频描述
     author_id: Optional[str] = None
     author_name: Optional[str] = None  # 博主名称
+    content_type: str = "video"  # "video" | "article" | "live_photo"
+    images: Optional[List[str]] = None  # 本地图片路径列表（用于图集）
 
 
 @dataclass
@@ -29,4 +31,5 @@ class VideoInfoResult:
     author_name: Optional[str] = None
     description: Optional[str] = None
     raw_info: dict = field(default_factory=dict)
+    content_type: str = "video"  # "video" | "article" | "live_photo"
 

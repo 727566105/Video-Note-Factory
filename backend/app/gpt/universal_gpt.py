@@ -85,3 +85,12 @@ class UniversalGPT(GPT):
             temperature=0.7
         )
         return response.choices[0].message.content.strip()
+
+    def chat(self, prompt: str) -> str:
+        """简单的聊天方法，直接发送 prompt 获取响应"""
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=self.temperature
+        )
+        return response.choices[0].message.content.strip()

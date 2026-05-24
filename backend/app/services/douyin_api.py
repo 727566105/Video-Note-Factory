@@ -52,10 +52,40 @@ def _sign_douyin_params(params: dict) -> str:
 
 
 def _parse_aweme_item(aweme: dict) -> dict:
-    """解析抖音视频条目"""
+    """解析抖音内容条目（支持视频、图集、实况照片）"""
     aweme_id = aweme.get("aweme_id", "")
+    aweme_type = aweme.get("aweme_type", 0)
+
+    # 图集（aweme_type=68）或实况照片（aweme_type=69，含图片）
+    if aweme_type in (68, 69):
+        images = aweme.get("images", [])
+        image_urls = []
+        for img in images:
+            url_list = img.get("url_list", [])
+            if url_list:
+                image_urls.append(url_list[0])
+
+        # 实况照片：提取第一张图作为封面
+        cover_url = image_urls[0] if image_urls else ""
+
+        content_type = "live_photo" if aweme_type == 69 else "article"
+
+        return {
+            "content_type": content_type,
+            "content_id": aweme_id,
+            "content_url": f"https://www.douyin.com/note/{aweme_id}",
+            "title": aweme.get("desc", "")[:200] if aweme.get("desc") else "",
+            "cover_url": cover_url,
+            "duration": 0,
+            "author": aweme.get("author", {}).get("nickname", "") if aweme.get("author") else "",
+            "description": aweme.get("desc", ""),
+            "images": json.dumps(image_urls, ensure_ascii=False),
+            "published_at": datetime.fromtimestamp(aweme.get("create_time", 0)) if aweme.get("create_time") else None,
+            "raw_info": json.dumps(aweme, ensure_ascii=False, default=str),
+        }
+
+    # 普通视频（aweme_type=0）
     cover_url = ""
-    # 尝试多种封面路径
     video_info = aweme.get("video", {})
     if video_info:
         cover = video_info.get("cover", {})

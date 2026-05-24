@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import requests
 import shutil
 from dataclasses import asdict
 from pathlib import Path
@@ -189,6 +190,84 @@ class NoteGenerator:
                 audio_cache_file = pending_dir / "audio.json"
                 transcript_cache_file = pending_dir / "transcript.json"
                 markdown_cache_file = pending_dir / "note.md"
+
+            # 检测图集/实况照片内容：跳过下载和转写，直接生成图文笔记
+            if video_info and getattr(video_info, 'content_type', 'video') in ('article', 'live_photo'):
+                logger.info(f"检测到图集内容 (content_type={video_info.content_type})，走图文笔记流程")
+                self._update_status(task_id, TaskStatus.DOWNLOADING,
+                                    author_id=author_id, author_name=author_name,
+                                    video_id=video_id, title=_title, platform=platform)
+
+                # 下载图片到输出目录
+                image_urls = video_info.raw_info.get('images', [])
+                local_images = []
+                if output_path and image_urls:
+                    os.makedirs(output_path, exist_ok=True)
+                    for i, img_url in enumerate(image_urls):
+                        try:
+                            resp = requests.get(img_url, headers={"Referer": "https://www.douyin.com/"}, timeout=15)
+                            if resp.status_code == 200:
+                                img_path = os.path.join(output_path, f"image_{i+1}.jpg")
+                                with open(img_path, "wb") as f:
+                                    f.write(resp.content)
+                                local_images.append(img_path)
+                        except Exception as e:
+                            logger.warning(f"下载图集图片 {i+1} 失败: {e}")
+
+                    # 保存第一张图作为封面
+                    if local_images:
+                        from app.utils.video_helper import save_cover_to_video_dir
+                        try:
+                            cover_api_url = save_cover_to_video_dir(
+                                local_images[0], output_path, "douyin", author_id, video_id
+                            )
+                        except Exception:
+                            cover_api_url = None
+
+                self._update_status(task_id, TaskStatus.SUMMARIZING,
+                                    author_id=author_id, author_name=author_name,
+                                    video_id=video_id, title=_title, platform=platform)
+
+                # 调用图文笔记生成
+                markdown, smart_info = self.generate_article_note(
+                    title=_title or "",
+                    author=author_name or "",
+                    description=video_info.description or "",
+                    images=[url for url in image_urls],
+                    model_name=model_name,
+                    provider_id=provider_id,
+                    smart_mode=smart_mode,
+                    user_id=user_id,
+                )
+
+                if output_path:
+                    note_path = os.path.join(output_path, "note.md")
+                    os.makedirs(os.path.dirname(note_path), exist_ok=True)
+                    with open(note_path, "w", encoding="utf-8") as f:
+                        f.write(markdown)
+
+                self._update_status(task_id, TaskStatus.SUCCESS,
+                                    author_id=author_id, author_name=author_name,
+                                    video_id=video_id, title=_title, platform=platform)
+
+                result_kwargs = dict(
+                    markdown=markdown,
+                    task_id=task_id,
+                    title=_title,
+                    author_id=author_id,
+                    author_name=author_name,
+                    video_id=video_id,
+                    platform=platform,
+                    content_type=video_info.content_type,
+                )
+                if smart_info:
+                    result_kwargs.update(
+                        smart_switched=smart_info.get("switched", False),
+                        used_model_name=f"{smart_info.get('provider_name', '')}/{smart_info.get('model_name', '')}",
+                        used_provider_name=smart_info.get("provider_name", ""),
+                    )
+
+                return NoteResult(**result_kwargs)
 
             # 1. 下载音频/视频
             audio_meta = self._download_media(
