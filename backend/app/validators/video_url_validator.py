@@ -5,8 +5,9 @@ from urllib.parse import urlparse
 SUPPORTED_PLATFORMS = {
     "bilibili": r"(https?://)?(www\.)?bilibili\.com/video/[a-zA-Z0-9]+",
     "youtube": r"(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/)[\w\-]+",
-    "douyin": "douyin",
-    "kuaishou": "kuaishou"
+    "douyin": r"(https?://)?(www\.|v\.)?douyin\.com",
+    "kuaishou": r"(https?://)?(www\.)?kuaishou\.com",
+    "xiaohongshu": r"(https?://)?(www\.)?xiaohongshu\.com",
 }
 
 
@@ -17,13 +18,13 @@ def is_supported_video_url(url: str) -> bool:
     if parsed.netloc == "b23.tv":
         return True
 
+    # 检查是否为小红书短链接
+    if parsed.netloc == "xhslink.com" or parsed.netloc.endswith(".xhslink.com"):
+        return True
+
     for name, pattern in SUPPORTED_PLATFORMS.items():
-        if pattern in ["douyin", "kuaishou"]:
-            if pattern in url:
-                return True
-        else:
-            if re.match(pattern, url):
-                return True
+        if re.match(pattern, url):
+            return True
     return False
 
 

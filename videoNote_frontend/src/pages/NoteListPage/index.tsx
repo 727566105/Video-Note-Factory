@@ -323,7 +323,7 @@ export const NoteListPage: FC = () => {
           cover: getProxiedCoverUrl(task.cover_url || task.note?.audio_meta?.cover_url || '', task.platform),
           platform: task.platform || 'unknown',
           title: task.title || task.note?.audio_meta?.title || task.note?.title || '无标题',
-          author: task.author || task.note?.audio_meta?.raw_info?.owner?.name
+          author: task.author || task.author_name || task.note?.audio_meta?.raw_info?.owner?.name
             || task.note?.audio_meta?.raw_info?.uploader || '',
           note: task.note?.markdown || '',
           created_at: task.created_at || '',

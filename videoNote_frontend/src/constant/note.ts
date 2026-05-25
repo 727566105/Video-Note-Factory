@@ -6,6 +6,7 @@ import {
   LocalLogo,
   AudioLogo,
   YoutubeLogo,
+  XiaohongshuLogo,
 } from '@/components/Icons/platform.tsx'
 
 export const noteFormats = [
@@ -45,6 +46,7 @@ export const videoPlatforms = [
   { label: '哔哩哔哩', value: 'bilibili', logo: BiliBiliLogo },
   { label: 'YouTube', value: 'youtube', logo: YoutubeLogo },
   { label: '抖音', value: 'douyin', logo: DouyinLogo },
+  { label: '小红书', value: 'xiaohongshu', logo: XiaohongshuLogo },
   { label: '快手', value: 'kuaishou', logo: KuaishouLogo },
   { label: '本地视频', value: 'local', logo: LocalLogo },
   { label: '本地音频', value: 'local_audio', logo: AudioLogo },

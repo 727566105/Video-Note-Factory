@@ -94,6 +94,7 @@ export function QuickAdd({ className }: QuickAddProps) {
           url.includes('bilibili.com') || url.includes('b23.tv') ? 'bilibili' :
           url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
           url.includes('douyin') ? 'douyin' :
+          url.includes('xiaohongshu.com') || url.includes('xhslink.com') ? 'xiaohongshu' :
           url.includes('kuaishou') ? 'kuaishou' :
           'bilibili'
 
@@ -155,6 +156,7 @@ export function QuickAdd({ className }: QuickAddProps) {
       url.includes('bilibili.com') || url.includes('b23.tv') ? 'bilibili' :
       url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
       url.includes('douyin') ? 'douyin' :
+      url.includes('xiaohongshu.com') || url.includes('xhslink.com') ? 'xiaohongshu' :
       url.includes('kuaishou') ? 'kuaishou' :
       null
     setDetectedPlatform(match)

@@ -64,6 +64,7 @@ export interface BackendTask {
   status?: string    // 任务状态：PENDING/RUNNING/SUCCESS/FAILED 等
   message?: string   // 进度提示信息
   note: BackendTaskNote | null
+  content_type?: string  // "video" | "article"
   // 数据库元数据字段
   title?: string | null
   cover_url?: string | null

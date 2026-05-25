@@ -189,6 +189,7 @@ def save_note_to_file(task_id: str, note):
     # 构建保存数据 - 使用现有的 transcript 和 audio_meta（如果存在）
     save_data = {
         "markdown": note.markdown,
+        "content_type": note.content_type if hasattr(note, 'content_type') else "video",
         "transcript": existing_transcript or (asdict(note.transcript) if note.transcript else {}),
         "audio_meta": existing_audio_meta or (asdict(note.audio_meta) if note.audio_meta else {}),
         "model_name": actual_model_name or '未知模型',
@@ -570,6 +571,10 @@ ALLOWED_DOMAINS = [
     "youtube.com",
     "ytimg.com",
     "ggpht.com",
+    # 小红书
+    "xiaohongshu.com",
+    "xhscdn.com",
+    "ci.xiaohongshu.com",
     # 通用 CDN
     "cdn.com",
 ]
@@ -680,6 +685,8 @@ def get_referer_by_url(url: str) -> str:
         return "https://www.kuaishou.com/"
     elif "youtube" in url_lower or "ytimg.com" in url_lower or "ggpht.com" in url_lower:
         return "https://www.youtube.com/"
+    elif "xiaohongshu" in url_lower or "xhscdn" in url_lower:
+        return "https://www.xiaohongshu.com/"
     return ""
 
 
@@ -694,6 +701,8 @@ def get_platform_from_url(url: str) -> str:
         return "kuaishou"
     elif "youtube" in url_lower or "ytimg.com" in url_lower or "ggpht.com" in url_lower:
         return "youtube"
+    elif "xiaohongshu" in url_lower or "xhscdn" in url_lower:
+        return "xiaohongshu"
     return "other"
 
 
@@ -734,6 +743,8 @@ def get_image_headers(url: str, request: Request) -> dict:
         base_headers["Referer"] = "https://www.kuaishou.com/"
     elif "youtube" in url_lower or "ytimg.com" in url_lower:
         base_headers["Referer"] = "https://www.youtube.com/"
+    elif "xiaohongshu" in url_lower or "xhscdn" in url_lower:
+        base_headers["Referer"] = "https://www.xiaohongshu.com/"
 
     return base_headers
 
@@ -939,6 +950,7 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
                 "status": status,
                 "message": message,
                 "note": note_data,
+                "content_type": note_data.get("content_type", "video") if note_data else "video",
                 # 元数据直接从数据库读取
                 "title": task.title,
                 "cover_url": task.cover_url,

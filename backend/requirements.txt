@@ -134,3 +134,4 @@ python-jose[cryptography]
 passlib[bcrypt]
 zhconv==1.4.3
 feedparser
+xhshow

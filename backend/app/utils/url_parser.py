@@ -40,6 +40,15 @@ def extract_video_id(url: str, platform: str) -> Optional[str]:
         match = re.search(r"/video/(\d+)", url)
         return match.group(1) if match else None
 
+    elif platform == "xiaohongshu":
+        # 匹配 xiaohongshu.com/explore/{note_id} 或 /discovery/item/{note_id}
+        match = re.search(r"(?:explore|discovery/item)/([a-f0-9]{20,30})", url)
+        if match:
+            return match.group(1)
+        # 匹配 user/profile/{user_id}/{note_id}
+        match = re.search(r"/user/profile/[^/]+/([a-f0-9]{20,30})", url)
+        return match.group(1) if match else None
+
     return None
 
 

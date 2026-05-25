@@ -30,6 +30,7 @@ import { useTaskStore } from '@/store/taskStore/index.ts'
 import { useAuthStore } from '@/store/authStore'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { useModelStore } from '@/store/modelStore'
+import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchUserPreferences } from '@/services/userPreferences'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
@@ -59,6 +60,8 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     if (initialized) {
       systemCheck()
       loadTasksFromBackend()
+      // 加载订阅数据，供全局共享
+      useSubscriptionStore.getState().fetchSubscriptions()
       // 从云端加载用户偏好
       fetchUserPreferences().then(prefs => {
         if (prefs.summary) {

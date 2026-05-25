@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/empty'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchSummarizedChannels, parseChannelUrl } from '@/services/subscription'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import { toast } from 'sonner'
 
 interface SummarizedChannel {
@@ -24,11 +24,12 @@ interface SummarizedChannel {
   last_summarized: string | null
 }
 
-const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音' }
+const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', xiaohongshu: '小红书' }
 const platformIcon: Record<string, React.ReactNode> = {
   bilibili: <BiliBiliLogo className="size-4" />,
   youtube: <YoutubeLogo className="size-4" />,
   douyin: <DouyinLogo className="size-4" />,
+  xiaohongshu: <XiaohongshuLogo className="size-4" />,
 }
 
 export default function ChannelsPage() {
@@ -41,7 +42,6 @@ export default function ChannelsPage() {
   const [subscribing, setSubscribing] = useState(false)
 
   useEffect(() => {
-    fetchSubscriptions()
     loadSummarized()
   }, [])
 

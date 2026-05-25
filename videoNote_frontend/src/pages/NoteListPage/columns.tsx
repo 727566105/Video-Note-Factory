@@ -2,7 +2,7 @@ import { type ColumnDef, type HeaderContext } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import type { Task } from '@/store/taskStore'
 
 export interface NoteItem {
@@ -24,6 +24,7 @@ export function PlatformIconSmall({ platform }: { platform: string }) {
     youtube: <YoutubeLogo className="w-6 h-6" />,
     douyin: <DouyinLogo className="w-6 h-6" />,
     kuaishou: <KuaishouLogo className="w-6 h-6" />,
+    xiaohongshu: <XiaohongshuLogo className="w-6 h-6" />,
     local: <LocalLogo className="w-6 h-6" />,
     local_audio: <AudioLogo className="w-6 h-6" />,
   }

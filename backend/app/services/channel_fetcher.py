@@ -61,6 +61,10 @@ PLATFORM_PATTERNS = {
         r"douyin\.com",
         r"v\.douyin\.com",
     ],
+    "xiaohongshu": [
+        r"xiaohongshu\.com",
+        r"xhslink\.com",
+    ],
 }
 
 # 平台对应的 RSSHub 路径模板
@@ -137,6 +141,18 @@ def identify_platform(url: str) -> Optional[dict]:
                 "channel_url": f"https://www.douyin.com/user/{uid}",
             }
 
+    # 小红书
+    if any(re.search(p, url) for p in PLATFORM_PATTERNS["xiaohongshu"]):
+        user_id = _extract_xiaohongshu_user_id(url)
+        if user_id:
+            return {
+                "platform": "xiaohongshu",
+                "platform_id": user_id,
+                "channel_url": f"https://www.xiaohongshu.com/user/profile/{user_id}",
+            }
+        # 笔记链接：尝试从页面提取 user_id
+        return _resolve_xiaohongshu_from_note(url)
+
     return None
 
 
@@ -208,6 +224,74 @@ def _extract_douyin_uid(url: str) -> Optional[str]:
     # sec_uid 格式包含字母、数字、点号、下划线、短横线
     match = re.search(r"douyin\.com/user/([A-Za-z0-9_.\-]+)", url)
     return match.group(1) if match else None
+
+
+def _extract_xiaohongshu_user_id(url: str) -> Optional[str]:
+    """从小红书用户主页 URL 提取 user_id"""
+    match = re.search(r"xiaohongshu\.com/user/profile/([a-f0-9]+)", url)
+    return match.group(1) if match else None
+
+
+def _resolve_xiaohongshu_from_note(url: str) -> Optional[dict]:
+    """从小红书笔记 URL 解析出频道信息"""
+    try:
+        # 处理短链接
+        if 'xhslink.com' in url:
+            resp = requests.head(url, allow_redirects=True, timeout=10)
+            url = resp.url
+
+        # 提取 note_id 并访问页面获取 __INITIAL_STATE__
+        note_id_match = re.search(r"xiaohongshu\.com/(?:explore|discovery/item)/([a-f0-9]+)", url)
+        if not note_id_match:
+            return None
+        note_id = note_id_match.group(1)
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://www.xiaohongshu.com/",
+        }
+        try:
+            cfm = _get_cookie_manager()
+            cookie_str = cfm.get("xiaohongshu")
+            if cookie_str:
+                headers["Cookie"] = cookie_str
+        except Exception:
+            pass
+
+        resp = requests.get(f"https://www.xiaohongshu.com/explore/{note_id}", headers=headers, timeout=15)
+        if resp.status_code != 200:
+            return None
+
+        match = re.search(r'__INITIAL_STATE__\s*=\s*({.+?})\s*</script>', resp.text, re.DOTALL)
+        if not match:
+            return None
+
+        raw_json = match.group(1).replace('undefined', 'null')
+        data = json.loads(raw_json)
+
+        note_map = data.get('note', {}).get('noteDetailMap', {})
+        note_data = None
+        for key, val in note_map.items():
+            note_data = val.get('note', {})
+            break
+
+        if not note_data:
+            return None
+
+        user = note_data.get('user', {})
+        user_id = user.get("userId", "")
+        nickname = user.get("nickname", "")
+
+        if user_id:
+            return {
+                "platform": "xiaohongshu",
+                "platform_id": user_id,
+                "channel_url": f"https://www.xiaohongshu.com/user/profile/{user_id}",
+                "channel_name": nickname,
+            }
+    except Exception as e:
+        logger.error(f"从小红书笔记URL解析频道失败: {e}")
+    return None
 
 
 def _parse_duration(length_str) -> int:
@@ -383,6 +467,23 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
             result.items = result.items[:limit]
         return FetchResult(items=result.items, error=result.error)
 
+    # 小红书：使用原生 API 分页获取
+    if platform == "xiaohongshu":
+        user_id = _extract_xiaohongshu_user_id(channel_url)
+        if not user_id:
+            return FetchResult(error=f"无法从 URL 提取小红书用户 ID: {channel_url}")
+        from app.services.xiaohongshu_api import fetch_xiaohongshu_user_notes
+        result = fetch_xiaohongshu_user_notes(
+            user_id=user_id,
+            count=30,
+            max_pages=10,
+            page_limit=page_limit,
+            progress_callback=progress_callback,
+        )
+        if limit and len(result.items) > limit:
+            result.items = result.items[:limit]
+        return FetchResult(items=result.items, error=result.error)
+
     # 其他平台（YouTube 等）：使用 yt-dlp
     try:
         import yt_dlp
@@ -490,6 +591,15 @@ def parse_channel_info(channel_url: str, platform: str) -> dict:
         if sec_uid:
             from app.services.douyin_api import _fetch_douyin_user_info
             info = _fetch_douyin_user_info(sec_uid)
+            if info:
+                return info
+
+    # 小红书：使用小红书 API 获取用户信息
+    if platform == "xiaohongshu":
+        user_id = _extract_xiaohongshu_user_id(channel_url)
+        if user_id:
+            from app.services.xiaohongshu_api import fetch_xiaohongshu_user_info
+            info = fetch_xiaohongshu_user_info(user_id)
             if info:
                 return info
 

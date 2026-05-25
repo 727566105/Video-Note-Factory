@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { SummarySettings, type LocalSummaryValues } from '@/components/SummarySettings'
 import { ModelSelectDialog } from '@/components/ModelSelectDialog'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
 import type { Task } from '@/store/taskStore'
 import type { LocalSettings } from './RightPanel'
@@ -53,6 +53,9 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
 
   // 获取发布人名字
   const getAuthor = (): string => {
+    // 优先使用 author_name（图文笔记和视频笔记都有）
+    if (task.author_name) return task.author_name
+    // 其次检查 audioMeta.author（视频笔记）
     if (task.audioMeta?.author) return task.audioMeta.author
     const raw = task.audioMeta?.raw_info as Record<string, unknown> | undefined
     if (!raw) return task.platform
@@ -305,7 +308,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
                   <span className="text-xs text-muted-foreground">{title}</span>
                 </div>
               )}
-              {(embedUrl || videoUrl) && (
+              {(embedUrl || videoUrl) && task.content_type !== 'article' && (
                 <button
                   onClick={() => {
                     if (embedUrl) {
@@ -444,6 +447,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     youtube: <YoutubeLogo className="w-10 h-10" />,
     douyin: <DouyinLogo className="w-10 h-10" />,
     kuaishou: <KuaishouLogo className="w-10 h-10" />,
+    xiaohongshu: <XiaohongshuLogo className="w-10 h-10" />,
     local: <LocalLogo className="w-10 h-10" />,
     local_audio: <AudioLogo className="w-10 h-10" />,
   }

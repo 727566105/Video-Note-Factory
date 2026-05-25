@@ -2,11 +2,14 @@ import json
 import logging
 import os
 import re
+import socket
+import ipaddress
 import requests
 import shutil
 from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, Any
+from urllib.parse import urlparse
 
 from pydantic import HttpUrl
 from dotenv import load_dotenv
@@ -54,6 +57,37 @@ from app.utils.path_helper import (
     move_note_files_to_video_folder,
     VIDEO_DIR,
 )
+
+# ------------------ 安全函数 ------------------
+
+def _is_safe_url(url: str) -> bool:
+    """
+    简单的 URL 安全检查，防止 SSRF 攻击。
+    只检查协议和内网 IP，不依赖域名白名单。
+    """
+    try:
+        parsed = urlparse(url)
+        # 只允许 http/https
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # 禁止本地域名
+        blocked = ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
+        if hostname.lower() in blocked:
+            return False
+        # 检查是否为内网 IP
+        try:
+            ip = socket.gethostbyname(hostname)
+            ip_obj = ipaddress.ip_address(ip)
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+                return False
+        except socket.gaierror:
+            pass
+        return True
+    except Exception:
+        return False
 
 # 日志配置
 logger = logging.getLogger(__name__)
@@ -206,7 +240,15 @@ class NoteGenerator:
                     os.makedirs(output_path, exist_ok=True)
                     for i, img_url in enumerate(image_urls):
                         try:
-                            resp = requests.get(img_url, headers={"Referer": "https://www.douyin.com/"}, timeout=15)
+                            if not _is_safe_url(img_url):
+                                logger.warning(f"跳过不安全的图片 URL: {img_url[:80]}")
+                                continue
+                            referer_map = {
+                                "douyin": "https://www.douyin.com/",
+                                "xiaohongshu": "https://www.xiaohongshu.com/",
+                            }
+                            referer = referer_map.get(platform, "https://www.douyin.com/")
+                            resp = requests.get(img_url, headers={"Referer": referer}, timeout=15)
                             if resp.status_code == 200:
                                 img_path = os.path.join(output_path, f"image_{i+1}.jpg")
                                 with open(img_path, "wb") as f:
@@ -220,7 +262,7 @@ class NoteGenerator:
                         from app.utils.video_helper import save_cover_to_video_dir
                         try:
                             cover_api_url = save_cover_to_video_dir(
-                                local_images[0], output_path, "douyin", author_id, video_id
+                                local_images[0], output_path, platform, author_id, video_id
                             )
                         except Exception:
                             cover_api_url = None
@@ -233,9 +275,13 @@ class NoteGenerator:
                     for i, item in enumerate(_images_with_video):
                         vid_url = item.get('video_url')
                         if vid_url:
+                            if not _is_safe_url(vid_url):
+                                logger.warning(f"跳过不安全的实况照片 URL: {vid_url[:80]}")
+                                continue
                             live_photo_video_urls.append(vid_url)
                             try:
-                                resp = requests.get(vid_url, headers={"Referer": "https://www.douyin.com/"}, timeout=30)
+                                referer = referer_map.get(platform, "https://www.douyin.com/")
+                                resp = requests.get(vid_url, headers={"Referer": referer}, timeout=30)
                                 if resp.status_code == 200:
                                     vid_path = os.path.join(output_path, f"live_photo_{i+1}.mp4")
                                     with open(vid_path, "wb") as f:
@@ -279,6 +325,7 @@ class NoteGenerator:
                         update_task_metadata(
                             task_id=task_id,
                             title=_title,
+                            author=author_name or "",
                             author_id=author_id,
                             author_name=author_name,
                             cover_url=cover_api_url,

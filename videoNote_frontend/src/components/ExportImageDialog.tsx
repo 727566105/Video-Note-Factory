@@ -16,6 +16,7 @@ const PLATFORM_LABEL_MAP: Record<string, string> = {
   local_audio: '本地音频',
   kuaishou: '快手',
   youtube: 'YouTube',
+  xiaohongshu: '小红书',
 }
 
 interface ExportImageDialogProps {

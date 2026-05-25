@@ -22,13 +22,14 @@ import { useTaskStore } from '@/store/taskStore'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { generateNote } from '@/services/note'
 import { toast } from 'sonner'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import type { FeedItem } from '@/services/subscription'
 
 const platformIcon: Record<string, React.ReactNode> = {
   bilibili: <BiliBiliLogo className="size-4" />,
   youtube: <YoutubeLogo className="size-4" />,
   douyin: <DouyinLogo className="size-4" />,
+  xiaohongshu: <XiaohongshuLogo className="size-4" />,
 }
 
 const formatDuration = (s?: number | null) => {

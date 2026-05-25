@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/pagination'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers, getFetchStatus, fetchMoreVideos } from '@/services/subscription'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import type { FeedItem, FetchStatus } from '@/services/subscription'
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useModelStore } from '@/store/modelStore'
@@ -31,11 +31,12 @@ import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { toast } from 'sonner'
 import { usePlatformFeatures } from '@/hooks/usePlatformFeatures'
 
-const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音' }
+const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', xiaohongshu: '小红书' }
 const platformIcon: Record<string, React.ReactNode> = {
   bilibili: <BiliBiliLogo className="size-5" />,
   youtube: <YoutubeLogo className="size-5" />,
   douyin: <DouyinLogo className="size-5" />,
+  xiaohongshu: <XiaohongshuLogo className="size-5" />,
 }
 
 const formatDuration = (s?: number | null) => {
@@ -107,7 +108,6 @@ export default function ChannelDetailPage() {
   }, [])
 
   useEffect(() => {
-    fetchSubscriptions()
     loadEnabledModels()
     return () => stopPolling()
   }, [])

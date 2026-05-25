@@ -50,6 +50,7 @@ export interface Task {
   audioMeta: AudioMeta
   createdAt: string
   platform: string
+  content_type?: string  // "video" | "article"
   message?: string  // 错误信息，用于展示失败原因
   author_id?: string
   author_name?: string
@@ -276,12 +277,13 @@ export const useTaskStore = create<TaskStore>()(
                   raw_info: t.note?.audio_meta?.raw_info || null,
                   title: t.title || t.note?.audio_meta?.title || t.note?.title || '',
                   video_id: t.video_id,
-                  author: t.author || t.note?.audio_meta?.raw_info?.owner?.name || '',
+                  author: t.author || t.author_name || t.note?.audio_meta?.raw_info?.owner?.name || '',
                   description: t.description || t.note?.audio_meta?.description || '',
                   author_id: t.author_id || '',
                   author_name: t.author_name || '',
                 },
                 platform: t.platform,
+                content_type: t.content_type || (t.note as Record<string, unknown>)?.content_type as string || 'video',
                 author_id: t.author_id || '',
                 author_name: t.author_name || '',
                 formData: {

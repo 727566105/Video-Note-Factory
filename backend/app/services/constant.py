@@ -3,6 +3,7 @@ from app.downloaders.douyin_downloader import DouyinDownloader
 from app.downloaders.kuaishou_downloader import KuaiShouDownloader
 from app.downloaders.local_downloader import LocalDownloader
 from app.downloaders.local_audio_downloader import LocalAudioDownloader
+from app.downloaders.xiaohongshu_downloader import XiaohongshuDownloader
 from app.downloaders.youtube_downloader import YoutubeDownloader
 
 SUPPORT_PLATFORM_MAP = {
@@ -11,6 +12,7 @@ SUPPORT_PLATFORM_MAP = {
     'tiktok':DouyinDownloader(),
     'kuaishou':KuaiShouDownloader(),
     'douyin':DouyinDownloader(),
+    'xiaohongshu':XiaohongshuDownloader(),
     'local':LocalDownloader(),
     'local_audio':LocalAudioDownloader()
 }
@@ -20,6 +22,7 @@ CHANNEL_URL_MAP = {
     "bilibili": "https://space.bilibili.com/{platform_id}",
     "youtube": "https://www.youtube.com/channel/{platform_id}",
     "douyin": "https://www.douyin.com/user/{platform_id}",
+    "xiaohongshu": "https://www.xiaohongshu.com/user/profile/{platform_id}",
 }
 
 # 平台目录映射（四级目录结构 video/{platform}/{author}/{video})
@@ -29,6 +32,7 @@ PLATFORM_DIR_MAP = {
     "douyin": "douyin",
     "tiktok": "douyin",
     "kuaishou": "kuaishou",
+    "xiaohongshu": "xiaohongshu",
     "local": "local",
     "local_audio": "local",
 }
