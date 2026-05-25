@@ -6,6 +6,7 @@ export interface Subscription {
   channel_name: string
   platform: string
   platform_id: string
+  unique_id?: string
   avatar_url: string
   enabled: number
   fetch_interval: number

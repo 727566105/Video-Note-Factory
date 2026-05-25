@@ -13,6 +13,7 @@ class Subscription(Base):
     channel_name = Column(String, nullable=True)
     platform = Column(String, nullable=False)
     platform_id = Column(String, nullable=True)
+    unique_id = Column(String, nullable=True)  # 抖音号（用户自定义标识）
     avatar_url = Column(String, nullable=True)
     enabled = Column(Integer, default=1)
     fetch_interval = Column(Integer, default=60)

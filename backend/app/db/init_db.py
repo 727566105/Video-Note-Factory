@@ -179,8 +179,26 @@ def init_db():
     migrate_video_tasks_table()
     migrate_feed_items_table()
     migrate_channel_fetch_status_cursor()
+    migrate_subscriptions_unique_id()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户
     from app.db.user_dao import seed_default_user
     seed_default_user()
+
+
+def migrate_subscriptions_unique_id():
+    """迁移：subscriptions 添加 unique_id 字段（抖音号）"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(subscriptions)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "unique_id" not in columns:
+            logger.info("subscriptions: unique_id 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE subscriptions ADD COLUMN unique_id VARCHAR"))
+            db.commit()
+            logger.info("subscriptions: unique_id 列添加成功")
+    except Exception as e:
+        logger.error(f"subscriptions 迁移失败: {e}")
+    finally:
+        db.close()

@@ -245,35 +245,55 @@ def _gen_ms_token() -> str:
 
 
 def _fetch_douyin_user_info(sec_uid: str) -> Optional[dict]:
-    """调用抖音视频列表 API 获取用户信息（昵称、头像）"""
+    """调用抖音用户详情 API 获取用户信息（昵称、头像、抖音号）"""
     try:
-        result = fetch_douyin_user_videos(
-            sec_uid=sec_uid,
-            max_cursor=0,
-            count=1,
-            max_pages=1,
-        )
-        if result.error or not result.items:
-            logger.error(f"抖音用户信息获取失败 ({sec_uid}): {result.error}")
+        from app.services.cookie_manager import CookieConfigManager
+        cfm = CookieConfigManager()
+        cookie_str = cfm.get("douyin")
+        if not cookie_str:
+            logger.error("抖音 Cookie 未配置")
             return None
 
-        first_item = result.items[0]
-        raw_info = json.loads(first_item.get("raw_info", "{}"))
+        params = BaseRequestModel().model_dump()
+        params["sec_user_id"] = sec_uid
 
-        author = raw_info.get("author", {})
-        if not author:
+        bogus = ABogus()
+        a_bogus = quote(bogus.get_value(params), safe='')
+
+        query_str = urlencode(params)
+        url = f"https://www.douyin.com/aweme/v1/web/user/profile/other/?{query_str}&a_bogus={a_bogus}"
+
+        headers = {
+            "User-Agent": DouyinConfig.HEADERS["User-Agent"],
+            "Referer": "https://www.douyin.com/",
+            "Cookie": cookie_str,
+            "Accept": "application/json",
+        }
+
+        resp = requests.get(url, headers=headers, timeout=15)
+        data = resp.json()
+
+        status_code = data.get("status_code", -1)
+        if status_code != 0:
+            logger.error(f"抖音用户详情 API 错误: {data.get('status_msg', status_code)}")
+            return None
+
+        user = data.get("user", {})
+        if not user:
+            logger.error(f"抖音用户详情 API 返回空用户数据 ({sec_uid})")
             return None
 
         avatar_url = ""
-        avatar_larger = author.get("avatar_larger", {})
+        avatar_larger = user.get("avatar_larger", {})
         if avatar_larger and avatar_larger.get("url_list"):
             avatar_url = avatar_larger["url_list"][0]
-        elif author.get("avatar_thumb", {}).get("url_list"):
-            avatar_url = author["avatar_thumb"]["url_list"][0]
+        elif user.get("avatar_thumb", {}).get("url_list"):
+            avatar_url = user["avatar_thumb"]["url_list"][0]
 
         return {
-            "channel_name": author.get("nickname", ""),
+            "channel_name": user.get("nickname", ""),
             "avatar_url": avatar_url,
+            "unique_id": user.get("unique_id", "") or (str(user.get("short_id", "")) if user.get("short_id") and str(user.get("short_id", "0")) != "0" else ""),
         }
     except Exception as e:
         logger.error(f"抖音用户信息获取异常 ({sec_uid}): {e}")

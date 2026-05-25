@@ -359,8 +359,13 @@ export default function ChannelDetailPage() {
           )}
           <div className="flex h-full flex-col justify-between">
             <h2 className="mb-2 text-lg font-bold sm:text-3xl">{sub?.channel_name || '频道详情'}</h2>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-              {platformIcon[platform || '']} {platformLabel[platform || '']}
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-4">
+              <div className="flex items-center gap-2">
+                {platformIcon[platform || '']} {platformLabel[platform || '']}
+                {sub?.unique_id && (
+                  <span className="font-medium text-foreground">抖音号：{sub.unique_id}</span>
+                )}
+              </div>
               {sub?.channel_url && (
                 <a href={sub.channel_url} target="_blank" rel="noopener noreferrer" className="hover:text-primary inline-flex items-center gap-1">
                   <ExternalLink className="size-3" />{sub.channel_url}

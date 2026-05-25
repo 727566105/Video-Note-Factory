@@ -30,6 +30,7 @@ async def list_subscriptions(user=Depends(get_current_user)) -> dict:
         "channel_name": s.channel_name,
         "platform": s.platform,
         "platform_id": s.platform_id,
+        "unique_id": s.unique_id,
         "avatar_url": s.avatar_url,
         "enabled": s.enabled,
         "fetch_interval": s.fetch_interval,
@@ -64,6 +65,7 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
             channel_name=reused_sub.channel_name,
             platform_id=reused_sub.platform_id,
             avatar_url=reused_sub.avatar_url,
+            unique_id=reused_sub.unique_id,
         )
 
         # 尝试从共享缓存表 channel_videos 直接复制（零 API 调用）
@@ -151,6 +153,7 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         channel_name=channel_info.get("channel_name") or info.get("channel_name"),
         platform_id=info.get("platform_id"),
         avatar_url=channel_info.get("avatar_url"),
+        unique_id=channel_info.get("unique_id"),
     )
 
     # 检查共享缓存表是否已有该博主的视频

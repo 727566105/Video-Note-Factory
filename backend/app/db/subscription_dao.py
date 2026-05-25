@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 def add_subscription(user_id: int, channel_url: str, platform: str,
                      channel_name: str = None, platform_id: str = None,
-                     avatar_url: str = None) -> Subscription:
+                     avatar_url: str = None, unique_id: str = None) -> Subscription:
     db = next(get_db())
     try:
         existing = db.query(Subscription).filter_by(
@@ -28,6 +28,7 @@ def add_subscription(user_id: int, channel_url: str, platform: str,
             channel_name=channel_name,
             platform_id=platform_id,
             avatar_url=avatar_url,
+            unique_id=unique_id,
         )
         db.add(sub)
         db.commit()
