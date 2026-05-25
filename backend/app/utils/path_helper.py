@@ -387,6 +387,20 @@ def find_note_file(
         if path.exists():
             return path
 
+    # 6. 降级：author_id 为空时，按 video_id 在四级目录中搜索
+    if not author_id and video_id and platform:
+        platform_dir_name = _get_platform_dir(platform)
+        plat_dir = VIDEO_DIR / platform_dir_name
+        if plat_dir.exists():
+            for author_dir in plat_dir.iterdir():
+                if not author_dir.is_dir() or author_dir.name.startswith("_"):
+                    continue
+                for video_dir in author_dir.iterdir():
+                    if video_dir.is_dir() and video_dir.name.startswith(str(video_id)):
+                        candidate = video_dir / filename
+                        if candidate.exists():
+                            return candidate
+
     return None
 
 

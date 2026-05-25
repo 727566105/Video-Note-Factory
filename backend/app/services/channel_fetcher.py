@@ -364,18 +364,18 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
             result.items = result.items[:limit]
         return result
 
-    # 抖音：使用原生 API 分页获取
+    # 抖音：使用原生 API 分页获取（游标分页不可靠，始终从 cursor=0 获取最新视频）
     if platform == "douyin":
         sec_uid = _extract_douyin_uid(channel_url)
         if not sec_uid:
             return FetchResult(error=f"无法从 URL 提取抖音用户 ID: {channel_url}")
-        max_pages = max(1, (limit // 20) + 1) if limit else 100
-        effective_max_pages = min(max_pages, page_limit) if page_limit else max_pages
+        # 抖音 API 游标分页不工作，始终从 cursor=0 获取，单次最多约 35 条
+        max_pages = 1
         result = fetch_douyin_user_videos(
             sec_uid=sec_uid,
             max_cursor=0,
-            count=20,
-            max_pages=effective_max_pages,
+            count=35,
+            max_pages=max_pages,
             page_limit=page_limit,
             progress_callback=progress_callback,
         )

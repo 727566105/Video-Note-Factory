@@ -88,10 +88,10 @@ class BaseRequestModel(BaseModel):
     browser_language: str = "zh-CN"
     browser_platform: str = "Win32"
     browser_name: str = "Chrome"
-    browser_version: str = "130.0.0.0"
+    browser_version: str = "90.0.4430.212"
     browser_online: str = "true"
     engine_name: str = "Blink"
-    engine_version: str = "130.0.0.0"
+    engine_version: str = "90.0.4430.212"
     os_name: str = "Windows"
     os_version: str = "10"
     cpu_core_num: int = 12
@@ -506,7 +506,7 @@ class DouyinDownloader(Downloader):
             logger.warning(f"下载图片失败 ({filename}): {e}")
         return ""
 
-    def download_video(self, video_url: str, output_dir: Union[str, None] = None) -> str:
+    def download_video(self, video_url: str, output_dir: Union[str, None] = None, force_redownload: bool = False) -> str:
 
         try:
 
@@ -516,9 +516,14 @@ class DouyinDownloader(Downloader):
 
             video_id = self.extract_video_id(video_url)
             video_path = os.path.join(output_dir, f"{video_id}.mp4")
-            if os.path.exists(video_path):
+            if os.path.exists(video_path) and not force_redownload:
+                logger.info(f"视频已缓存，跳过下载：{video_path}")
                 return video_path
 
+            # 如果强制重新下载且旧文件存在，先删除
+            if os.path.exists(video_path) and force_redownload:
+                os.remove(video_path)
+                logger.info(f"强制重新下载，已删除旧视频：{video_path}")
 
             output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
 
@@ -528,16 +533,59 @@ class DouyinDownloader(Downloader):
                 "ext": "mp4",
             }
 
-            url=video_data['aweme_detail']['video']['download_addr']['url_list'][0]
-            _data = requests.get(url,allow_redirects=True,headers=self.headers_config)
+            # ⛳ 无水印下载：bit_rate 优先选择 1080p
+            video_info = video_data['aweme_detail'].get('video', {})
+            url = None
+
+            # 1. 优先：bit_rate 按分辨率选择 1080p
+            bit_rate = video_info.get('bit_rate', [])
+            if bit_rate:
+                for br in bit_rate:
+                    gear = br.get('gear_name', '')
+                    if '1080' in gear:
+                        play_addr = br.get('play_addr', {})
+                        url_list = play_addr.get('url_list', [])
+                        if url_list:
+                            url = url_list[0]
+                            logger.info(f"无水印视频：bit_rate[{gear}] 1080p")
+                            break
+                if not url:
+                    br = bit_rate[0]
+                    play_addr = br.get('play_addr', {})
+                    url_list = play_addr.get('url_list', [])
+                    if url_list:
+                        url = url_list[0]
+                        logger.info(f"无水印视频：bit_rate[{br.get('gear_name', 'N/A')}]")
+
+            # 2. 兜底：顶层 play_addr
+            if not url:
+                play_addr = video_info.get('play_addr', {})
+                url_list = play_addr.get('url_list', [])
+                if url_list:
+                    url = url_list[0]
+                    logger.info(f"无水印视频：顶层 play_addr")
+
+            # 3. 最后兜底：download_addr（有水印，但保证可用）
+            if not url:
+                download_addr = video_info.get('download_addr', {})
+                url_list = download_addr.get('url_list', [])
+                if url_list:
+                    url = url_list[0]
+                    logger.warning(f"兜底使用 download_addr（可能有水印）")
+
+            if not url:
+                raise ValueError("无法获取视频下载链接")
+
+            logger.info(f"视频下载 URL（前100字符）: {url[:100]}")
+            _data = requests.get(url, allow_redirects=True, headers=self.headers_config)
 
             with open(output_path, 'wb') as f:
                 f.write(_data.content)
 
             return output_path
         except Exception as e:
-            print("请求失败:", e)
-            raise ValueError("请求失败:", e)
+            logger.error(f"视频下载失败: {e}")
+            raise ValueError(f"视频下载失败: {e}")
 
 
 

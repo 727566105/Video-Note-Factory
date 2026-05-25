@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File,
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, field_validator
 
-from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task, find_completed_task_by_video, clone_task_to_user, get_task_by_task_id
+from app.db.video_task_dao import get_task_by_video, get_all_tasks, delete_task_by_id, insert_video_task, find_completed_task_by_video, clone_task_to_user, get_task_by_task_id, update_task_metadata
 from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
@@ -28,7 +28,7 @@ from app.services.cache_cleaner import clean_expired_cache, get_cache_stats, CAC
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
 from app.validators.video_url_validator import is_supported_video_url
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
 from app.enmus.task_status_enums import TaskStatus
 
 # 使用统一的路径管理工具
@@ -121,13 +121,14 @@ def save_note_to_file(task_id: str, note):
     :param task_id: 任务 ID
     :param note: NoteResult 对象
     """
-    # 获取标题和博主信息（从 audio_meta 中）
+    # 获取标题和博主信息
     title = None
     author_id = None
     author_name = None
     video_id = None
     platform = ""
 
+    # 优先从 audio_meta 获取（视频类型）
     if note.audio_meta and hasattr(note.audio_meta, 'title'):
         title = note.audio_meta.title
         video_id = note.audio_meta.video_id
@@ -142,6 +143,13 @@ def save_note_to_file(task_id: str, note):
                 author_name = note.audio_meta.raw_info.get("uploader", "")
             if not author_name:
                 author_name = note.audio_meta.raw_info.get("channel", "")
+    # 图文类型：从 note 直接属性获取
+    elif hasattr(note, 'title') and note.title:
+        title = note.title
+        video_id = getattr(note, 'video_id', None)
+        platform = getattr(note, 'platform', '')
+        author_id = getattr(note, 'author_id', None)
+        author_name = getattr(note, 'author_name', None)
 
     # 使用三级路径保存
     result_path = get_note_file_path_v2(
@@ -180,13 +188,21 @@ def save_note_to_file(task_id: str, note):
 
     # 构建保存数据 - 使用现有的 transcript 和 audio_meta（如果存在）
     save_data = {
-        "markdown": note.markdown,  # 保持兼容性
-        "transcript": existing_transcript or asdict(note.transcript) if note.transcript else {},
-        "audio_meta": existing_audio_meta or asdict(note.audio_meta) if note.audio_meta else {},
+        "markdown": note.markdown,
+        "transcript": existing_transcript or (asdict(note.transcript) if note.transcript else {}),
+        "audio_meta": existing_audio_meta or (asdict(note.audio_meta) if note.audio_meta else {}),
         "model_name": actual_model_name or '未知模型',
         "style": note.style or 'detailed',
-        "versions": all_versions  # 新增版本数组
+        "versions": all_versions,
     }
+
+    # 图文笔记额外信息
+    if title:
+        save_data["title"] = title
+    if author_id:
+        save_data["author_id"] = author_id
+    if author_name:
+        save_data["author_name"] = author_name
 
     # 智能优选信息（如果有）
     if hasattr(note, 'smart_switched') and note.smart_switched:
@@ -936,6 +952,48 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
     except Exception as e:
         logger.error(f"Failed to get tasks: {e}")
         return R.error(msg=str(e))
+
+
+@router.post("/tasks/repair")
+def repair_tasks(current_user=Depends(require_admin)) -> dict:
+    """扫描四级目录，修复数据库中缺失的元数据"""
+    from app.utils.path_helper import _get_platform_dir, VIDEO_DIR
+
+    video_base = VIDEO_DIR
+    if not video_base.exists():
+        return R.success({"repaired": 0})
+
+    repaired = 0
+    for platform_dir in video_base.iterdir():
+        if not platform_dir.is_dir() or platform_dir.name.startswith("_"):
+            continue
+        platform = platform_dir.name
+
+        for author_dir in platform_dir.iterdir():
+            if not author_dir.is_dir() or author_dir.name.startswith("_"):
+                continue
+            author_parts = author_dir.name.split("_", 1)
+            author_id = author_parts[0]
+            author_name = author_parts[1] if len(author_parts) > 1 else ""
+
+            for vd in author_dir.iterdir():
+                if not vd.is_dir():
+                    continue
+                video_parts = vd.name.split("_", 1)
+                video_id = video_parts[0]
+                title = video_parts[1] if len(video_parts) > 1 else ""
+
+                task = get_task_by_video(video_id, platform)
+                if task and task.title is None:
+                    update_task_metadata(
+                        task.task_id,
+                        title=title,
+                        author_id=author_id,
+                        author_name=author_name,
+                    )
+                    repaired += 1
+
+    return R.success({"repaired": repaired})
 
 
 # ==================== 缓存管理接口 ====================

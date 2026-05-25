@@ -65,12 +65,15 @@ async def refresh_feed(user=Depends(get_current_user)) -> dict:
     for sub in subs:
         if sub.enabled != 1:
             continue
-        result = fetch_all_for_subscription(sub, limit=20)
-        if result.items:
-            total_added += upsert_feed_items(result.items)
-        if result.error:
-            errors.append(f"{sub.channel_name}: {result.error}")
-        subscription_dao.update_subscription_check(sub.id)
+        try:
+            result = fetch_all_for_subscription(sub, limit=20)
+            if result.items:
+                total_added += upsert_feed_items(result.items)
+            if result.error:
+                errors.append(f"{sub.channel_name}: {result.error}")
+            subscription_dao.update_subscription_check(sub.id)
+        except Exception as e:
+            errors.append(f"{sub.channel_name}: {str(e)}")
 
     response = {"added": total_added}
     if errors:

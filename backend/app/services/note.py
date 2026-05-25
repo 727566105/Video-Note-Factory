@@ -201,6 +201,7 @@ class NoteGenerator:
                 # 下载图片到输出目录
                 image_urls = video_info.raw_info.get('images', [])
                 local_images = []
+                cover_api_url = None
                 if output_path and image_urls:
                     os.makedirs(output_path, exist_ok=True)
                     for i, img_url in enumerate(image_urls):
@@ -249,6 +250,21 @@ class NoteGenerator:
                 self._update_status(task_id, TaskStatus.SUCCESS,
                                     author_id=author_id, author_name=author_name,
                                     video_id=video_id, title=_title, platform=platform)
+
+                # 图文笔记成功后，保存元数据到数据库
+                if task_id and video_id:
+                    try:
+                        from app.db.video_task_dao import update_task_metadata
+                        update_task_metadata(
+                            task_id=task_id,
+                            title=_title,
+                            author_id=author_id,
+                            author_name=author_name,
+                            cover_url=cover_api_url,
+                        )
+                        logger.info(f"图文笔记元数据已保存: task_id={task_id}")
+                    except Exception as e:
+                        logger.error(f"保存图文笔记元数据失败: {e}")
 
                 result_kwargs = dict(
                     markdown=markdown,
@@ -1213,7 +1229,11 @@ class NoteGenerator:
         for idx, (marker, ts) in enumerate(matches):
             try:
                 img_path = generate_screenshot(str(video_path), ss_dir, ts, idx)
-                filename = Path(img_path).name
+                img_path_obj = Path(img_path)
+                if not img_path_obj.exists():
+                    logger.warning(f"截图文件未生成，跳过 (timestamp={ts})")
+                    continue
+                filename = img_path_obj.name
                 img_url = f"{ss_url_base}/{filename}"
                 markdown = markdown.replace(marker, f"![]({img_url})", 1)
             except Exception as exc:
@@ -1292,3 +1312,4 @@ class NoteGenerator:
             logger.info(f"已保存元数据 (task_id={task_id}, author_id={author_id})")
         except Exception as e:
             logger.error(f"保存元数据失败: {e}")
+            raise

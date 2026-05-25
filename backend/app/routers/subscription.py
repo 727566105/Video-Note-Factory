@@ -255,6 +255,39 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
     def _do_fetch():
         """后台线程执行刷新"""
         try:
+            # 抖音：走共享缓存路径，先写 channel_videos，再分发到 feed_items
+            if sub.platform == "douyin" and sub.platform_id:
+                from app.services.douyin_api import fetch_douyin_user_videos
+                from app.db.channel_video_dao import upsert_channel_videos
+                from app.db.subscription_dao import create_feed_items_from_channel_videos
+
+                def _progress_cb(page, fetched):
+                    update_progress(progress_id, current_page=page, fetched_count=fetched)
+
+                result = fetch_douyin_user_videos(
+                    sec_uid=sub.platform_id,
+                    count=35,
+                    max_pages=1,
+                    progress_callback=_progress_cb,
+                )
+
+                if result.error:
+                    complete_progress(progress_id, 0, 0, error=result.error)
+                    logger.warning(f"订阅 {sub_id} 抖音刷新失败: {result.error}")
+                    return
+
+                channel_video_records = upsert_channel_videos(
+                    result.items, "douyin", sub.platform_id
+                )
+                create_feed_items_from_channel_videos(
+                    user.id, sub.id, channel_video_records, "douyin"
+                )
+                subscription_dao.update_subscription_check(sub_id)
+                db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
+                complete_progress(progress_id, len(result.items), db_total)
+                return
+
+            # 其他平台：保持原逻辑
             limit = None if sub.platform == "bilibili" else 50
 
             def _progress_cb(page, fetched):
@@ -263,6 +296,7 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
             result = fetch_all_for_subscription(sub, limit=limit, progress_callback=_progress_cb)
             added = upsert_feed_items(result.items) if result.items else 0
             subscription_dao.update_subscription_check(sub_id)
+
             db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
 
             if result.error:

@@ -128,6 +128,12 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
                     src={src}
                     className="max-w-full cursor-zoom-in rounded-lg object-cover shadow-md transition-all hover:shadow-lg"
                     style={{ maxHeight: '500px' }}
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      target.style.display = 'none'
+                      const parent = target.closest('.my-8')
+                      if (parent) parent.style.display = 'none'
+                    }}
                   />
                 </Zoom>
               </div>

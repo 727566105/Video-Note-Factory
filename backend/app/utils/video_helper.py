@@ -32,11 +32,10 @@ def generate_screenshot(video_path: str, output_dir: str, timestamp: int, index:
         "-y"
     ]
 
-    print("Running command:", command)
     result = subprocess.run(command, capture_output=True, text=True)
 
-    if result.returncode != 0:
-        print("ffmpeg failed:", result.stderr)
+    if result.returncode != 0 or not output_path.exists():
+        raise RuntimeError(f"截图生成失败 (timestamp={timestamp}): {result.stderr or '文件未创建'}")
 
     return str(output_path)
 

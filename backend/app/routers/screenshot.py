@@ -1,9 +1,16 @@
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from app.utils.path_helper import VIDEO_DIR, _get_platform_dir
+
+# 1x1 transparent GIF
+_TRANSPARENT_GIF = (
+    b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00"
+    b"!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01"
+    b"\x00\x00\x02\x02D\x01\x00;"
+)
 
 router = APIRouter(prefix="/api/video_screenshots", tags=["screenshots"])
 
@@ -40,7 +47,8 @@ async def get_video_screenshot(
                     str(screenshot_path), media_type="image/jpeg"
                 )
 
-    raise HTTPException(status_code=404, detail="Screenshot not found")
+    # 截图不存在时返回透明占位图，避免前端 404 控制台报错
+    return Response(content=_TRANSPARENT_GIF, media_type="image/gif")
 
 
 # 封面 API 路由（独立 router 避免与截图路由路径冲突）

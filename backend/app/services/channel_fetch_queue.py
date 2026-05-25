@@ -158,16 +158,13 @@ class ChannelFetchQueue:
             )
             return
 
-        # 抖音分支：使用游标分页
+        # 抖音分支：游标分页不可靠，始终从 cursor=0 获取，靠 upsert 去重
         if task.platform == "douyin":
-            cursor = int(status.next_cursor or "0") if status and status.next_cursor else 0
-            logger.info(f"抖音游标分页: sec_uid={task.platform_id}, cursor={cursor}")
-
             result: DouyinFetchResult = fetch_douyin_user_videos(
                 sec_uid=task.platform_id,
-                max_cursor=cursor,
-                count=20,
-                page_limit=1,
+                max_cursor=0,
+                count=35,
+                max_pages=1,
             )
 
             if result.error:
@@ -196,7 +193,6 @@ class ChannelFetchQueue:
                 task.platform, task.platform_id,
                 total_videos=max(status.total_videos, current_count),
                 fetched_count=current_count,
-                next_cursor=str(result.next_cursor),
                 fetch_status="complete" if is_complete else "partial",
             )
 

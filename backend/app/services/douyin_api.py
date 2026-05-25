@@ -111,16 +111,19 @@ def _parse_aweme_item(aweme: dict) -> dict:
 def fetch_douyin_user_videos(
     sec_uid: str,
     max_cursor: int = 0,
-    count: int = 20,
+    count: int = 35,
     max_pages: int = 100,
     page_limit: int = None,
     progress_callback: Optional[Callable[[int, int], None]] = None
 ) -> DouyinFetchResult:
-    """获取抖音用户全部视频列表（分页）
+    """获取抖音用户视频列表（每页最多约35条）
+
+    注意：抖音 API 游标分页在非零 cursor 时返回空数据，因此建议始终使用 cursor=0。
+    单次请求最多可获取约 35-40 条视频，后续刷新应与已有数据对比去重。
 
     :param sec_uid: 抖音用户 sec_user_id（加密ID）
-    :param max_cursor: 游标（初始 0）
-    :param count: 每页数量（建议 20）
+    :param max_cursor: 游标（建议始终使用 0）
+    :param count: 每页数量（建议 35，上限约 40）
     :param max_pages: 最大页数限制
     :param page_limit: 分批获取限制
     :param progress_callback: 进度回调 (page, total_count)
@@ -173,7 +176,9 @@ def fetch_douyin_user_videos(
 
             aweme_list = data.get("aweme_list", [])
             if not aweme_list:
-                logger.info(f"抖音用户 {sec_uid} 视频获取完成，共 {len(results)} 条")
+                _cursor = data.get("max_cursor", 0)
+                _has_more = data.get("has_more", False)
+                logger.info(f"抖音用户 {sec_uid} 空页退出，已获取 {len(results)} 条，has_more={_has_more}, cursor={_cursor}")
                 break
 
             for aweme in aweme_list:
@@ -182,7 +187,7 @@ def fetch_douyin_user_videos(
             cursor = data.get("max_cursor", 0)
             has_more = data.get("has_more", False)
 
-            logger.info(f"抖音用户 {sec_uid} 第 {pages_fetched + 1} 页获取成功，本页 {len(aweme_list)} 条，累计 {len(results)} 条")
+            logger.info(f"抖音用户 {sec_uid} 第 {pages_fetched + 1} 页获取成功，本页 {len(aweme_list)} 条，累计 {len(results)} 条，has_more={has_more}, next_cursor={cursor}")
 
             if progress_callback:
                 progress_callback(pages_fetched + 1, len(results))

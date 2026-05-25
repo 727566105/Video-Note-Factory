@@ -124,8 +124,8 @@ def get_or_create_fetch_status(platform: str, platform_id: str) -> ChannelFetchS
 
 def update_fetch_status(platform: str, platform_id: str,
                         total_videos: int = None, fetched_count: int = None,
-                        next_page: int = None, fetch_status: str = None,
-                        error_message: str = None):
+                        next_page: int = None, next_cursor: str = None,
+                        fetch_status: str = None, error_message: str = None):
     """更新分批状态的各个字段"""
     db = next(get_db())
     try:
@@ -144,6 +144,8 @@ def update_fetch_status(platform: str, platform_id: str,
             status.fetched_count = fetched_count
         if next_page is not None:
             status.next_page = next_page
+        if next_cursor is not None:
+            status.next_cursor = next_cursor
         if fetch_status is not None:
             status.fetch_status = fetch_status
         if error_message is not None:
