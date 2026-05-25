@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-videoNote 是一个 AI 视频笔记生成工具，支持从 Bilibili、YouTube、抖音等平台下载视频，通过 AI 转写和总结生成 Markdown 笔记。
+videoNote 是一个 AI 视频笔记生成工具，支持从 Bilibili、YouTube、抖音、快手、小红书等平台下载视频，通过 AI 转写和总结生成 Markdown 笔记。
 
 **技术栈**: FastAPI (后端) + React/TypeScript (前端)
 
@@ -83,7 +83,7 @@ videoNote/
 
 1. **下载器** (`app/downloaders/`)
    - 平台特定下载器继承自 `Downloader` 基类
-   - 支持: Bilibili, YouTube, 抖音, 快手, 本地视频
+   - 支持: Bilibili, YouTube, 抖音, 快手, 小红书, 本地视频
    - `SUPPORT_PLATFORM_MAP` 定义平台与下载器的映射关系
 
 2. **转写器** (`app/transcriber/`)
@@ -113,16 +113,17 @@ videoNote/
 
 1. **状态管理** (`src/store/`) — 各 store 独立管理
 
-   | Store | 职责 | persist |
-   |-------|------|---------|
-   | `taskStore` | 笔记任务管理，支持版本控制 | 是 |
-   | `modelStore` | AI 模型配置列表 | 是 |
-   | `providerStore` | 模型供应商配置（需 fetchProviderList 初始化） | 否 |
-   | `configStore` | 应用全局配置 | 是 |
-   | `siyuanStore` | 思源笔记集成 | 是 |
-   | `webdavStore` | WebDAV 备份配置 | 是 |
+   | Store | 职责 | persist | 初始化 |
+   |-------|------|---------|--------|
+   | `taskStore` | 笔记任务管理，支持版本控制 | 是 | App.tsx 全局加载 |
+   | `modelStore` | AI 模型配置列表 | 是 | — |
+   | `providerStore` | 模型供应商配置 | 否 | 组件内 `fetchProviderList()` |
+   | `configStore` | 应用全局配置 | 是 | — |
+   | `subscriptionStore` | 订阅频道管理 | 否 | App.tsx 全局加载 |
+   | `siyuanStore` | 思源笔记集成 | 是 | — |
+   | `webdavStore` | WebDAV 备份配置 | 是 | — |
 
-   注意：`providerStore` 没有 persist，需要在组件 useEffect 中调用 `fetchProviderList()` 加载数据。
+   注意：`providerStore` 和 `subscriptionStore` 没有 persist，需要在 App.tsx 的 `AuthenticatedApp` 组件中全局加载（`fetchProviderList()` 和 `fetchSubscriptions()`）。
 
 2. **路由结构** (`src/App.tsx`)
    ```
@@ -193,6 +194,21 @@ Chrome 插件 "VideoNote Helper"，功能：
 - 请求封装: `videoNote_frontend/src/utils/request.ts`
 - 浏览器插件: `browser-extension/manifest.json`
 - 环境配置: `.env.example`
+
+## 作者字段映射模式
+
+数据库有三个作者相关字段：`author`、`author_id`、`author_name`。前端显示博主名称时需使用统一的 fallback 链：
+
+```tsx
+author: task.author || task.author_name || task.note?.audio_meta?.raw_info?.owner?.name || ''
+```
+
+**涉及位置**：
+- `NoteListPage/index.tsx:fetchNotes()` — 笔记列表 author 映射
+- `taskStore/index.ts:loadTasksFromBackend()` — audioMeta.author 映射
+- `NoteDetailPage/LeftPanel.tsx:getAuthor()` — 详情页博主名称显示
+
+**注意**：图文笔记（小红书、抖音图集）的 `author` 字段可能为空，但 `author_name` 有值，必须包含 fallback。
 
 ## 环境变量
 
