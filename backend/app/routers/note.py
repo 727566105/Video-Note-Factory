@@ -506,14 +506,16 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
                         "status": status,
                         "result": result_content,
                         "message": message,
-                    "task_id": task_id
-                })
+                        "task_id": task_id,
+                        "tags": db_task.tags if db_task else None,
+                    })
             else:
                 # 理论上不会出现，保险处理
                 return R.success({
                     "status": TaskStatus.PENDING.value,
                     "message": "任务完成，但结果文件未找到",
-                    "task_id": task_id
+                    "task_id": task_id,
+                    "tags": db_task.tags if db_task else None,
                 })
 
         if status == TaskStatus.FAILED.value:
@@ -541,7 +543,8 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
             return R.success({
                 "status": TaskStatus.SUCCESS.value,
                 "result": result_content,
-                "task_id": task_id
+                "task_id": task_id,
+                "tags": db_task.tags if db_task else None,
             })
 
     # 什么都没有，默认PENDING
@@ -958,11 +961,31 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
                 "author": task.author,
                 "author_id": task.author_id,
                 "author_name": task.author_name,
+                "tags": task.tags,
             })
 
         return R.success({"tasks": result})
     except Exception as e:
         logger.error(f"Failed to get tasks: {e}")
+        return R.error(msg=str(e))
+
+
+@router.put("/notes/{task_id}/tags")
+def update_note_tags(task_id: str, body: dict, current_user=Depends(get_current_user)) -> dict:
+    """更新笔记标签"""
+    import json as json_mod
+    from app.db.video_task_dao import update_task_metadata
+    try:
+        platform_tags = body.get("platform_tags", [])
+        ai_tags = body.get("ai_tags", [])
+        tags_json = json_mod.dumps({
+            "platform_tags": platform_tags,
+            "ai_tags": ai_tags,
+        })
+        update_task_metadata(task_id=task_id, tags=tags_json)
+        return R.success(msg="标签更新成功")
+    except Exception as e:
+        logger.error(f"Failed to update tags: {e}")
         return R.error(msg=str(e))
 
 

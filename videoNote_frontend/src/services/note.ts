@@ -71,3 +71,7 @@ export const updateQueueConfig = async (maxConcurrent: number) => {
     throw e
   }
 }
+
+export const updateNoteTags = async (taskId: string, payload: { platform_tags: string[]; ai_tags: string[] }) => {
+  return request.put(`/notes/${taskId}/tags`, payload)
+}

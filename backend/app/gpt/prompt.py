@@ -14,7 +14,7 @@ BASE_PROMPT = '''
 输出说明：
 - 仅返回最终的 **Markdown 内容**。
 - **不要**将输出包裹在代码块中（例如：```` ```markdown ````，```` ``` ````）。
-请注意，在生成 Markdown 时，避免将编号标题（如“1. **内容**”）写成有序列表的格式，以免解析错误。
+请注意，在生成 Markdown 时，避免将编号标题（如"1. **内容**"）写成有序列表的格式，以免解析错误。
 
 - 如果要加粗并保留编号，应使用 `1\. **内容**`（加反斜杠），防止被误解析为有序列表。
 - 或者使用 `## 1. 内容` 的形式作为标题。
@@ -59,11 +59,21 @@ At the end of the notes, add a professional **AI Summary** in Chinese – a brie
 
 
 '''
-
 SCREENSHOT='''
 8. **Screenshot placeholders**: If a section involves **visual demonstrations, code walkthroughs, UI interactions**, or any content where visuals aid understanding, insert a screenshot cue at the end of that section:
    - Format: `*Screenshot-[mm:ss]`
    - Only use it when truly helpful.
+'''
+
+TAGS_PROMPT = '''
+🏷️ **AI Tags Generation**:
+请在笔记末尾（AI Summary 之后）添加一行 AI 生成的主题标签，格式如下：
+`<!-- AI_TAGS: ["标签1", "标签2", "标签3", "标签4", "标签5"] -->`
+要求：
+- 生成 5 个高度概括内容的主题标签
+- 每个标签 2-4 个中文字
+- 标签应体现视频的核心主题、领域或关键概念
+- 不要解释，只返回这一行注释
 '''
 
 ARTICLE_SUMMARY_PROMPT = '''你是一个专业的内容总结助手。请根据以下图文内容，生成一份结构清晰的 Markdown 笔记。
@@ -83,4 +93,7 @@ ARTICLE_SUMMARY_PROMPT = '''你是一个专业的内容总结助手。请根据�
 请用中文输出，使用 Markdown 格式。
 
 {image_text}
+
+请在笔记末尾添加一行 AI 生成的主题标签：
+`<!-- AI_TAGS: ["标签1", "标签2", "标签3", "标签4", "标签5"] -->`
 '''

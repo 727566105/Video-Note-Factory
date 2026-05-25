@@ -76,6 +76,8 @@ import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { quickViewNote } from '@/services/subscription'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
+import { TagEditorPopover } from '@/components/TagEditorPopover'
+import { Badge } from '@/components/ui/badge'
 
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   if (!coverUrl) return ''
@@ -111,6 +113,30 @@ function getRealtimeStatus(item: NoteItem, taskStoreTasks: { id: string; status:
   return storeTask?.status || item.status
 }
 
+// 标签显示行
+function TagsRow({ item, onTagsUpdate }: { item: NoteItem; onTagsUpdate: (id: string, tags: any) => void }) {
+  const hasTags = (item.tags?.platform_tags?.length || 0) > 0 || (item.tags?.ai_tags?.length || 0) > 0
+  return (
+    <div className="flex gap-1 flex-wrap items-center mt-2" onClick={e => e.stopPropagation()}>
+      {item.tags?.platform_tags?.map((tag, i) => (
+        <Badge key={`p${i}`} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] h-5 px-1.5">
+          {tag}
+        </Badge>
+      ))}
+      {item.tags?.ai_tags?.map((tag, i) => (
+        <Badge key={`a${i}`} variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
+          {tag}
+        </Badge>
+      ))}
+      <TagEditorPopover
+        taskId={item.task_id}
+        tags={item.tags}
+        onUpdate={(newTags) => onTagsUpdate(item.id, newTags)}
+      />
+    </div>
+  )
+}
+
 // 瀑布流卡片 - 带笔记内容懒加载（参考设计样式）
 function MasonryNoteCard({
   item,
@@ -122,6 +148,7 @@ function MasonryNoteCard({
   failedCovers,
   handleCoverError,
   realtimeStatus,
+  onTagsUpdate,
 }: {
   item: NoteItem
   onClick: () => void
@@ -132,6 +159,7 @@ function MasonryNoteCard({
   failedCovers: Set<string>
   handleCoverError: (id: string) => void
   realtimeStatus: string
+  onTagsUpdate: (id: string, tags: any) => void
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [notePreview, setNotePreview] = useState<string | null>(null)
@@ -221,6 +249,9 @@ function MasonryNoteCard({
           <div className="mt-1 text-xs font-semibold text-sky-500">{item.author}</div>
         )}
 
+        {/* 标签 */}
+        <TagsRow item={item} onTagsUpdate={onTagsUpdate} />
+
         {/* 笔记预览 */}
         {isSuccess && (
           <div className="mt-2 relative">
@@ -291,6 +322,9 @@ export const NoteListPage: FC = () => {
   const handleCoverError = (id: string) => {
     setFailedCovers(prev => new Set(prev).add(id))
   }
+  const handleTagsUpdate = (id: string, tags: any) => {
+    setNotes(prev => prev.map(note => note.id === id ? { ...note, tags } : note))
+  }
 
   useEffect(() => {
     notesRef.current = notes
@@ -329,6 +363,13 @@ export const NoteListPage: FC = () => {
           created_at: task.created_at || '',
           status: task.status || 'UNKNOWN',
           video_url: task.video_url || '',
+          tags: task.tags ? (() => {
+            try {
+              return JSON.parse(task.tags)
+            } catch {
+              return undefined
+            }
+          })() : undefined,
         }))
         setNotes(formattedNotes)
       }
@@ -605,6 +646,10 @@ export const NoteListPage: FC = () => {
                     {item.author && (
                       <div className="mt-1.5 text-xs text-primary">{item.author}</div>
                     )}
+                    {/* 标签 */}
+                    <div className="mt-2" onClick={e => e.stopPropagation()}>
+                      <TagsRow item={item} onTagsUpdate={handleTagsUpdate} />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -632,6 +677,7 @@ export const NoteListPage: FC = () => {
                   failedCovers={failedCovers}
                   handleCoverError={handleCoverError}
                   realtimeStatus={getRealtimeStatus(item, taskStoreTasks)}
+                  onTagsUpdate={handleTagsUpdate}
                 />
               ))}
             </div>

@@ -172,6 +172,25 @@ def migrate_channel_fetch_status_cursor():
         db.close()
 
 
+def migrate_video_tasks_tags_column():
+    """检查并添加 tags 列到 video_tasks 表"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(video_tasks)"))
+        columns = [row[1] for row in result.fetchall()]
+        if 'tags' not in columns:
+            logger.info("video_tasks: tags 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN tags TEXT"))
+            db.commit()
+            logger.info("video_tasks: tags 列添加成功")
+        else:
+            logger.info("video_tasks: tags 列已存在")
+    except Exception as e:
+        logger.error(f"video_tasks tags 迁移失败: {e}")
+    finally:
+        db.close()
+
+
 def init_db():
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
@@ -180,6 +199,7 @@ def init_db():
     migrate_feed_items_table()
     migrate_channel_fetch_status_cursor()
     migrate_subscriptions_unique_id()
+    migrate_video_tasks_tags_column()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户

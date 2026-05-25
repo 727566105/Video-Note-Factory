@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { delete_task, generateNote, getTasks } from '@/services/note.ts'
 import { v4 as uuidv4 } from 'uuid'
 import { toast } from 'sonner'
-import type { BackendTask } from '@/types/api'
+import type { BackendTask, TaskTags } from '@/types/api'
 
 
 export type TaskStatus = 'PENDING' | 'RUNNING' | 'QUEUED' | 'SUCCESS' | 'FAILED'
@@ -56,6 +56,7 @@ export interface Task {
   author_name?: string
   smart_switched?: boolean  // 智能优选是否发生过切换
   used_model_name?: string  // 实际使用的模型名称
+  tags?: TaskTags  // 平台标签 + AI 标签
   formData: {
     video_url: string
     link: undefined | boolean
@@ -296,6 +297,13 @@ export const useTaskStore = create<TaskStore>()(
                   style: t.note?.style || '',
                   provider_id: '',
                 },
+                tags: t.tags ? (() => {
+                  try {
+                    return JSON.parse(t.tags) as TaskTags
+                  } catch {
+                    return undefined
+                  }
+                })() : undefined,
               }
             })
 

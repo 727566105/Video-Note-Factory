@@ -29,6 +29,8 @@ import { Button } from '@/components/ui/button'
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
+import { TagEditorPopover } from '@/components/TagEditorPopover'
 
 const SUBSCRIBABLE_PLATFORMS = ['bilibili', 'youtube', 'douyin', 'kuaishou']
 
@@ -411,6 +413,28 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
             </Toggle>
           )}
         </div>
+        {/* 标签显示 */}
+        {(task.tags?.platform_tags?.length || task.tags?.ai_tags?.length) && (
+          <div className="flex gap-1 flex-wrap items-center">
+            {task.tags?.platform_tags?.map((tag, i) => (
+              <Badge key={`p${i}`} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] h-5 px-1.5">
+                {tag}
+              </Badge>
+            ))}
+            {task.tags?.ai_tags?.map((tag, i) => (
+              <Badge key={`a${i}`} variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
+                {tag}
+              </Badge>
+            ))}
+            <TagEditorPopover
+              taskId={task.id}
+              tags={task.tags}
+              onUpdate={(newTags) => {
+                useSystemStore.setState({})
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* 聊天输入框 */}

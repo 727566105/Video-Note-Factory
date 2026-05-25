@@ -17,6 +17,7 @@ class AudioDownloadResult:
     author_name: Optional[str] = None  # 博主名称
     content_type: str = "video"  # "video" | "article" | "live_photo"
     images: Optional[List[str]] = None  # 本地图片路径列表（用于图集）
+    tags: List[str] = field(default_factory=list)  # 平台原始标签
 
 
 @dataclass
@@ -33,4 +34,5 @@ class VideoInfoResult:
     raw_info: dict = field(default_factory=dict)
     content_type: str = "video"  # "video" | "article" | "live_photo"
     images_with_video: Optional[List[dict]] = None  # 实况照片的图片+视频URL列表
+    tags: List[str] = field(default_factory=list)  # 平台原始标签
 

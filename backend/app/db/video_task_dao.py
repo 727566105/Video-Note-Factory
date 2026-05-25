@@ -113,8 +113,8 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
 
 def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
                          duration: float = None, author: str = None, description: str = None,
-                         author_id: str = None, author_name: str = None):
-    """更新任务的元数据（标题、封面、时长、作者、描述）"""
+                         author_id: str = None, author_name: str = None, tags: str = None):
+    """更新任务的元数据（标题、封面、时长、作者、描述、标签）"""
     db = next(get_db())
     try:
         task = db.query(VideoTask).filter_by(task_id=task_id).first()
@@ -133,8 +133,10 @@ def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
                 task.author_id = author_id
             if author_name is not None:
                 task.author_name = author_name
+            if tags is not None:
+                task.tags = tags
             db.commit()
-            logger.info(f"Task metadata updated: {task_id}, title={title}")
+            logger.info(f"Task metadata updated: {task_id}, title={title}, tags={tags}")
         else:
             logger.warning(f"No task found for metadata update: {task_id}")
     except Exception as e:
@@ -192,7 +194,7 @@ def clone_task_to_user(original_task_id: str, new_user_id: int,
         if existing:
             return existing
 
-        # 从原始任务复制元数据
+        # 从原始任务复制元数据（包括标签）
         original = db.query(VideoTask).filter_by(task_id=original_task_id).first()
         task = VideoTask(
             video_id=video_id,
@@ -207,6 +209,7 @@ def clone_task_to_user(original_task_id: str, new_user_id: int,
             description=original.description if original else None,
             author_id=original.author_id if original else None,
             author_name=original.author_name if original else None,
+            tags=original.tags if original else None,
         )
         db.add(task)
         db.commit()

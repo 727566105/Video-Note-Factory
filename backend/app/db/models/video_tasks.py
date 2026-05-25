@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, func
+from sqlalchemy import Column, Integer, String, DateTime, Float, Text, func
 from sqlalchemy.orm import declarative_base
 
 from app.db.engine import Base
@@ -22,3 +22,4 @@ class VideoTask(Base):
     description = Column(String, nullable=True)  # 视频描述
     author_id = Column(String, nullable=True)       # 博主唯一ID（B站 mid、抖音 uid、YouTube channel_id）
     author_name = Column(String, nullable=True)     # 博主名称（冗余存储）
+    tags = Column(Text, nullable=True)              # JSON: {"platform_tags": [], "ai_tags": []}

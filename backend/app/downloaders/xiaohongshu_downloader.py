@@ -254,7 +254,24 @@ class XiaohongshuDownloader(Downloader):
             "avatar_url": user.get("avatar", ""),
             "published_at": published_at,
             "raw_note": note,
+            "tags": self._extract_tags(note, desc),
         }
+
+    def _extract_tags(self, note: dict, desc: str) -> list[str]:
+        """从笔记数据中提取标签"""
+        tags = []
+        # tagList 字段
+        tag_list = note.get("tagList", [])
+        if tag_list:
+            for tag in tag_list:
+                name = tag.get("name", "") or tag.get("id", "")
+                if name:
+                    tags.append(name)
+        # 从 desc 中提取 #标签
+        if desc:
+            hash_tags = re.findall(r'#([^\s#]+)', desc)
+            tags.extend(hash_tags)
+        return tags[:8]
 
     def get_video_info(self, video_url: str) -> VideoInfoResult:
         """获取笔记元数据"""
@@ -352,6 +369,7 @@ class XiaohongshuDownloader(Downloader):
                     "images": downloaded_paths,
                     "note_type": parsed["note_type"],
                 },
+                tags=parsed.get("tags", []),
             )
 
         # 视频笔记：下载音频
@@ -396,6 +414,7 @@ class XiaohongshuDownloader(Downloader):
                 "content_type": "video",
                 "owner": {"name": parsed["author_name"]},
             },
+            tags=parsed.get("tags", []),
         )
 
     @staticmethod

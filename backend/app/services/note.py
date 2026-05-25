@@ -314,6 +314,13 @@ class NoteGenerator:
                     with open(note_path, "w", encoding="utf-8") as f:
                         f.write(markdown)
 
+                # 提取 AI 标签并清理 markdown 中的标记
+                from app.gpt.prompt_builder import extract_ai_tags, remove_ai_tags_marker
+                ai_tags = extract_ai_tags(markdown)
+                if ai_tags:
+                    markdown = remove_ai_tags_marker(markdown)
+                    logger.info(f"图文笔记提取到 AI 标签: {ai_tags}")
+
                 self._update_status(task_id, TaskStatus.SUCCESS,
                                     author_id=author_id, author_name=author_name,
                                     video_id=video_id, title=_title, platform=platform)
@@ -321,7 +328,10 @@ class NoteGenerator:
                 # 图文笔记成功后，保存元数据到数据库
                 if task_id and video_id:
                     try:
+                        import json
                         from app.db.video_task_dao import update_task_metadata
+                        platform_tags = video_info.tags if hasattr(video_info, 'tags') and video_info.tags else []
+                        tags_json = json.dumps({"platform_tags": platform_tags, "ai_tags": ai_tags or []})
                         update_task_metadata(
                             task_id=task_id,
                             title=_title,
@@ -329,6 +339,7 @@ class NoteGenerator:
                             author_id=author_id,
                             author_name=author_name,
                             cover_url=cover_api_url,
+                            tags=tags_json,
                         )
                         logger.info(f"图文笔记元数据已保存: task_id={task_id}")
                     except Exception as e:
@@ -471,13 +482,20 @@ class NoteGenerator:
                     platform=platform,
                 )
 
+            # 4.5 提取 AI 标签并清理 markdown 中的标记
+            from app.gpt.prompt_builder import extract_ai_tags, remove_ai_tags_marker
+            ai_tags = extract_ai_tags(markdown)
+            if ai_tags:
+                markdown = remove_ai_tags_marker(markdown)
+                logger.info(f"提取到 AI 标签: {ai_tags}")
+
             # 5. 保存记录到数据库
             self._update_status(task_id, TaskStatus.SAVING,
                                 title=_title, author_id=author_id, author_name=author_name,
                                 video_id=video_id, platform=platform)
             self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id, video_url=str(video_url))
             # 保存视频元数据到数据库
-            self._save_audio_metadata(task_id=task_id, audio_meta=audio_meta)
+            self._save_audio_metadata(task_id=task_id, audio_meta=audio_meta, ai_tags=ai_tags)
 
             # 6. 完成
             self._update_status(task_id, TaskStatus.SUCCESS,
@@ -1145,7 +1163,7 @@ class NoteGenerator:
         source = GPTSource(
             title=audio_meta.title,
             segment=transcript.segments,
-            tags=audio_meta.raw_info.get("tags", []),
+            tags=audio_meta.tags if audio_meta.tags else [],
             screenshot=screenshot,
             video_img_urls=video_img_urls,
             link=link,
@@ -1200,7 +1218,7 @@ class NoteGenerator:
         source = GPTSource(
             title=audio_meta.title,
             segment=transcript.segments,
-            tags=audio_meta.raw_info.get("tags", []),
+            tags=audio_meta.tags if audio_meta.tags else [],
             screenshot=screenshot,
             video_img_urls=video_img_urls,
             link=link,
@@ -1351,9 +1369,10 @@ class NoteGenerator:
             logger.error(f"保存任务记录失败：{e}")
 
     @staticmethod
-    def _save_audio_metadata(task_id: str, audio_meta) -> None:
+    def _save_audio_metadata(task_id: str, audio_meta, ai_tags: list = None) -> None:
         """将音频/视频元数据更新到数据库"""
         try:
+            import json
             from app.db.video_task_dao import update_task_metadata
             author = ""
             author_id = audio_meta.author_id if hasattr(audio_meta, 'author_id') else None
@@ -1375,6 +1394,14 @@ class NoteGenerator:
                             author_id = str(author_id)
                 if not author_name:
                     author_name = author if author else None
+
+            # 构建标签 JSON
+            platform_tags = audio_meta.tags if hasattr(audio_meta, 'tags') and audio_meta.tags else []
+            tags_json = json.dumps({
+                "platform_tags": platform_tags,
+                "ai_tags": ai_tags or []
+            })
+
             update_task_metadata(
                 task_id=task_id,
                 title=audio_meta.title,
@@ -1384,6 +1411,7 @@ class NoteGenerator:
                 description=audio_meta.description,
                 author_id=author_id,
                 author_name=author_name,
+                tags=tags_json,
             )
             logger.info(f"已保存元数据 (task_id={task_id}, author_id={author_id})")
         except Exception as e:

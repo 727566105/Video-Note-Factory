@@ -1,9 +1,11 @@
 import { type ColumnDef, type HeaderContext } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
 import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import type { Task } from '@/store/taskStore'
+import type { TaskTags } from '@/types/api'
 
 export interface NoteItem {
   id: string
@@ -16,6 +18,7 @@ export interface NoteItem {
   created_at: string
   status: string
   video_url: string
+  tags?: TaskTags
 }
 
 export function PlatformIconSmall({ platform }: { platform: string }) {
@@ -171,6 +174,21 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                 </button>
               )}
             </div>
+            {/* 标签显示 */}
+            {(item.tags?.platform_tags?.length || item.tags?.ai_tags?.length) && (
+              <div className="flex gap-1 flex-wrap items-center mt-1" onClick={e => e.stopPropagation()}>
+                {item.tags?.platform_tags?.map((tag, i) => (
+                  <Badge key={`p${i}`} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] h-5 px-1.5">
+                    {tag}
+                  </Badge>
+                ))}
+                {item.tags?.ai_tags?.map((tag, i) => (
+                  <Badge key={`a${i}`} variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
             {isProcessingStatus(status) && (() => {
               const { currentStep, stepLabel } = getStepProgress(status)
               return (

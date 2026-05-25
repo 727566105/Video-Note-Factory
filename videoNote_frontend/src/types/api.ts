@@ -27,6 +27,11 @@ export interface Model {
 }
 
 // Task 后端响应相关
+export interface TaskTags {
+  platform_tags: string[]
+  ai_tags: string[]
+}
+
 export interface BackendTaskNote {
   markdown: string
   transcript: {
@@ -72,6 +77,7 @@ export interface BackendTask {
   author?: string | null
   author_id?: string | null
   author_name?: string | null
+  tags?: string | null  // JSON string: {"platform_tags": [], "ai_tags": []}
 }
 
 // Config backup 相关

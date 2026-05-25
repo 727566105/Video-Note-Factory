@@ -1,4 +1,4 @@
-from app.gpt.prompt import BASE_PROMPT
+from app.gpt.prompt import BASE_PROMPT, TAGS_PROMPT
 
 note_formats = [
     {'label': '目录', 'value': 'toc'},
@@ -79,6 +79,10 @@ def generate_base_prompt(title, segment_text, tags, _format=None, style=None, ex
     # 添加额外内容
     if extras:
         prompt += f"\n{extras}"
+
+    # 始终添加标签生成指令
+    prompt += TAGS_PROMPT
+
     return prompt
 
 
@@ -153,3 +157,40 @@ def get_summary_format():
     return '''
     12. **AI总结**: 在笔记末尾加入简短的AI生成总结,并且二级标题 就是 AI 总结 例如 ## AI 总结。
     '''
+
+
+import re
+import json
+
+def extract_ai_tags(markdown: str) -> list[str]:
+    """从 Markdown 中提取 AI 生成的标签"""
+    match = re.search(r'<!-- AI_TAGS: \[([^\]]+)\] -->', markdown)
+    if match:
+        tags_str = match.group(1)
+        # 先尝试 JSON 解析（双引号格式）
+        try:
+            tags = json.loads(f'[{tags_str}]')
+            return [tag.strip() for tag in tags if isinstance(tag, str) and tag.strip()]
+        except json.JSONDecodeError:
+            pass
+        # 尝试将单引号替换为双引号后解析
+        try:
+            fixed_str = tags_str.replace("'", '"')
+            tags = json.loads(f'[{fixed_str}]')
+            return [tag.strip() for tag in tags if isinstance(tag, str) and tag.strip()]
+        except json.JSONDecodeError:
+            pass
+        # 最后用正则提取所有引号内的内容（单引号和双引号）
+        tags = re.findall(r'"([^"]+)"|\'([^\']+)\'', tags_str)
+        result = []
+        for t in tags:
+            tag = t[0] if t[0] else t[1]
+            if tag.strip():
+                result.append(tag.strip())
+        return result
+    return []
+
+
+def remove_ai_tags_marker(markdown: str) -> str:
+    """从 Markdown 中移除 AI 标签注释行"""
+    return re.sub(r'\n?<!-- AI_TAGS: \[[^\]]+\] -->\n?', '', markdown).strip()

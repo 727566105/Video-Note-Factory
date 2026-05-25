@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import requests
 from abc import ABC
@@ -49,6 +50,21 @@ class BilibiliDownloader(Downloader, ABC):
         except Exception as e:
             logger.warning(f"获取B站视频描述失败: {bvid}, {e}")
         return None
+
+    def _extract_tags(self, info: dict) -> list[str]:
+        """从 yt-dlp info 和 desc 中提取标签"""
+        tags = []
+        # yt-dlp 标准字段
+        if info.get("tags"):
+            tags.extend(info["tags"][:5])
+        if info.get("categories"):
+            tags.extend(info["categories"][:3])
+        # 从 desc 中提取 #标签#
+        desc = info.get("description", "")
+        if desc:
+            hash_tags = re.findall(r'#(\w+)#', desc)
+            tags.extend(hash_tags[:3])
+        return tags[:8]
 
     def _write_cookiefile(self) -> Optional[str]:
         """将 cookie 写入临时 Netscape 格式文件，返回文件路径"""
@@ -181,6 +197,7 @@ class BilibiliDownloader(Downloader, ABC):
                 description=description,
                 author_id=author_id,
                 author_name=author_name or None,
+                tags=self._extract_tags(info),
             )
         except DownloadError as e:
             error_msg = str(e)
