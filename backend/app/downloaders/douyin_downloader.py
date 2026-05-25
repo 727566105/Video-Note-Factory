@@ -310,6 +310,34 @@ class DouyinDownloader(Downloader):
             cover_url = image_urls[0] if image_urls else None
             content_type = "live_photo" if aweme_type == 69 else "article"
 
+            # 图集或实况照片：提取每张图片对应的视频URL（aweme_type 68/69 均可能含视频）
+            images_with_video = []
+            has_video = False
+            for img in images:
+                img_url = img.get('url_list', [None])[0] if img.get('url_list') else None
+                video_data = img.get('video', {})
+                video_url = None
+                # 优先 play_addr
+                play_addr = video_data.get('play_addr', {})
+                if play_addr.get('url_list'):
+                    video_url = play_addr['url_list'][0]
+                # 兜底 download_addr
+                if not video_url:
+                    download_addr = video_data.get('download_addr', {})
+                    if download_addr.get('url_list'):
+                        video_url = download_addr['url_list'][0]
+                if video_url:
+                    has_video = True
+                images_with_video.append({
+                    "image_url": img_url,
+                    "video_url": video_url,
+                })
+            # 只有存在视频时才标记为 live_photo
+            if has_video:
+                content_type = "live_photo"
+                logger.info(f"图集含视频片段，标记为实况照片，共 {len(images_with_video)} 个视频URL")
+            images_with_video = images_with_video if has_video else None
+
             return VideoInfoResult(
                 title=aweme.get('item_title', '') or aweme.get('desc', ''),
                 duration=0,
@@ -320,12 +348,14 @@ class DouyinDownloader(Downloader):
                 author_name=author_info.get('nickname', ''),
                 description=aweme.get('desc', ''),
                 content_type=content_type,
+                images_with_video=images_with_video,
                 raw_info={
                     'tags': aweme.get('caption', ''),
                     'owner': {'name': author_info.get('nickname', '')},
                     'content_type': content_type,
                     'images': image_urls,
                     'aweme_type': aweme_type,
+                    'images_with_video': images_with_video,
                 },
             )
 

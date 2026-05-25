@@ -32,4 +32,5 @@ class VideoInfoResult:
     description: Optional[str] = None
     raw_info: dict = field(default_factory=dict)
     content_type: str = "video"  # "video" | "article" | "live_photo"
+    images_with_video: Optional[List[dict]] = None  # 实况照片的图片+视频URL列表
 

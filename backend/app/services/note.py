@@ -225,6 +225,26 @@ class NoteGenerator:
                         except Exception:
                             cover_api_url = None
 
+                # 实况照片：下载视频文件（检测 images_with_video 数据而非 content_type）
+                live_photo_video_urls = []
+                _images_with_video = video_info.raw_info.get('images_with_video') or getattr(video_info, 'images_with_video', None)
+                if _images_with_video and output_path:
+                    os.makedirs(output_path, exist_ok=True)
+                    for i, item in enumerate(_images_with_video):
+                        vid_url = item.get('video_url')
+                        if vid_url:
+                            live_photo_video_urls.append(vid_url)
+                            try:
+                                resp = requests.get(vid_url, headers={"Referer": "https://www.douyin.com/"}, timeout=30)
+                                if resp.status_code == 200:
+                                    vid_path = os.path.join(output_path, f"live_photo_{i+1}.mp4")
+                                    with open(vid_path, "wb") as f:
+                                        f.write(resp.content)
+                                    logger.info(f"实况照片视频已下载: {vid_path}")
+                            except Exception as e:
+                                logger.warning(f"下载实况照片视频 {i+1} 失败: {e}")
+                    logger.info(f"实况照片共下载 {len(live_photo_video_urls)} 个视频")
+
                 self._update_status(task_id, TaskStatus.SUMMARIZING,
                                     author_id=author_id, author_name=author_name,
                                     video_id=video_id, title=_title, platform=platform)
@@ -235,6 +255,7 @@ class NoteGenerator:
                     author=author_name or "",
                     description=video_info.description or "",
                     images=[url for url in image_urls],
+                    live_photo_videos=live_photo_video_urls if live_photo_video_urls else None,
                     model_name=model_name,
                     provider_id=provider_id,
                     smart_mode=smart_mode,
@@ -451,7 +472,8 @@ class NoteGenerator:
             return None
 
     def generate_article_note(self, title: str, author: str, description: str,
-                              images: list = None, model_name: str = None,
+                              images: list = None, live_photo_videos: list = None,
+                              model_name: str = None,
                               provider_id: str = None, smart_mode: bool = False,
                               user_id: int = None) -> Tuple[str, Optional[dict]]:
         """
@@ -464,6 +486,13 @@ class NoteGenerator:
         image_text = ""
         if images:
             image_text = "\n\n图片链接：\n" + "\n".join(f"- {img}" for img in images)
+
+        # 实况照片视频提示
+        if live_photo_videos:
+            video_urls = [v for v in live_photo_videos if v]
+            if video_urls:
+                image_text += "\n\n实况照片视频链接：\n" + "\n".join(f"- {v}" for v in video_urls)
+                image_text += "\n（以上为实况照片的动态视频片段，共 {} 个，请在笔记中提及动态效果）".format(len(video_urls))
 
         prompt = ARTICLE_SUMMARY_PROMPT.format(
             title=title,
