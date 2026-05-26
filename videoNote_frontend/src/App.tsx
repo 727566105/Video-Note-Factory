@@ -1,3 +1,4 @@
+import { useEffect, ReactNode, Suspense, lazy } from 'react'
 import { HomePage } from './pages/HomePage/Home.tsx'
 import { useTaskPolling } from '@/hooks/useTaskPolling.ts'
 import SettingPage from './pages/SettingPage/index.tsx'
@@ -15,14 +16,20 @@ import TaskQueueSettings from '@/pages/SettingPage/TaskQueue.tsx'
 import UsersPage from '@/pages/SettingPage/Users.tsx'
 import LoginPage from '@/pages/LoginPage'
 import { NoteListPage } from './pages/NoteListPage'
-import NoteDetailPage from '@/pages/NoteDetailPage'
-import FeedPage from '@/pages/FeedPage'
-import ChannelsPage from '@/pages/ChannelsPage'
-import ChannelDetailPage from '@/pages/ChannelDetailPage'
 import { AuthorsPage } from './pages/AuthorsPage'
-import AuthorDetailPage from './pages/AuthorDetailPage'
 import SubscriptionSettings from '@/pages/SettingPage/Subscription'
-import { useEffect, ReactNode } from 'react'
+// 懒加载重型页面（优化首屏加载）
+const NoteDetailPage = lazy(() => import('@/pages/NoteDetailPage'))
+const FeedPage = lazy(() => import('@/pages/FeedPage'))
+const ChannelsPage = lazy(() => import('@/pages/ChannelsPage'))
+const ChannelDetailPage = lazy(() => import('@/pages/ChannelDetailPage'))
+const AuthorDetailPage = lazy(() => import('./pages/AuthorDetailPage'))
+import { LoaderCircle } from 'lucide-react'
+
+// 懒加载页面 loading 组件
+function PageLoader() {
+  return <div className="flex items-center justify-center h-full"><LoaderCircle className="size-8 animate-spin text-primary" /></div>
+}
 import { systemCheck } from '@/services/system.ts'
 import { useCheckBackend } from '@/hooks/useCheckBackend.ts'
 import HomeSkeleton from '@/components/HomeSkeleton'
@@ -99,12 +106,12 @@ function App() {
           <Route path="/" element={<ProtectedRoute><AuthenticatedApp><Index /></AuthenticatedApp></ProtectedRoute>}>
             <Route index element={<HomePage />} />
             <Route path="notes" element={<NoteListPage />} />
-            <Route path="notes/:id" element={<NoteDetailPage />} />
-            <Route path="feed" element={<FeedPage />} />
-            <Route path="channels" element={<ChannelsPage />} />
-            <Route path="channel/:platform/:id" element={<ChannelDetailPage />} />
+            <Route path="notes/:id" element={<Suspense fallback={<PageLoader />}><NoteDetailPage /></Suspense>} />
+            <Route path="feed" element={<Suspense fallback={<PageLoader />}><FeedPage /></Suspense>} />
+            <Route path="channels" element={<Suspense fallback={<PageLoader />}><ChannelsPage /></Suspense>} />
+            <Route path="channel/:platform/:id" element={<Suspense fallback={<PageLoader />}><ChannelDetailPage /></Suspense>} />
             <Route path="authors" element={<AuthorsPage />} />
-            <Route path="authors/:id" element={<AuthorDetailPage />} />
+            <Route path="authors/:id" element={<Suspense fallback={<PageLoader />}><AuthorDetailPage /></Suspense>} />
             <Route path="settings" element={<SettingPage />}>
               <Route index element={<Navigate to="about" replace />} />
               <Route path="model" element={<AdminRoute><Model /></AdminRoute>}>

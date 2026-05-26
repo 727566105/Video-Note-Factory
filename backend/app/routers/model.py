@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from app.services.model import ModelService
 from app.utils.response import ResponseWrapper as R
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
 router = APIRouter()
 modelService = ModelService()
 class CreateModelRequest(BaseModel):
@@ -21,7 +21,7 @@ def model_list(current_user=Depends(get_current_user)) -> dict:
     except Exception as e:
         return R.error(e)
 @router.get("/models/delete/{model_id}")
-def delete_model(model_id: int, current_user=Depends(get_current_user)) -> dict:
+def delete_model(model_id: int, current_user=Depends(require_admin)) -> dict:
     try:
         success = modelService.delete_model_by_id(model_id)
         if success:
@@ -37,7 +37,7 @@ def model_list_by_provider(provider_id, current_user=Depends(get_current_user)) 
 
 
 @router.post("/models")
-def create_model(data: CreateModelRequest, current_user=Depends(get_current_user)) -> dict:
+def create_model(data: CreateModelRequest, current_user=Depends(require_admin)) -> dict:
     success = ModelService.add_new_model(data.provider_id, data.model_name)
     if not success:
         return R.error("模型添加失败")

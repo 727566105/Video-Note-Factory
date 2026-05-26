@@ -1,6 +1,5 @@
 import { type ColumnDef, type HeaderContext } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
 import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo } from '@/components/Icons/platform'
@@ -47,6 +46,7 @@ interface ColumnProps {
   isSubscribed: (author: string) => boolean
   isSubscribable: (platform: string) => boolean
   taskStoreTasks: Task[]
+  onTagsUpdate?: (id: string, tags: any) => void
 }
 
 // 从 taskStore 获取实时状态，优先使用 taskStore 的值
@@ -77,6 +77,17 @@ const getStepProgress = (status: string) => {
 const isProcessingStatus = (status: string) =>
   ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(status)
 
+// 平台名称映射
+const platformLabel: Record<string, string> = {
+  bilibili: 'B站',
+  youtube: 'YouTube',
+  douyin: '抖音',
+  xiaohongshu: '小红书',
+  kuaishou: '快手',
+  local: '本地视频',
+  local_audio: '本地音频',
+}
+
 export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
   return [
     {
@@ -104,32 +115,100 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
     {
       accessorKey: 'cover',
       header: '封面',
-      size: 140,
+      size: 240,
       cell: ({ row }) => {
         const item = row.original
         const status = getRealtimeStatus(item, props.taskStoreTasks)
+        const { currentStep, stepLabel } = getStepProgress(status)
+        const isProcessing = isProcessingStatus(status)
+
         return (
-          <div className="w-32">
-            <div className="relative aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden">
+          <div className="w-60 py-2">
+            <div className="relative h-56 overflow-hidden rounded-lg bg-muted">
               {item.cover && !props.failedCovers.has(item.id) ? (
                 <img
                   src={item.cover}
                   alt=""
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover"
                   onError={() => props.onCoverError(item.id)}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center gap-1">
+                <div className="h-full w-full flex flex-col items-center justify-center gap-1">
                   <PlatformIconSmall platform={item.platform} />
-                  <span className="text-xs text-muted-foreground">{item.author || item.platform}</span>
+                  <span className="text-xs text-muted-foreground">{item.author || platformLabel[item.platform]}</span>
                 </div>
               )}
-              {(status === 'PENDING' || status === 'RUNNING' || status === 'QUEUED') && (
+              {/* 博主名覆盖左下角 */}
+              {item.author && (
+                <div className="absolute bottom-2 left-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded">
+                  {item.author}
+                </div>
+              )}
+              {/* 时长覆盖右下角 - 从 audioMeta 获取 */}
+              {item.video_url && (
+                <div className="absolute bottom-2 right-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded">
+                  {props.isSubscribable(item.platform) && props.isSubscribed(item.author) ? '已订阅' : ''}
+                </div>
+              )}
+              {/* 收藏按钮右上角 */}
+              {props.isSubscribable(item.platform) && item.author && (
+                <button
+                  className={cn(
+                    'absolute top-2 right-2 p-1.5 rounded-full transition-colors',
+                    props.isSubscribed(item.author)
+                      ? 'bg-primary text-white'
+                      : 'bg-white/80 text-gray-600 hover:bg-primary hover:text-white',
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (props.isSubscribed(item.author)) {
+                      import('sonner').then(t => t.toast.info('已订阅该频道'))
+                    } else {
+                      props.onSubscribe(item.video_url)
+                    }
+                  }}
+                >
+                  <Rss className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {/* 处理中状态覆盖 */}
+              {isProcessing && (
+                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
+                  <LoaderCircle className="w-6 h-6 text-white animate-spin" />
+                  <span className="text-white text-sm">{stepLabel} ({currentStep}/6)</span>
+                </div>
+              )}
+              {(status === 'QUEUED' || status === 'PENDING') && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <LoaderCircle className="w-6 h-6 text-white animate-spin" />
                 </div>
               )}
+              {status === 'FAILED' && (
+                <div className="absolute inset-0 bg-red-500/40 flex items-center justify-center">
+                  <span className="text-white text-sm">生成失败</span>
+                </div>
+              )}
             </div>
+            {/* 标签行 - 圆角胶囊 */}
+            {(item.tags?.platform_tags?.length || item.tags?.ai_tags?.length || item.tags?.manual_tags?.length) && (
+              <div className="mt-2 flex flex-wrap justify-end gap-2" onClick={e => e.stopPropagation()}>
+                {item.tags?.platform_tags?.map((tag, i) => (
+                  <span key={`p${i}`} className="rounded-full border border-blue-200 bg-blue-50 text-blue-600 px-2.5 py-0.5 text-xs">
+                    #{tag}
+                  </span>
+                ))}
+                {item.tags?.ai_tags?.map((tag, i) => (
+                  <span key={`a${i}`} className="rounded-full border border-purple-200 bg-purple-50 text-purple-600 px-2.5 py-0.5 text-xs">
+                    #{tag}
+                  </span>
+                ))}
+                {item.tags?.manual_tags?.map((tag, i) => (
+                  <span key={`m${i}`} className="rounded-full border border-green-200 bg-green-50 text-green-600 px-2.5 py-0.5 text-xs">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )
       },
@@ -147,95 +226,27 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       ),
       cell: ({ row }) => {
         const item = row.original
-        const status = getRealtimeStatus(item, props.taskStoreTasks)
         return (
-          <div className="min-w-0 py-1">
-            <div className="font-medium text-foreground line-clamp-2">{item.title}</div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm text-muted-foreground">{item.author}</span>
-              {props.isSubscribable(item.platform) && item.author && (
-                <button
-                  className={cn(
-                    'flex items-center gap-0.5 text-xs transition-colors',
-                    props.isSubscribed(item.author)
-                      ? 'text-primary'
-                      : 'text-muted-foreground hover:text-primary',
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (props.isSubscribed(item.author)) {
-                      import('sonner').then(t => t.toast.info('已订阅该频道'))
-                    } else {
-                      props.onSubscribe(item.video_url)
-                    }
-                  }}
-                >
-                  <Rss className="w-3 h-3" />
-                </button>
-              )}
+          <div className="min-w-0 py-2">
+            <div className="font-medium text-foreground line-clamp-2 text-sm">{item.title}</div>
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <PlatformIconSmall platform={item.platform} />
+                {item.author || platformLabel[item.platform]}
+              </span>
+              <span>·</span>
+              <span>{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : ''}</span>
             </div>
-            {/* 标签显示 */}
-            {(item.tags?.platform_tags?.length || item.tags?.ai_tags?.length || item.tags?.manual_tags?.length) && (
-              <div className="flex gap-1 flex-wrap items-center mt-1" onClick={e => e.stopPropagation()}>
-                {item.tags?.platform_tags?.map((tag, i) => (
-                  <Badge key={`p${i}`} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] h-5 px-1.5">
-                    {tag}
-                  </Badge>
-                ))}
-                {item.tags?.ai_tags?.map((tag, i) => (
-                  <Badge key={`a${i}`} variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
-                    {tag}
-                  </Badge>
-                ))}
-                {item.tags?.manual_tags?.map((tag, i) => (
-                  <Badge key={`m${i}`} variant="outline" className="bg-green-50 text-green-600 border-green-200 text-[10px] h-5 px-1.5">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
-            {isProcessingStatus(status) && (() => {
-              const { currentStep, stepLabel } = getStepProgress(status)
-              return (
-                <div className="flex flex-col gap-1 mt-2">
-                  <div className="flex items-center gap-2 text-xs">
-                    <LoaderCircle className="w-3 h-3 animate-spin text-primary" />
-                    <span className="text-primary">{stepLabel}</span>
-                    <span className="text-muted-foreground">{currentStep}/6</span>
-                  </div>
-                  <div className="flex gap-1">
-                    {PROGRESS_STEPS.map((step, idx) => (
-                      <div
-                        key={step.key}
-                        className={cn(
-                          'h-1 flex-1 rounded-full transition-all duration-300',
-                          idx < currentStep ? 'bg-primary' : 'bg-muted',
-                        )}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )
-            })()}
-            {status === 'QUEUED' && (
-              <div className="flex items-center gap-2 text-xs mt-2 text-muted-foreground">
-                <LoaderCircle className="w-3 h-3 animate-spin" />
-                排队等待中...
-              </div>
-            )}
-            {status === 'FAILED' && (
-              <div className="text-xs mt-2 text-red-500">生成失败</div>
-            )}
           </div>
         )
       },
     },
     {
       accessorKey: 'note',
-      header: '笔记',
+      header: '内容预览',
       cell: ({ row }) => (
-        <div className="min-w-0 max-w-xs">
-          <div className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">{row.original.note}</div>
+        <div className="min-w-0 max-w-sm">
+          <div className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-line">{row.original.note}</div>
         </div>
       ),
     },

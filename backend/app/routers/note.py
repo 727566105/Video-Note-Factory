@@ -1071,7 +1071,7 @@ def cache_statistics(current_user=Depends(get_current_user)) -> dict:
 
 
 @router.post("/cache/clean")
-def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None, current_user=Depends(get_current_user)) -> dict:
+def trigger_cache_clean(dry_run: bool = False, ttl_days: Optional[int] = None, current_user=Depends(require_admin)) -> dict:
     """
     手动触发缓存清理
 
@@ -1126,7 +1126,7 @@ def get_queue_status(current_user=Depends(get_current_user)) -> dict:
 
 
 @router.post("/task_queue/config")
-def update_queue_config(data: QueueConfigRequest, current_user=Depends(get_current_user)) -> dict:
+def update_queue_config(data: QueueConfigRequest, current_user=Depends(require_admin)) -> dict:
     """更新任务队列配置"""
     try:
         task_queue.update_max_concurrent(data.max_concurrent)

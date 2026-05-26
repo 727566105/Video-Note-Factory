@@ -286,7 +286,7 @@ export const TaskQueuePanel: FC = () => {
   const navigate = useNavigate()
 
   const tasks = useTaskStore(state => state.tasks)
-  const removeTask = useTaskStore(state => state.removeTask)
+  const dismissTask = useTaskStore(state => state.dismissTask)
   const dismissTasks = useTaskStore(state => state.dismissTasks)
   const setCurrentTask = useTaskStore(state => state.setCurrentTask)
   const retryTask = useTaskStore(state => state.retryTask)
@@ -359,12 +359,8 @@ export const TaskQueuePanel: FC = () => {
     navigate(`/notes/${taskId}`)
   }
 
-  const handleDelete = async (taskId: string) => {
-    try {
-      await removeTask(taskId)
-    } catch {
-      // removeTask 内部已 toast
-    }
+  const handleDelete = (taskId: string) => {
+    dismissTask(taskId)
   }
 
   const handleClearCompleted = () => {

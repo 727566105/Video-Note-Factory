@@ -68,13 +68,11 @@ export default function ChannelDetailPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'summarized' | 'new'>('all')
+  const [filter, setFilter] = useState<'all' | 'summarized' | 'unsummarized' | 'fresh'>('all')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
 
   // 新增：刷新后新增的条目 ID
   const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set())
-  // 是否正在显示新内容（Toast 点击后）
-  const [showOnlyFresh, setShowOnlyFresh] = useState(false)
 
   // 视图模式
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
@@ -201,7 +199,7 @@ export default function ChannelDetailPage() {
               const channelName = sub?.channel_name || '博主'
               toast.custom((t) => (
                 <div
-                  onClick={() => { toast.dismiss(t); setShowOnlyFresh(true); }}
+                  onClick={() => { toast.dismiss(t); setFilter('fresh'); }}
                   className="animate-bounce-in cursor-pointer flex items-center gap-3 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg hover:bg-green-700 transition-colors max-w-sm"
                 >
                   <span className="text-2xl">🎉</span>
@@ -362,18 +360,16 @@ export default function ChannelDetailPage() {
 
   const filtered = videos.filter(v => {
     if (search && !v.title?.includes(search)) return false
-    // 优先处理"只显示新内容"模式
-    if (showOnlyFresh) return newItemIds.has(String(v.id))
+    if (filter === 'fresh') return newItemIds.has(String(v.id))
     if (filter === 'summarized') return !!v.task_id
-    if (filter === 'new') return !v.task_id
+    if (filter === 'unsummarized') return !v.task_id
     return true
   })
 
   // 切换筛选时清除"新内容"高亮
-  const handleFilterChange = (newFilter: 'all' | 'summarized' | 'new') => {
+  const handleFilterChange = (newFilter: 'all' | 'summarized' | 'unsummarized' | 'fresh') => {
     setFilter(newFilter)
-    if (showOnlyFresh) {
-      setShowOnlyFresh(false)
+    if (newFilter !== 'fresh') {
       setNewItemIds(new Set())
     }
   }
@@ -455,20 +451,12 @@ export default function ChannelDetailPage() {
         <Input placeholder="搜索标题..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
         <select className="rounded-md border px-3 py-2 text-sm bg-background" value={filter} onChange={e => handleFilterChange(e.target.value as any)}>
           <option value="all">全部</option>
-          {showOnlyFresh && newItemIds.size > 0 && (
-            <option value="new" disabled selected>新内容 ({newItemIds.size})</option>
+          {newItemIds.size > 0 && (
+            <option value="fresh">新内容 ({newItemIds.size})</option>
           )}
           <option value="summarized">已总结</option>
-          <option value="new">未总结</option>
+          <option value="unsummarized">未总结</option>
         </select>
-        {showOnlyFresh && (
-          <button
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-amber-100 text-amber-700 border border-amber-300 text-xs font-medium animate-bounce-in hover:bg-amber-200 transition-colors"
-            onClick={() => { setShowOnlyFresh(false); setNewItemIds(new Set()); setFilter('all'); }}
-          >
-            新内容 ({newItemIds.size}) · 查看全部
-          </button>
-        )}
         <span className="text-sm text-muted-foreground ml-2">共 {total} 条</span>
         {/* 视图切换 */}
         <div className="flex items-center gap-1 ml-2">

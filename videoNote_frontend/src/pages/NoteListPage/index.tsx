@@ -107,32 +107,50 @@ function NoteEmptyState({ onQuickAdd }: { onQuickAdd: () => void }) {
   )
 }
 
-// 根据 taskStore 获取实时状态
 function getRealtimeStatus(item: NoteItem, taskStoreTasks: { id: string; status: string }[]): string {
   const storeTask = taskStoreTasks.find(t => t.id === item.task_id)
   return storeTask?.status || item.status
 }
 
-// 标签显示行
+// 平台名称映射
+const platformLabel: Record<string, string> = {
+  bilibili: 'B站',
+  youtube: 'YouTube',
+  douyin: '抖音',
+  xiaohongshu: '小红书',
+  kuaishou: '快手',
+  local: '本地视频',
+  local_audio: '本地音频',
+}
+
+// 标签显示行（圆角胶囊样式 + # 前缀）
 function TagsRow({ item, onTagsUpdate }: { item: NoteItem; onTagsUpdate: (id: string, tags: any) => void }) {
   const hasTags = (item.tags?.platform_tags?.length || 0) > 0 || (item.tags?.ai_tags?.length || 0) > 0 || (item.tags?.manual_tags?.length || 0) > 0
   return (
-    <div className="flex gap-1 flex-wrap items-center mt-2" onClick={e => e.stopPropagation()}>
+    <div className="flex gap-2 flex-wrap items-center mt-2" onClick={e => e.stopPropagation()}>
+      {/* 平台标签 - 蓝色 */}
       {item.tags?.platform_tags?.map((tag, i) => (
-        <Badge key={`p${i}`} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] h-5 px-1.5">
-          {tag}
-        </Badge>
+        <span key={`p${i}`} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100">
+          #{tag}
+        </span>
       ))}
+      {/* AI 标签 - 紫色 */}
       {item.tags?.ai_tags?.map((tag, i) => (
-        <Badge key={`a${i}`} variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
-          {tag}
-        </Badge>
+        <span key={`a${i}`} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100">
+          #{tag}
+        </span>
       ))}
+      {/* 手动标签 - 绿色 */}
       {item.tags?.manual_tags?.map((tag, i) => (
-        <Badge key={`m${i}`} variant="outline" className="bg-green-50 text-green-600 border-green-200 text-[10px] h-5 px-1.5">
-          {tag}
-        </Badge>
+        <span key={`m${i}`} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer bg-green-50 text-green-600 border-green-200 hover:bg-green-100">
+          #{tag}
+        </span>
       ))}
+      {/* 平台标识 */}
+      <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">
+        {platformLabel[item.platform] || item.platform}
+      </span>
+      {/* 编辑按钮 */}
       <TagEditorPopover
         taskId={item.task_id}
         tags={item.tags}
@@ -559,6 +577,7 @@ export const NoteListPage: FC = () => {
           isSubscribed={isSubscribed}
           isSubscribable={isSubscribable}
           taskStoreTasks={taskStoreTasks}
+          onTagsUpdate={handleTagsUpdate}
         />
       ) : noteViewMode === 'card' ? (
         /* 卡片视图 */

@@ -232,6 +232,12 @@ export const useTaskStore = create<TaskStore>()(
         tasks: state.tasks.filter(t => !statuses.includes(t.status)),
       })),
 
+      // 只从本地队列移除单个任务，不调用后端 API（用于 TaskQueuePanel X 按钮）
+      dismissTask: (id) => set(state => ({
+        tasks: state.tasks.filter(t => t.id !== id),
+        currentTaskId: state.currentTaskId === id ? null : state.currentTaskId,
+      })),
+
       setCurrentTask: taskId => set({ currentTaskId: taskId }),
 
       loadTasksFromBackend: async () => {
@@ -345,6 +351,27 @@ export const useTaskStore = create<TaskStore>()(
     }),
     {
       name: 'task-storage',
+      // 只持久化必要元数据，不存储 markdown/transcript/formData 大数据
+      partialize: (state) => ({
+        currentTaskId: state.currentTaskId,
+        tasks: state.tasks.map(task => ({
+          id: task.id,
+          status: task.status,
+          createdAt: task.createdAt,
+          platform: task.platform,
+          content_type: task.content_type,
+          audioMeta: {
+            video_id: task.audioMeta.video_id,
+            title: task.audioMeta.title,
+            cover_url: task.audioMeta.cover_url,
+            author: task.audioMeta.author,
+            duration: task.audioMeta.duration,
+          },
+          author_id: task.author_id,
+          author_name: task.author_name,
+          tags: task.tags,
+        })),
+      }),
     }
   )
 )
