@@ -150,15 +150,13 @@ const TaskQueueItem: FC<{
   const title = getTaskTitle(task)
   const isLocal = task.platform === 'local' || task.platform === 'local_audio'
 
-  // 判断 cover_url 是否是有效的远程 URL（非 /api/video_cover/ 本地路径）
+  // 非本地平台统一走 image proxy（与 NoteHistory 保持一致）
   const rawCoverUrl = task.audioMeta.cover_url || ''
-  const isLocalCoverPath = rawCoverUrl.startsWith('/api/video_cover/')
-  const isValidRemoteUrl = rawCoverUrl && !isLocalCoverPath && (rawCoverUrl.startsWith('http://') || rawCoverUrl.startsWith('https://') || rawCoverUrl.startsWith('/static/') || rawCoverUrl.startsWith('data/'))
 
   const thumbnailSrc = isLocal
-    ? (isValidRemoteUrl ? rawCoverUrl : (task.platform === 'local_audio' ? '/local-audio-cover.svg' : '/local-video-cover.svg'))
+    ? (task.platform === 'local_audio' ? '/local-audio-cover.svg' : '/local-video-cover.svg')
     : rawCoverUrl
-      ? (isValidRemoteUrl ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}` : '/placeholder.png')
+      ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}`
       : '/placeholder.png'
 
   return (
