@@ -34,12 +34,40 @@
 
 天/周/月周期使用 CronTrigger（固定时间点），其余使用 IntervalTrigger。
 
+### 周期选项的执行时间配置
+
+高频/中频/低频选项使用 IntervalTrigger，无需额外配置。
+
+周期选项（每天/每周/每月）使用 CronTrigger，**管理员可设置具体执行时间**：
+
+| 周期选项 | 额外配置 | UI 控件 | 示例 |
+|----------|----------|---------|------|
+| 每天 | 执行时刻 | 小时下拉 (0-23) | 每天 03:00 |
+| 每周 | 星期几 + 时刻 | 星期下拉 + 小时下拉 | 每周一 10:00 |
+| 每月 | 几号 + 时刻 | 日期下拉 (1-28) + 小时下拉 | 每月1号 08:00 |
+
+**前端交互**：选择周期选项后，自动展开时间选择器，默认值为凌晨 3 点。
+
+**CronTrigger 映射**：
+```
+每天 03:00 → CronTrigger(hour=3, minute=0)
+每周一 10:00 → CronTrigger(day_of_week='mon', hour=10, minute=0)
+每月1号 08:00 → CronTrigger(day=1, hour=8, minute=0)
+```
+
 ### 后端 API
 
 **新增接口：**
 
 - `PUT /api/subscriptions/{sub_id}/fetch-interval` — 管理员设置间隔（require_admin）
-- `GET /api/subscriptions/fetch-intervals` — 获取预设选项列表
+  ```
+  Body: {
+    "fetch_interval": 1440,
+    "fetch_at_hour": 3,     // 仅周期选项需要
+    "fetch_at_day": null    // 每天=null，每周=0-6，每月=1-28
+  }
+  ```
+- `GET /api/subscriptions/fetch-intervals` — 获取预设选项列表（含时间配置提示）
 
 **现有接口联动：**
 
@@ -64,7 +92,16 @@ ChannelsPage 订阅表格新增「刷新间隔」列（管理员可见）：
 
 ### 数据库
 
-复用已有 `subscriptions.fetch_interval`（INTEGER, DEFAULT 60），无需新增列。
+复用已有 `subscriptions.fetch_interval`（INTEGER, DEFAULT 60）。
+
+**新增字段**（用于周期选项的执行时间配置）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `fetch_at_hour` | INTEGER | 执行时刻（0-23），默认 3 |
+| `fetch_at_day` | INTEGER | 每周：星期几（0=周一，6=周日）；每月：几号（1-28）|
+
+迁移逻辑：`migrate_subscriptions_table()` 检查并添加新字段。
 
 ### 调度管理器 SubscriptionScheduler
 
