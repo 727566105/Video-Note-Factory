@@ -71,6 +71,11 @@ export default function ChannelDetailPage() {
   const [filter, setFilter] = useState<'all' | 'summarized' | 'new'>('all')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
 
+  // 新增：刷新后新增的条目 ID
+  const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set())
+  // 是否正在显示新内容（Toast 点击后）
+  const [showOnlyFresh, setShowOnlyFresh] = useState(false)
+
   // 视图模式
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
@@ -178,10 +183,37 @@ export default function ChannelDetailPage() {
             stopPolling()
             setFetching(false)
             const added = p.added_count || 0
-            const total = p.total_count || 0
-            toast.success(`获取完成，新增 ${added} 条，总计 ${total} 条`)
+            const totalCount = p.total_count || 0
             setPage(1)
-            loadVideos()
+            // 先加载视频，然后找出新增的条目
+            const offset = 0
+            const videoRes = await fetchChannelVideos(platform!, id!, PAGE_SIZE, offset)
+            const newVideos = videoRes?.items || []
+            setVideos(newVideos)
+            setTotal(videoRes?.total || 0)
+            if (added > 0) {
+              // 记录新增条目 ID（按时间排序，最新的 added 个）
+              const sortedByTime = [...newVideos].sort((a, b) =>
+                new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()
+              )
+              const addedIds = new Set(sortedByTime.slice(0, added).map(v => String(v.id)))
+              setNewItemIds(addedIds)
+              const channelName = sub?.channel_name || '博主'
+              toast.custom((t) => (
+                <div
+                  onClick={() => { toast.dismiss(t); setShowOnlyFresh(true); }}
+                  className="animate-bounce-in cursor-pointer flex items-center gap-3 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg hover:bg-green-700 transition-colors max-w-sm"
+                >
+                  <span className="text-2xl">🎉</span>
+                  <div className="flex-1">
+                    <div className="font-semibold">博主【{channelName}】更新了 {added} 条新内容</div>
+                    <div className="text-xs text-green-100">点击查看最新作品</div>
+                  </div>
+                </div>
+              ), { duration: 8000 })
+            } else {
+              toast.success('刷新完成，暂无新内容')
+            }
           } else if (p.status === 'failed') {
             stopPolling()
             setFetching(false)
@@ -330,10 +362,21 @@ export default function ChannelDetailPage() {
 
   const filtered = videos.filter(v => {
     if (search && !v.title?.includes(search)) return false
+    // 优先处理"只显示新内容"模式
+    if (showOnlyFresh) return newItemIds.has(String(v.id))
     if (filter === 'summarized') return !!v.task_id
     if (filter === 'new') return !v.task_id
     return true
   })
+
+  // 切换筛选时清除"新内容"高亮
+  const handleFilterChange = (newFilter: 'all' | 'summarized' | 'new') => {
+    setFilter(newFilter)
+    if (showOnlyFresh) {
+      setShowOnlyFresh(false)
+      setNewItemIds(new Set())
+    }
+  }
 
   // 判断是否为空数据状态（已加载完毕，无内容，无正在获取）
   const isEmpty = !loading && total === 0 && !fetching
@@ -410,11 +453,22 @@ export default function ChannelDetailPage() {
 
       <div className="shrink-0 px-6 py-3 flex gap-3 items-center">
         <Input placeholder="搜索标题..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
-        <select className="rounded-md border px-3 py-2 text-sm bg-background" value={filter} onChange={e => setFilter(e.target.value as any)}>
+        <select className="rounded-md border px-3 py-2 text-sm bg-background" value={filter} onChange={e => handleFilterChange(e.target.value as any)}>
           <option value="all">全部</option>
+          {showOnlyFresh && newItemIds.size > 0 && (
+            <option value="new" disabled selected>新内容 ({newItemIds.size})</option>
+          )}
           <option value="summarized">已总结</option>
           <option value="new">未总结</option>
         </select>
+        {showOnlyFresh && (
+          <button
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-amber-100 text-amber-700 border border-amber-300 text-xs font-medium animate-bounce-in hover:bg-amber-200 transition-colors"
+            onClick={() => { setShowOnlyFresh(false); setNewItemIds(new Set()); setFilter('all'); }}
+          >
+            新内容 ({newItemIds.size}) · 查看全部
+          </button>
+        )}
         <span className="text-sm text-muted-foreground ml-2">共 {total} 条</span>
         {/* 视图切换 */}
         <div className="flex items-center gap-1 ml-2">
@@ -479,7 +533,9 @@ export default function ChannelDetailPage() {
               : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
           }`}>
             {filtered.map(item => (
-              <div key={item.id} className="rounded-lg overflow-hidden border bg-card hover:shadow-md transition-shadow group">
+              <div key={item.id} className={`rounded-lg overflow-hidden border bg-card hover:shadow-md transition-shadow group ${
+                newItemIds.has(String(item.id)) ? 'ring-2 ring-amber-400 bg-amber-50' : ''
+              }`}>
                 <div className={`relative bg-muted ${features.portraitVideo ? 'aspect-[9/16]' : 'aspect-video'}`}>
                   {item.cover_url && <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
                   {features.videoDuration && item.duration && (
@@ -530,7 +586,9 @@ export default function ChannelDetailPage() {
             </tr></thead>
             <tbody>
               {filtered.map(item => (
-                <tr key={item.id} className="border-b hover:bg-accent/30">
+                <tr key={item.id} className={`border-b hover:bg-accent/30 ${
+                  newItemIds.has(String(item.id)) ? 'bg-amber-50 ring-1 ring-amber-300' : ''
+                }`}>
                   <td className="px-4 py-2">
                     <div className="w-24 h-14 bg-muted rounded overflow-hidden relative">
                       {item.cover_url && <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
