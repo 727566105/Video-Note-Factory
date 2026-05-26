@@ -2,7 +2,8 @@
 import threading
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
+from app.tasks.subscription_scheduler import get_subscription_scheduler, FETCH_INTERVAL_OPTIONS
 from app.db import subscription_dao
 from app.services.channel_fetcher import identify_platform, fetch_all_for_subscription, parse_channel_info
 from app.db.subscription_dao import upsert_feed_items, get_channel_stats
@@ -21,6 +22,12 @@ class SubscribeRequest(BaseModel):
     url: str
 
 
+@router.get("/fetch-intervals")
+async def get_fetch_intervals(user=Depends(get_current_user)) -> dict:
+    """获取预设刷新间隔选项"""
+    return R.success(FETCH_INTERVAL_OPTIONS)
+
+
 @router.get("")
 async def list_subscriptions(user=Depends(get_current_user)) -> dict:
     subs = subscription_dao.get_user_subscriptions(user.id)
@@ -34,6 +41,8 @@ async def list_subscriptions(user=Depends(get_current_user)) -> dict:
         "avatar_url": s.avatar_url,
         "enabled": s.enabled,
         "fetch_interval": s.fetch_interval,
+        "fetch_at_hour": s.fetch_at_hour,
+        "fetch_at_day": s.fetch_at_day,
         "last_checked_at": s.last_checked_at.isoformat() if s.last_checked_at else None,
         "created_at": s.created_at.isoformat() if s.created_at else None,
     } for s in subs])
@@ -233,6 +242,13 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
 
 @router.delete("/{sub_id}")
 async def delete_subscription(sub_id: int, user=Depends(get_current_user)) -> dict:
+    # 先移除调度任务
+    try:
+        sched = get_subscription_scheduler()
+        sched.remove_job(sub_id)
+    except RuntimeError:
+        pass
+
     subscription_dao.remove_subscription(sub_id, user.id)
     return R.success(msg="已取消订阅")
 
@@ -242,6 +258,14 @@ async def toggle_subscription(sub_id: int, user=Depends(get_current_user)) -> di
     sub = subscription_dao.toggle_subscription(sub_id, user.id)
     if not sub:
         raise HTTPException(status_code=404, detail="订阅不存在")
+
+    # 重新调度任务
+    try:
+        sched = get_subscription_scheduler()
+        sched.reschedule_job(sub)
+    except RuntimeError:
+        pass
+
     return R.success({"enabled": sub.enabled})
 
 
@@ -357,3 +381,46 @@ async def get_refresh_progress(progress_id: str, user=Depends(get_current_user))
     if not progress:
         raise HTTPException(status_code=404, detail="进度不存在或已过期")
     return R.success(progress)
+
+
+class FetchIntervalRequest(BaseModel):
+    fetch_interval: int
+    fetch_at_hour: int = 3
+    fetch_at_day: int | None = None
+
+
+@router.put("/{sub_id}/fetch-interval")
+async def update_fetch_interval(sub_id: int, req: FetchIntervalRequest, user=Depends(require_admin)) -> dict:
+    """管理员设置订阅刷新间隔"""
+    from app.db import get_db
+    from app.db.models.subscriptions import Subscription
+    from sqlalchemy import update
+
+    db = next(get_db())
+    try:
+        db.execute(
+            update(Subscription)
+            .where(Subscription.id == sub_id)
+            .values(
+                fetch_interval=req.fetch_interval,
+                fetch_at_hour=req.fetch_at_hour,
+                fetch_at_day=req.fetch_at_day,
+            )
+        )
+        db.commit()
+        sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
+        if not sub:
+            raise HTTPException(status_code=404, detail="订阅不存在")
+
+        # 实时重新调度任务
+        scheduler = get_subscription_scheduler()
+        scheduler.reschedule_job(sub)
+
+        return R.success({
+            "id": sub.id,
+            "fetch_interval": sub.fetch_interval,
+            "fetch_at_hour": sub.fetch_at_hour,
+            "fetch_at_day": sub.fetch_at_day,
+        })
+    finally:
+        db.close()
