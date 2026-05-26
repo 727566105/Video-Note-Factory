@@ -17,6 +17,8 @@ class Subscription(Base):
     avatar_url = Column(String, nullable=True)
     enabled = Column(Integer, default=1)
     fetch_interval = Column(Integer, default=60)
+    fetch_at_hour = Column(Integer, default=3)
+    fetch_at_day = Column(Integer, nullable=True)
     last_checked_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 

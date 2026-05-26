@@ -200,6 +200,7 @@ def init_db():
     migrate_channel_fetch_status_cursor()
     migrate_subscriptions_unique_id()
     migrate_video_tasks_tags_column()
+    migrate_subscriptions_fetch_time()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户
@@ -220,5 +221,27 @@ def migrate_subscriptions_unique_id():
             logger.info("subscriptions: unique_id 列添加成功")
     except Exception as e:
         logger.error(f"subscriptions 迁移失败: {e}")
+    finally:
+        db.close()
+
+
+def migrate_subscriptions_fetch_time():
+    """迁移：subscriptions 添加 fetch_at_hour 和 fetch_at_day 字段"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(subscriptions)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "fetch_at_hour" not in columns:
+            logger.info("subscriptions: fetch_at_hour 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE subscriptions ADD COLUMN fetch_at_hour INTEGER DEFAULT 3"))
+            db.commit()
+            logger.info("subscriptions: fetch_at_hour 列添加成功")
+        if "fetch_at_day" not in columns:
+            logger.info("subscriptions: fetch_at_day 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE subscriptions ADD COLUMN fetch_at_day INTEGER"))
+            db.commit()
+            logger.info("subscriptions: fetch_at_day 列添加成功")
+    except Exception as e:
+        logger.error(f"subscriptions fetch_time 迁移失败: {e}")
     finally:
         db.close()
