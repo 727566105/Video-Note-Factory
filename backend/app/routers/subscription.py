@@ -392,7 +392,7 @@ class FetchIntervalRequest(BaseModel):
 @router.put("/{sub_id}/fetch-interval")
 async def update_fetch_interval(sub_id: int, req: FetchIntervalRequest, user=Depends(require_admin)) -> dict:
     """管理员设置订阅刷新间隔"""
-    from app.db import get_db
+    from app.db.engine import get_db
     from app.db.models.subscriptions import Subscription
     from sqlalchemy import update
 
