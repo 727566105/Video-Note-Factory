@@ -10,6 +10,8 @@ export interface Subscription {
   avatar_url: string
   enabled: number
   fetch_interval: number
+  fetch_at_hour: number
+  fetch_at_day: number | null
   last_checked_at: string | null
   created_at: string | null
 }
@@ -153,3 +155,34 @@ export interface FetchMoreResult {
 /** 触发加载更多视频 */
 export const fetchMoreVideos = (platform: string, platformId: string) =>
   request.post<FetchMoreResult>(`/channels/${platform}/${platformId}/fetch-more`)
+
+// ---- 刷新间隔相关 API ----
+
+export interface FetchIntervalOption {
+  label: string
+  value: number
+}
+
+export interface FetchIntervalGroups {
+  高频: FetchIntervalOption[]
+  中频: FetchIntervalOption[]
+  低频: FetchIntervalOption[]
+  周期: FetchIntervalOption[]
+}
+
+export const fetchIntervalOptions = () =>
+  request.get<FetchIntervalGroups>('/subscriptions/fetch-intervals')
+
+export interface FetchIntervalRequest {
+  fetch_interval: number
+  fetch_at_hour?: number
+  fetch_at_day?: number | null
+}
+
+export const updateFetchInterval = (id: number, data: FetchIntervalRequest) =>
+  request.put<{
+    id: number
+    fetch_interval: number
+    fetch_at_hour: number
+    fetch_at_day: number | null
+  }>(`/subscriptions/${id}/fetch-interval`, data)
