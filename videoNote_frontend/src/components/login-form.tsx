@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useTaskStore } from '@/store/taskStore'
 import request from '@/utils/request'
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ export function LoginForm({
     setLoading(true)
     try {
       const res = await request.post<{ token: string; user: { id: number; username: string; role: string } }>('/auth/login', { username, password })
+      useTaskStore.getState().clearTasks()  // 清空前一个用户的残留任务
       setAuth(res.token, res.user)
       navigate('/', { replace: true })
     } catch (err: unknown) {

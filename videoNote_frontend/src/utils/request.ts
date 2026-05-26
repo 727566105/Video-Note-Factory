@@ -55,8 +55,8 @@ request.interceptors.response.use(
     if (error.response?.status === 401) {
       const { token, logout } = useAuthStore.getState()
       if (token) {
-        logout()
         useTaskStore.getState().clearTasks()
+        logout()
         toast.error('登录已过期，请重新登录')
         window.location.href = '/login'
         return Promise.reject(error)
