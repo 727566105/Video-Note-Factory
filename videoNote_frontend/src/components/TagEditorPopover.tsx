@@ -18,6 +18,7 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
   const [open, setOpen] = useState(false)
   const [platformTags, setPlatformTags] = useState<string[]>([])
   const [aiTags, setAiTags] = useState<string[]>([])
+  const [manualTags, setManualTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -25,32 +26,35 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
     if (open) {
       setPlatformTags(tags?.platform_tags || [])
       setAiTags(tags?.ai_tags || [])
+      setManualTags(tags?.manual_tags || [])
     }
   }, [open, tags])
 
-  const handleAddTag = (type: 'platform' | 'ai') => {
+  const handleAddTag = () => {
     if (!newTag.trim()) return
-    if (type === 'platform') {
-      setPlatformTags([...platformTags, newTag.trim()])
-    } else {
-      setAiTags([...aiTags, newTag.trim()])
-    }
+    setManualTags([...manualTags, newTag.trim()])
     setNewTag('')
   }
 
-  const handleRemoveTag = (type: 'platform' | 'ai', index: number) => {
+  const handleRemoveTag = (type: 'platform' | 'ai' | 'manual', index: number) => {
     if (type === 'platform') {
       setPlatformTags(platformTags.filter((_, i) => i !== index))
-    } else {
+    } else if (type === 'ai') {
       setAiTags(aiTags.filter((_, i) => i !== index))
+    } else {
+      setManualTags(manualTags.filter((_, i) => i !== index))
     }
   }
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updateNoteTags(taskId, { platform_tags: platformTags, ai_tags: aiTags })
-      onUpdate({ platform_tags: platformTags, ai_tags: aiTags })
+      await updateNoteTags(taskId, {
+        platform_tags: platformTags,
+        ai_tags: aiTags,
+        manual_tags: manualTags
+      })
+      onUpdate({ platform_tags: platformTags, ai_tags: aiTags, manual_tags: manualTags })
       toast.success('标签已保存')
       setOpen(false)
     } catch {
@@ -98,6 +102,19 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
             </div>
           </div>
 
+          <div>
+            <div className="text-xs text-muted-foreground mb-2">手动标签</div>
+            <div className="flex gap-1 flex-wrap min-h-[28px]">
+              {manualTags.map((tag, i) => (
+                <Badge key={i} className="bg-green-50 text-green-600 border-green-200 text-xs gap-1 pr-1">
+                  {tag}
+                  <X className="size-3 cursor-pointer hover:text-green-800" onClick={() => handleRemoveTag('manual', i)} />
+                </Badge>
+              ))}
+              {manualTags.length === 0 && <span className="text-xs text-muted-foreground">暂无标签</span>}
+            </div>
+          </div>
+
           <div className="flex gap-2">
             <Input
               value={newTag}
@@ -105,10 +122,10 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
               placeholder="输入新标签"
               className="h-8 text-sm"
               onKeyDown={e => {
-                if (e.key === 'Enter') handleAddTag('ai')
+                if (e.key === 'Enter') handleAddTag()
               }}
             />
-            <Button size="sm" variant="outline" className="h-8" onClick={() => handleAddTag('ai')}>
+            <Button size="sm" variant="outline" className="h-8" onClick={handleAddTag}>
               <Plus className="size-4" />
             </Button>
           </div>

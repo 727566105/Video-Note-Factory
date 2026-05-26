@@ -115,7 +115,7 @@ function getRealtimeStatus(item: NoteItem, taskStoreTasks: { id: string; status:
 
 // 标签显示行
 function TagsRow({ item, onTagsUpdate }: { item: NoteItem; onTagsUpdate: (id: string, tags: any) => void }) {
-  const hasTags = (item.tags?.platform_tags?.length || 0) > 0 || (item.tags?.ai_tags?.length || 0) > 0
+  const hasTags = (item.tags?.platform_tags?.length || 0) > 0 || (item.tags?.ai_tags?.length || 0) > 0 || (item.tags?.manual_tags?.length || 0) > 0
   return (
     <div className="flex gap-1 flex-wrap items-center mt-2" onClick={e => e.stopPropagation()}>
       {item.tags?.platform_tags?.map((tag, i) => (
@@ -125,6 +125,11 @@ function TagsRow({ item, onTagsUpdate }: { item: NoteItem; onTagsUpdate: (id: st
       ))}
       {item.tags?.ai_tags?.map((tag, i) => (
         <Badge key={`a${i}`} variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
+          {tag}
+        </Badge>
+      ))}
+      {item.tags?.manual_tags?.map((tag, i) => (
+        <Badge key={`m${i}`} variant="outline" className="bg-green-50 text-green-600 border-green-200 text-[10px] h-5 px-1.5">
           {tag}
         </Badge>
       ))}

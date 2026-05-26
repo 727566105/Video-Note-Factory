@@ -30,6 +30,7 @@ export interface Model {
 export interface TaskTags {
   platform_tags: string[]
   ai_tags: string[]
+  manual_tags: string[]
 }
 
 export interface BackendTaskNote {

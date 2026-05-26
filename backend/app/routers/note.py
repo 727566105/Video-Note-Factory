@@ -327,7 +327,9 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
         if data.task_id:
             # 先查询数据库获取 author 信息（删除前查询）
             db_task = get_task_by_task_id(data.task_id)
-
+            # 权限检查：只允许删除自己的任务
+            if not db_task or db_task.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="无权删除该任务")
             # 删除数据库记录
             delete_task_by_id(data.task_id)
 
@@ -473,6 +475,9 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
     # 从数据库获取 author 信息用于兼容查找
     from app.db.video_task_dao import get_task_by_task_id
     db_task = get_task_by_task_id(task_id)
+    # 权限检查：只允许访问自己的任务
+    if not db_task or db_task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问该任务")
     _author_id = db_task.author_id if db_task else None
     _author_name = db_task.author_name if db_task else None
     _video_id = db_task.video_id if db_task else None
@@ -872,6 +877,9 @@ def quick_view_note(task_id: str, current_user=Depends(get_current_user)) -> dic
     # 先查数据库获取标题
     from app.db.video_task_dao import get_task_by_task_id
     task = get_task_by_task_id(task_id)
+    # 权限检查：只允许访问自己的任务
+    if not task or task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问该任务")
 
     result_path = find_note_file(
         task_id, task.author_id if task else None, task.author_name if task else None,
@@ -974,13 +982,19 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
 def update_note_tags(task_id: str, body: dict, current_user=Depends(get_current_user)) -> dict:
     """更新笔记标签"""
     import json as json_mod
-    from app.db.video_task_dao import update_task_metadata
+    from app.db.video_task_dao import update_task_metadata, get_task_by_task_id
+    # 权限检查：只允许修改自己的任务标签
+    db_task = get_task_by_task_id(task_id)
+    if not db_task or db_task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权修改该任务")
     try:
         platform_tags = body.get("platform_tags", [])
         ai_tags = body.get("ai_tags", [])
+        manual_tags = body.get("manual_tags", [])
         tags_json = json_mod.dumps({
             "platform_tags": platform_tags,
             "ai_tags": ai_tags,
+            "manual_tags": manual_tags,
         })
         update_task_metadata(task_id=task_id, tags=tags_json)
         return R.success(msg="标签更新成功")
@@ -1191,6 +1205,9 @@ def download_audio(task_id: str, current_user=Depends(get_current_user)) -> dict
     """下载任务对应的音频文件"""
     # 从数据库获取 author 信息用于兼容查找
     db_task = get_task_by_task_id(task_id)
+    # 权限检查：只允许下载自己的任务音频
+    if not db_task or db_task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权下载该任务音频")
     audio_path = find_note_file(
         task_id, db_task.author_id if db_task else None, db_task.author_name if db_task else None,
         db_task.video_id if db_task else None, db_task.title if db_task else None, "audio",

@@ -98,6 +98,12 @@ export default function NoteDetailPage() {
     outputLanguage: task?.formData?.output_language || 'zh',
     modelName: task?.formData?.model_name || '',
     providerId: task?.formData?.provider_id || '',
+    videoUnderstanding: task?.formData?.video_understanding ?? false,
+    videoInterval: task?.formData?.video_interval || 4,
+    gridCols: task?.formData?.grid_size?.[0] || 3,
+    gridRows: task?.formData?.grid_size?.[1] || 3,
+    selectedFormats: task?.formData?.format || [],
+    extras: task?.formData?.extras || '',
   })
 
   // taskId 变化时重新初始化局部设置
@@ -108,6 +114,12 @@ export default function NoteDetailPage() {
         outputLanguage: task.formData?.output_language || 'zh',
         modelName: task.formData?.model_name || '',
         providerId: task.formData?.provider_id || '',
+        videoUnderstanding: task.formData?.video_understanding ?? false,
+        videoInterval: task.formData?.video_interval || 4,
+        gridCols: task.formData?.grid_size?.[0] || 3,
+        gridRows: task.formData?.grid_size?.[1] || 3,
+        selectedFormats: task.formData?.format || [],
+        extras: task.formData?.extras || '',
       })
     }
   }, [task?.id])

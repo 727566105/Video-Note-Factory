@@ -15,7 +15,7 @@ from pydantic import HttpUrl
 from dotenv import load_dotenv
 
 from app.downloaders.base import Downloader
-from app.db.video_task_dao import delete_task_by_video, insert_video_task
+from app.db.video_task_dao import delete_task_by_video, insert_video_task, get_task_by_task_id
 from app.db.user_dao import get_user_by_id
 from app.enmus.exception import NoteErrorEnum, ProviderErrorEnum
 from app.enmus.task_status_enums import TaskStatus
@@ -1395,11 +1395,15 @@ class NoteGenerator:
                 if not author_name:
                     author_name = author if author else None
 
-            # 构建标签 JSON
+            # 构建标签 JSON（保留已有 manual_tags）
             platform_tags = audio_meta.tags if hasattr(audio_meta, 'tags') and audio_meta.tags else []
+            existing_task = get_task_by_task_id(task_id)
+            existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
+            existing_manual = existing_tags.get("manual_tags", [])
             tags_json = json.dumps({
                 "platform_tags": platform_tags,
-                "ai_tags": ai_tags or []
+                "ai_tags": ai_tags or [],
+                "manual_tags": existing_manual  # 保留手动添加的标签
             })
 
             update_task_metadata(

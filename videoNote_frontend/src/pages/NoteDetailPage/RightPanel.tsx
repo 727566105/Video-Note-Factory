@@ -68,6 +68,12 @@ export interface LocalSettings {
   outputLanguage: string
   modelName: string
   providerId: string
+  videoUnderstanding: boolean
+  videoInterval: number
+  gridCols: number
+  gridRows: number
+  selectedFormats: string[]
+  extras: string
 }
 
 export default function RightPanel({ task, isProcessing, processingStatus, localSettings }: RightPanelProps) {
@@ -174,6 +180,11 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
       provider_id: model.provider_id,
       style: localSettings.style,
       output_language: localSettings.outputLanguage,
+      video_understanding: localSettings.videoUnderstanding,
+      video_interval: localSettings.videoInterval,
+      grid_size: [localSettings.gridCols, localSettings.gridRows],
+      format: localSettings.selectedFormats,
+      extras: localSettings.extras,
     }
 
     try {

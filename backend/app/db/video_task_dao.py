@@ -91,13 +91,13 @@ def delete_task_by_id(task_id: str):
         db.close()
 
 
-# 获取所有任务（按用户隔离，管理员可看全部）
+# 获取所有任务（所有用户只看自己的笔记）
 def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
     db = next(get_db())
     try:
         query = db.query(VideoTask).order_by(VideoTask.created_at.desc())
-        # 非管理员只能看自己的任务
-        if role != "admin" and user_id:
+        # 所有用户都只看自己的任务
+        if user_id:
             query = query.filter_by(user_id=user_id)
         if limit:
             query = query.limit(limit)

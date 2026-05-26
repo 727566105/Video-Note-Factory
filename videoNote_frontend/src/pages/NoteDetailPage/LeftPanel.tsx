@@ -414,7 +414,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
           )}
         </div>
         {/* 标签显示 */}
-        {(task.tags?.platform_tags?.length || task.tags?.ai_tags?.length) && (
+        {(task.tags?.platform_tags?.length || task.tags?.ai_tags?.length || task.tags?.manual_tags?.length) && (
           <div className="flex gap-1 flex-wrap items-center">
             {task.tags?.platform_tags?.map((tag, i) => (
               <Badge key={`p${i}`} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] h-5 px-1.5">
@@ -423,6 +423,11 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
             ))}
             {task.tags?.ai_tags?.map((tag, i) => (
               <Badge key={`a${i}`} variant="outline" className="bg-purple-50 text-purple-600 border-purple-200 text-[10px] h-5 px-1.5">
+                {tag}
+              </Badge>
+            ))}
+            {task.tags?.manual_tags?.map((tag, i) => (
+              <Badge key={`m${i}`} variant="outline" className="bg-green-50 text-green-600 border-green-200 text-[10px] h-5 px-1.5">
                 {tag}
               </Badge>
             ))}
@@ -451,12 +456,17 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
         localValues={{
           style: localSettings.style,
           outputLanguage: localSettings.outputLanguage,
+          videoUnderstanding: localSettings.videoUnderstanding,
+          videoInterval: localSettings.videoInterval,
+          gridCols: localSettings.gridCols,
+          gridRows: localSettings.gridRows,
+          selectedFormats: localSettings.selectedFormats,
+          extras: localSettings.extras,
         }}
         onLocalChange={(values) => {
           onSettingsChange({
             ...localSettings,
-            style: values.style ?? localSettings.style,
-            outputLanguage: values.outputLanguage ?? localSettings.outputLanguage,
+            ...values,
           })
         }}
       />
