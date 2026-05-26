@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { getApiBaseURL } from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
+import { useTaskStore } from '@/store/taskStore'
 
 // 统一响应类型
 export interface IResponse<T = unknown> {
@@ -55,6 +56,7 @@ request.interceptors.response.use(
       const { token, logout } = useAuthStore.getState()
       if (token) {
         logout()
+        useTaskStore.getState().clearTasks()
         toast.error('登录已过期，请重新登录')
         window.location.href = '/login'
         return Promise.reject(error)

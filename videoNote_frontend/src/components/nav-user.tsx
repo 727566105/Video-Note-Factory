@@ -22,6 +22,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { useAuthStore } from "@/store/authStore"
+import { useTaskStore } from "@/store/taskStore"
 import { useNavigate } from "react-router-dom"
 
 export function NavUser({
@@ -118,7 +119,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer" onClick={() => { logout(); navigate('/login') }}>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => { useTaskStore.getState().clearTasks(); logout(); navigate('/login') }}>
               <LogOut className="mr-2 h-4 w-4" />
               退出登录
             </DropdownMenuItem>
