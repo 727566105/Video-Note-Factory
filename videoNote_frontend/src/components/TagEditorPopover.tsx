@@ -30,10 +30,27 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
     }
   }, [open, tags])
 
-  const handleAddTag = () => {
-    if (!newTag.trim()) return
-    setManualTags([...manualTags, newTag.trim()])
+  const handleAddAndSave = async () => {
+    if (!newTag.trim() || saving) return
+    const tag = newTag.trim()
+    if (manualTags.includes(tag)) return
+    const updatedTags = [...manualTags, tag]
     setNewTag('')
+    setSaving(true)
+    try {
+      await updateNoteTags(taskId, {
+        platform_tags: platformTags,
+        ai_tags: aiTags,
+        manual_tags: updatedTags
+      })
+      setManualTags(updatedTags)
+      onUpdate({ platform_tags: platformTags, ai_tags: aiTags, manual_tags: updatedTags })
+      toast.success('标签已添加')
+    } catch {
+      toast.error('添加失败')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleRemoveTag = (type: 'platform' | 'ai' | 'manual', index: number) => {
@@ -82,7 +99,7 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
               {platformTags.map((tag, i) => (
                 <Badge key={i} className="bg-blue-50 text-blue-600 border-blue-200 text-xs gap-1 pr-1">
                   {tag}
-                  <X className="size-3 cursor-pointer hover:text-blue-800" onClick={() => handleRemoveTag('platform', i)} />
+                  <X className="size-3 cursor-pointer hover:text-blue-800" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('platform', i)} />
                 </Badge>
               ))}
               {platformTags.length === 0 && <span className="text-xs text-muted-foreground">暂无标签</span>}
@@ -95,7 +112,7 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
               {aiTags.map((tag, i) => (
                 <Badge key={i} className="bg-purple-50 text-purple-600 border-purple-200 text-xs gap-1 pr-1">
                   {tag}
-                  <X className="size-3 cursor-pointer hover:text-purple-800" onClick={() => handleRemoveTag('ai', i)} />
+                  <X className="size-3 cursor-pointer hover:text-purple-800" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('ai', i)} />
                 </Badge>
               ))}
               {aiTags.length === 0 && <span className="text-xs text-muted-foreground">暂无标签</span>}
@@ -108,7 +125,7 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
               {manualTags.map((tag, i) => (
                 <Badge key={i} className="bg-green-50 text-green-600 border-green-200 text-xs gap-1 pr-1">
                   {tag}
-                  <X className="size-3 cursor-pointer hover:text-green-800" onClick={() => handleRemoveTag('manual', i)} />
+                  <X className="size-3 cursor-pointer hover:text-green-800" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('manual', i)} />
                 </Badge>
               ))}
               {manualTags.length === 0 && <span className="text-xs text-muted-foreground">暂无标签</span>}
@@ -122,11 +139,12 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
               placeholder="输入新标签"
               className="h-8 text-sm"
               onKeyDown={e => {
-                if (e.key === 'Enter') handleAddTag()
+                if (e.key === 'Enter') handleAddAndSave()
               }}
             />
-            <Button size="sm" variant="outline" className="h-8" onClick={handleAddTag}>
-              <Plus className="size-4" />
+            <Button size="sm" variant="outline" className="h-8" onClick={handleAddAndSave} disabled={saving}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              <span className="ml-1">添加</span>
             </Button>
           </div>
 

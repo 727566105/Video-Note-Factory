@@ -19,7 +19,7 @@ import { SummarySettings, type LocalSummaryValues } from '@/components/SummarySe
 import { ModelSelectDialog } from '@/components/ModelSelectDialog'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
-import type { Task } from '@/store/taskStore'
+import { useTaskStore, type Task } from '@/store/taskStore'
 import type { LocalSettings } from './RightPanel'
 import { getBaseURL } from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
@@ -52,6 +52,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
   const navigate = useNavigate()
   const setPanelSwapped = useSystemStore(state => state.setPanelSwapped)
   const { subscribe, subscriptions } = useSubscriptionStore()
+  const updateTaskContent = useTaskStore(state => state.updateTaskContent)
 
   // 获取发布人名字
   const getAuthor = (): string => {
@@ -435,7 +436,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               taskId={task.id}
               tags={task.tags}
               onUpdate={(newTags) => {
-                useSystemStore.setState({})
+                updateTaskContent(task.id, { tags: newTags })
               }}
             />
           </div>
