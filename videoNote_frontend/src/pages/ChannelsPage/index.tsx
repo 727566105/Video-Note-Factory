@@ -4,6 +4,7 @@ import { Plus, Trash2, Power, PowerOff, Rss } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Empty,
   EmptyDescription,
@@ -12,7 +13,8 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
-import { fetchSummarizedChannels, parseChannelUrl } from '@/services/subscription'
+import { useAuthStore } from '@/store/authStore'
+import { fetchSummarizedChannels, parseChannelUrl, fetchIntervalOptions, updateFetchInterval, FetchIntervalGroups } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import { toast } from 'sonner'
 
@@ -35,15 +37,23 @@ const platformIcon: Record<string, React.ReactNode> = {
 export default function ChannelsPage() {
   const navigate = useNavigate()
   const { subscriptions, fetchSubscriptions, subscribe, unsubscribe, toggleSubscription } = useSubscriptionStore()
+  const isAdmin = useAuthStore(state => state.isAdmin())
   const [tab, setTab] = useState<'summarized' | 'subscribed'>('subscribed')
   const [summarized, setSummarized] = useState<SummarizedChannel[]>([])
   const [subscribeUrl, setSubscribeUrl] = useState('')
   const [search, setSearch] = useState('')
   const [subscribing, setSubscribing] = useState(false)
+  const [intervalGroups, setIntervalGroups] = useState<FetchIntervalGroups | null>(null)
 
   useEffect(() => {
     loadSummarized()
   }, [])
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchIntervalOptions().then(setIntervalGroups).catch(() => {})
+    }
+  }, [isAdmin])
 
   const loadSummarized = async () => {
     try {
@@ -62,11 +72,20 @@ export default function ChannelsPage() {
       toast.success(`识别到 ${platformLabel[info.platform] || info.platform} 频道：${info.channel_name || '未知'}`)
     } catch (e) {
       console.error('解析频道URL失败:', e)
-      // 解析失败也可能是因为URL已过期，直接尝试订阅
     }
     const ok = await subscribe(subscribeUrl)
     if (ok) setSubscribeUrl('')
     setSubscribing(false)
+  }
+
+  const handleIntervalChange = async (subId: number, interval: number) => {
+    try {
+      await updateFetchInterval(subId, { fetch_interval: interval })
+      toast.success('刷新间隔已更新')
+      fetchSubscriptions()
+    } catch (e) {
+      toast.error('更新失败')
+    }
   }
 
   const filteredSubs = subscriptions.filter(s =>
@@ -103,6 +122,7 @@ export default function ChannelsPage() {
               <th className="px-4 py-2 text-left font-medium">频道</th>
               <th className="px-4 py-2 text-left font-medium">平台</th>
               <th className="px-4 py-2 text-left font-medium">状态</th>
+              {isAdmin && <th className="px-4 py-2 text-left font-medium">刷新间隔</th>}
               <th className="px-4 py-2 text-left font-medium">上次检查</th>
               <th className="px-4 py-2 text-right font-medium">操作</th>
             </tr></thead>
@@ -121,6 +141,30 @@ export default function ChannelsPage() {
                   </td>
                   <td className="px-4 py-2"><div className="flex items-center gap-1">{platformIcon[sub.platform]} {platformLabel[sub.platform] || sub.platform}</div></td>
                   <td className="px-4 py-2">{sub.enabled ? '启用' : '禁用'}</td>
+                  {isAdmin && (
+                    <td className="px-4 py-2">
+                      <Select
+                        value={sub.fetch_interval.toString()}
+                        onValueChange={(val) => handleIntervalChange(sub.id, parseInt(val))}
+                      >
+                        <SelectTrigger className="w-28 h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {intervalGroups && Object.entries(intervalGroups).map(([group, options]) => (
+                            <div key={group}>
+                              <div className="px-2 py-1 text-xs text-muted-foreground font-medium">{group}</div>
+                              {options.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value.toString()}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </div>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                  )}
                   <td className="px-4 py-2 text-muted-foreground text-xs">
                     {sub.last_checked_at ? new Date(sub.last_checked_at).toLocaleString() : '未检查'}
                   </td>
@@ -136,7 +180,7 @@ export default function ChannelsPage() {
                 </tr>
               ))}
               {filteredSubs.length === 0 && (
-                <tr><td colSpan={5}>
+                <tr><td colSpan={isAdmin ? 6 : 5}>
                   <Empty>
                     <EmptyHeader>
                       <EmptyMedia variant="icon"><Rss /></EmptyMedia>
