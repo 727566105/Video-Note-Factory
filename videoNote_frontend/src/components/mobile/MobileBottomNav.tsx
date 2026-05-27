@@ -35,10 +35,15 @@ export function MobileBottomNav() {
         "h-14 pb-[env(safe-area-inset-bottom)]",
         "md:hidden"
       )}
+      role="tablist"
+      aria-label="主导航"
     >
       {navItems.map((item) => (
         <button
           key={item.path}
+          role="tab"
+          aria-selected={isActive(item.path)}
+          aria-label={item.label}
           onClick={() => navigate(item.path)}
           className={cn(
             "flex flex-col items-center justify-center",
