@@ -88,6 +88,7 @@ import { TagEditorPopover } from '@/components/TagEditorPopover'
 import { Badge } from '@/components/ui/badge'
 import { MultiSelectFilter, type FilterOption } from '@/components/MultiSelectFilter'
 import { getAuthors, type AuthorInfo } from '@/services/author'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 // 平台筛选选项
 const PLATFORM_OPTIONS: FilterOption[] = [
@@ -345,6 +346,7 @@ function MasonryNoteCard({
 
 export const NoteListPage: FC = () => {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [notes, setNotes] = useState<NoteItem[]>([])
@@ -363,8 +365,10 @@ export const NoteListPage: FC = () => {
   const [coverPreviewOpen, setCoverPreviewOpen] = useState(false)
   const [coverPreviewSrc, setCoverPreviewSrc] = useState('')
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
-  const noteViewMode = useSystemStore(state => state.noteViewMode)
+  const localStorageViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
+  // 移动端自动使用卡片视图，桌面端使用 localStorage 存储
+  const noteViewMode = isMobile ? 'card' : (localStorageViewMode || 'table')
   const { subscribe, subscriptions } = useSubscriptionStore()
   const { style, outputLanguage, videoUnderstanding, videoInterval, gridCols, gridRows, selectedFormats, extras } = useSummarySettingsStore()
   const notesRef = useRef(notes)
@@ -596,19 +600,21 @@ export const NoteListPage: FC = () => {
         {/* 分隔线 */}
         <div className="h-px bg-border" />
 
-        {/* 标签行 */}
-        <div className="flex items-center justify-between">
-          <Select value={noteViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry')}>
-            <SelectTrigger className="w-[130px] hover:bg-accent">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
-              <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
-              <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* 标签行 - 移动端隐藏视图切换 */}
+        {!isMobile && (
+          <div className="flex items-center justify-between">
+            <Select value={localStorageViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry')}>
+              <SelectTrigger className="w-[130px] hover:bg-accent">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
+                <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
+                <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* 工具栏 */}
         <div className="flex items-center justify-between gap-4">
