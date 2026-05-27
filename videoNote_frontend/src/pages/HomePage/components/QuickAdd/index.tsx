@@ -380,7 +380,7 @@ export function QuickAdd({ className }: QuickAddProps) {
   }
 
   return (
-    <div className={cn("flex flex-col items-center justify-center w-full h-full gap-6 p-8", className)}>
+    <div className={cn("flex flex-col items-center justify-center w-full h-full gap-6 p-4 md:p-8", className)}>
       {/* 标题区域 */}
       <div className="flex flex-col items-center gap-2">
         <h1 className="text-3xl font-semibold bg-gradient-to-r from-[#FF6B9D] to-[#9B59B6] bg-clip-text text-transparent">
