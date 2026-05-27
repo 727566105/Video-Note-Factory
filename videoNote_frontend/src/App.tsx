@@ -41,6 +41,7 @@ import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchUserPreferences } from '@/services/userPreferences'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
+import { SiteHeader } from '@/components/site-header'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated())
@@ -89,6 +90,7 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
       <SidebarInset className="h-full overflow-hidden">
+        <SiteHeader />
         <div className="h-full overflow-auto">
           {children}
         </div>
