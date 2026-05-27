@@ -94,12 +94,12 @@ export default function ChannelsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-6 py-4 border-b">
+      <div className="px-4 md:px-6 py-4 border-b">
         <h1 className="text-xl font-bold">频道管理</h1>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'summarized' | 'subscribed')} className="flex flex-col flex-1 min-h-0">
-        <div className="px-6 pt-4">
+        <div className="px-4 md:px-6 pt-4">
           <TabsList>
             <TabsTrigger value="subscribed">已订阅的频道</TabsTrigger>
             <TabsTrigger value="summarized">已总结过的频道</TabsTrigger>
@@ -194,7 +194,7 @@ export default function ChannelsPage() {
           </table>
         </TabsContent>
 
-        <TabsContent value="summarized" className="flex-1 min-h-0 overflow-auto mt-0 px-6 pt-4">
+        <TabsContent value="summarized" className="flex-1 min-h-0 overflow-auto mt-0 px-4 md:px-6 pt-4">
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted">
               <th className="px-4 py-2 text-left font-medium">频道</th>
