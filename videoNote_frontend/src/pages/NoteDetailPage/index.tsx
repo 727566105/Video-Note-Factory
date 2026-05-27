@@ -6,8 +6,10 @@ import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel, { type LocalSettings } from './RightPanel'
 import DetailNav from './DetailNav'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ArrowLeft, Video, FileText } from 'lucide-react'
 import { isProcessingStatus, hasMarkdownContent, ProcessingSpinner } from './processing'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { Button } from '@/components/ui/button'
 
 function ProcessingView({ status }: { status: string }) {
   return (
@@ -86,6 +88,7 @@ export default function NoteDetailPage() {
   const panelSwapped = useSystemStore(state => state.panelSwapped)
   const [loading, setLoading] = useState(!task)
   const [notFound, setNotFound] = useState(false)
+  const isMobile = useIsMobile()
 
   // 拖拽分割线
   const [leftWidth, setLeftWidth] = useState(592)
@@ -237,6 +240,62 @@ export default function NoteDetailPage() {
   // 任务失败时显示失败提示
   if (task.status === 'FAILED') {
     return <FailedView message={task.message} taskId={task.id} />
+  }
+
+  // 移动端：单面板布局 + 底部切换按钮
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-screen overflow-hidden bg-background">
+        {/* 顶部信息栏 */}
+        <div className="shrink-0 h-14 border-b flex items-center px-4 gap-4">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/notes')}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <span className="truncate font-medium text-sm flex-1">{task.title || '笔记详情'}</span>
+        </div>
+
+        {/* 当前显示的面板 */}
+        <div className="flex-1 overflow-hidden">
+          <div
+            key={`mobile-${panelSwapped}`}
+            className="h-full animate-in fade-in slide-in-from-right-4 duration-300"
+          >
+            {panelSwapped ? (
+              <MemoRightPanel
+                task={task}
+                isProcessing={processing || queued}
+                processingStatus={task.status}
+                localSettings={localSettings}
+              />
+            ) : (
+              <MemoLeftPanel
+                task={task}
+                localSettings={localSettings}
+                onSettingsChange={setLocalSettings}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* 底部切换按钮组 */}
+        <div className="shrink-0 h-14 border-t flex items-center justify-center gap-2 px-4">
+          <Button
+            variant={!panelSwapped ? "default" : "outline"}
+            size="sm"
+            onClick={() => useSystemStore.getState().setPanelSwapped(false)}
+          >
+            <Video className="w-4 h-4 mr-1" />视频信息
+          </Button>
+          <Button
+            variant={panelSwapped ? "default" : "outline"}
+            size="sm"
+            onClick={() => useSystemStore.getState().setPanelSwapped(true)}
+          >
+            <FileText className="w-4 h-4 mr-1" />笔记内容
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
