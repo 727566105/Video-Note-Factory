@@ -40,7 +40,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
         <main className="flex-1 overflow-auto bg-background">
           {/* 移动端菜单触发按钮 */}
           <div className="lg:hidden flex items-center gap-2 px-4 py-3 border-b border-border bg-background sticky top-0 z-30">
-            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
+            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} aria-label="打开设置菜单">
               <Menu className="size-5" />
             </Button>
             <span className="font-medium">设置</span>
