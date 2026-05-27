@@ -366,6 +366,8 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
             delete_task_by_video(data.video_id, data.platform)
 
         return R.success(msg='删除成功')
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"删除任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
