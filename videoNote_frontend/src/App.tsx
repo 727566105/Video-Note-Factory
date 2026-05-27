@@ -43,6 +43,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SiteHeader } from '@/components/site-header'
 import { MobileBottomNav } from '@/components/mobile/MobileBottomNav'
+import { SwipeBackHandler } from '@/components/mobile/SwipeBackHandler'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -89,16 +90,18 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     return <HomeSkeleton />
   }
 
-  // 移动端布局：底部导航 + 无侧边栏
+  // 移动端布局：底部导航 + 无侧边栏 + 滑动返回手势
   if (isMobile) {
     return (
-      <div className="h-screen flex flex-col bg-background">
-        <SiteHeader />
-        <div className="flex-1 overflow-auto" style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom))' }}>
-          {children}
+      <SwipeBackHandler>
+        <div className="h-screen flex flex-col bg-background">
+          <SiteHeader />
+          <div className="flex-1 overflow-auto" style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom))' }}>
+            {children}
+          </div>
+          <MobileBottomNav />
         </div>
-        <MobileBottomNav />
-      </div>
+      </SwipeBackHandler>
     )
   }
 
