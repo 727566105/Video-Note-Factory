@@ -15,6 +15,7 @@ import {
   LayoutList,
   LayoutGrid,
   Columns3,
+  Filter,
 } from 'lucide-react'
 import {
   useReactTable,
@@ -70,6 +71,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from '@/components/ui/sheet'
 import { useSystemStore } from '@/store/configStore'
 import { useTaskStore, type Task } from '@/store/taskStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
@@ -354,6 +362,7 @@ export const NoteListPage: FC = () => {
   const [playItem, setPlayItem] = useState<NoteItem | null>(null)
   const [coverPreviewOpen, setCoverPreviewOpen] = useState(false)
   const [coverPreviewSrc, setCoverPreviewSrc] = useState('')
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
   const noteViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
   const { subscribe, subscriptions } = useSubscriptionStore()
@@ -465,6 +474,9 @@ export const NoteListPage: FC = () => {
       count: a.video_count,
     }))
   }, [authors, notes])
+
+  // 筛选器已选数量
+  const totalSelectedFilters = selectedAuthors.length + selectedPlatforms.length + selectedStatuses.length
 
   const toggleSelectAll = () => {
     if (selectedRows.length === notes.length) {
@@ -607,49 +619,68 @@ export const NoteListPage: FC = () => {
                 placeholder="搜索笔记..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-80 pl-9"
+                className="w-full max-w-80 pl-9"
               />
             </div>
-            {/* 筛选组件 */}
-            <MultiSelectFilter
-              label="博主"
-              options={authorOptions}
-              selected={selectedAuthors}
-              onChange={setSelectedAuthors}
-              searchable
-            />
-            <MultiSelectFilter
-              label="平台"
-              options={PLATFORM_OPTIONS}
-              selected={selectedPlatforms}
-              onChange={setSelectedPlatforms}
-            />
-            <MultiSelectFilter
-              label="状态"
-              options={STATUS_OPTIONS}
-              selected={selectedStatuses}
-              onChange={setSelectedStatuses}
-            />
-            <Button variant="outline" className="gap-2">
-              <FolderPlus className="w-4 h-4" />
-              添加到合集
-            </Button>
+            {/* 筛选组件 - 桌面端 */}
+            <div className="hidden md:flex items-center gap-3">
+              <MultiSelectFilter
+                label="博主"
+                options={authorOptions}
+                selected={selectedAuthors}
+                onChange={setSelectedAuthors}
+                searchable
+              />
+              <MultiSelectFilter
+                label="平台"
+                options={PLATFORM_OPTIONS}
+                selected={selectedPlatforms}
+                onChange={setSelectedPlatforms}
+              />
+              <MultiSelectFilter
+                label="状态"
+                options={STATUS_OPTIONS}
+                selected={selectedStatuses}
+                onChange={setSelectedStatuses}
+              />
+              <Button variant="outline" className="gap-2">
+                <FolderPlus className="w-4 h-4" />
+                添加到合集
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={selectedRows.length === 0 || noteViewMode !== 'table'}
+                title={noteViewMode !== 'table' ? '切换到表格视图进行批量删除' : ''}
+                onClick={() => setBatchDeleteDialogOpen(true)}
+              >
+                <Trash2 className="w-4 h-4" />
+                批量删除
+              </Button>
+            </div>
+
+            {/* 移动端筛选按钮 */}
             <Button
               variant="outline"
-              className="gap-2"
-              disabled={selectedRows.length === 0 || noteViewMode !== 'table'}
-              title={noteViewMode !== 'table' ? '切换到表格视图进行批量删除' : ''}
-              onClick={() => setBatchDeleteDialogOpen(true)}
+              className="md:hidden gap-2"
+              onClick={() => setFilterSheetOpen(true)}
             >
-              <Trash2 className="w-4 h-4" />
-              批量删除
-            </Button>
-                      </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchNotes}>
-              <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
+              <Filter className="w-4 h-4" />
+              筛选
+              {totalSelectedFilters > 0 && (
+                <Badge variant="secondary" className="ml-1">{totalSelectedFilters}</Badge>
+              )}
             </Button>
           </div>
+
+          {/* 刷新按钮 */}
+          <Button variant="outline" size="icon" className="h-8 w-8 hidden md:flex" onClick={fetchNotes}>
+            <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
+          </Button>
+          <Button variant="outline" size="sm" className="md:hidden" onClick={fetchNotes}>
+            <RotateCw className={cn("w-4 h-4 mr-1", loading && "animate-spin")} />
+            刷新
+          </Button>
         </div>
       </div>
 
@@ -871,6 +902,60 @@ export const NoteListPage: FC = () => {
         variant="destructive"
         onConfirm={handleBatchDelete}
       />
+
+      {/* 移动端筛选 Sheet */}
+      <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+        <SheetContent side="bottom" className="h-[60vh] flex flex-col">
+          <SheetHeader>
+            <SheetTitle>筛选条件</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-auto py-4 space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">博主</label>
+              <MultiSelectFilter
+                label="博主"
+                options={authorOptions}
+                selected={selectedAuthors}
+                onChange={setSelectedAuthors}
+                searchable
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">平台</label>
+              <MultiSelectFilter
+                label="平台"
+                options={PLATFORM_OPTIONS}
+                selected={selectedPlatforms}
+                onChange={setSelectedPlatforms}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">状态</label>
+              <MultiSelectFilter
+                label="状态"
+                options={STATUS_OPTIONS}
+                selected={selectedStatuses}
+                onChange={setSelectedStatuses}
+              />
+            </div>
+          </div>
+          <SheetFooter className="flex-row gap-2 sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedAuthors([])
+                setSelectedPlatforms([])
+                setSelectedStatuses([])
+              }}
+            >
+              清除筛选
+            </Button>
+            <Button onClick={() => setFilterSheetOpen(false)}>
+              应用
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
