@@ -42,6 +42,8 @@ import { fetchUserPreferences } from '@/services/userPreferences'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SiteHeader } from '@/components/site-header'
+import { MobileBottomNav } from '@/components/mobile/MobileBottomNav'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated())
@@ -63,6 +65,7 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
   useTaskPolling(3000)
   const { initialized } = useCheckBackend()
   const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (initialized) {
@@ -86,6 +89,20 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     return <HomeSkeleton />
   }
 
+  // 移动端布局：底部导航 + 无侧边栏
+  if (isMobile) {
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        <SiteHeader />
+        <div className="flex-1 overflow-auto pb-14">
+          {children}
+        </div>
+        <MobileBottomNav />
+      </div>
+    )
+  }
+
+  // 桌面端布局：侧边栏结构
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
