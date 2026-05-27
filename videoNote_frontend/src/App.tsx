@@ -94,7 +94,7 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     return (
       <div className="h-screen flex flex-col bg-background">
         <SiteHeader />
-        <div className="flex-1 overflow-auto pb-14">
+        <div className="flex-1 overflow-auto" style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom))' }}>
           {children}
         </div>
         <MobileBottomNav />

@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useAuthStore } from "@/store/authStore"
 import { useNavigate } from "react-router-dom"
 import { LogOut, Settings, User } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 // 页面标题映射
 const pageTitleMap: Record<string, string> = {
@@ -38,6 +39,7 @@ export function SiteHeader() {
   const navigate = useNavigate()
   const user = useAuthStore(state => state.user)
   const logout = useAuthStore(state => state.logout)
+  const isMobile = useIsMobile()
 
   const handleLogout = () => {
     logout()
@@ -46,11 +48,9 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 flex h-14 items-center gap-2 border-b bg-background px-4 md:hidden">
-      {/* 左侧：SidebarTrigger */}
-      <SidebarTrigger className="-ml-1" />
-
-      {/* 分隔线 */}
-      <Separator orientation="vertical" className="mr-2 h-4" />
+      {/* 左侧：SidebarTrigger - 仅在桌面端折叠模式下显示（移动端有底部导航） */}
+      {!isMobile && <SidebarTrigger className="-ml-1" />}
+      {!isMobile && <Separator orientation="vertical" className="mr-2 h-4" />}
 
       {/* 中间：页面标题 */}
       <h1 className="flex-1 text-center font-medium text-sm truncate">
