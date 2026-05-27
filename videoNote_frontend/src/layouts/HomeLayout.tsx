@@ -19,9 +19,11 @@ const HomeLayout: () => JSX.Element = () => {
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <div className="flex flex-1 overflow-hidden">
         {/* 主内容区 */}
-        <main className="flex-1 overflow-hidden flex flex-col items-center justify-center p-4">
+        <main className="flex-1 overflow-hidden flex flex-col items-center justify-center p-4 md:p-6">
           <ConfigHealthBanner />
-          <QuickAdd />
+          <div className="w-full max-w-2xl">
+            <QuickAdd />
+          </div>
         </main>
       </div>
 
