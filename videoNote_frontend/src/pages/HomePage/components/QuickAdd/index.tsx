@@ -155,6 +155,7 @@ export function QuickAdd({ className }: QuickAddProps) {
     const match =
       url.includes('bilibili.com') || url.includes('b23.tv') ? 'bilibili' :
       url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
+      url.includes('cctv.com') ? 'cctv' :
       url.includes('douyin') ? 'douyin' :
       url.includes('xiaohongshu.com') || url.includes('xhslink.com') ? 'xiaohongshu' :
       url.includes('kuaishou') ? 'kuaishou' :
