@@ -953,8 +953,11 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
             # 读取笔记内容（如果存在）
             note_data = None
             if result_path and result_path.exists():
-                with open(result_path, "r", encoding="utf-8") as f:
-                    note_data = json.load(f)
+                try:
+                    with open(result_path, "r", encoding="utf-8") as f:
+                        note_data = json.load(f)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    note_data = None
 
             result.append({
                 "task_id": task_id,
