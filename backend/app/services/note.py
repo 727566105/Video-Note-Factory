@@ -336,9 +336,8 @@ class NoteGenerator:
                         existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
                         existing_manual = existing_tags.get("manual_tags", [])
                         existing_ai = existing_tags.get("ai_tags", [])
-                        previous_status = existing_task.status if existing_task else None
 
-                        final_ai_tags = existing_ai if previous_status == "SUCCESS" and existing_ai else (ai_tags or [])
+                        final_ai_tags = ai_tags or existing_ai or []
 
                         tags_json = json.dumps({
                             "platform_tags": platform_tags,
@@ -1414,10 +1413,9 @@ class NoteGenerator:
             existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
             existing_manual = existing_tags.get("manual_tags", [])
             existing_ai = existing_tags.get("ai_tags", [])
-            previous_status = existing_task.status if existing_task else None
 
-            # 重新生成成功笔记时保留已有 AI 标签；失败笔记则使用新生成
-            final_ai_tags = existing_ai if previous_status == "SUCCESS" and existing_ai else (ai_tags or [])
+            # 直接使用新生成的 AI 标签，或保留已有标签
+            final_ai_tags = ai_tags or existing_ai or []
 
             tags_json = json.dumps({
                 "platform_tags": platform_tags,
