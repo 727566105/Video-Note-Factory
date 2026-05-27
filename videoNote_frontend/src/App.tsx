@@ -110,7 +110,6 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
       <SidebarInset className="h-full overflow-hidden">
-        <SiteHeader />
         <div className="h-full overflow-auto">
           {children}
         </div>
