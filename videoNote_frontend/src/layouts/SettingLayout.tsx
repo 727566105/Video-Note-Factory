@@ -11,7 +11,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <div className="flex h-screen w-full flex-col bg-muted">
+    <div className="flex h-full w-full flex-col bg-muted">
 
       <div className="flex flex-1 overflow-hidden">
         {/* 侧边栏 */}
