@@ -172,7 +172,7 @@ export default function FeedPage() {
           </Empty>
         ) : viewMode === 'grid' ? (
           /* 网格 */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
             {feedItems.map(item => (
               <div key={item.id} className="rounded-lg border bg-card overflow-hidden flex flex-col">
                 <div className="relative aspect-video bg-muted">
