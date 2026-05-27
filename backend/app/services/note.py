@@ -1433,6 +1433,7 @@ class NoteGenerator:
                 author_id=author_id,
                 author_name=author_name,
                 tags=tags_json,
+                video_id=audio_meta.video_id,
             )
             logger.info(f"已保存元数据 (task_id={task_id}, author_id={author_id})")
         except Exception as e:

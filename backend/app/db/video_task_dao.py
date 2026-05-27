@@ -113,7 +113,8 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
 
 def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
                          duration: float = None, author: str = None, description: str = None,
-                         author_id: str = None, author_name: str = None, tags: str = None):
+                         author_id: str = None, author_name: str = None, tags: str = None,
+                         video_id: str = None):
     """更新任务的元数据（标题、封面、时长、作者、描述、标签）"""
     db = next(get_db())
     try:
@@ -135,6 +136,8 @@ def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
                 task.author_name = author_name
             if tags is not None:
                 task.tags = tags
+            if video_id is not None:
+                task.video_id = video_id
             db.commit()
             logger.info(f"Task metadata updated: {task_id}, title={title}, tags={tags}")
         else:

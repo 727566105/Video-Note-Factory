@@ -97,7 +97,8 @@ class CCTVDownloader(Downloader, ABC):
                     video_id=video_id,
                     raw_info=api_data,
                     video_path=mp4_path if need_video else None,
-                    author_name=api_data.get("editer_name"),
+                    author_id="cctv",
+                    author_name=api_data.get("editer_name") or "央视网",
                 )
             except Exception as e:
                 logger.warning(f"API下载失败，切换yt-dlp: {e}")
@@ -299,7 +300,8 @@ class CCTVDownloader(Downloader, ABC):
             cover_url=api_data.get("cover_url") or api_data.get("f_cover"),
             platform="cctv",
             video_id=guid,
-            author_name=api_data.get("editer_name"),
+            author_id="cctv",
+            author_name=api_data.get("editer_name") or "央视网",
             description=None,
             raw_info=api_data,
         )
@@ -320,7 +322,8 @@ class CCTVDownloader(Downloader, ABC):
             cover_url=info.get("thumbnail"),
             platform="cctv",
             video_id=info.get("id", ""),
-            author_name=info.get("uploader"),
+            author_id="cctv",
+            author_name=info.get("uploader") or "央视网",
             description=info.get("description"),
             raw_info=info,
         )
@@ -355,5 +358,6 @@ class CCTVDownloader(Downloader, ABC):
                 video_id=video_id,
                 raw_info=info,
                 video_path=downloaded_path if need_video else None,
-                author_name=info.get("uploader"),
+                author_id="cctv",
+                author_name=info.get("uploader") or "央视网",
             )
