@@ -331,7 +331,19 @@ class NoteGenerator:
                         import json
                         from app.db.video_task_dao import update_task_metadata
                         platform_tags = video_info.tags if hasattr(video_info, 'tags') and video_info.tags else []
-                        tags_json = json.dumps({"platform_tags": platform_tags, "ai_tags": ai_tags or []})
+                        existing_task = get_task_by_task_id(task_id)
+                        existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
+                        existing_manual = existing_tags.get("manual_tags", [])
+                        existing_ai = existing_tags.get("ai_tags", [])
+                        previous_status = existing_task.status if existing_task else None
+
+                        final_ai_tags = existing_ai if previous_status == "SUCCESS" and existing_ai else (ai_tags or [])
+
+                        tags_json = json.dumps({
+                            "platform_tags": platform_tags,
+                            "ai_tags": final_ai_tags,
+                            "manual_tags": existing_manual,
+                        })
                         update_task_metadata(
                             task_id=task_id,
                             title=_title,
@@ -1395,14 +1407,20 @@ class NoteGenerator:
                 if not author_name:
                     author_name = author if author else None
 
-            # 构建标签 JSON（保留已有 manual_tags）
+            # 构建标签 JSON（保留已有 manual_tags 和 ai_tags）
             platform_tags = audio_meta.tags if hasattr(audio_meta, 'tags') and audio_meta.tags else []
             existing_task = get_task_by_task_id(task_id)
             existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
             existing_manual = existing_tags.get("manual_tags", [])
+            existing_ai = existing_tags.get("ai_tags", [])
+            previous_status = existing_task.status if existing_task else None
+
+            # 重新生成成功笔记时保留已有 AI 标签；失败笔记则使用新生成
+            final_ai_tags = existing_ai if previous_status == "SUCCESS" and existing_ai else (ai_tags or [])
+
             tags_json = json.dumps({
                 "platform_tags": platform_tags,
-                "ai_tags": ai_tags or [],
+                "ai_tags": final_ai_tags,
                 "manual_tags": existing_manual  # 保留手动添加的标签
             })
 

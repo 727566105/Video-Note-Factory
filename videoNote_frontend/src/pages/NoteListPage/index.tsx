@@ -353,18 +353,24 @@ export const NoteListPage: FC = () => {
     notesRef.current = notes
   }, [notes])
 
-  // 监听 taskStore 中任务状态变化，有任务完成时刷新列表
+  // 用 ref 记录上次各任务的状态，只在任务完成时触发一次刷新（非定时轮询）
+  const prevStatusRef = useRef<Map<string, string>>(new Map())
   const taskStoreTasks = useTaskStore(state => state.tasks)
   useEffect(() => {
-    const hasPending = taskStoreTasks.some(
-      t => t.status !== 'SUCCESS' && t.status !== 'FAILED'
-    )
-    // 只有当前列表中有非终态任务且 store 里有完成的任务时才刷新
-    if (!hasPending) return
-    const completedInStore = taskStoreTasks.some(
-      t => t.status === 'SUCCESS' && notesRef.current.some(n => n.task_id === t.id && n.status !== 'SUCCESS')
-    )
-    if (completedInStore) {
+    const currentStatuses = new Map<string, string>()
+    for (const t of taskStoreTasks) {
+      currentStatuses.set(t.id, t.status)
+    }
+
+    // 检测是否有任务刚完成（上一次不是 SUCCESS，现在是 SUCCESS）
+    const justCompleted = taskStoreTasks.some(t => {
+      const prevStatus = prevStatusRef.current.get(t.id)
+      return t.status === 'SUCCESS' && prevStatus !== undefined && prevStatus !== 'SUCCESS'
+    })
+
+    prevStatusRef.current = currentStatuses
+
+    if (justCompleted) {
       fetchNotes()
     }
   }, [taskStoreTasks])
@@ -382,7 +388,7 @@ export const NoteListPage: FC = () => {
           title: task.title || task.note?.audio_meta?.title || task.note?.title || '无标题',
           author: task.author || task.author_name || task.note?.audio_meta?.raw_info?.owner?.name
             || task.note?.audio_meta?.raw_info?.uploader || '',
-          note: task.note?.markdown || '',
+          note: task.note?.versions?.[0]?.content || task.note?.markdown || '',
           created_at: task.created_at || '',
           status: task.status || 'UNKNOWN',
           video_url: task.video_url || '',

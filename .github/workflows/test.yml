@@ -1,0 +1,71 @@
+name: Test
+
+on:
+  push:
+    branches: [main, dev3.0]
+  pull_request:
+    branches: [main, dev3.0]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      - name: Run backend tests
+        run: |
+          cd backend
+          python3 -m pytest tests/ -v
+
+  frontend-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Install frontend dependencies
+        run: |
+          cd videoNote_frontend
+          pnpm install
+      - name: Run Vitest tests
+        run: |
+          cd videoNote_frontend
+          pnpm test
+
+  frontend-e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Install frontend dependencies
+        run: |
+          cd videoNote_frontend
+          pnpm install
+      - name: Install Playwright browsers
+        run: |
+          cd videoNote_frontend
+          npx playwright install chromium
+      - name: Run Playwright tests
+        run: |
+          cd videoNote_frontend
+          pnpm test:e2e
