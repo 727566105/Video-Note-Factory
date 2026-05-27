@@ -1,5 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import React, { useState } from 'react'
+import { Menu } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface ISettingLayoutProps {
   Menu: React.ReactNode
@@ -17,7 +19,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           className={`
             shrink-0 w-[280px] border-r border-border bg-background transition-all duration-300 ease-in-out
             lg:block lg:w-[375px]
-            ${mobileMenuOpen ? 'block' : 'hidden'}
+            ${mobileMenuOpen ? 'block fixed inset-y-0 left-0 z-50' : 'hidden'}
           `}
         >
           {/* 菜单内容 */}
@@ -36,6 +38,13 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
 
         {/* 右侧内容区域 */}
         <main className="flex-1 overflow-auto bg-background">
+          {/* 移动端菜单触发按钮 */}
+          <div className="lg:hidden flex items-center gap-2 px-4 py-3 border-b border-border bg-background sticky top-0 z-30">
+            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)}>
+              <Menu className="size-5" />
+            </Button>
+            <span className="font-medium">设置</span>
+          </div>
           <Outlet />
         </main>
       </div>
