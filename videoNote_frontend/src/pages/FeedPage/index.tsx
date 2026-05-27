@@ -113,25 +113,42 @@ export default function FeedPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-6 py-4 border-b">
+      <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b">
         <div>
-          <h1 className="text-xl font-bold">动态</h1>
-          <p className="text-sm text-muted-foreground">你订阅频道的最新内容</p>
+          <h1 className="text-lg md:text-xl font-bold">动态</h1>
+          <p className="text-sm text-muted-foreground hidden md:block">你订阅频道的最新内容</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* 刷新按钮 - 所有尺寸 */}
           <Button variant="outline" size="sm" onClick={refreshFeed} disabled={loading}>
-            <RefreshCw className="size-4 mr-1" />刷新
+            <RefreshCw className="size-4" />
+            <span className="hidden md:inline ml-1">刷新</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
-            <CheckCheck className="size-4 mr-1" />全部已读
-          </Button>
-          <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-            <SelectTrigger className="w-[120px] h-8">
-              <SelectValue />
+
+          {/* 桌面端：全部已读 + 视图切换 */}
+          <div className="hidden md:flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
+              <CheckCheck className="size-4 mr-1" />全部已读
+            </Button>
+            <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+              <SelectTrigger className="w-[120px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="grid"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />网格</span></SelectItem>
+                <SelectItem value="list"><span className="flex items-center gap-2"><List className="size-4" />列表</span></SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 移动端：视图切换图标 */}
+          <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="md:hidden">
+            <SelectTrigger className="w-[80px] h-8">
+              {viewMode === 'grid' ? <LayoutGrid className="size-4" /> : <List className="size-4" />}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="grid"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />网格</span></SelectItem>
-              <SelectItem value="list"><span className="flex items-center gap-2"><List className="size-4" />列表</span></SelectItem>
+              <SelectItem value="grid"><LayoutGrid className="size-4" /></SelectItem>
+              <SelectItem value="list"><List className="size-4" /></SelectItem>
             </SelectContent>
           </Select>
         </div>
