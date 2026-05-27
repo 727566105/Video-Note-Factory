@@ -106,16 +106,16 @@ export default function ChannelsPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="subscribed" className="flex-1 min-h-0 overflow-auto mt-0 px-6 pt-4">
-          <div className="flex gap-3 mb-4">
+        <TabsContent value="subscribed" className="flex-1 min-h-0 overflow-auto mt-0 px-4 md:px-6 pt-4">
+          <div className="flex gap-3 mb-4 flex-wrap">
             <Input placeholder="粘贴频道URL或视频URL" value={subscribeUrl}
               onChange={e => setSubscribeUrl(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
-              className="max-w-md" />
+              className="flex-1 min-w-[200px] max-w-md" />
             <Button onClick={handleSubscribe} disabled={subscribing}>
               <Plus className="size-4 mr-1" />订阅
             </Button>
-            <Input placeholder="搜索频道..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs ml-auto" />
+            <Input placeholder="搜索频道..." value={search} onChange={e => setSearch(e.target.value)} className="w-full max-w-xs md:ml-auto" />
           </div>
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted">
