@@ -380,25 +380,25 @@ export default function ChannelDetailPage() {
   return (
     <div className="flex flex-col h-full">
       {/* 返回按钮 */}
-      <div className="shrink-0 px-6 pt-4">
+      <div className="shrink-0 px-4 md:px-6 pt-4">
         <button onClick={() => navigate('/channels')} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-5" />
         </button>
       </div>
 
       {/* 频道信息卡片 */}
-      <div className="shrink-0 mx-6 mb-4 flex flex-col rounded-lg bg-background p-4 shadow-md md:flex-row">
+      <div className="shrink-0 mx-4 md:mx-6 mb-4 flex flex-col rounded-lg bg-background p-4 shadow-md md:flex-row">
         <div className="mb-4 flex w-full flex-row items-center gap-4">
           {sub?.avatar_url ? (
-            <img src={sub.avatar_url} alt="" referrerPolicy="no-referrer" className="mb-auto size-20 rounded-full md:size-48" />
+            <img src={sub.avatar_url} alt="" referrerPolicy="no-referrer" className="mb-auto size-16 rounded-full md:size-48" />
           ) : (
-            <div className="mb-auto size-20 rounded-full bg-muted flex items-center justify-center md:size-48">
+            <div className="mb-auto size-16 rounded-full bg-muted flex items-center justify-center md:size-48">
               {platformIcon[platform || '']}
             </div>
           )}
           <div className="flex h-full flex-col justify-between">
-            <h2 className="mb-2 text-lg font-bold sm:text-3xl">{sub?.channel_name || '频道详情'}</h2>
-            <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-4">
+            <h2 className="mb-2 text-lg font-bold md:text-3xl">{sub?.channel_name || '频道详情'}</h2>
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-3 md:mb-4">
               <div className="flex items-center gap-2">
                 {platformIcon[platform || '']} {platformLabel[platform || '']}
                 {sub?.unique_id && (
@@ -447,7 +447,7 @@ export default function ChannelDetailPage() {
         </div>
       </div>
 
-      <div className="shrink-0 px-6 py-3 flex gap-3 items-center">
+      <div className="shrink-0 px-4 md:px-6 py-3 flex gap-3 items-center">
         <Input placeholder="搜索标题..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
         <select className="rounded-md border px-3 py-2 text-sm bg-background" value={filter} onChange={e => handleFilterChange(e.target.value as any)}>
           <option value="all">全部</option>
@@ -491,7 +491,7 @@ export default function ChannelDetailPage() {
         )}
       </div>
 
-      <div className="flex-1 overflow-auto px-6">
+      <div className="flex-1 overflow-auto px-4 md:px-6">
         {loading ? (
           <div className="text-center py-20 text-muted-foreground">加载中...</div>
         ) : fetching ? (
@@ -632,7 +632,7 @@ export default function ChannelDetailPage() {
 
       {/* 分页器 */}
       {totalPages > 1 && (
-        <div className="px-6 py-4 flex justify-center">
+        <div className="px-4 md:px-6 py-4 flex justify-center">
           <Pagination>
             <PaginationContent>
               <PaginationItem>
