@@ -16,7 +16,7 @@ const HomeLayout: () => JSX.Element = () => {
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
       <div className="flex flex-1 overflow-hidden">
         {/* 主内容区 */}
         <main className="flex-1 overflow-hidden flex flex-col items-center justify-center p-4 md:p-6">

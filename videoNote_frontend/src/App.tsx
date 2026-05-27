@@ -1,30 +1,33 @@
 import { useEffect, ReactNode, Suspense, lazy } from 'react'
 import { HomePage } from './pages/HomePage/Home.tsx'
 import { useTaskPolling } from '@/hooks/useTaskPolling.ts'
-import SettingPage from './pages/SettingPage/index.tsx'
 import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import Index from '@/pages/Index.tsx'
 import NotFoundPage from '@/pages/NotFoundPage'
-import Model from '@/pages/SettingPage/Model.tsx'
-import ProviderForm from '@/components/Form/modelForm/Form.tsx'
-import AboutPage from '@/pages/SettingPage/about.tsx'
-import SiyuanSettings from '@/pages/SettingPage/Siyuan.tsx'
-import WebDAVSettings from '@/pages/SettingPage/WebDAV.tsx'
-import Downloader from '@/pages/SettingPage/Downloader.tsx'
-import DownloaderForm from '@/components/Form/DownloaderForm/Form.tsx'
-import TaskQueueSettings from '@/pages/SettingPage/TaskQueue.tsx'
-import UsersPage from '@/pages/SettingPage/Users.tsx'
 import LoginPage from '@/pages/LoginPage'
-import { NoteListPage } from './pages/NoteListPage'
-import { AuthorsPage } from './pages/AuthorsPage'
-import SubscriptionSettings from '@/pages/SettingPage/Subscription'
-// 懒加载重型页面（优化首屏加载）
+import { LoaderCircle } from 'lucide-react'
+
+// 懒加载页面（优化首屏加载）
+const SettingPage = lazy(() => import('@/pages/SettingPage/index.tsx'))
+const Model = lazy(() => import('@/pages/SettingPage/Model.tsx'))
+const ProviderForm = lazy(() => import('@/components/Form/modelForm/Form.tsx'))
+const AboutPage = lazy(() => import('@/pages/SettingPage/about.tsx'))
+const SiyuanSettings = lazy(() => import('@/pages/SettingPage/Siyuan.tsx'))
+const WebDAVSettings = lazy(() => import('@/pages/SettingPage/WebDAV.tsx'))
+const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
+const DownloaderForm = lazy(() => import('@/components/Form/DownloaderForm/Form.tsx'))
+const TaskQueueSettings = lazy(() => import('@/pages/SettingPage/TaskQueue.tsx'))
+const UsersPage = lazy(() => import('@/pages/SettingPage/Users.tsx'))
+const SubscriptionSettings = lazy(() => import('@/pages/SettingPage/Subscription'))
+const NoteListPage = lazy(() => import('./pages/NoteListPage'))
+const AuthorsPage = lazy(() => import('./pages/AuthorsPage'))
 const NoteDetailPage = lazy(() => import('@/pages/NoteDetailPage'))
 const FeedPage = lazy(() => import('@/pages/FeedPage'))
 const ChannelsPage = lazy(() => import('@/pages/ChannelsPage'))
 const ChannelDetailPage = lazy(() => import('@/pages/ChannelDetailPage'))
 const AuthorDetailPage = lazy(() => import('./pages/AuthorDetailPage'))
-import { LoaderCircle } from 'lucide-react'
+
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 // 懒加载页面 loading 组件
 function PageLoader() {
@@ -93,15 +96,17 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
   // 移动端布局：底部导航 + 无侧边栏 + 滑动返回手势
   if (isMobile) {
     return (
-      <SwipeBackHandler>
-        <div className="h-screen flex flex-col bg-background">
-          <SiteHeader />
-          <div className="flex-1 overflow-auto" style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom))' }}>
-            {children}
+      <TooltipProvider delayDuration={0}>
+        <SwipeBackHandler>
+          <div className="h-screen flex flex-col bg-background">
+            <SiteHeader />
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {children}
+            </div>
+            <MobileBottomNav />
           </div>
-          <MobileBottomNav />
-        </div>
-      </SwipeBackHandler>
+        </SwipeBackHandler>
+      </TooltipProvider>
     )
   }
 
@@ -126,28 +131,28 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><AuthenticatedApp><Index /></AuthenticatedApp></ProtectedRoute>}>
             <Route index element={<HomePage />} />
-            <Route path="notes" element={<NoteListPage />} />
+            <Route path="notes" element={<Suspense fallback={<PageLoader />}><NoteListPage /></Suspense>} />
             <Route path="notes/:id" element={<Suspense fallback={<PageLoader />}><NoteDetailPage /></Suspense>} />
             <Route path="feed" element={<Suspense fallback={<PageLoader />}><FeedPage /></Suspense>} />
             <Route path="channels" element={<Suspense fallback={<PageLoader />}><ChannelsPage /></Suspense>} />
             <Route path="channel/:platform/:id" element={<Suspense fallback={<PageLoader />}><ChannelDetailPage /></Suspense>} />
-            <Route path="authors" element={<AuthorsPage />} />
+            <Route path="authors" element={<Suspense fallback={<PageLoader />}><AuthorsPage /></Suspense>} />
             <Route path="authors/:id" element={<Suspense fallback={<PageLoader />}><AuthorDetailPage /></Suspense>} />
-            <Route path="settings" element={<SettingPage />}>
+            <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingPage /></Suspense>}>
               <Route index element={<Navigate to="about" replace />} />
-              <Route path="model" element={<AdminRoute><Model /></AdminRoute>}>
-                <Route path="new" element={<ProviderForm isCreate />} />
-                <Route path=":id" element={<ProviderForm />} />
+              <Route path="model" element={<AdminRoute><Suspense fallback={<PageLoader />}><Model /></Suspense></AdminRoute>}>
+                <Route path="new" element={<Suspense fallback={<PageLoader />}><ProviderForm isCreate /></Suspense>} />
+                <Route path=":id" element={<Suspense fallback={<PageLoader />}><ProviderForm /></Suspense>} />
               </Route>
-              <Route path="download" element={<AdminRoute><Downloader /></AdminRoute>}>
-                <Route path=":id" element={<DownloaderForm />} />
+              <Route path="download" element={<AdminRoute><Suspense fallback={<PageLoader />}><Downloader /></Suspense></AdminRoute>}>
+                <Route path=":id" element={<Suspense fallback={<PageLoader />}><DownloaderForm /></Suspense>} />
               </Route>
-              <Route path="taskqueue" element={<AdminRoute><TaskQueueSettings /></AdminRoute>} />
-              <Route path="siyuan" element={<SiyuanSettings />} />
-              <Route path="webdav" element={<WebDAVSettings />} />
-              <Route path="about" element={<AboutPage />} />
-              <Route path="subscription" element={<AdminRoute><SubscriptionSettings /></AdminRoute>} />
-              <Route path="users" element={<UsersPage />} />
+              <Route path="taskqueue" element={<AdminRoute><Suspense fallback={<PageLoader />}><TaskQueueSettings /></Suspense></AdminRoute>} />
+              <Route path="siyuan" element={<Suspense fallback={<PageLoader />}><SiyuanSettings /></Suspense>} />
+              <Route path="webdav" element={<Suspense fallback={<PageLoader />}><WebDAVSettings /></Suspense>} />
+              <Route path="about" element={<Suspense fallback={<PageLoader />}><AboutPage /></Suspense>} />
+              <Route path="subscription" element={<AdminRoute><Suspense fallback={<PageLoader />}><SubscriptionSettings /></Suspense></AdminRoute>} />
+              <Route path="users" element={<Suspense fallback={<PageLoader />}><UsersPage /></Suspense>} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />

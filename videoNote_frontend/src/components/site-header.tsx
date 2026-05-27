@@ -9,7 +9,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useAuthStore } from "@/store/authStore"
 import { useNavigate } from "react-router-dom"
-import { LogOut, Settings } from "lucide-react"
+import { LogOut, Settings, ChevronDown } from "lucide-react"
+import logoImg from "@/../public/logo.png"
 
 // 页面标题映射
 const pageTitleMap: Record<string, string> = {
@@ -42,35 +43,79 @@ export function SiteHeader() {
     navigate("/login")
   }
 
-  return (
-    <header className="sticky top-0 z-50 flex h-14 items-center gap-2 border-b bg-background px-4 md:hidden">
-      {/* 中间：页面标题 */}
-      <h1 className="flex-1 text-center font-medium text-sm truncate">
-        {getPageTitle(location.pathname)}
-      </h1>
+  const pageTitle = getPageTitle(location.pathname)
 
-      {/* 右侧：用户头像下拉菜单 */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-            <Avatar className="h-7 w-7">
-              <AvatarFallback className="text-xs">
-                {user?.username?.slice(0, 2).toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={() => navigate("/settings")}>
-            <Settings className="mr-2 h-4 w-4" />
-            设置
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            退出登录
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+  return (
+    <header className="sticky top-0 z-50 h-14 bg-background border-b md:hidden">
+      <div className="flex items-center justify-between h-full px-4">
+        {/* 左侧：Logo + 应用名 */}
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-2 shrink-0"
+        >
+          <img
+            src={logoImg}
+            alt="VideoNote"
+            className="h-8 w-8 rounded-lg object-cover"
+          />
+          <span className="font-semibold text-base text-foreground">VideoNote</span>
+        </button>
+
+        {/* 右侧：页面标题下拉 + 用户头像 */}
+        <div className="flex items-center gap-3">
+          {/* 页面标题下拉（仅显示当前页面名称） */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                <span className="text-sm font-medium text-foreground truncate max-w-[100px]">
+                  {pageTitle}
+                </span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={() => navigate("/")}>
+                快捷添加
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/notes")}>
+                笔记列表
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/feed")}>
+                动态
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/authors")}>
+                博主
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/channels")}>
+                频道管理
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* 用户头像下拉菜单 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                <Avatar className="h-8 w-8 border border-border">
+                  <AvatarFallback className="text-xs bg-primary/10 text-primary font-medium">
+                    {user?.username?.slice(0, 2).toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => navigate("/settings")}>
+                <Settings className="mr-2 h-4 w-4" />
+                设置
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
     </header>
   )
 }

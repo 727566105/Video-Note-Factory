@@ -31,6 +31,7 @@ import { useProviderStore } from '@/store/providerStore'
 import { getBaseURL } from '@/utils/api'
 import { noteStyles } from '@/constant/note'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -46,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ButtonGroup } from '@/components/ui/button-group'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 type TabKey = 'summary' | 'transcript' | 'mindmap' | 'original'
 
@@ -208,8 +210,107 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
     }).replace(/\//g, '-')
   }
 
+  const isMobile = useIsMobile()
+
+  // 移动端布局
+  if (isMobile) {
+    return (
+      <div className="flex flex-col">
+        {/* 标签栏 - 简化版 */}
+        <div className="flex items-center px-3 pt-2 pb-2">
+          <div className="flex items-center gap-0.5 bg-muted p-0.5 rounded-md">
+            {tabs.map((tab) => {
+              const TabIcon =
+                tab.key === 'summary' ? FileText :
+                tab.key === 'transcript' ? ListVideo :
+                tab.key === 'mindmap' ? BrainCircuit :
+                ScrollText
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={cn(
+                    'flex items-center justify-center h-8 px-3 rounded text-xs font-medium transition-colors whitespace-nowrap',
+                    activeTab === tab.key
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <TabIcon className="w-4 h-4" />
+                </button>
+              )
+            })}
+          </div>
+          {/* 操作按钮 */}
+          <div className="flex items-center gap-1 ml-auto">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopy}>
+              <Copy className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExportDialogOpen(true)}>
+              <Download className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* 内容区 */}
+        <div className="flex-1 min-h-0 px-3 pb-3">
+          <div className="rounded-lg border border-border bg-accent/30 overflow-hidden">
+            {/* 内容 */}
+            {activeTab === 'summary' && (
+              <div className="p-3">
+                {isProcessing ? (
+                  <ProcessingSpinner status={processingStatus} />
+                ) : selectedContent ? (
+                  <MarkdownRenderer content={twToCn(selectedContent)} />
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">暂无内容</div>
+                )}
+              </div>
+            )}
+            {activeTab === 'transcript' && (
+              <TranscriptViewer task={task} />
+            )}
+            {activeTab === 'mindmap' && selectedContent && typeof selectedContent === 'string' && (
+              <MarkmapEditor
+                value={selectedContent}
+                onChange={() => {}}
+                height="400px"
+                title={task.audioMeta?.title || '思维导图'}
+              />
+            )}
+            {activeTab === 'mindmap' && (!selectedContent || typeof selectedContent !== 'string') && (
+              <div className="text-center text-muted-foreground py-8">暂无思维导图数据</div>
+            )}
+            {activeTab === 'original' && (
+              <div className="p-3">
+                <div className="text-sm text-muted-foreground space-y-2">
+                  <p><strong>标题：</strong>{task.audioMeta?.title || task.title}</p>
+                  <p><strong>平台：</strong>{task.platform}</p>
+                  {task.audioMeta?.description && <p><strong>简介：</strong>{task.audioMeta?.description}</p>}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 弹窗 */}
+        <ExportDialog open={exportDialogOpen} onOpenChange={setExportDialogOpen} task={task} />
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="删除笔记"
+          description="确定要删除这条笔记吗？"
+          confirmText="删除"
+          variant="destructive"
+          onConfirm={handleDelete}
+        />
+      </div>
+    )
+  }
+
+  // 桌面端布局
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* 标签栏 */}
       <div className="flex items-center gap-1 px-4 pt-4 pb-2">
         <div className="flex items-center gap-1 bg-muted p-1 rounded-md">
@@ -319,12 +420,18 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
           ) : activeTab === 'transcript' ? (
             <TranscriptViewer />
           ) : activeTab === 'mindmap' ? (
-            <MarkmapEditor
-              value={selectedContent}
-              onChange={() => {}}
-              height="100%"
-              title={task.audioMeta?.title || '思维导图'}
-            />
+            selectedContent && typeof selectedContent === 'string' ? (
+              <MarkmapEditor
+                value={selectedContent}
+                onChange={() => {}}
+                height="100%"
+                title={task.audioMeta?.title || '思维导图'}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                暂无思维导图数据
+              </div>
+            )
           ) : activeTab === 'original' ? (
             task.transcript?.segments?.length > 0 ? (
               <div className="space-y-3">

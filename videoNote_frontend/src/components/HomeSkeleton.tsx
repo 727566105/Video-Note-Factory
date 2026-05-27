@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 const HomeSkeleton = () => {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* 侧边栏骨架 */}
       <div className="w-64 shrink-0 border-r border-border bg-sidebar flex flex-col">
         {/* Logo */}

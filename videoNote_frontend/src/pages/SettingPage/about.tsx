@@ -3,12 +3,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Github, Star, ExternalLink, Download } from 'lucide-react'
-import { ScrollArea } from '@/components/ui/scroll-area.tsx'
 import logo from '@/assets/logo.png'
 
 export default function AboutPage() {
   return (
-    <ScrollArea className={'h-full overflow-y-auto bg-background'}>
+    <div className={'h-full overflow-auto bg-background'}>
       <div className="container mx-auto px-4 py-12">
         {/* Hero Section */}
         <div className="mb-16 flex flex-col items-center justify-center text-center">
@@ -190,6 +189,6 @@ export default function AboutPage() {
           <p className="mb-4">💬 你的支持与反馈是我持续优化的动力！欢迎 PR、提 issue、Star ⭐️</p>
         </footer>
       </div>
-    </ScrollArea>
+    </div>
   )
 }

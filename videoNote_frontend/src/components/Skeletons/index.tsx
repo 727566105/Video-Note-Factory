@@ -37,7 +37,7 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
 // 详情页骨架 — 匹配 3.0 版本双栏布局
 export function DetailSkeleton() {
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-full w-full overflow-hidden bg-background">
       {/* 左栏 */}
       <div className="flex flex-col border-r border-border overflow-hidden w-[592px] min-w-[400px]">
         {/* 返回按钮区 */}

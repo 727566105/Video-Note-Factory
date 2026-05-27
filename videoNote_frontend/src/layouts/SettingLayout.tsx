@@ -1,6 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import React, { useState } from 'react'
-import { Menu } from 'lucide-react'
+import { Menu as MenuIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface ISettingLayoutProps {
@@ -41,7 +41,7 @@ const SettingLayout = ({ Menu }: ISettingLayoutProps) => {
           {/* 移动端菜单触发按钮 */}
           <div className="lg:hidden flex items-center gap-2 px-4 py-3 border-b border-border bg-background sticky top-0 z-30">
             <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} aria-label="打开设置菜单">
-              <Menu className="size-5" />
+              <MenuIcon className="size-5" />
             </Button>
             <span className="font-medium">设置</span>
           </div>

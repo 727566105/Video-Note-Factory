@@ -26,6 +26,12 @@ export function MobileBottomNav() {
     return location.pathname.startsWith(path)
   }
 
+  const handleNavClick = (path: string) => {
+    if (location.pathname !== path) {
+      navigate(path)
+    }
+  }
+
   return (
     <nav
       className={cn(
@@ -44,14 +50,15 @@ export function MobileBottomNav() {
           role="tab"
           aria-selected={isActive(item.path)}
           aria-label={item.label}
-          onClick={() => navigate(item.path)}
+          onClick={() => handleNavClick(item.path)}
           className={cn(
             "flex flex-col items-center justify-center",
             "flex-1 h-full",
             "transition-colors duration-200",
+            "touch-manipulation", // 禁用双击缩放，提升触摸响应速度
             isActive(item.path)
               ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground active:text-primary"
           )}
         >
           {item.icon}

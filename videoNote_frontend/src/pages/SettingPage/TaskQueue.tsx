@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { getQueueStatus, updateQueueConfig } from '@/services/note'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
 import { Settings, Minus, Plus } from 'lucide-react'
 
@@ -43,7 +42,7 @@ export default function TaskQueueSettings() {
   }
 
   return (
-    <ScrollArea className="h-full overflow-y-auto bg-background">
+    <div className="h-full overflow-auto bg-background">
       <div className="container mx-auto max-w-2xl px-4 py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold">任务队列配置</h1>
@@ -112,6 +111,6 @@ export default function TaskQueueSettings() {
           </CardContent>
         </Card>
       </div>
-    </ScrollArea>
+    </div>
   )
 }

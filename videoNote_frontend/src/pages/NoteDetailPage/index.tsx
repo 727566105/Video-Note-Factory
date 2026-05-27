@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 
 function ProcessingView({ status }: { status: string }) {
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center gap-6 bg-background">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-background">
       <ProcessingSpinner status={status} />
       <div className="text-xs text-muted-foreground">刷新页面后进度条仍会实时展示</div>
     </div>
@@ -22,7 +22,7 @@ function ProcessingView({ status }: { status: string }) {
 
 function QueuedView() {
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background">
       <Loader2 className="size-8 animate-spin text-amber-500" />
       <div className="text-lg font-medium text-foreground">排队等待中...</div>
       <div className="text-sm text-muted-foreground">任务正在排队，请稍候</div>
@@ -46,7 +46,7 @@ function FailedView({ message, taskId }: { message?: string; taskId: string }) {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background">
       <div className="text-lg font-medium text-red-500">生成失败</div>
       {message && <div className="text-sm text-muted-foreground">{message}</div>}
       <div className="mt-4 flex gap-3">
@@ -213,7 +213,7 @@ export default function NoteDetailPage() {
 
   if (!task || notFound) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex h-full w-full items-center justify-center bg-background">
         <div className="text-center">
           <p className="text-lg text-muted-foreground">笔记未找到</p>
           <button
@@ -242,64 +242,44 @@ export default function NoteDetailPage() {
     return <FailedView message={task.message} taskId={task.id} />
   }
 
-  // 移动端：单面板布局 + 底部切换按钮
+  // 移动端：单页上下滚动布局
   if (isMobile) {
     return (
-      <div className="flex flex-col h-screen overflow-hidden bg-background">
+      <div className="flex flex-col h-full overflow-hidden bg-background">
         {/* 顶部信息栏 */}
-        <div className="shrink-0 h-14 border-b flex items-center px-4 gap-4">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/notes')}>
+        <div className="shrink-0 h-12 border-b flex items-center px-3 gap-3">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate('/notes')}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <span className="truncate font-medium text-sm flex-1">{task.title || '笔记详情'}</span>
+          <span className="truncate font-medium text-sm flex-1 min-w-0">{task.title || '笔记详情'}</span>
         </div>
 
-        {/* 当前显示的面板 */}
-        <div className="flex-1 overflow-hidden">
-          <div
-            key={`mobile-${panelSwapped}`}
-            className="h-full animate-in fade-in slide-in-from-right-4 duration-300"
-          >
-            {panelSwapped ? (
-              <MemoRightPanel
-                task={task}
-                isProcessing={processing || queued}
-                processingStatus={task.status}
-                localSettings={localSettings}
-              />
-            ) : (
-              <MemoLeftPanel
-                task={task}
-                localSettings={localSettings}
-                onSettingsChange={setLocalSettings}
-              />
-            )}
-          </div>
-        </div>
+        {/* 上下滚动内容区域 */}
+        <div className="flex-1 overflow-auto">
+          {/* 视频信息区 */}
+          <MemoLeftPanel
+            task={task}
+            localSettings={localSettings}
+            onSettingsChange={setLocalSettings}
+          />
 
-        {/* 底部切换按钮组 */}
-        <div className="shrink-0 h-14 border-t flex items-center justify-center gap-2 px-4">
-          <Button
-            variant={!panelSwapped ? "default" : "outline"}
-            size="sm"
-            onClick={() => useSystemStore.getState().setPanelSwapped(false)}
-          >
-            <Video className="w-4 h-4 mr-1" />视频信息
-          </Button>
-          <Button
-            variant={panelSwapped ? "default" : "outline"}
-            size="sm"
-            onClick={() => useSystemStore.getState().setPanelSwapped(true)}
-          >
-            <FileText className="w-4 h-4 mr-1" />笔记内容
-          </Button>
+          {/* 分隔线 */}
+          <div className="h-2 bg-muted" />
+
+          {/* 笔记内容区 */}
+          <MemoRightPanel
+            task={task}
+            isProcessing={processing || queued}
+            processingStatus={task.status}
+            localSettings={localSettings}
+          />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background" ref={containerRef}>
+    <div className="flex h-full w-full overflow-hidden bg-background" ref={containerRef}>
       {/* 左栏（根据 panelSwapped 决定是视频还是笔记） */}
       <div className="flex flex-col overflow-hidden" style={{ width: leftWidth, minWidth: 400 }}>
         {/* 面板内容（带切换动画） */}

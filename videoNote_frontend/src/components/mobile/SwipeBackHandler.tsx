@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -24,6 +24,25 @@ export function SwipeBackHandler({
   const containerRef = useRef<HTMLDivElement>(null)
   const startXRef = useRef(0)
   const isSwipingRef = useRef(false)
+  const currentOffsetRef = useRef(0) // 用 ref 存储偏移量，避免 useEffect 重新绑定
+
+  // 触发返回或回弹
+  const finishSwipe = useCallback(() => {
+    if (!isSwipingRef.current) return
+    isSwipingRef.current = false
+    setIsAnimating(true)
+
+    if (currentOffsetRef.current > threshold) {
+      // 达到阈值，触发返回
+      setOffset(0)
+      currentOffsetRef.current = 0
+      navigate(-1)
+    } else {
+      // 未达到阈值，回弹
+      setOffset(0)
+      currentOffsetRef.current = 0
+    }
+  }, [threshold, navigate])
 
   useEffect(() => {
     if (!isMobile) return
@@ -37,6 +56,7 @@ export function SwipeBackHandler({
       if (touch.clientX <= edgeWidth) {
         startXRef.current = touch.clientX
         isSwipingRef.current = true
+        currentOffsetRef.current = 0
         setIsAnimating(false)
       }
     }
@@ -47,23 +67,13 @@ export function SwipeBackHandler({
       const deltaX = touch.clientX - startXRef.current
       // 只响应向右滑动
       if (deltaX > 0) {
+        currentOffsetRef.current = deltaX
         setOffset(deltaX)
       }
     }
 
     const handleTouchEnd = () => {
-      if (!isSwipingRef.current) return
-      isSwipingRef.current = false
-      setIsAnimating(true)
-
-      if (offset > threshold) {
-        // 达到阈值，触发返回
-        setOffset(0)
-        navigate(-1)
-      } else {
-        // 未达到阈值，回弹
-        setOffset(0)
-      }
+      finishSwipe()
     }
 
     container.addEventListener('touchstart', handleTouchStart, { passive: true })
@@ -75,7 +85,7 @@ export function SwipeBackHandler({
       container.removeEventListener('touchmove', handleTouchMove)
       container.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [isMobile, edgeWidth, threshold, offset, navigate])
+  }, [isMobile, edgeWidth, finishSwipe]) // 移除 offset 依赖，使用 ref 存储偏移量
 
   // 非移动端直接返回 children
   if (!isMobile) {

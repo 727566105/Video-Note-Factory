@@ -11,6 +11,8 @@ import {
   Rss,
   ChevronDown,
   Loader2,
+  Download,
+  Link,
 } from 'lucide-react'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -31,8 +33,20 @@ import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { TagEditorPopover } from '@/components/TagEditorPopover'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 const SUBSCRIBABLE_PLATFORMS = ['bilibili', 'youtube', 'douyin', 'kuaishou']
+
+// 平台名称映射
+const platformLabel: Record<string, string> = {
+  bilibili: 'B站',
+  youtube: 'YouTube',
+  douyin: '抖音',
+  xiaohongshu: '小红书',
+  kuaishou: '快手',
+  local: '本地视频',
+  local_audio: '本地音频',
+}
 
 interface LeftPanelProps {
   task: Task
@@ -53,6 +67,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
   const setPanelSwapped = useSystemStore(state => state.setPanelSwapped)
   const { subscribe, subscriptions } = useSubscriptionStore()
   const updateTaskContent = useTaskStore(state => state.updateTaskContent)
+  const isMobile = useIsMobile()
 
   // 获取发布人名字
   const getAuthor = (): string => {
@@ -182,8 +197,139 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
   }
   const videoUrl = getVideoUrl()
 
+  // 移动端布局：简洁版本，上下滚动
+  if (isMobile) {
+    return (
+      <div className="flex flex-col">
+        {/* 视频封面 */}
+        <div className="px-3 pt-3">
+          <div
+            className="relative bg-muted rounded-lg overflow-hidden w-full"
+            style={{ aspectRatio: '16/9' }}
+          >
+            {coverUrl && !coverFailed ? (
+              <img
+                src={coverUrl}
+                alt={title}
+                className="w-full h-full object-contain"
+                crossOrigin="anonymous"
+                onError={() => setCoverFailed(true)}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <PlatformIcon platform={task.platform} />
+              </div>
+            )}
+            {/* 播放按钮 */}
+            {embedUrl && task.content_type !== 'article' && (
+              <button
+                onClick={() => setIsEmbedActive(true)}
+                className="absolute inset-0 flex items-center justify-center bg-black/30"
+              >
+                <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
+                  <Play className="w-6 h-6 text-white ml-0.5" />
+                </div>
+              </button>
+            )}
+          </div>
+          {/* 嵌入播放器 */}
+          {isEmbedActive && embedUrl && (
+            <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+              <iframe
+                src={embedUrl}
+                className="w-full h-full border-0"
+                allowFullScreen
+              />
+              <button
+                onClick={() => setIsEmbedActive(false)}
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 视频标题 */}
+        <div className="px-3 pt-2">
+          <h2 className="text-base font-semibold text-foreground leading-snug">{title}</h2>
+        </div>
+
+        {/* 视频信息行 */}
+        <div className="px-3 pt-1 flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-1">
+            <PlatformIconSmall platform={task.platform} />
+            {platformLabel[task.platform] || task.platform}
+          </span>
+          {authorDisplay && authorDisplay !== task.platform && (
+            <span className="flex items-center gap-1">
+              <span>·</span>
+              <span className="text-primary font-medium">{authorDisplay}</span>
+              {canSubscribe && (
+                <button
+                  className={cn(
+                    'p-1 rounded transition-colors',
+                    isAuthorSubscribed ? 'text-primary' : 'text-muted-foreground hover:text-primary'
+                  )}
+                  onClick={() => subscribe(task.formData?.video_url || '')}
+                  disabled={subscribing}
+                >
+                  <Rss className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </span>
+          )}
+        </div>
+
+        {/* 操作按钮行 */}
+        <div className="px-3 pt-2 pb-3 flex items-center gap-2 flex-wrap">
+          {videoUrl && (
+            <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => window.open(videoUrl, '_blank')}>
+              <Link className="w-4 h-4 mr-1" />原片
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={async () => {
+            try {
+              const token = useAuthStore.getState().token
+              const res = await fetch(`${getBaseURL()}/api/audio/${task.id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              })
+              if (!res.ok) throw new Error()
+              const blob = await res.blob()
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(blob)
+              a.download = (task.audioMeta?.title || '音频') + '.mp3'
+              a.click()
+              URL.revokeObjectURL(a.href)
+            } catch {
+              toast.error('下载失败')
+            }
+          }}>
+            <Download className="w-4 h-4 mr-1" />音频
+          </Button>
+          <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setSettingsOpen(true)}>
+            <Settings2 className="w-4 h-4 mr-1" />设置
+          </Button>
+        </div>
+
+        {/* 弹窗 */}
+        <SummarySettings
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          settings={localSettings}
+          onSave={(vals) => {
+            onSettingsChange(vals as LocalSettings)
+            setSettingsOpen(false)
+          }}
+        />
+        <ModelSelectDialog open={modelOpen} onOpenChange={setModelOpen} />
+      </div>
+    )
+  }
+
+  // 桌面端布局：原有布局
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* 顶栏工具按钮 */}
       <div className="flex items-center justify-between px-4 py-2 overflow-x-auto">
         <ButtonGroup>
@@ -487,5 +633,18 @@ function PlatformIcon({ platform }: { platform: string }) {
     local_audio: <AudioLogo className="w-10 h-10" />,
   }
   return iconMap[platform] ?? <LocalLogo className="w-10 h-10" />
+}
+
+function PlatformIconSmall({ platform }: { platform: string }) {
+  const iconMap: Record<string, React.ReactNode> = {
+    bilibili: <BiliBiliLogo className="w-4 h-4" />,
+    youtube: <YoutubeLogo className="w-4 h-4" />,
+    douyin: <DouyinLogo className="w-4 h-4" />,
+    kuaishou: <KuaishouLogo className="w-4 h-4" />,
+    xiaohongshu: <XiaohongshuLogo className="w-4 h-4" />,
+    local: <LocalLogo className="w-4 h-4" />,
+    local_audio: <AudioLogo className="w-4 h-4" />,
+  }
+  return iconMap[platform] ?? <LocalLogo className="w-4 h-4" />
 }
 

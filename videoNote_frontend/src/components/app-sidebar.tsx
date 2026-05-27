@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  GalleryVerticalEnd,
   PanelLeft,
   Search,
   StickyNote,
@@ -14,6 +13,7 @@ import {
   NotebookPen,
   Users,
 } from "lucide-react"
+import logoImg from "@/../public/logo.png"
 import { useNavigate, useLocation } from "react-router-dom"
 import {
   Sidebar,
@@ -76,8 +76,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="cursor-pointer group-data-[collapsible=icon]:hidden"
               onClick={() => navigate("/")}
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <GalleryVerticalEnd className="size-4" />
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden bg-sidebar-primary">
+                <img src={logoImg} alt="VideoNote" className="size-8 object-cover" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">VideoNote</span>
