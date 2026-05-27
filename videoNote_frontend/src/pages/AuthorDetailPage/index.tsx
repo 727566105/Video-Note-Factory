@@ -44,7 +44,7 @@ export default function AuthorDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <Button variant="ghost" size="icon-sm" onClick={() => navigate('/authors')}>
           <ArrowLeft className="size-4" />
@@ -53,14 +53,14 @@ export default function AuthorDetailPage() {
         <span className="text-muted-foreground text-sm">{videos.length} 个视频</span>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 md:gap-4">
         {videos.map((video) => (
           <button
             key={video.task_id}
             onClick={() => navigate(`/notes/${video.task_id}`)}
-            className="flex items-center gap-4 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left"
+            className="flex items-center gap-3 md:gap-4 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left"
           >
-            <div className="w-24 h-16 rounded-md overflow-hidden bg-muted shrink-0">
+            <div className="w-20 md:w-24 h-14 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
               {video.cover_url ? (
                 <img
                   src={`${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(video.cover_url)}`}
