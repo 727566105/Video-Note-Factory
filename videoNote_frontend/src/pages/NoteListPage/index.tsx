@@ -851,7 +851,7 @@ function DataTable({
     },
   })
 
-  const selectedCount = table.getFilteredSelectedRowModel().rows.length
+  const selectedCount = selectedRows.length
   const totalCount = table.getFilteredRowModel().rows.length
 
   return (
