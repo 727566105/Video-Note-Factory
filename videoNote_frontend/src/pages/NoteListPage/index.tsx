@@ -78,6 +78,28 @@ import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
 import { TagEditorPopover } from '@/components/TagEditorPopover'
 import { Badge } from '@/components/ui/badge'
+import { MultiSelectFilter, type FilterOption } from '@/components/MultiSelectFilter'
+import { getAuthors, type AuthorInfo } from '@/services/author'
+
+// 平台筛选选项
+const PLATFORM_OPTIONS: FilterOption[] = [
+  { value: 'bilibili', label: 'B站' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'douyin', label: '抖音' },
+  { value: 'xiaohongshu', label: '小红书' },
+  { value: 'kuaishou', label: '快手' },
+  { value: 'local', label: '本地视频' },
+  { value: 'local_audio', label: '本地音频' },
+]
+
+// 状态筛选选项
+const STATUS_OPTIONS: FilterOption[] = [
+  { value: 'SUCCESS', label: '成功' },
+  { value: 'FAILED', label: '失败' },
+  { value: 'PENDING', label: '等待中' },
+  { value: 'RUNNING', label: '进行中' },
+  { value: 'QUEUED', label: '排队中' },
+]
 
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   if (!coverUrl) return ''
@@ -320,6 +342,11 @@ export const NoteListPage: FC = () => {
   const [notes, setNotes] = useState<NoteItem[]>([])
   const [loading, setLoading] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  // 筛选状态
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [selectedAuthors, setSelectedAuthors] = useState<string[]>([])
+  const [authors, setAuthors] = useState<AuthorInfo[]>([])
   const [deleteTargetId, setDeleteTargetId] = useState('')
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false)
   const [failedCovers, setFailedCovers] = useState<Set<string>>(new Set())
@@ -411,6 +438,34 @@ export const NoteListPage: FC = () => {
 
   useEffect(() => { fetchNotes() }, [])
 
+  // 加载博主列表
+  useEffect(() => {
+    getAuthors().then(res => {
+      if (res?.authors) setAuthors(res.authors)
+    }).catch(() => {})
+  }, [])
+
+  // 博主筛选选项（带笔记数量）
+  const authorOptions: FilterOption[] = useMemo(() => {
+    if (authors.length === 0) {
+      // 从笔记列表中提取去重博主作为 fallback
+      const authorMap = new Map<string, number>()
+      for (const n of notes) {
+        if (n.author) {
+          authorMap.set(n.author, (authorMap.get(n.author) || 0) + 1)
+        }
+      }
+      return Array.from(authorMap.entries()).map(([name, count]) => ({
+        value: name, label: name, count,
+      }))
+    }
+    return authors.map(a => ({
+      value: a.author_name,
+      label: a.author_name,
+      count: a.video_count,
+    }))
+  }, [authors, notes])
+
   const toggleSelectAll = () => {
     if (selectedRows.length === notes.length) {
       setSelectedRows([])
@@ -494,13 +549,28 @@ export const NoteListPage: FC = () => {
   }
 
   const filteredNotes = notes.filter(note => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      note.title.toLowerCase().includes(query) ||
-      note.note.toLowerCase().includes(query) ||
-      note.platform.toLowerCase().includes(query)
-    )
+    // 文本搜索
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      if (!note.title.toLowerCase().includes(query) &&
+          !note.note.toLowerCase().includes(query) &&
+          !note.platform.toLowerCase().includes(query)) {
+        return false
+      }
+    }
+    // 平台筛选
+    if (selectedPlatforms.length > 0 && !selectedPlatforms.includes(note.platform)) {
+      return false
+    }
+    // 状态筛选
+    if (selectedStatuses.length > 0 && !selectedStatuses.includes(note.status)) {
+      return false
+    }
+    // 博主筛选
+    if (selectedAuthors.length > 0 && !selectedAuthors.includes(note.author)) {
+      return false
+    }
+    return true
   })
 
   return (
@@ -540,6 +610,26 @@ export const NoteListPage: FC = () => {
                 className="w-80 pl-9"
               />
             </div>
+            {/* 筛选组件 */}
+            <MultiSelectFilter
+              label="博主"
+              options={authorOptions}
+              selected={selectedAuthors}
+              onChange={setSelectedAuthors}
+              searchable
+            />
+            <MultiSelectFilter
+              label="平台"
+              options={PLATFORM_OPTIONS}
+              selected={selectedPlatforms}
+              onChange={setSelectedPlatforms}
+            />
+            <MultiSelectFilter
+              label="状态"
+              options={STATUS_OPTIONS}
+              selected={selectedStatuses}
+              onChange={setSelectedStatuses}
+            />
             <Button variant="outline" className="gap-2">
               <FolderPlus className="w-4 h-4" />
               添加到合集
