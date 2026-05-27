@@ -713,6 +713,8 @@ def get_platform_from_url(url: str) -> str:
         return "youtube"
     elif "xiaohongshu" in url_lower or "xhscdn" in url_lower:
         return "xiaohongshu"
+    elif "cctv" in url_lower or "cntv" in url_lower:
+        return "cctv"
     return "other"
 
 

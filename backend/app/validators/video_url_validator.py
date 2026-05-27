@@ -8,6 +8,7 @@ SUPPORTED_PLATFORMS = {
     "douyin": r"(https?://)?(www\.|v\.)?douyin\.com",
     "kuaishou": r"(https?://)?(www\.)?kuaishou\.com",
     "xiaohongshu": r"(https?://)?(www\.)?xiaohongshu\.com",
+    "cctv": r"(https?://)?(tv\.|v\.)?cctv\.com/.*\.shtml",
 }
 
 
@@ -20,6 +21,10 @@ def is_supported_video_url(url: str) -> bool:
 
     # 检查是否为小红书短链接
     if parsed.netloc == "xhslink.com" or parsed.netloc.endswith(".xhslink.com"):
+        return True
+
+    # 检查是否为CCTV链接
+    if parsed.netloc.endswith("cctv.com"):
         return True
 
     for name, pattern in SUPPORTED_PLATFORMS.items():

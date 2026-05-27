@@ -1,6 +1,7 @@
 /* -------------------- 常量 -------------------- */
 import {
   BiliBiliLogo,
+  CCTVLogo,
   DouyinLogo,
   KuaishouLogo,
   LocalLogo,
@@ -45,6 +46,7 @@ export const outputLanguages = [
 export const videoPlatforms = [
   { label: '哔哩哔哩', value: 'bilibili', logo: BiliBiliLogo },
   { label: 'YouTube', value: 'youtube', logo: YoutubeLogo },
+  { label: '央视网', value: 'cctv', logo: CCTVLogo },
   { label: '抖音', value: 'douyin', logo: DouyinLogo },
   { label: '小红书', value: 'xiaohongshu', logo: XiaohongshuLogo },
   { label: '快手', value: 'kuaishou', logo: KuaishouLogo },

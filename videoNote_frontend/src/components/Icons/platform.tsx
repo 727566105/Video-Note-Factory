@@ -189,3 +189,33 @@ export const XiaohongshuLogo = ({ className }: PlatformIconProps = {}) => {
     </svg>
   )
 }
+
+export const CCTVLogo = ({ className }: PlatformIconProps = {}) => {
+  return (
+    <svg
+      className={cn('h-6 w-6', className)}
+      viewBox="0 0 1024 1024"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="1024" height="1024" fill="#005BAB" rx="128" />
+      <text
+        x="512"
+        y="350"
+        textAnchor="middle"
+        fill="white"
+        fontSize="280"
+        fontWeight="bold"
+        fontFamily="Arial, sans-serif"
+      >
+        CCTV
+      </text>
+      <path
+        d="M180 600 Q 512 720 844 600"
+        fill="none"
+        stroke="white"
+        strokeWidth="8"
+      />
+      <circle cx="512" cy="600" r="20" fill="white" />
+    </svg>
+  )
+}
