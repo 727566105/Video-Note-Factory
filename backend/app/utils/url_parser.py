@@ -49,6 +49,11 @@ def extract_video_id(url: str, platform: str) -> Optional[str]:
         match = re.search(r"/user/profile/[^/]+/([a-f0-9]{20,30})", url)
         return match.group(1) if match else None
 
+    elif platform == "cctv":
+        # 匹配 tv.cctv.com/{YYYY}/{MM}/{DD}/VID{random}.shtml
+        match = re.search(r"VID([A-Za-z0-9]+)", url)
+        return f"VID{match.group(1)}" if match else None
+
     return None
 
 

@@ -221,6 +221,7 @@ class NoteGenerator:
                 # 使用 _pending 临时目录
                 pending_dir = VIDEO_DIR / "_pending" / task_id
                 pending_dir.mkdir(parents=True, exist_ok=True)
+                output_path = str(pending_dir)
                 audio_cache_file = pending_dir / "audio.json"
                 transcript_cache_file = pending_dir / "transcript.json"
                 markdown_cache_file = pending_dir / "note.md"
