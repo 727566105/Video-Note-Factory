@@ -331,7 +331,7 @@ const WebDAVSettings = () => {
   }
 
   return (
-    <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-4 md:p-6">
       {/* 配置表单 */}
       <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
         <div className="mb-6 border-b pb-4">
