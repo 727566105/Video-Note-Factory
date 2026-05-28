@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { X, Sparkles, Eye, FileText, StickyNote, Check, Palette, Languages } from 'lucide-react'
+import { Sparkles, Eye, FileText, StickyNote, Check, Palette, Languages } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -17,6 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Field, FieldGroup } from '@/components/ui/field'
 import { cn } from '@/lib/utils'
 import { noteFormats, noteStyles, outputLanguages } from '@/constant/note.ts'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
@@ -149,18 +154,16 @@ export function SummarySettings({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] max-h-[90vh] p-0 gap-0 overflow-hidden overflow-y-auto">
-        {/* 标题栏 */}
-        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
-          <DialogTitle className="text-lg sm:text-xl font-semibold">总结设置</DialogTitle>
-          <DialogDescription className="sr-only">
-            配置视频笔记的总结风格和格式选项
-          </DialogDescription>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>总结设置</DialogTitle>
+          <DialogDescription>配置视频笔记的总结风格和格式选项</DialogDescription>
         </DialogHeader>
 
-        <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 sm:space-y-6">
+        {/* 滚动内容区域 */}
+        <div className="-mx-4 no-scrollbar max-h-[50vh] overflow-y-auto px-4">
           {/* 标签切换 */}
-          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg h-10">
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg h-10 mb-4">
             <button
               onClick={() => setActiveTab('default')}
               className={cn(
@@ -186,72 +189,71 @@ export function SummarySettings({
           </div>
 
           {activeTab === 'default' ? (
-            <>
+            <FieldGroup>
               {/* 视频理解 */}
-              <div className="space-y-3 sm:space-y-4">
-                <div className="flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground">视频理解</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-muted-foreground" />
+                    视频理解
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={videoUnderstanding}
+                      onCheckedChange={setVideoUnderstanding}
+                      className="data-[state=checked]:bg-foreground"
+                    />
+                    <span className="text-sm text-muted-foreground">启用</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={videoUnderstanding}
-                    onCheckedChange={setVideoUnderstanding}
-                    className="data-[state=checked]:bg-foreground"
-                  />
-                  <span className="text-sm text-muted-foreground">启用</span>
-                </div>
-
-                {/* 采样间隔 + 拼图尺寸 */}
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="space-y-2">
-                    <span className="text-xs sm:text-sm text-muted-foreground">采样间隔（秒）</span>
-                    <input
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <Label>采样间隔（秒）</Label>
+                    <Input
                       type="number"
                       min={1}
                       max={30}
                       value={videoInterval}
                       disabled={!videoUnderstanding}
                       onChange={(e) => setVideoInterval(parseInt(e.target.value) || 4)}
-                      className="w-full h-9 sm:h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <span className="text-xs sm:text-sm text-muted-foreground">拼图尺寸（列 × 行）</span>
+                  </Field>
+                  <Field>
+                    <Label>拼图尺寸（列 × 行）</Label>
                     <div className="flex items-center gap-2">
-                      <input
+                      <Input
                         type="number"
                         min={1}
                         max={10}
                         value={gridCols}
                         disabled={!videoUnderstanding}
                         onChange={(e) => setGridCols(parseInt(e.target.value) || 3)}
-                        className="w-14 sm:w-16 h-9 sm:h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-16 text-center"
                       />
                       <span className="text-sm text-muted-foreground">×</span>
-                      <input
+                      <Input
                         type="number"
                         min={1}
                         max={10}
                         value={gridRows}
                         disabled={!videoUnderstanding}
                         onChange={(e) => setGridRows(parseInt(e.target.value) || 3)}
-                        className="w-14 sm:w-16 h-9 sm:h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-16 text-center"
                       />
                     </div>
-                  </div>
+                  </Field>
                 </div>
               </div>
 
-              {/* 笔记风格 + 输出语言 并排 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2 sm:space-y-3">
-                  <div className="flex items-center gap-2">
+              {/* 笔记风格 + 输出语言 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field>
+                  <Label className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">笔记风格</span>
-                  </div>
+                    笔记风格
+                  </Label>
                   <Select value={style} onValueChange={setStyle}>
-                    <SelectTrigger className="w-full h-9 sm:h-10">
+                    <SelectTrigger>
                       <SelectValue>
                         {noteStyles.find(s => s.value === style)?.label || '请选择风格'}
                       </SelectValue>
@@ -267,15 +269,15 @@ export function SummarySettings({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
 
-                <div className="space-y-2 sm:space-y-3">
-                  <div className="flex items-center gap-2">
+                <Field>
+                  <Label className="flex items-center gap-2">
                     <Languages className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">输出语言</span>
-                  </div>
+                    输出语言
+                  </Label>
                   <Select value={outputLanguage} onValueChange={setOutputLanguage}>
-                    <SelectTrigger className="w-full h-9 sm:h-10">
+                    <SelectTrigger>
                       <SelectValue>
                         {outputLanguages.find(l => l.value === outputLanguage)?.label || '中文'}
                       </SelectValue>
@@ -288,15 +290,15 @@ export function SummarySettings({
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
               </div>
 
               {/* 笔记格式 */}
-              <div className="space-y-2 sm:space-y-3">
-                <div className="flex items-center gap-2">
+              <Field>
+                <Label className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground">笔记格式</span>
-                </div>
+                  笔记格式
+                </Label>
                 <div className="flex flex-wrap gap-3">
                   {noteFormats.map(({ label, value }) => (
                     <label key={value} className="flex items-center gap-2 cursor-pointer">
@@ -310,36 +312,26 @@ export function SummarySettings({
                           }
                         }}
                       />
-                      <span className="text-sm text-foreground">{label}</span>
+                      <span className="text-sm">{label}</span>
                     </label>
                   ))}
                 </div>
-              </div>
+              </Field>
 
               {/* 备注 */}
-              <div className="space-y-2 sm:space-y-3">
-                <div className="flex items-center gap-2">
+              <Field>
+                <Label className="flex items-center gap-2">
                   <StickyNote className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground">备注</span>
-                </div>
+                  备注
+                </Label>
                 <textarea
                   value={extras}
                   onChange={(e) => setExtras(e.target.value)}
                   placeholder="笔记需要罗列出 xxx 关键点…"
-                  className="w-full h-16 sm:h-20 p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full h-20 p-3 rounded-md border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-              </div>
-
-              {/* 保存按钮 */}
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={handleSaveDefaultSettings}
-                  className="h-9 sm:h-10 px-6 text-sm bg-foreground text-background hover:bg-foreground/90"
-                >
-                  保存
-                </Button>
-              </div>
-            </>
+              </Field>
+            </FieldGroup>
           ) : (
             /* 自定义总结内容 */
             <div className="space-y-4">
@@ -355,66 +347,69 @@ export function SummarySettings({
               {/* 提示词区域 */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-foreground">提示词内容</span>
+                  <span className="text-sm font-semibold">提示词内容</span>
                   <button className="text-sm text-foreground hover:underline">
                     提示词规范
                   </button>
                 </div>
-                <div className="relative">
-                  <textarea
-                    value={promptContent}
-                    onChange={(e) => setPromptContent(e.target.value)}
-                    placeholder={`请输入您的自定义总结提示词，比如：\n将以下视频字幕概括成一段简短的要点，然后用列表的形式提取要点信息，为每个要点信息选择一个适当的表情符号。\n输出应使用以下模板：\n\n## 摘要\n## 亮点`}
-                    className="w-full h-[140px] p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-              </div>
-
-              {/* 取个名字 */}
-              <div className="space-y-2">
-                <span className="text-sm font-semibold text-foreground">取个名字</span>
-                <input
-                  type="text"
-                  value={promptName}
-                  onChange={(e) => setPromptName(e.target.value)}
-                  placeholder="请输入一个提示词标题，保存起来吧！"
-                  className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                <textarea
+                  value={promptContent}
+                  onChange={(e) => setPromptContent(e.target.value)}
+                  placeholder={`请输入您的自定义总结提示词，比如：\n将以下视频字幕概括成一段简短的要点，然后用列表的形式提取要点信息，为每个要点信息选择一个适当的表情符号。\n输出应使用以下模板：\n\n## 摘要\n## 亮点`}
+                  className="w-full h-[140px] p-3 rounded-md border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 
-              {/* 分割线 */}
-              <div className="h-px bg-border" />
-
-              {/* 按钮行 */}
-              <div className="flex items-center justify-end gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setPromptContent('')
-                    setPromptName('')
-                  }}
-                  className="h-8 px-4 text-sm"
-                >
-                  清除
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-4 text-sm"
-                >
-                  保存
-                </Button>
-                <Button
-                  size="sm"
-                  className="h-8 px-4 text-sm bg-foreground text-background hover:bg-foreground/90"
-                >
-                  保存并重新总结
-                </Button>
-              </div>
+              {/* 取个名字 */}
+              <Field>
+                <Label>取个名字</Label>
+                <Input
+                  value={promptName}
+                  onChange={(e) => setPromptName(e.target.value)}
+                  placeholder="请输入一个提示词标题，保存起来吧！"
+                />
+              </Field>
             </div>
           )}
         </div>
+
+        {/* 底部按钮 */}
+        {activeTab === 'default' ? (
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" size="sm">取消</Button>
+            </DialogClose>
+            <Button
+              size="sm"
+              onClick={handleSaveDefaultSettings}
+              className="bg-foreground text-background hover:bg-foreground/90"
+            >
+              保存
+            </Button>
+          </DialogFooter>
+        ) : (
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPromptContent('')
+                setPromptName('')
+              }}
+            >
+              清除
+            </Button>
+            <Button variant="outline" size="sm">
+              保存
+            </Button>
+            <Button
+              size="sm"
+              className="bg-foreground text-background hover:bg-foreground/90"
+            >
+              保存并重新总结
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )
