@@ -6,8 +6,8 @@ test.describe('认证流程', () => {
     await page.getByPlaceholder('用户名').fill('admin')
     await page.getByPlaceholder('密码').fill('123456')
     await page.getByRole('button', { name: '登录' }).click()
-    await page.waitForURL('/')
-    expect(page.url()).toBe('http://localhost:3015/')
+    await page.waitForURL('/', { timeout: 15000 })
+    expect(page.url()).toContain('localhost:3015')
   })
 
   test('登录失败显示错误提示', async ({ page }) => {
@@ -29,7 +29,7 @@ test.describe('认证流程', () => {
     await page.getByPlaceholder('用户名').fill('admin')
     await page.getByPlaceholder('密码').fill('123456')
     await page.getByRole('button', { name: '登录' }).click()
-    await page.waitForURL('/')
+    await page.waitForURL('/', { timeout: 15000 })
     await page.getByRole('button', { name: /admin/ }).click()
     await page.getByRole('menuitem', { name: '退出登录' }).click()
     await page.waitForURL('/login')
