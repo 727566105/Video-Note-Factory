@@ -2,7 +2,7 @@ import { type ColumnDef, type HeaderContext } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo, CCTVLogo } from '@/components/Icons/platform'
 import type { Task } from '@/store/taskStore'
 import type { TaskTags } from '@/types/api'
 
@@ -29,6 +29,7 @@ export function PlatformIconSmall({ platform }: { platform: string }) {
     xiaohongshu: <XiaohongshuLogo className="w-6 h-6" />,
     local: <LocalLogo className="w-6 h-6" />,
     local_audio: <AudioLogo className="w-6 h-6" />,
+    cctv: <CCTVLogo className="w-6 h-6" />,
   }
   return <>{iconMap[platform] || <LocalLogo className="w-6 h-6" />}</>
 }
@@ -245,8 +246,8 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       accessorKey: 'note',
       header: '内容预览',
       cell: ({ row }) => (
-        <div className="min-w-0 max-w-sm">
-          <div className="text-sm text-muted-foreground line-clamp-4 whitespace-pre-line">{row.original.note}</div>
+        <div className="min-w-0 max-w-md">
+          <div className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">{row.original.note}</div>
         </div>
       ),
     },

@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { SummarySettings, type LocalSummaryValues } from '@/components/SummarySettings'
 import { ModelSelectDialog } from '@/components/ModelSelectDialog'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo, CCTVLogo } from '@/components/Icons/platform'
 import { useSystemStore } from '@/store/configStore'
 import { useTaskStore, type Task } from '@/store/taskStore'
 import type { LocalSettings } from './RightPanel'
@@ -738,6 +738,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     xiaohongshu: <XiaohongshuLogo className="w-10 h-10" />,
     local: <LocalLogo className="w-10 h-10" />,
     local_audio: <AudioLogo className="w-10 h-10" />,
+    cctv: <CCTVLogo className="w-10 h-10" />,
   }
   return iconMap[platform] ?? <LocalLogo className="w-10 h-10" />
 }
@@ -751,6 +752,7 @@ function PlatformIconSmall({ platform }: { platform: string }) {
     xiaohongshu: <XiaohongshuLogo className="w-4 h-4" />,
     local: <LocalLogo className="w-4 h-4" />,
     local_audio: <AudioLogo className="w-4 h-4" />,
+    cctv: <CCTVLogo className="w-4 h-4" />,
   }
   return iconMap[platform] ?? <LocalLogo className="w-4 h-4" />
 }
