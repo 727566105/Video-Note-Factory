@@ -6,6 +6,12 @@ import { Download, FileImage, Maximize, Minimize } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import 'markmap-toolbar/dist/style.css'
 
+function stripImages(md: string): string {
+  return md
+    .replace(/<img[^>]*>/gi, '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+}
+
 export interface MarkmapEditorProps {
   /** 要渲染的 Markdown 文本 */
   value: string
@@ -65,7 +71,7 @@ export default function MarkmapEditor({
   // 导出HTML思维导图
   const exportHtml = () => {
     try {
-      const { root } = transformer.transform(value)
+      const { root } = transformer.transform(stripImages(value))
       const data = JSON.stringify(root)
       
       // 创建HTML内容
@@ -229,7 +235,7 @@ export default function MarkmapEditor({
   useEffect(() => {
     const mm = mmRef.current
     if (!mm) return
-    const { root } = transformer.transform(value)
+    const { root } = transformer.transform(stripImages(value))
     mm.setData(root).then(() => mm.fit())
   }, [value])
 
