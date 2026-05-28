@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { type ColumnDef, type HeaderContext } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
@@ -6,6 +7,14 @@ import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLo
 import { TagEditorPopover } from '@/components/TagEditorPopover'
 import type { Task } from '@/store/taskStore'
 import type { TaskTags } from '@/types/api'
+
+const NotePreview = memo(function NotePreview({ note }: { note: string }) {
+  return (
+    <div className="min-w-0 max-w-md">
+      <div className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">{note}</div>
+    </div>
+  )
+})
 
 export interface NoteItem {
   id: string
@@ -36,9 +45,9 @@ export function PlatformIconSmall({ platform }: { platform: string }) {
 }
 
 interface ColumnProps {
-  selectedRows: string[]
+  selectedRowsSet: Set<string>
   onSelectRow: (id: string) => void
-  onSelectAll: () => void
+  onSelectAll: (pageIds: string[]) => void
   onRowClick: (item: NoteItem) => void
   onDelete: (taskId: string) => void
   onRegenerate: (item: NoteItem) => void
@@ -98,15 +107,18 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       header: ({ table }) => (
         <Checkbox
           checked={
-            props.selectedRows.length > 0 &&
-            props.selectedRows.length === table.getFilteredRowModel().rows.length
+            props.selectedRowsSet.size > 0 &&
+            props.selectedRowsSet.size === table.getRowModel().rows.length
           }
-          onCheckedChange={props.onSelectAll}
+          onCheckedChange={() => {
+            const pageIds = table.getRowModel().rows.map(r => r.original.id)
+            props.onSelectAll(pageIds)
+          }}
         />
       ),
       cell: ({ row }) => (
         <Checkbox
-          checked={props.selectedRows.includes(row.original.id)}
+          checked={props.selectedRowsSet.has(row.original.id)}
           onCheckedChange={() => props.onSelectRow(row.original.id)}
           onClick={(e) => e.stopPropagation()}
         />
@@ -253,11 +265,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
     {
       accessorKey: 'note',
       header: '内容预览',
-      cell: ({ row }) => (
-        <div className="min-w-0 max-w-md">
-          <div className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">{row.original.note}</div>
-        </div>
-      ),
+      cell: ({ row }) => <NotePreview note={row.original.note} />,
     },
     {
       id: 'actions',

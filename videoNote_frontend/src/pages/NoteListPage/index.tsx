@@ -499,11 +499,12 @@ export const NoteListPage: FC = () => {
   // 筛选器已选数量
   const totalSelectedFilters = selectedAuthors.length + selectedPlatforms.length + selectedStatuses.length
 
-  const toggleSelectAll = () => {
-    if (selectedRows.length === notes.length) {
+  const toggleSelectAll = (pageIds: string[]) => {
+    const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedRows.includes(id))
+    if (allPageSelected) {
       setSelectedRows([])
     } else {
-      setSelectedRows(notes.map(item => item.id))
+      setSelectedRows(pageIds)
     }
   }
 
@@ -1089,10 +1090,13 @@ function DataTable({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
 
+  const selectedRowsSetRef = useRef(new Set<string>(selectedRows))
+  selectedRowsSetRef.current = new Set(selectedRows)
+
   const columns = useMemo(
     () =>
       getColumns({
-        selectedRows,
+        selectedRowsSet: selectedRowsSetRef.current,
         onSelectRow,
         onSelectAll,
         onRowClick,
@@ -1106,7 +1110,7 @@ function DataTable({
         taskStoreTasks,
         onTagsUpdate,
       }),
-    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable, taskStoreTasks, onTagsUpdate],
+    [onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable, taskStoreTasks, onTagsUpdate],
   )
 
   const table = useReactTable({
