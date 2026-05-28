@@ -100,7 +100,7 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
         <SwipeBackHandler>
           <div className="h-screen flex flex-col bg-background">
             <SiteHeader />
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-auto">
               {children}
             </div>
             <MobileBottomNav />
@@ -139,7 +139,7 @@ function App() {
             <Route path="authors" element={<Suspense fallback={<PageLoader />}><AuthorsPage /></Suspense>} />
             <Route path="authors/:id" element={<Suspense fallback={<PageLoader />}><AuthorDetailPage /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingPage /></Suspense>}>
-              <Route index element={<Navigate to="about" replace />} />
+              {/* 移动端由 SettingLayout 显示设置列表，桌面端重定向由 SettingLayout 内部处理 */}
               <Route path="model" element={<AdminRoute><Suspense fallback={<PageLoader />}><Model /></Suspense></AdminRoute>}>
                 <Route path="new" element={<Suspense fallback={<PageLoader />}><ProviderForm isCreate /></Suspense>} />
                 <Route path=":id" element={<Suspense fallback={<PageLoader />}><ProviderForm /></Suspense>} />

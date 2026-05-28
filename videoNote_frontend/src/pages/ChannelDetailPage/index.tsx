@@ -30,6 +30,7 @@ import { generateNote } from '@/services/note'
 import MarkdownRenderer from '@/components/MarkdownRenderer'
 import { toast } from 'sonner'
 import { usePlatformFeatures } from '@/hooks/usePlatformFeatures'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', xiaohongshu: '小红书' }
 const platformIcon: Record<string, React.ReactNode> = {
@@ -62,6 +63,7 @@ const PAGE_SIZE = 20
 export default function ChannelDetailPage() {
   const { platform, id } = useParams<{ platform: string; id: string }>()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const { subscriptions, subscribe, unsubscribe, fetchSubscriptions } = useSubscriptionStore()
   const [videos, setVideos] = useState<FeedItem[]>([])
   const [total, setTotal] = useState(0)
@@ -379,12 +381,14 @@ export default function ChannelDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* 返回按钮 */}
-      <div className="shrink-0 px-4 md:px-6 pt-4">
-        <button onClick={() => navigate('/channels')} className="text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-5" />
-        </button>
-      </div>
+      {/* 桌面端返回按钮 */}
+      {!isMobile && (
+        <div className="shrink-0 px-6 pt-4">
+          <button onClick={() => navigate('/channels')} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-5" />
+          </button>
+        </div>
+      )}
 
       {/* 频道信息卡片 */}
       <div className="shrink-0 mx-4 md:mx-6 mb-4 flex flex-col rounded-lg bg-background p-4 shadow-md md:flex-row">
@@ -447,19 +451,21 @@ export default function ChannelDetailPage() {
         </div>
       </div>
 
-      <div className="shrink-0 px-4 md:px-6 py-3 flex gap-3 items-center">
-        <Input placeholder="搜索标题..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
-        <select className="rounded-md border px-3 py-2 text-sm bg-background" value={filter} onChange={e => handleFilterChange(e.target.value as any)}>
+      {/* 搜索和筛选栏 */}
+      <div className="shrink-0 px-4 md:px-6 py-3 flex gap-3 items-center flex-wrap">
+        <Input placeholder="搜索标题..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 md:flex-none md:max-w-sm" />
+        <select className="rounded-md border px-2 md:px-3 py-1.5 md:py-2 text-sm bg-background" value={filter} onChange={e => handleFilterChange(e.target.value as any)}>
           <option value="all">全部</option>
           {newItemIds.size > 0 && (
-            <option value="fresh">新内容 ({newItemIds.size})</option>
+            <option value="fresh">新 ({newItemIds.size})</option>
           )}
           <option value="summarized">已总结</option>
           <option value="unsummarized">未总结</option>
         </select>
-        <span className="text-sm text-muted-foreground ml-2">共 {total} 条</span>
-        {/* 视图切换 */}
-        <div className="flex items-center gap-1 ml-2">
+        {/* 数量统计 - 桌面端显示 */}
+        <span className="text-sm text-muted-foreground hidden md:inline">共 {total} 条</span>
+        {/* 视图切换 - 桌面端显示 */}
+        <div className="hidden md:flex items-center gap-1">
           <Button variant={viewMode === 'grid' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('grid')}>
             <LayoutGrid className="size-4" />
           </Button>
@@ -469,9 +475,9 @@ export default function ChannelDetailPage() {
         </div>
         {/* 分批获取状态提示 + 加载更多按钮 */}
         {features.batchFetch && fetchStatus && fetchStatus.total > 0 && (
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 md:ml-auto">
             <span className="text-sm text-muted-foreground">
-              已获取 {fetchStatus.fetched}/{fetchStatus.total} 个视频
+              {isMobile ? `${fetchStatus.fetched}/${fetchStatus.total}` : `已获取 ${fetchStatus.fetched}/${fetchStatus.total} 个视频`}
             </span>
             {fetchStatus.has_more && (
               <Button
@@ -483,7 +489,7 @@ export default function ChannelDetailPage() {
                 {loadingMore ? (
                   <><LoaderCircle className="size-3.5 mr-1 animate-spin" />加载中...</>
                 ) : (
-                  <><ChevronDown className="size-3.5 mr-1" />加载更多</>
+                  <>{isMobile ? '更多' : '加载更多'}</>
                 )}
               </Button>
             )}

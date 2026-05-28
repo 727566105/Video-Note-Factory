@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export default function SubscriptionSettings() {
+  const isMobile = useIsMobile()
   const [fetchInterval, setFetchInterval] = useState(60)
   const [rsshubUrl, setRsshubUrl] = useState('https://rsshub.app')
   const [limit, setLimit] = useState(20)
@@ -18,10 +20,13 @@ export default function SubscriptionSettings() {
   }
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h2 className="text-lg font-semibold mb-6">订阅设置</h2>
+    <div className="p-4 md:p-6 max-w-2xl">
+      {/* 标题 - 仅桌面端显示 */}
+      {!isMobile && (
+        <h2 className="text-lg font-semibold mb-6">订阅设置</h2>
+      )}
 
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         <div>
           <label className="text-sm font-medium block mb-2">自动刷新频率</label>
           <select
@@ -61,8 +66,8 @@ export default function SubscriptionSettings() {
           <p className="text-xs text-muted-foreground mt-1">每次刷新时从每个频道获取的最大内容数</p>
         </div>
 
-        <div className="pt-4">
-          <Button onClick={handleSave} disabled={saving}>
+        <div className="pt-2 md:pt-4">
+          <Button size={isMobile ? 'sm' : 'default'} onClick={handleSave} disabled={saving}>
             {saving ? '保存中...' : '保存设置'}
           </Button>
         </div>

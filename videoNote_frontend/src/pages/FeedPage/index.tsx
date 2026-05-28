@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -24,6 +25,7 @@ import { generateNote } from '@/services/note'
 import { toast } from 'sonner'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import type { FeedItem } from '@/services/subscription'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 const platformIcon: Record<string, React.ReactNode> = {
   bilibili: <BiliBiliLogo className="size-4" />,
@@ -54,6 +56,7 @@ type ViewMode = 'grid' | 'list'
 
 export default function FeedPage() {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const { feedItems, loading, fetchFeed, markAllRead, refreshFeed, unreadCount } = useSubscriptionStore()
   const addPendingTask = useTaskStore(state => state.addPendingTask)
   const { style, selectedFormats, outputLanguage } = useSummarySettingsStore()
@@ -113,16 +116,26 @@ export default function FeedPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b">
-        <div>
-          <h1 className="text-lg md:text-xl font-bold">动态</h1>
-          <p className="text-sm text-muted-foreground hidden md:block">你订阅频道的最新内容</p>
-        </div>
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b">
+        {/* 标题 - 仅桌面端显示 */}
+        {!isMobile && (
+          <div>
+            <h1 className="text-lg md:text-xl font-bold">动态</h1>
+            <p className="text-sm text-muted-foreground hidden md:block">你订阅频道的最新内容</p>
+          </div>
+        )}
+        {/* 移动端显示未读数量 */}
+        {isMobile && unreadCount > 0 && (
+          <span className="text-sm text-muted-foreground">{unreadCount} 条未读</span>
+        )}
         <div className="flex items-center gap-2">
           {/* 刷新按钮 - 所有尺寸 */}
-          <Button variant="outline" size="sm" onClick={refreshFeed} disabled={loading}>
-            <RefreshCw className="size-4" />
-            <span className="hidden md:inline ml-1">刷新</span>
+          <Button variant="outline" size="icon" className="h-8 w-8 md:hidden" onClick={refreshFeed} disabled={loading}>
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+          </Button>
+          <Button variant="outline" size="sm" className="hidden md:flex" onClick={refreshFeed} disabled={loading}>
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            <span className="ml-1">刷新</span>
           </Button>
 
           {/* 桌面端：全部已读 + 视图切换 */}
@@ -142,19 +155,21 @@ export default function FeedPage() {
           </div>
 
           {/* 移动端：视图切换图标 */}
-          <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="md:hidden">
-            <SelectTrigger className="w-[80px] h-8">
-              {viewMode === 'grid' ? <LayoutGrid className="size-4" /> : <List className="size-4" />}
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="grid"><LayoutGrid className="size-4" /></SelectItem>
-              <SelectItem value="list"><List className="size-4" /></SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="md:hidden">
+            <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+              <SelectTrigger className="w-[40px] h-8 px-2">
+                {viewMode === 'grid' ? <LayoutGrid className="size-4" /> : <List className="size-4" />}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="grid"><LayoutGrid className="size-4" /></SelectItem>
+                <SelectItem value="list"><List className="size-4" /></SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         {loading && feedItems.length === 0 ? (
           <div className="text-center text-muted-foreground py-20">加载中...</div>
         ) : feedItems.length === 0 ? (

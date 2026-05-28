@@ -99,7 +99,6 @@ export function SwipeBackHandler({
         transform: `translateX(${offset}px)`,
         transition: isAnimating ? 'transform 0.3s ease-out' : 'none',
       }}
-      className="h-full w-full"
     >
       {children}
     </div>

@@ -424,17 +424,18 @@ export function QuickAdd({ className }: QuickAddProps) {
           </div>
 
           {/* 操作栏 */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-t border-border">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
-                className="flex items-center justify-center gap-1.5 h-8 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+                className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={() => setSettingsOpen(true)}
               >
                 <SlidersHorizontal className="w-4 h-4" />
-                总结设置
+                <span className="hidden sm:inline">总结设置</span>
+                <span className="sm:hidden">设置</span>
               </button>
               <button
-                className="flex items-center justify-center gap-1.5 h-8 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+                className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={() => setModelSelectOpen(true)}
               >
                 <Sparkles className="w-4 h-4" />
@@ -442,11 +443,12 @@ export function QuickAdd({ className }: QuickAddProps) {
               </button>
               {/* 平台选择下拉器 */}
               <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                <SelectTrigger className="h-8 px-3 border-0 bg-transparent gap-1.5 text-sm text-foreground hover:bg-accent rounded-md focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
+                <SelectTrigger className="h-7 px-2.5 border-0 bg-transparent gap-1 text-sm text-foreground hover:bg-accent rounded-md focus:ring-0 focus:ring-offset-0 [&>svg]:hidden w-auto">
                   {selectedPlatform === 'auto' ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Wand2 className="w-4 h-4" />
-                      <span>智能选择</span>
+                      <span className="hidden sm:inline">智能选择</span>
+                      <span className="sm:hidden">智能</span>
                       {detectedPlatform && (
                         <span className="text-xs text-muted-foreground">
                           ({videoPlatforms.find(p => p.value === detectedPlatform)?.label || detectedPlatform})
@@ -454,9 +456,9 @@ export function QuickAdd({ className }: QuickAddProps) {
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <div className="h-4 w-4">{videoPlatforms.find(p => p.value === selectedPlatform)?.logo()}</div>
-                      <span>{videoPlatforms.find(p => p.value === selectedPlatform)?.label}</span>
+                      <span className="hidden sm:inline">{videoPlatforms.find(p => p.value === selectedPlatform)?.label}</span>
                     </div>
                   )}
                 </SelectTrigger>
@@ -478,10 +480,19 @@ export function QuickAdd({ className }: QuickAddProps) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex items-center gap-2">
+              {/* 快速粘贴按钮 - 移动端放在左侧 */}
               <button
-                className="flex items-center justify-center gap-1.5 h-8 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+                className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors sm:hidden"
+                onClick={handleQuickPaste}
+              >
+                <Clipboard className="w-4 h-4" />
+                <span>粘贴</span>
+              </button>
+            </div>
+            {/* 快速粘贴按钮 - 桌面端放在右侧 */}
+            <div className="hidden sm:flex items-center gap-2">
+              <button
+                className="flex items-center justify-center gap-1.5 h-7 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={handleQuickPaste}
               >
                 <Clipboard className="w-4 h-4" />
@@ -507,8 +518,8 @@ export function QuickAdd({ className }: QuickAddProps) {
           </Button>
         </div>
 
-        {/* 底部链接 */}
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+        {/* 底部链接 - 移动端隐藏 */}
+        <div className="hidden sm:flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <button className="flex items-center justify-center gap-1.5 h-8 px-3 hover:bg-accent hover:text-foreground rounded-md transition-colors">
             <Zap className="w-4 h-4" />
             热门链接

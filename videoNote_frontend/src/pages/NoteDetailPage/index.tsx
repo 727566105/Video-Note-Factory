@@ -242,38 +242,27 @@ export default function NoteDetailPage() {
     return <FailedView message={task.message} taskId={task.id} />
   }
 
-  // 移动端：单页上下滚动布局
+  // 移动端：单页上下滚动布局（顶部栏由 SiteHeader 处理）
   if (isMobile) {
     return (
-      <div className="flex flex-col h-full overflow-hidden bg-background">
-        {/* 顶部信息栏 */}
-        <div className="shrink-0 h-12 border-b flex items-center px-3 gap-3">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate('/notes')}>
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <span className="truncate font-medium text-sm flex-1 min-w-0">{task.title || '笔记详情'}</span>
-        </div>
+      <div className="flex flex-col bg-background">
+        {/* 视频信息区 */}
+        <MemoLeftPanel
+          task={task}
+          localSettings={localSettings}
+          onSettingsChange={setLocalSettings}
+        />
 
-        {/* 上下滚动内容区域 */}
-        <div className="flex-1 overflow-auto">
-          {/* 视频信息区 */}
-          <MemoLeftPanel
-            task={task}
-            localSettings={localSettings}
-            onSettingsChange={setLocalSettings}
-          />
+        {/* 分隔线 */}
+        <div className="h-2 bg-muted" />
 
-          {/* 分隔线 */}
-          <div className="h-2 bg-muted" />
-
-          {/* 笔记内容区 */}
-          <MemoRightPanel
-            task={task}
-            isProcessing={processing || queued}
-            processingStatus={task.status}
-            localSettings={localSettings}
-          />
-        </div>
+        {/* 笔记内容区 */}
+        <MemoRightPanel
+          task={task}
+          isProcessing={processing || queued}
+          processingStatus={task.status}
+          localSettings={localSettings}
+        />
       </div>
     )
   }

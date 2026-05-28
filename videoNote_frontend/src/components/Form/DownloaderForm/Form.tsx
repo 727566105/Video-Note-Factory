@@ -18,6 +18,7 @@ import { getDownloaderCookie, updateDownloaderCookie } from '@/services/download
 import { Navigate, useParams } from 'react-router-dom'
 import { videoPlatforms } from '@/constant/note.ts'
 import { Copy, Eye, EyeOff } from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 const CookieSchema = z.object({
   cookie: z.string().min(10, '请填写有效 Cookie'),
@@ -25,6 +26,7 @@ const CookieSchema = z.object({
 
 const DownloaderForm = () => {
   const { id } = useParams()
+  const isMobile = useIsMobile()
   const form = useForm({
     resolver: zodResolver(CookieSchema),
     defaultValues: { cookie: '' },
@@ -76,15 +78,18 @@ const DownloaderForm = () => {
     return <Navigate to="/settings/download" replace />
   }
 
-  if (loading) return <div className="p-4">加载中...</div>
+  if (loading) return <div className="p-4 md:p-6">加载中...</div>
 
   return (
-    <div className="max-w-xl p-4">
+    <div className="p-4 md:p-6 max-w-xl">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          <div className="text-lg font-bold">
-            设置{videoPlatforms.find(item => item.value === id)?.label}下载器 Cookie
-          </div>
+          {/* 标题 - 仅桌面端显示 */}
+          {!isMobile && (
+            <div className="text-lg font-bold">
+              设置{videoPlatforms.find(item => item.value === id)?.label}下载器 Cookie
+            </div>
+          )}
 
           <FormField
             control={form.control}
@@ -123,7 +128,7 @@ const DownloaderForm = () => {
             )}
           />
 
-          <Button type="submit">保存</Button>
+          <Button type="submit" size={isMobile ? 'sm' : 'default'}>保存</Button>
         </form>
       </Form>
     </div>
