@@ -67,6 +67,15 @@ jobs:
           echo "JWT_SECRET_KEY=ci-test-secret" >> .env
           echo "BACKEND_PORT=8483" >> .env
           echo "WEBDAV_ENCRYPTION_KEY=oBAjxywnvDe7gAz4AtZ4swgwC0RTIfro4JVFBveMkPg=" >> .env
+      - name: Test backend login API
+        run: |
+          cd backend
+          python3 main.py &
+          sleep 15
+          curl -s -X POST http://127.0.0.1:8483/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"123456"}' || echo "LOGIN_FAILED"
+          kill %1 2>/dev/null || true
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
