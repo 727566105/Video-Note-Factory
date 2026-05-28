@@ -28,6 +28,7 @@ jobs:
       - name: Run backend tests
         run: |
           cd backend
+          python3 -c "from passlib.context import CryptContext; ctx = CryptContext(schemes=['bcrypt'], deprecated='auto'); h = ctx.hash('test123'); print(f'hash ok: {ctx.verify(\"test123\", h)}')"
           python3 -m pytest tests/ -v
 
   frontend-unit-tests:
