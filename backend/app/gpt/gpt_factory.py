@@ -10,4 +10,8 @@ class GPTFactory:
     @staticmethod
     def from_config(config: ModelConfig) -> GPT:
         client = OpenAICompatibleProvider(api_key=config.api_key, base_url=config.base_url).get_client
-        return UniversalGPT(client=client, model=config.model_name)
+        return UniversalGPT(
+            client=client,
+            model=config.model_name,
+            provider_name=config.provider,  # 传递供应商名称用于判断是否支持视觉
+        )

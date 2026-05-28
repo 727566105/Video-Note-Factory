@@ -202,7 +202,7 @@ class SmartModelSelector:
             api_key=provider["api_key"],
             base_url=provider["base_url"],
             model_name=model["model_name"],
-            provider=provider["type"],
+            provider=provider["name"],  # 使用 name 字段判断是否支持视觉（DeepSeek/OpenAI等）
             name=provider["name"],
         )
 
