@@ -809,8 +809,8 @@ class NoteGenerator:
         if task_id:
             self._update_status(task_id, status_phase)
 
-        # 判断是否需要下载视频
-        need_video = screenshot or video_understanding
+        # 默认下载视频（本地完整备份）
+        need_video = True
 
         # 已有音频缓存，直接加载
         if audio_cache_file.exists():

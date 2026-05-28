@@ -284,7 +284,7 @@ class CCTVDownloader(Downloader, ABC):
                 cover_path = os.path.join(output_dir, "cover.jpg")
                 with open(cover_path, "wb") as f:
                     f.write(resp.content)
-                return cover_path
+                return f"/api/video_cover/cctv/cctv/{video_id}"
         except Exception as e:
             logger.warning(f"封面下载失败: {e}")
 

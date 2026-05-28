@@ -24,6 +24,7 @@ import { useSystemStore } from '@/store/configStore'
 import { useTaskStore, type Task } from '@/store/taskStore'
 import type { LocalSettings } from './RightPanel'
 import { getBaseURL } from '@/utils/api'
+import request from '@/utils/request'
 import { useAuthStore } from '@/store/authStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { cn } from '@/lib/utils'
@@ -58,16 +59,48 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [isEmbedActive, setIsEmbedActive] = useState(false)
+  const [isLocalVideoActive, setIsLocalVideoActive] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
   const [subscribing, setSubscribing] = useState(false)
   const [descExpanded, setDescExpanded] = useState(false)
   const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null)
+  const [remoteDeleted, setRemoteDeleted] = useState(false)
+  const [checkingRemote, setCheckingRemote] = useState(false)
   const coverRef = useRef<HTMLImageElement>(null)
   const navigate = useNavigate()
   const setPanelSwapped = useSystemStore(state => state.setPanelSwapped)
   const { subscribe, subscriptions } = useSubscriptionStore()
   const updateTaskContent = useTaskStore(state => state.updateTaskContent)
   const isMobile = useIsMobile()
+
+  // 本地视频文件 URL
+  const localVideoUrl = useMemo(() => {
+    const videoId = task.audioMeta?.video_id || ''
+    const authorId = task.author_id || task.audioMeta?.author_id || ''
+    if (!videoId || !authorId) return null
+    return `${getBaseURL()}/api/video_file/${task.platform}/${authorId}/${videoId}`
+  }, [task.platform, task.audioMeta?.video_id, task.author_id, task.audioMeta?.author_id])
+
+  // 检测远程视频状态
+  const checkRemoteStatus = async () => {
+    const videoUrlToCheck = videoUrl || task.formData?.video_url || ''
+    if (!videoUrlToCheck) return true
+
+    setCheckingRemote(true)
+    try {
+      const resp = await request.get('/api/check_remote_status', {
+        params: { url: videoUrlToCheck }
+      })
+      const exists = resp.data?.exists ?? false
+      setRemoteDeleted(!exists)
+      return exists
+    } catch {
+      setRemoteDeleted(true)
+      return false
+    } finally {
+      setCheckingRemote(false)
+    }
+  }
 
   // 获取发布人名字
   const getAuthor = (): string => {
@@ -203,6 +236,15 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
       <div className="flex flex-col">
         {/* 视频封面 */}
         <div className="px-3 pt-3">
+          {/* 远程删除提示栏 */}
+          {remoteDeleted && (
+            <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+              <span className="text-xs text-yellow-700 dark:text-yellow-300">
+                远程视频已删除，本地文件仍可播放
+              </span>
+            </div>
+          )}
           <div
             className="relative bg-muted rounded-lg overflow-hidden w-full"
             style={{ aspectRatio: '16/9' }}
@@ -221,9 +263,20 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               </div>
             )}
             {/* 播放按钮 */}
-            {embedUrl && task.content_type !== 'article' && (
+            {(embedUrl || videoUrl || localVideoUrl) && task.content_type !== 'article' && (
               <button
-                onClick={() => setIsEmbedActive(true)}
+                onClick={async () => {
+                  if (localVideoUrl) {
+                    setIsLocalVideoActive(true)
+                    return
+                  }
+                  await checkRemoteStatus()
+                  if (embedUrl) {
+                    setIsEmbedActive(true)
+                  } else if (videoUrl) {
+                    window.open(videoUrl, '_blank', 'noopener,noreferrer')
+                  }
+                }}
                 className="absolute inset-0 flex items-center justify-center bg-black/30"
               >
                 <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
@@ -242,6 +295,23 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               />
               <button
                 onClick={() => setIsEmbedActive(false)}
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+          {/* 本地视频播放器 */}
+          {isLocalVideoActive && localVideoUrl && (
+            <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+              <video
+                src={localVideoUrl}
+                className="w-full h-full"
+                controls
+                autoPlay
+              />
+              <button
+                onClick={() => setIsLocalVideoActive(false)}
                 className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white"
               >
                 <X className="w-5 h-5" />
@@ -416,6 +486,15 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
 
       {/* 视频播放器 */}
       <div className="px-4 py-2">
+        {/* 远程删除提示栏 */}
+        {remoteDeleted && (
+          <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 flex items-center gap-2">
+            <Globe className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+            <span className="text-sm text-yellow-700 dark:text-yellow-300">
+              远程视频已删除，本地文件仍可播放
+            </span>
+          </div>
+        )}
         <div
           className="relative bg-muted rounded-xl overflow-hidden group w-full"
           style={{ height: isPortraitVideo() ? '300px' : 'auto', aspectRatio: isPortraitVideo() ? undefined : '16/9' }}
@@ -439,6 +518,22 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
                 <X className="w-4 h-4" />
               </button>
             </>
+          ) : isLocalVideoActive && localVideoUrl ? (
+            <>
+              {/* 本地视频播放器 */}
+              <video
+                src={localVideoUrl}
+                className="absolute inset-0 w-full h-full object-contain"
+                controls
+                autoPlay
+              />
+              <button
+                onClick={() => setIsLocalVideoActive(false)}
+                className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </>
           ) : (
             <>
               {coverUrl && !coverFailed ? (
@@ -457,19 +552,31 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
                   <span className="text-xs text-muted-foreground">{title}</span>
                 </div>
               )}
-              {(embedUrl || videoUrl) && task.content_type !== 'article' && (
+              {(embedUrl || videoUrl || localVideoUrl) && task.content_type !== 'article' && (
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    // 有本地视频优先播放本地
+                    if (localVideoUrl) {
+                      setIsLocalVideoActive(true)
+                      return
+                    }
+                    // 检测远程状态
+                    await checkRemoteStatus()
                     if (embedUrl) {
                       setIsEmbedActive(true)
                     } else if (videoUrl) {
                       window.open(videoUrl, '_blank', 'noopener,noreferrer')
                     }
                   }}
-                  className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                  disabled={checkingRemote}
+                  className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-wait"
                 >
                   <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
-                    <Play className="w-8 h-8 text-white ml-1" />
+                    {checkingRemote ? (
+                      <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Play className="w-8 h-8 text-white ml-1" />
+                    )}
                   </div>
                 </button>
               )}

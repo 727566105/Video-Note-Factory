@@ -1248,3 +1248,30 @@ def download_audio(task_id: str, current_user=Depends(get_current_user)) -> dict
     except Exception as e:
         logger.error(f"下载音频失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/check_remote_status")
+async def check_remote_status(url: str, current_user=Depends(get_current_user)):
+    """检测远程视频是否仍可访问"""
+    import httpx
+
+    if not url:
+        return {"code": 0, "data": {"exists": False, "reason": "URL 为空"}}
+
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            resp = await client.head(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            })
+            exists = resp.status_code < 400
+            return {
+                "code": 0,
+                "data": {
+                    "exists": exists,
+                    "status_code": resp.status_code,
+                }
+            }
+    except httpx.TimeoutException:
+        return {"code": 0, "data": {"exists": False, "reason": "请求超时"}}
+    except Exception as e:
+        return {"code": 0, "data": {"exists": False, "reason": str(e)}}

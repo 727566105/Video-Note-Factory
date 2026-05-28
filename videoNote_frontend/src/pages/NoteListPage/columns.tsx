@@ -144,10 +144,10 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                   {item.author}
                 </div>
               )}
-              {/* 时长覆盖右下角 - 从 audioMeta 获取 */}
-              {item.video_url && (
+              {/* 订阅状态覆盖右下角 */}
+              {item.video_url && props.isSubscribable(item.platform) && props.isSubscribed(item.author) && (
                 <div className="absolute bottom-2 right-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded">
-                  {props.isSubscribable(item.platform) && props.isSubscribed(item.author) ? '已订阅' : ''}
+                  已订阅
                 </div>
               )}
               {/* 收藏按钮右上角 */}
