@@ -20,6 +20,10 @@ jobs:
           cd backend
           pip install -r requirements.txt
           pip install pytest
+      - name: Create .env for backend
+        run: |
+          echo "JWT_SECRET_KEY=ci-test-secret" >> .env
+          echo "BACKEND_PORT=8483" >> .env
       - name: Run backend tests
         run: |
           cd backend
