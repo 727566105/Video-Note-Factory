@@ -197,7 +197,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
               <div className="mt-2 flex flex-wrap justify-end gap-2 items-center" onClick={e => e.stopPropagation()}>
                 {item.tags?.platform_tags?.map((tag, i) => (
                   <span key={`p${i}`} className="rounded-full border border-blue-200 bg-blue-50 text-blue-600 px-2.5 py-0.5 text-xs">
-                    #{tag}
+                    {tag}
                   </span>
                 ))}
                 {item.tags?.ai_tags?.map((tag, i) => (

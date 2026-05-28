@@ -176,7 +176,7 @@ function TagsRow({ item, onTagsUpdate }: { item: NoteItem; onTagsUpdate: (id: st
       {/* 平台标签 - 蓝色 */}
       {item.tags?.platform_tags?.map((tag, i) => (
         <span key={`p${i}`} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100">
-          #{tag}
+          {tag}
         </span>
       ))}
       {/* AI 标签 - 紫色 */}

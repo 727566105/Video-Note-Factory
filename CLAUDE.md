@@ -115,35 +115,56 @@ videoNote/
 
    | Store | 职责 | persist | 初始化 |
    |-------|------|---------|--------|
-   | `taskStore` | 笔记任务管理，支持版本控制 | 是 | App.tsx 全局加载 |
+   | `authStore` | 用户认证状态 | 是 | — |
+   | `taskStore` | 笔记任务管理 | 是 | App.tsx 全局加载 |
    | `modelStore` | AI 模型配置列表 | 是 | — |
-   | `providerStore` | 模型供应商配置 | 否 | 组件内 `fetchProviderList()` |
+   | `providerStore` | 模型供应商配置 | 否 | AuthenticatedApp 加载 |
    | `configStore` | 应用全局配置 | 是 | — |
-   | `subscriptionStore` | 订阅频道管理 | 否 | App.tsx 全局加载 |
+   | `subscriptionStore` | 订阅频道管理 | 否 | AuthenticatedApp 加载 |
+   | `summarySettingsStore` | 总结设置 | 是 | — |
    | `siyuanStore` | 思源笔记集成 | 是 | — |
    | `webdavStore` | WebDAV 备份配置 | 是 | — |
-
-   注意：`providerStore` 和 `subscriptionStore` 没有 persist，需要在 App.tsx 的 `AuthenticatedApp` 组件中全局加载（`fetchProviderList()` 和 `fetchSubscriptions()`）。
+   | `themeStore` | 主题切换 | 是 | — |
 
 2. **路由结构** (`src/App.tsx`)
+   - `ProtectedRoute`: 需要登录认证
+   - `AdminRoute`: 需要管理员权限（包裹 model/download/taskqueue/subscription）
    ```
-   /                          → 首页 (笔记生成)
-   /settings/model            → 模型供应商列表
-   /settings/model/new        → 新建供应商
-   /settings/model/:id        → 编辑供应商
-   /settings/download/:id     → 编辑下载器
-   /settings/siyuan           → 思源笔记配置
-   /settings/webdav           → WebDAV 备份配置
-   /settings/about            → 关于页面
+   /login                      → 登录页
+   /                           → 首页 (笔记生成)
+   /notes                      → 笔记列表
+   /notes/:id                  → 笔记详情
+   /feed                       → 订阅动态
+   /channels                   → 频道管理
+   /channel/:platform/:id      → 频道详情
+   /authors                    → 博主列表
+   /authors/:id                → 博主详情
+   /settings                   → 设置页
+     /settings/model           → 模型供应商 [AdminRoute]
+     /settings/download        → 下载器配置 [AdminRoute]
+     /settings/taskqueue       → 任务队列 [AdminRoute]
+     /settings/siyuan          → 思源笔记配置
+     /settings/webdav          → WebDAV 备份配置
+     /settings/about           → 关于页面
+     /settings/subscription    → 订阅管理 [AdminRoute]
+     /settings/users           → 用户管理
    ```
 
-3. **请求封装** (`src/utils/request.ts`)
+3. **布局模式** — 桌面端与移动端分开处理
+   - 桌面端: `SidebarProvider` + `AppSidebar` 侧边栏布局
+   - 移动端: `SiteHeader` + `MobileBottomNav` 底部导航 + `SwipeBackHandler` 滑动返回
+
+4. **请求封装** (`src/utils/request.ts`)
    - 基于 axios，后端返回格式 `{ code, msg, data }`，`code === 0` 为成功
    - 错误时自动 toast 提示
 
-4. **任务轮询** (`src/hooks/useTaskPolling.ts`)
+5. **任务轮询** (`src/hooks/useTaskPolling.ts`)
    - 每 3 秒轮询 `/api/task_status/{task_id}`
    - 仅轮询 PENDING/RUNNING 状态的任务
+
+6. **平台图标系统** (`src/components/Icons/platform.tsx`)
+   - 8 个平台 Logo SVG 组件: BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, CCTVLogo, LocalLogo, AudioLogo
+   - 默认尺寸 `w-6 h-6`，通过 `className` prop 覆盖
 
 ### 浏览器插件 (browser-extension/)
 
