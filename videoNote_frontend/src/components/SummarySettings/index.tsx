@@ -149,16 +149,16 @@ export function SummarySettings({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] p-0 gap-0 overflow-hidden overflow-y-auto">
         {/* 标题栏 */}
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="text-xl font-semibold">总结设置</DialogTitle>
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
+          <DialogTitle className="text-lg sm:text-xl font-semibold">总结设置</DialogTitle>
           <DialogDescription className="sr-only">
             配置视频笔记的总结风格和格式选项
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 pb-6 space-y-6">
+        <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 sm:space-y-6">
           {/* 标签切换 */}
           <div className="flex items-center gap-1 bg-muted p-1 rounded-lg h-10">
             <button
@@ -188,7 +188,7 @@ export function SummarySettings({
           {activeTab === 'default' ? (
             <>
               {/* 视频理解 */}
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center gap-2">
                   <Eye className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-foreground">视频理解</span>
@@ -203,9 +203,9 @@ export function SummarySettings({
                 </div>
 
                 {/* 采样间隔 + 拼图尺寸 */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <span className="text-sm text-muted-foreground">采样间隔（秒）</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">采样间隔（秒）</span>
                     <input
                       type="number"
                       min={1}
@@ -213,11 +213,11 @@ export function SummarySettings({
                       value={videoInterval}
                       disabled={!videoUnderstanding}
                       onChange={(e) => setVideoInterval(parseInt(e.target.value) || 4)}
-                      className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full h-9 sm:h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div className="space-y-2">
-                    <span className="text-sm text-muted-foreground">拼图尺寸（列 × 行）</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">拼图尺寸（列 × 行）</span>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -226,7 +226,7 @@ export function SummarySettings({
                         value={gridCols}
                         disabled={!videoUnderstanding}
                         onChange={(e) => setGridCols(parseInt(e.target.value) || 3)}
-                        className="w-16 h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-14 sm:w-16 h-9 sm:h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <span className="text-sm text-muted-foreground">×</span>
                       <input
@@ -236,7 +236,7 @@ export function SummarySettings({
                         value={gridRows}
                         disabled={!videoUnderstanding}
                         onChange={(e) => setGridRows(parseInt(e.target.value) || 3)}
-                        className="w-16 h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-14 sm:w-16 h-9 sm:h-10 px-2 rounded-lg border bg-background text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -244,14 +244,14 @@ export function SummarySettings({
               </div>
 
               {/* 笔记风格 + 输出语言 并排 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-foreground">笔记风格</span>
                   </div>
                   <Select value={style} onValueChange={setStyle}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full h-9 sm:h-10">
                       <SelectValue>
                         {noteStyles.find(s => s.value === style)?.label || '请选择风格'}
                       </SelectValue>
@@ -269,13 +269,13 @@ export function SummarySettings({
                   </Select>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex items-center gap-2">
                     <Languages className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium text-foreground">输出语言</span>
                   </div>
                   <Select value={outputLanguage} onValueChange={setOutputLanguage}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full h-9 sm:h-10">
                       <SelectValue>
                         {outputLanguages.find(l => l.value === outputLanguage)?.label || '中文'}
                       </SelectValue>
@@ -292,7 +292,7 @@ export function SummarySettings({
               </div>
 
               {/* 笔记格式 */}
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-foreground">笔记格式</span>
@@ -317,7 +317,7 @@ export function SummarySettings({
               </div>
 
               {/* 备注 */}
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 <div className="flex items-center gap-2">
                   <StickyNote className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-foreground">备注</span>
@@ -326,7 +326,7 @@ export function SummarySettings({
                   value={extras}
                   onChange={(e) => setExtras(e.target.value)}
                   placeholder="笔记需要罗列出 xxx 关键点…"
-                  className="w-full h-20 p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full h-16 sm:h-20 p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 
@@ -334,7 +334,7 @@ export function SummarySettings({
               <div className="flex justify-end pt-2">
                 <Button
                   onClick={handleSaveDefaultSettings}
-                  className="h-10 px-6 text-sm bg-foreground text-background hover:bg-foreground/90"
+                  className="h-9 sm:h-10 px-6 text-sm bg-foreground text-background hover:bg-foreground/90"
                 >
                   保存
                 </Button>

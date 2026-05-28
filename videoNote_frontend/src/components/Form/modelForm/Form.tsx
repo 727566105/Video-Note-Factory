@@ -23,6 +23,7 @@ import AILogo from '@/components/Form/modelForm/Icons'
 import NewApiLogo from '@/assets/newapi.svg'
 import { ModelSelector } from '@/components/Form/modelForm/ModelSelector.tsx'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 // 预设供应商列表
 const PRESET_PROVIDERS = [
@@ -64,6 +65,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const isMobile = useIsMobile()
   const isEditMode = !isCreate
 
   const loadProviderById = useProviderStore(state => state.loadProviderById)
@@ -405,7 +407,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
   if (loading) {
     return (
-      <div className="flex h-full flex-col gap-4 p-6 overflow-y-auto">
+      <div className="flex h-full flex-col gap-4 p-4 md:p-6 overflow-y-auto">
         <CardSkeleton count={5} />
       </div>
     )
@@ -414,24 +416,27 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   // 新建模式：显示供应商选择器
   if (isCreate && !selectedPreset && !isCustom) {
     return (
-      <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-foreground">选择供应商类型</h2>
-          <p className="mt-1 text-sm text-muted-foreground">选择一个预设供应商或创建自定义供应商</p>
-        </div>
+      <div className="flex h-full flex-col gap-4 md:gap-6 overflow-y-auto p-4 md:p-6">
+        {/* 标题 - 仅桌面端显示 */}
+        {!isMobile && (
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-foreground">选择供应商类型</h2>
+            <p className="mt-1 text-sm text-muted-foreground">选择一个预设供应商或创建自定义供应商</p>
+          </div>
+        )}
 
         {/* 预设供应商卡片网格 */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
           {PRESET_PROVIDERS.map(preset => (
             <button
               key={preset.id}
               onClick={() => handleSelectPreset(preset)}
-              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
+              className="flex flex-col items-center gap-2 p-3 md:p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
             >
-              <div className="flex h-12 w-12 items-center justify-center">
-                <AILogo name={preset.logo} size={48} />
+              <div className="flex h-10 md:h-12 w-10 md:w-12 items-center justify-center">
+                <AILogo name={preset.logo} size={isMobile ? 36 : 48} />
               </div>
-              <span className="font-medium text-foreground">{preset.name}</span>
+              <span className="font-medium text-sm md:text-base text-foreground">{preset.name}</span>
             </button>
           ))}
 
@@ -449,24 +454,24 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               setTestSuccess(false)
               setModelSelectorVisible(false)
             }}
-            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
+            className="flex flex-col items-center gap-2 p-3 md:p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <img src={NewApiLogo} alt="NewAPI" className="h-8 w-8 object-contain" />
+            <div className="flex h-10 md:h-12 w-10 md:w-12 items-center justify-center rounded-full bg-muted">
+              <img src={NewApiLogo} alt="NewAPI" className="h-6 md:h-8 w-6 md:w-8 object-contain" />
             </div>
-            <span className="font-medium text-foreground">NewAPI</span>
+            <span className="font-medium text-sm md:text-base text-foreground">NewAPI</span>
             <span className="text-xs text-muted-foreground">一键接入</span>
           </button>
 
           {/* 自定义卡片 */}
           <button
             onClick={handleSelectCustom}
-            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
+            className="flex flex-col items-center gap-2 p-3 md:p-4 rounded-lg border border-border bg-background hover:border-primary hover:bg-primary/10 transition-all cursor-pointer"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <Plus className="h-6 w-6 text-muted-foreground" />
+            <div className="flex h-10 md:h-12 w-10 md:w-12 items-center justify-center rounded-full bg-muted">
+              <Plus className="h-5 md:h-6 w-5 md:w-6 text-muted-foreground" />
             </div>
-            <span className="font-medium text-foreground">自定义</span>
+            <span className="font-medium text-sm md:text-base text-foreground">自定义</span>
           </button>
         </div>
       </div>
@@ -476,26 +481,29 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
   // NewAPI 快捷接入模式
   if (isCreate && isNewApi && selectedPreset) {
     return (
-      <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
-        <div className="text-center">
-          <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-muted mb-2">
-            <img src={NewApiLogo} alt="NewAPI" className="h-8 w-8 object-contain" />
+      <div className="flex h-full flex-col gap-4 md:gap-6 overflow-y-auto p-4 md:p-6">
+        {/* 标题 - 仅桌面端显示 */}
+        {!isMobile && (
+          <div className="text-center">
+            <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-muted mb-2">
+              <img src={NewApiLogo} alt="NewAPI" className="h-8 w-8 object-contain" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">接入 NewAPI</h2>
+            <p className="mt-1 text-sm text-muted-foreground">输入 API 地址和 Key，一键完成配置</p>
           </div>
-          <h2 className="text-xl font-bold text-foreground">接入 NewAPI</h2>
-          <p className="mt-1 text-sm text-muted-foreground">输入 API 地址和 Key，一键完成配置</p>
-        </div>
+        )}
 
-        <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
+        <div className="rounded-lg border border-border bg-background p-4 md:p-6 shadow-sm">
           <Form {...providerForm}>
-            <form className="flex flex-col gap-5">
+            <form className="flex flex-col gap-4 md:gap-5">
               {/* 名称 */}
               <FormField
                 control={providerForm.control}
                 name="name"
                 render={({ field }) => (
-                  <FormItem className="grid grid-cols-4 items-center gap-4">
-                    <FormLabel className="text-right">名称</FormLabel>
-                    <div className="col-span-3">
+                  <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 md:gap-4">
+                    <FormLabel className={isMobile ? "" : "text-right"}>名称</FormLabel>
+                    <div className="sm:col-span-3">
                       <FormControl>
                         <Input
                           {...field}
@@ -513,9 +521,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                 control={providerForm.control}
                 name="baseUrl"
                 render={({ field }) => (
-                  <FormItem className="grid grid-cols-4 items-start gap-4">
-                    <FormLabel className="pt-2 text-right">API 地址 <span className="text-red-500">*</span></FormLabel>
-                    <div className="col-span-3 flex flex-col gap-2">
+                  <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 md:gap-4">
+                    <FormLabel className={cn(isMobile ? "" : "pt-2 text-right")}>API 地址 <span className="text-red-500">*</span></FormLabel>
+                    <div className="sm:col-span-3 flex flex-col gap-2">
                       <FormControl>
                         <Input
                           {...field}
@@ -533,9 +541,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                 control={providerForm.control}
                 name="apiKey"
                 render={({ field }) => (
-                  <FormItem className="grid grid-cols-4 items-start gap-4">
-                    <FormLabel className="pt-2 text-right">API Key <span className="text-red-500">*</span></FormLabel>
-                    <div className="col-span-3 flex flex-col gap-2">
+                  <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 md:gap-4">
+                    <FormLabel className={cn(isMobile ? "" : "pt-2 text-right")}>API Key <span className="text-red-500">*</span></FormLabel>
+                    <div className="sm:col-span-3 flex flex-col gap-2">
                       <div className="relative">
                         <FormControl>
                           <Input
@@ -563,6 +571,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               <div className="flex items-center justify-center border-t pt-4">
                 <Button
                   type="button"
+                  size={isMobile ? 'sm' : 'default'}
                   onClick={handleNewApiConnect}
                   disabled={testing || saving || !providerForm.getValues().baseUrl || !providerForm.getValues().apiKey}
                   className="gap-1.5"
@@ -584,47 +593,50 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
   // 配置模式（新建或编辑）
   return (
-    <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
+    <div className="flex h-full flex-col gap-4 md:gap-6 overflow-y-auto p-4 md:p-6">
       {/* 供应商信息 */}
-      <div className="rounded-lg border border-border bg-background p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-background p-4 md:p-6 shadow-sm">
         <Form {...providerForm}>
-          <form className="flex flex-col gap-5">
-            <div className="border-b pb-4">
-              <div className="flex items-center gap-3">
-                {selectedPreset && (
-                  <div className="flex h-10 w-10 items-center justify-center">
-                    <AILogo name={selectedPreset.logo} size={40} />
-                  </div>
-                )}
-                {isCustom && customLogoUrl && (
-                  <div className="flex h-10 w-10 items-center justify-center">
-                    <AILogo name="custom" logoUrl={customLogoUrl} size={40} />
-                  </div>
-                )}
-                {isCustom && !customLogoUrl && (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                    <Plus className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                )}
-                <div>
-                  <h2 className="text-xl font-bold text-foreground">
-                    {isEditMode ? '编辑供应商' : `配置 ${selectedPreset?.name || '自定义供应商'}`}
-                  </h2>
-                  {isBuiltIn && !isCreate && (
-                    <p className="text-sm text-muted-foreground">预设供应商</p>
+          <form className="flex flex-col gap-4 md:gap-5">
+            {/* 标题区 - 仅桌面端显示 */}
+            {!isMobile && (
+              <div className="border-b pb-4">
+                <div className="flex items-center gap-3">
+                  {selectedPreset && (
+                    <div className="flex h-10 w-10 items-center justify-center">
+                      <AILogo name={selectedPreset.logo} size={40} />
+                    </div>
                   )}
+                  {isCustom && customLogoUrl && (
+                    <div className="flex h-10 w-10 items-center justify-center">
+                      <AILogo name="custom" logoUrl={customLogoUrl} size={40} />
+                    </div>
+                  )}
+                  {isCustom && !customLogoUrl && (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                      <Plus className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground">
+                      {isEditMode ? '编辑供应商' : `配置 ${selectedPreset?.name || '自定义供应商'}`}
+                    </h2>
+                    {isBuiltIn && !isCreate && (
+                      <p className="text-sm text-muted-foreground">预设供应商</p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* 名称 */}
             <FormField
               control={providerForm.control}
               name="name"
               render={({ field }) => (
-                <FormItem className="grid grid-cols-4 items-center gap-4">
-                  <FormLabel className="text-right">名称</FormLabel>
-                  <div className="col-span-3">
+                <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 md:gap-4">
+                  <FormLabel className={isMobile ? "" : "text-right"}>名称</FormLabel>
+                  <div className="sm:col-span-3">
                     <FormControl>
                       <Input
                         {...field}
@@ -643,9 +655,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               control={providerForm.control}
               name="apiKey"
               render={({ field }) => (
-                <FormItem className="grid grid-cols-4 items-start gap-4">
-                  <FormLabel className="pt-2 text-right">API Key</FormLabel>
-                  <div className="col-span-3 flex flex-col gap-2">
+                <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 md:gap-4">
+                  <FormLabel className={cn(isMobile ? "" : "pt-2 text-right")}>API Key</FormLabel>
+                  <div className="sm:col-span-3 flex flex-col gap-2">
                     <div className="relative">
                       <FormControl>
                         <Input
@@ -675,9 +687,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
               control={providerForm.control}
               name="baseUrl"
               render={({ field }) => (
-                <FormItem className="grid grid-cols-4 items-start gap-4">
-                  <FormLabel className="pt-2 text-right">API地址</FormLabel>
-                  <div className="col-span-3 flex flex-col gap-2">
+                <FormItem className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 md:gap-4">
+                  <FormLabel className={cn(isMobile ? "" : "pt-2 text-right")}>API地址</FormLabel>
+                  <div className="sm:col-span-3 flex flex-col gap-2">
                     <FormControl>
                       <Input
                         {...field}
@@ -693,9 +705,9 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
 
             {/* 图标上传 - 仅自定义供应商 */}
             {(isCustom || (isEditMode && !isBuiltIn)) && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <label className="text-right text-sm font-medium text-foreground">图标</label>
-                <div className="col-span-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 md:gap-4">
+                <label className={cn("text-sm font-medium text-foreground", isMobile ? "" : "text-right")}>图标</label>
+                <div className="sm:col-span-3">
                   <div className="flex items-center gap-3">
                     {customLogoUrl ? (
                       <div className="relative group">
@@ -740,6 +752,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
                 type="button"
                 onClick={handleTest}
                 variant="outline"
+                size={isMobile ? 'sm' : 'default'}
                 disabled={testing || saving}
                 className="gap-1.5"
               >
@@ -780,6 +793,7 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
           <Button
             type="button"
             variant="destructive"
+            size={isMobile ? 'sm' : 'default'}
             onClick={() => setDeleteProviderDialogOpen(true)}
             disabled={saving}
           >
@@ -815,6 +829,10 @@ const ProviderForm = ({ isCreate = false }: { isCreate?: boolean }) => {
       />
     </div>
   )
+}
+
+function cn(...args: (string | boolean | undefined)[]) {
+  return args.filter(Boolean).join(' ')
 }
 
 export default ProviderForm

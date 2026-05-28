@@ -217,7 +217,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
     return (
       <div className="flex flex-col">
         {/* 标签栏 - 简化版 */}
-        <div className="flex items-center px-3 pt-2 pb-2">
+        <div className="flex items-center px-3 pt-2 pb-2 shrink-0">
           <div className="flex items-center gap-0.5 bg-muted p-0.5 rounded-md">
             {tabs.map((tab) => {
               const TabIcon =
@@ -253,44 +253,42 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
         </div>
 
         {/* 内容区 */}
-        <div className="flex-1 min-h-0 px-3 pb-3">
-          <div className="rounded-lg border border-border bg-accent/30 overflow-hidden">
-            {/* 内容 */}
-            {activeTab === 'summary' && (
-              <div className="p-3">
-                {isProcessing ? (
-                  <ProcessingSpinner status={processingStatus} />
-                ) : selectedContent ? (
-                  <MarkdownRenderer content={twToCn(selectedContent)} />
-                ) : (
-                  <div className="text-center text-muted-foreground py-8">暂无内容</div>
-                )}
+        <div className="px-3 pb-3">
+          {/* 内容 - 不使用 overflow-hidden 的容器 */}
+          {activeTab === 'summary' && (
+            <div className="rounded-lg border border-border bg-accent/30 p-3">
+              {isProcessing ? (
+                <ProcessingSpinner status={processingStatus} />
+              ) : selectedContent ? (
+                <MarkdownRenderer content={twToCn(selectedContent)} />
+              ) : (
+                <div className="text-center text-muted-foreground py-8">暂无内容</div>
+              )}
+            </div>
+          )}
+          {activeTab === 'transcript' && (
+            <TranscriptViewer task={task} />
+          )}
+          {activeTab === 'mindmap' && selectedContent && typeof selectedContent === 'string' && (
+            <MarkmapEditor
+              value={selectedContent}
+              onChange={() => {}}
+              height="400px"
+              title={task.audioMeta?.title || '思维导图'}
+            />
+          )}
+          {activeTab === 'mindmap' && (!selectedContent || typeof selectedContent !== 'string') && (
+            <div className="rounded-lg border border-border bg-accent/30 p-3 text-center text-muted-foreground">暂无思维导图数据</div>
+          )}
+          {activeTab === 'original' && (
+            <div className="rounded-lg border border-border bg-accent/30 p-3">
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p><strong>标题：</strong>{task.audioMeta?.title || task.title}</p>
+                <p><strong>平台：</strong>{task.platform}</p>
+                {task.audioMeta?.description && <p><strong>简介：</strong>{task.audioMeta?.description}</p>}
               </div>
-            )}
-            {activeTab === 'transcript' && (
-              <TranscriptViewer task={task} />
-            )}
-            {activeTab === 'mindmap' && selectedContent && typeof selectedContent === 'string' && (
-              <MarkmapEditor
-                value={selectedContent}
-                onChange={() => {}}
-                height="400px"
-                title={task.audioMeta?.title || '思维导图'}
-              />
-            )}
-            {activeTab === 'mindmap' && (!selectedContent || typeof selectedContent !== 'string') && (
-              <div className="text-center text-muted-foreground py-8">暂无思维导图数据</div>
-            )}
-            {activeTab === 'original' && (
-              <div className="p-3">
-                <div className="text-sm text-muted-foreground space-y-2">
-                  <p><strong>标题：</strong>{task.audioMeta?.title || task.title}</p>
-                  <p><strong>平台：</strong>{task.platform}</p>
-                  {task.audioMeta?.description && <p><strong>简介：</strong>{task.audioMeta?.description}</p>}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* 弹窗 */}

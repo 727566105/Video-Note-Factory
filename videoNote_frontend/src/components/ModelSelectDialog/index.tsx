@@ -61,10 +61,10 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="w-[375px] max-w-[375px] p-0 gap-0 overflow-hidden rounded-lg border border-border bg-popover">
+      <DialogContent showCloseButton={false} className="w-full sm:w-[375px] max-w-[calc(100%-2rem)] sm:max-w-[375px] p-0 gap-0 overflow-hidden rounded-lg border border-border bg-popover">
         {/* 标题栏 */}
-        <div className="flex items-center justify-between h-[56px] px-4">
-          <DialogTitle className="text-[17px] font-semibold text-popover-foreground">
+        <div className="flex items-center justify-between h-[52px] sm:h-[56px] px-4">
+          <DialogTitle className="text-base sm:text-[17px] font-semibold text-popover-foreground">
             选择模型
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -82,14 +82,14 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
         <div className="h-px bg-border" />
 
         {/* 搜索框 */}
-        <div className="flex items-center gap-2 h-[44px] px-4">
-          <Search className="w-[18px] h-[18px] text-muted-foreground" />
+        <div className="flex items-center gap-2 h-[40px] sm:h-[44px] px-4">
+          <Search className="w-[16px] sm:w-[18px] h-[16px] sm:h-[18px] text-muted-foreground" />
           <input
             type="text"
             placeholder="搜索模型..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 text-[15px] bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
+            className="flex-1 text-[14px] sm:text-[15px] bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
           />
         </div>
 
@@ -99,13 +99,13 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
         {/* 智能优选 */}
         <button
           className={cn(
-            "flex items-center gap-[10px] w-full px-4 py-3 transition-colors",
+            "flex items-center gap-[10px] w-full px-4 py-2.5 sm:py-3 transition-colors",
             selectedModel === 'smart' ? "bg-accent" : "hover:bg-accent/50"
           )}
           onClick={() => handleSelectModel('smart')}
         >
-          <Sparkles className="w-[18px] h-[18px] text-foreground" />
-          <span className="text-[15px] font-medium text-foreground">智能优选</span>
+          <Sparkles className="w-[16px] sm:w-[18px] h-[16px] sm:h-[18px] text-foreground" />
+          <span className="text-[14px] sm:text-[15px] font-medium text-foreground">智能优选</span>
         </button>
 
         {/* 模型列表 */}
@@ -122,26 +122,26 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
             </EmptyHeader>
           </Empty>
         ) : (
-          <ScrollArea className="h-[280px]">
+          <ScrollArea className="h-[240px] sm:h-[280px]">
             {Object.entries(groupedModels).map(([provider, models]) => (
               <div key={provider}>
                 {/* 分组标题 */}
-                <div className="px-4 pt-3 pb-1">
-                  <span className="text-[13px] font-medium text-muted-foreground">{provider}</span>
+                <div className="px-4 pt-2 sm:pt-3 pb-1">
+                  <span className="text-[12px] sm:text-[13px] font-medium text-muted-foreground">{provider}</span>
                 </div>
                 {/* 模型项 */}
                 {models.map((model) => (
                   <button
                     key={model.id}
                     className={cn(
-                      "flex items-center justify-between w-full px-4 py-3 transition-colors",
+                      "flex items-center justify-between w-full px-4 py-2.5 sm:py-3 transition-colors",
                       selectedModel === model.id ? "bg-accent" : "hover:bg-accent/50"
                     )}
                     onClick={() => handleSelectModel(model.id)}
                   >
                     <div className="flex items-center gap-[10px]">
-                      <Bot className="w-5 h-5 text-foreground" />
-                      <span className="text-[15px] text-foreground">{model.model_name}</span>
+                      <Bot className="w-4 sm:w-5 h-4 sm:h-5 text-foreground" />
+                      <span className="text-[14px] sm:text-[15px] text-foreground">{model.model_name}</span>
                     </div>
                     {selectedModel === model.id && (
                       <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">

@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, PlayCircle } from 'lucide-react'
 import { getAuthors, type AuthorInfo } from '@/services/author'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 export function AuthorsPage() {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [authors, setAuthors] = useState<AuthorInfo[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -35,7 +37,10 @@ export function AuthorsPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
-      <h1 className="text-xl md:text-2xl font-bold mb-6">博主列表</h1>
+      {/* 桌面端显示标题 */}
+      {!isMobile && (
+        <h1 className="text-xl md:text-2xl font-bold mb-6">博主列表</h1>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {authors.map((author) => (
           <button

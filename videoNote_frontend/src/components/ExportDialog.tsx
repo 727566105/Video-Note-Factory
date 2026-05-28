@@ -247,22 +247,22 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col overflow-y-auto p-4 sm:p-6">
         <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="size-6 text-pink-400" />
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="size-5 sm:size-6 text-pink-400" />
             导出内容
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             选择您想导出的内容部分和执行的操作。
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-6 py-4 md:grid-cols-[1fr_2fr] min-h-0">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 py-3 sm:py-4 min-h-0">
           {/* 左侧：选择内容部分 */}
-          <div className="space-y-2">
-            <div className="mb-0 text-base font-semibold">选择内容部分</div>
-            <p className="mb-3 text-sm text-muted-foreground">
+          <div className="space-y-2 sm:space-y-4">
+            <div className="mb-0 text-sm sm:text-base font-semibold">选择内容部分</div>
+            <p className="mb-2 sm:mb-3 text-xs sm:text-sm text-muted-foreground">
               勾选需要导出的各个部分。点击箭头可展开选项。
             </p>
 
@@ -276,12 +276,12 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                       onClick={() => toggleSection(section.id)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection(section.id) } }}
                       className={cn(
-                        "flex-1 justify-between font-medium flex cursor-pointer items-center gap-3 p-3 transition-colors",
+                        "flex-1 justify-between font-medium flex cursor-pointer items-center gap-2 sm:gap-3 p-2.5 sm:p-3 transition-colors",
                         expandedSections.includes(section.id) && "rounded-b-none",
                         section.id === 'summary' && "bg-sky-50/50"
                       )}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <Checkbox
                           checked={section.items.length > 0
                             ? (section.items.every(i => i.checked || i.disabled) ? true : section.items.some(i => i.checked) ? 'indeterminate' : false)
@@ -289,11 +289,11 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                           }
                           disabled={section.items.every(i => i.disabled)}
                           onCheckedChange={() => toggleSectionCheckbox(section.id)}
-                          className="mr-2"
+                          className="mr-1 sm:mr-2"
                         />
-                        <div className={cn("flex items-center gap-3", section.items.length === 0 && "opacity-50")}>
+                        <div className={cn("flex items-center gap-2 sm:gap-3", section.items.length === 0 && "opacity-50")}>
                           <span className={cn(section.iconColor)}>{section.icon}</span>
-                          <span className="font-medium">{section.label}</span>
+                          <span className="text-sm sm:text-base font-medium">{section.label}</span>
                         </div>
                       </div>
                       <ChevronDown className={cn(
@@ -304,8 +304,8 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                   </div>
 
                   {expandedSections.includes(section.id) && section.items.length > 0 && (
-                    <div className="pt-1 pr-3 pb-3 pl-12">
-                      <div className="space-y-3">
+                    <div className="pt-1 pr-3 pb-2 sm:pb-3 pl-10 sm:pl-12">
+                      <div className="space-y-2 sm:space-y-3">
                         {section.items.map(item => (
                           <div key={item.id} className="flex items-center space-x-2">
                             <Checkbox
@@ -315,7 +315,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                               onCheckedChange={() => toggleItem(section.id, item.id)}
                             />
                             <label htmlFor={item.id} className={cn(
-                              "text-sm leading-none font-medium cursor-pointer",
+                              "text-xs sm:text-sm leading-none font-medium cursor-pointer",
                               item.disabled && "cursor-not-allowed opacity-50"
                             )}>
                               <div className="flex items-center gap-1">
@@ -331,10 +331,10 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                   )}
 
                   {expandedSections.includes(section.id) && section.items.length === 0 && (
-                    <div className="pt-1 pr-3 pb-3 pl-12">
+                    <div className="pt-1 pr-3 pb-2 sm:pb-3 pl-10 sm:pl-12">
                       <div className="flex items-center gap-1">
                         <Highlighter className="size-3 text-gray-400" />
-                        <span className="text-sm text-gray-400">暂无内容</span>
+                        <span className="text-xs sm:text-sm text-gray-400">暂无内容</span>
                       </div>
                     </div>
                   )}
@@ -345,52 +345,52 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
 
           {/* 右侧：选择操作 */}
           <div>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <div className="text-base font-semibold">选择操作</div>
-                <p className="text-sm text-muted-foreground">选择如何使用选定的内容。</p>
+                <div className="text-sm sm:text-base font-semibold">选择操作</div>
+                <p className="text-xs sm:text-sm text-muted-foreground">选择如何使用选定的内容。</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
-                  <Copy className="size-4" />
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleCopyMarkdown}>
+                  <Copy className="size-3.5" />
                   复制 Markdown
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleCopyPlainText}>
-                  <Copy className="size-4" />
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleCopyPlainText}>
+                  <Copy className="size-3.5" />
                   复制纯文本
                 </Button>
               </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="preview">快速预览</TabsTrigger>
-                <TabsTrigger value="download">下载为文件</TabsTrigger>
-                <TabsTrigger value="sendToApp">导出到笔记</TabsTrigger>
-                <TabsTrigger value="template">根据模板生成</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-4 h-9">
+                <TabsTrigger value="preview" className="text-xs">预览</TabsTrigger>
+                <TabsTrigger value="download" className="text-xs">下载</TabsTrigger>
+                <TabsTrigger value="sendToApp" className="text-xs">导出</TabsTrigger>
+                <TabsTrigger value="template" className="text-xs">模板</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="preview" className="mt-4">
+              <TabsContent value="preview" className="mt-3 sm:mt-4">
                 <div className="rounded-lg border">
-                  <div className="border-b bg-muted/30 p-4">
-                    <h4 className="font-medium">Markdown 预览</h4>
-                    <p className="text-sm text-muted-foreground">预览选中内容的渲染效果</p>
+                  <div className="border-b bg-muted/30 p-3 sm:p-4">
+                    <h4 className="text-sm sm:text-base font-medium">Markdown 预览</h4>
+                    <p className="text-xs sm:text-sm text-muted-foreground">预览选中内容的渲染效果</p>
                   </div>
-                  <div className="p-6">
+                  <div className="p-4 sm:p-6 max-h-[300px] overflow-auto">
                     <MarkdownRenderer content={selectedContent} />
                   </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="download" className="mt-4">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <TabsContent value="download" className="mt-3 sm:mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {formatButtons.map(format => (
                     <button
                       key={format.id}
                       onClick={() => handleFormatClick(format)}
                       disabled={!format.enabled}
                       className={cn(
-                        "inline-flex items-center whitespace-nowrap text-sm font-medium transition-all border bg-card shadow-xs rounded-md relative h-auto flex-col justify-center gap-2 p-4",
+                        "inline-flex items-center whitespace-nowrap text-sm font-medium transition-all border bg-card shadow-xs rounded-md relative h-auto flex-col justify-center gap-2 p-3 sm:p-4",
                         format.enabled
                           ? "hover:bg-accent hover:text-accent-foreground"
                           : "opacity-60 cursor-not-allowed"
@@ -398,7 +398,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                     >
                       {format.icon}
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{format.label}</span>
+                        <span className="text-xs sm:text-sm font-medium">{format.label}</span>
                       </div>
                       <code className="text-xs">{format.ext}</code>
                     </button>
@@ -406,19 +406,19 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                 </div>
               </TabsContent>
 
-              <TabsContent value="sendToApp" className="mt-4">
-                <div className="flex flex-col gap-y-3 text-sm">
+              <TabsContent value="sendToApp" className="mt-3 sm:mt-4">
+                <div className="flex flex-col gap-y-2 sm:gap-y-3 text-xs sm:text-sm">
                   {/* 已配置集成 */}
                   <div>
-                    <h4 className="mb-1.5 font-semibold text-muted-foreground">已配置集成</h4>
+                    <h4 className="mb-1.5 text-xs sm:text-sm font-semibold text-muted-foreground">已配置集成</h4>
                     <Separator className="mb-2" />
                     <div className="flex flex-col gap-y-1">
                       <button
                         onClick={() => toast.info('Notion 集成即将上线')}
-                        className="flex min-w-44 cursor-pointer items-center justify-start rounded-lg border bg-card p-2 text-sm shadow-xs hover:bg-accent transition-colors"
+                        className="flex min-w-44 cursor-pointer items-center justify-start rounded-lg border bg-card p-2 text-xs sm:text-sm shadow-xs hover:bg-accent transition-colors"
                       >
                         <span className="flex items-center gap-1">
-                          <svg className="size-5" viewBox="0 0 24 24" fill="currentColor">
+                          <svg className="size-4 sm:size-5" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" />
                           </svg>
                           <span>保存到 Notion</span>

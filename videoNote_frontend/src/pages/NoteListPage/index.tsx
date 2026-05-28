@@ -606,11 +606,13 @@ export const NoteListPage: FC = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex flex-col gap-4 p-6 shrink-0">
-        {/* 标题行 */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-foreground">总结记录</h1>
-        </div>
+      <div className="flex flex-col gap-3 p-4 md:p-6 md:gap-4 shrink-0">
+        {/* 标题行 - 仅桌面端显示 */}
+        {!isMobile && (
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl md:text-2xl font-semibold text-foreground">笔记列表</h1>
+          </div>
+        )}
 
         {/* 分隔线 */}
         <div className="h-px bg-border" />
@@ -632,15 +634,15 @@ export const NoteListPage: FC = () => {
         )}
 
         {/* 工具栏 */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative">
+        <div className="flex items-center justify-between gap-2 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+            <div className="relative flex-1 md:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="搜索笔记..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full max-w-80 pl-9"
+                className="w-full md:max-w-80 pl-9"
               />
             </div>
             {/* 筛选组件 - 桌面端 */}
@@ -683,13 +685,14 @@ export const NoteListPage: FC = () => {
             {/* 移动端筛选按钮 */}
             <Button
               variant="outline"
-              className="md:hidden gap-2"
+              size="sm"
+              className="md:hidden gap-1.5"
               onClick={() => setFilterSheetOpen(true)}
             >
               <Filter className="w-4 h-4" />
               筛选
               {totalSelectedFilters > 0 && (
-                <Badge variant="secondary" className="ml-1">{totalSelectedFilters}</Badge>
+                <Badge variant="secondary" className="ml-0.5 h-5 px-1">{totalSelectedFilters}</Badge>
               )}
             </Button>
           </div>
@@ -698,9 +701,8 @@ export const NoteListPage: FC = () => {
           <Button variant="outline" size="icon" className="h-8 w-8 hidden md:flex" onClick={fetchNotes}>
             <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
           </Button>
-          <Button variant="outline" size="sm" className="md:hidden" onClick={fetchNotes}>
-            <RotateCw className={cn("w-4 h-4 mr-1", loading && "animate-spin")} />
-            刷新
+          <Button variant="outline" size="icon" className="h-8 w-8 md:hidden" onClick={fetchNotes}>
+            <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
           </Button>
         </div>
       </div>
