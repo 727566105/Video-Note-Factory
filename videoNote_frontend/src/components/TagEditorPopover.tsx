@@ -12,9 +12,10 @@ interface Props {
   taskId: string
   tags: TaskTags | undefined
   onUpdate: (tags: TaskTags) => void
+  hideTrigger?: boolean
 }
 
-export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
+export function TagEditorPopover({ taskId, tags, onUpdate, hideTrigger }: Props) {
   const [open, setOpen] = useState(false)
   const [platformTags, setPlatformTags] = useState<string[]>([])
   const [aiTags, setAiTags] = useState<string[]>([])
@@ -84,7 +85,7 @@ export function TagEditorPopover({ taskId, tags, onUpdate }: Props) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Badge variant="outline" className="cursor-pointer hover:bg-accent text-xs gap-1">
+        <Badge variant="outline" className={`cursor-pointer hover:bg-accent text-xs gap-1${hideTrigger ? ' sr-only' : ''}`}>
           <span className="text-[10px]">✏️</span>
           <span>编辑</span>
         </Badge>

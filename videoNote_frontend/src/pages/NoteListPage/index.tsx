@@ -87,6 +87,7 @@ import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
 import { TagEditorPopover } from '@/components/TagEditorPopover'
 import { Badge } from '@/components/ui/badge'
 import { MultiSelectFilter, type FilterOption } from '@/components/MultiSelectFilter'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, CCTVLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { getAuthors, type AuthorInfo } from '@/services/author'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -150,8 +151,21 @@ const platformLabel: Record<string, string> = {
   douyin: '抖音',
   xiaohongshu: '小红书',
   kuaishou: '快手',
+  cctv: '央视网',
   local: '本地视频',
   local_audio: '本地音频',
+}
+
+// 平台图标映射（封面叠加层用）
+const platformIconMap: Record<string, React.ReactNode> = {
+  bilibili: <BiliBiliLogo className="w-3.5 h-3.5" />,
+  youtube: <YoutubeLogo className="w-3.5 h-3.5" />,
+  douyin: <DouyinLogo className="w-3.5 h-3.5" />,
+  kuaishou: <KuaishouLogo className="w-3.5 h-3.5" />,
+  xiaohongshu: <XiaohongshuLogo className="w-3.5 h-3.5" />,
+  cctv: <CCTVLogo className="w-3.5 h-3.5" />,
+  local: <LocalLogo className="w-3.5 h-3.5" />,
+  local_audio: <AudioLogo className="w-3.5 h-3.5" />,
 }
 
 // 标签显示行（圆角胶囊样式 + # 前缀）
@@ -177,15 +191,12 @@ function TagsRow({ item, onTagsUpdate }: { item: NoteItem; onTagsUpdate: (id: st
           #{tag}
         </span>
       ))}
-      {/* 平台标识 */}
-      <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80">
-        {platformLabel[item.platform] || item.platform}
-      </span>
       {/* 编辑按钮 */}
       <TagEditorPopover
         taskId={item.task_id}
         tags={item.tags}
         onUpdate={(newTags) => onTagsUpdate(item.id, newTags)}
+        hideTrigger
       />
     </div>
   )
@@ -288,8 +299,12 @@ function MasonryNoteCard({
             )}
           </div>
         )}
+        {/* 平台标识 */}
+        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-foreground/60 flex items-center justify-center">
+          {platformIconMap[item.platform] || <LocalLogo className="w-3.5 h-3.5" />}
+        </div>
         <button
-          className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+          className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all z-10"
           onClick={(e) => { e.stopPropagation(); onDelete() }}
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -785,9 +800,13 @@ export const NoteListPage: FC = () => {
                         )}
                       </div>
                     )}
+                    {/* 平台标识 */}
+                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-foreground/60 flex items-center justify-center">
+                      {platformIconMap[item.platform] || <LocalLogo className="w-3.5 h-3.5" />}
+                    </div>
                     {/* 删除按钮 */}
                     <button
-                      className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+                      className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all z-10"
                       onClick={(e) => {
                         e.stopPropagation()
                         setDeleteTargetId(item.task_id)
@@ -983,6 +1002,7 @@ function DataTable({
   isSubscribed,
   isSubscribable,
   taskStoreTasks,
+  onTagsUpdate,
 }: {
   data: NoteItem[]
   loading: boolean
@@ -998,6 +1018,7 @@ function DataTable({
   isSubscribed: (author: string) => boolean
   isSubscribable: (platform: string) => boolean
   taskStoreTasks: Task[]
+  onTagsUpdate: (id: string, tags: any) => void
 }) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
@@ -1017,8 +1038,9 @@ function DataTable({
         isSubscribed,
         isSubscribable,
         taskStoreTasks,
+        onTagsUpdate,
       }),
-    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable, taskStoreTasks],
+    [selectedRows, onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable, taskStoreTasks, onTagsUpdate],
   )
 
   const table = useReactTable({

@@ -3,6 +3,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo, CCTVLogo } from '@/components/Icons/platform'
+import { TagEditorPopover } from '@/components/TagEditorPopover'
 import type { Task } from '@/store/taskStore'
 import type { TaskTags } from '@/types/api'
 
@@ -85,6 +86,7 @@ const platformLabel: Record<string, string> = {
   douyin: '抖音',
   xiaohongshu: '小红书',
   kuaishou: '快手',
+  cctv: '央视网',
   local: '本地视频',
   local_audio: '本地音频',
 }
@@ -192,7 +194,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
             </div>
             {/* 标签行 - 圆角胶囊 */}
             {(item.tags?.platform_tags?.length || item.tags?.ai_tags?.length || item.tags?.manual_tags?.length) && (
-              <div className="mt-2 flex flex-wrap justify-end gap-2" onClick={e => e.stopPropagation()}>
+              <div className="mt-2 flex flex-wrap justify-end gap-2 items-center" onClick={e => e.stopPropagation()}>
                 {item.tags?.platform_tags?.map((tag, i) => (
                   <span key={`p${i}`} className="rounded-full border border-blue-200 bg-blue-50 text-blue-600 px-2.5 py-0.5 text-xs">
                     #{tag}
@@ -208,6 +210,12 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                     #{tag}
                   </span>
                 ))}
+                <TagEditorPopover
+                  taskId={item.task_id}
+                  tags={item.tags}
+                  onUpdate={(newTags) => props.onTagsUpdate?.(item.id, newTags)}
+                  hideTrigger
+                />
               </div>
             )}
           </div>
