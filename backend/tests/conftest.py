@@ -3,6 +3,10 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
 from app.routers import auth, note
+from app.db.init_db import init_db
+
+# 初始化数据库（创建表 + 种子默认用户）
+init_db()
 
 
 @pytest.fixture

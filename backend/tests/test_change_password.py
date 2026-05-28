@@ -10,6 +10,10 @@ from fastapi import FastAPI
 
 from app.routers import auth
 from app.db.user_dao import create_user, delete_user, hash_password
+from app.db.init_db import init_db
+
+# 初始化数据库
+init_db()
 
 
 class TestChangePassword(unittest.TestCase):
