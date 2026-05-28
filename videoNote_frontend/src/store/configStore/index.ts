@@ -16,8 +16,8 @@ interface SystemState {
   panelSwapped: boolean
   setPanelSwapped: (value: boolean) => void
 
-  noteViewMode: 'table' | 'card' | 'masonry'
-  setNoteViewMode: (mode: 'table' | 'card' | 'masonry') => void
+  noteViewMode: 'table' | 'card' | 'masonry' | 'compact'
+  setNoteViewMode: (mode: 'table' | 'card' | 'masonry' | 'compact') => void
 }
 export const useSystemStore = create<SystemState>()(
   persist(

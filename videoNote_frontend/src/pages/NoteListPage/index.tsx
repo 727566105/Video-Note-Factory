@@ -15,6 +15,7 @@ import {
   LayoutList,
   LayoutGrid,
   Columns3,
+  Rows4,
   Filter,
 } from 'lucide-react'
 import {
@@ -87,6 +88,7 @@ import { getColumns, type NoteItem, PlatformIconSmall } from './columns'
 import { TagEditorPopover } from '@/components/TagEditorPopover'
 import { Badge } from '@/components/ui/badge'
 import { MultiSelectFilter, type FilterOption } from '@/components/MultiSelectFilter'
+import { AuthorFilter } from '@/components/AuthorFilter'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, CCTVLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { getAuthors, type AuthorInfo } from '@/services/author'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -620,13 +622,14 @@ export const NoteListPage: FC = () => {
         {/* 标签行 - 移动端隐藏视图切换 */}
         {!isMobile && (
           <div className="flex items-center justify-between">
-            <Select value={localStorageViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry')}>
-              <SelectTrigger className="w-[130px] hover:bg-accent">
+            <Select value={localStorageViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry' | 'compact')}>
+              <SelectTrigger className="w-[150px] hover:bg-accent">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
                 <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
+                <SelectItem value="compact"><span className="flex items-center gap-2"><Rows4 className="size-4" />紧凑</span></SelectItem>
                 <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
               </SelectContent>
             </Select>
@@ -647,12 +650,10 @@ export const NoteListPage: FC = () => {
             </div>
             {/* 筛选组件 - 桌面端 */}
             <div className="hidden md:flex items-center gap-3">
-              <MultiSelectFilter
-                label="博主"
+              <AuthorFilter
                 options={authorOptions}
                 selected={selectedAuthors}
                 onChange={setSelectedAuthors}
-                searchable
               />
               <MultiSelectFilter
                 label="平台"
@@ -834,6 +835,71 @@ export const NoteListPage: FC = () => {
             </div>
           )}
         </div>
+      ) : noteViewMode === 'compact' ? (
+        /* 紧凑视图 */
+        <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
+          {loading ? (
+            <TableSkeleton rows={3} />
+          ) : filteredNotes.length === 0 ? (
+            <NoteEmptyState onQuickAdd={() => navigate('/')} />
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+              {filteredNotes.map((item) => (
+                <div
+                  key={item.id}
+                  className="group rounded-xl border border-border bg-background overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/20"
+                  onClick={() => handleNoteClick(item)}
+                >
+                  {/* 封面 */}
+                  <div className="relative aspect-video bg-muted overflow-hidden">
+                    {item.cover && !failedCovers.has(item.id) ? (
+                      <img src={item.cover} alt="" className="w-full h-full object-cover" onError={() => handleCoverError(item.id)} />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full gap-1">
+                        <PlatformIconSmall platform={item.platform} />
+                      </div>
+                    )}
+                    {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <LoaderCircle className="w-5 h-5 text-white animate-spin" />
+                      </div>
+                    )}
+                    {/* 作者徽章 */}
+                    {item.author && (
+                      <div className="absolute bottom-1 left-1 flex items-center gap-1">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] text-background bg-foreground/80 line-clamp-1 max-w-[80%]">
+                          {item.author}
+                        </span>
+                      </div>
+                    )}
+                    {/* 平台标识 */}
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-foreground/60 flex items-center justify-center">
+                      {platformIconMap[item.platform] || <LocalLogo className="w-3 h-3" />}
+                    </div>
+                    {/* 删除按钮 */}
+                    <button
+                      className="absolute top-1.5 right-1.5 p-1 rounded-md bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all z-10"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTargetId(item.task_id)
+                        setDeleteDialogOpen(true)
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                  {/* 信息 */}
+                  <div className="p-2">
+                    <div className="text-xs font-medium text-foreground line-clamp-2 leading-snug">{item.title}</div>
+                    {item.author && (
+                      <div className="mt-0.5 text-[10px] text-muted-foreground truncate">{item.author}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
         /* 瀑布流视图 */
         <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
@@ -939,12 +1005,10 @@ export const NoteListPage: FC = () => {
           <div className="flex-1 overflow-auto py-4 space-y-4">
             <div>
               <label className="text-sm font-medium mb-2 block">博主</label>
-              <MultiSelectFilter
-                label="博主"
+              <AuthorFilter
                 options={authorOptions}
                 selected={selectedAuthors}
                 onChange={setSelectedAuthors}
-                searchable
               />
             </div>
             <div>
