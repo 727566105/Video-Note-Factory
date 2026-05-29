@@ -142,7 +142,7 @@ def fetch_douyin_user_videos(
         cookie_str = None
 
     if not cookie_str or 'ttwid' not in cookie_str or 'sessionid' not in cookie_str:
-        return DouyinFetchResult(error="抖音 Cookie 缺少必要字段(ttwid/sessionid)，请重新配置")
+        return DouyinFetchResult(error="抖音 Cookie 缺少必要字段(ttwid/sessionid)，请在设置页重新配置")
 
     headers = {
         "User-Agent": DouyinConfig.HEADERS["User-Agent"],
@@ -169,6 +169,10 @@ def fetch_douyin_user_videos(
             status_code = data.get("status_code", -1)
             if status_code != 0:
                 error_msg = data.get("status_msg", f"API 错误({status_code})")
+                # 检测 cookie 过期特征
+                cookie_expired_keywords = ["登录失效", "请登录", "session", "未登录", "需要登录", "权限", "验证"]
+                if status_code == 8 or any(kw in error_msg for kw in cookie_expired_keywords):
+                    error_msg = "抖音 Cookie 已过期，请在设置页重新配置"
                 if first_error is None:
                     first_error = error_msg
                 logger.error(f"抖音视频列表 API 错误: {error_msg}")

@@ -136,6 +136,7 @@ def copy_feed_items_to_user(source_sub_id: int, target_user_id: int, target_sub_
                 description=item.description,
                 published_at=item.published_at,
                 raw_info=item.raw_info,
+                channel_video_id=item.channel_video_id,
             )
             db.add(new_item)
             copied += 1
@@ -210,13 +211,17 @@ def upsert_feed_items(items: list[dict]) -> int:
 
 
 def get_feed_items(user_id: int, limit: int = 20, offset: int = 0,
-                   content_type: str = None) -> list[FeedItem]:
+                   content_type: str = None, order: str = "desc") -> list[FeedItem]:
     db = next(get_db())
     try:
         query = db.query(FeedItem).filter_by(user_id=user_id)
         if content_type:
             query = query.filter_by(content_type=content_type)
-        return query.order_by(FeedItem.published_at.desc()).offset(offset).limit(limit).all()
+        if order == "asc":
+            query = query.order_by(FeedItem.published_at.asc())
+        else:
+            query = query.order_by(FeedItem.published_at.desc())
+        return query.offset(offset).limit(limit).all()
     finally:
         db.close()
 
@@ -426,12 +431,14 @@ def create_feed_items_from_channel_videos(user_id: int, subscription_id: int,
                 author=cv.author,
                 published_at=cv.published_at,
                 raw_info=cv.raw_info,
+                channel_video_id=cv.id,
             )
             db.add(item)
             created += 1
 
         db.commit()
-        logger.info(f"从 channel_videos 创建 feed_items: user_id={user_id}, created={created}")
+        logger.info(f"从 channel_videos 创建 feed_items: user_id={user_id}, created={created}, total={len(channel_videos)}")
+        return created
     except Exception as e:
         db.rollback()
         logger.error(f"创建 feed_items 失败: {e}")

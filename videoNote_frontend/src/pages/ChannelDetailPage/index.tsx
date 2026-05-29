@@ -19,7 +19,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
-import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers, getFetchStatus, fetchMoreVideos } from '@/services/subscription'
+import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers, getFetchStatus, fetchMoreVideos, markChannelVideoSeen } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import type { FeedItem, FetchStatus } from '@/services/subscription'
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
@@ -192,11 +192,15 @@ export default function ChannelDetailPage() {
             setVideos(newVideos)
             setTotal(videoRes?.total || 0)
             if (added > 0) {
-              // 记录新增条目 ID（按时间排序，最新的 added 个）
+              // 记录新增条目 ID（按时间排序，最新的 added 个，排除已查看的）
               const sortedByTime = [...newVideos].sort((a, b) =>
                 new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()
               )
-              const addedIds = new Set(sortedByTime.slice(0, added).map(v => String(v.id)))
+              const addedIds = new Set(
+                sortedByTime.slice(0, added)
+                  .filter(v => !v.is_seen)
+                  .map(v => String(v.id))
+              )
               setNewItemIds(addedIds)
               const channelName = sub?.channel_name || '博主'
               toast.custom((t) => (
@@ -257,11 +261,29 @@ export default function ChannelDetailPage() {
     }
   }
 
+  // 标记视频已查看并移除高亮
+  const handleMarkSeen = async (item: FeedItem) => {
+    if (!item.channel_video_id) return
+    try {
+      await markChannelVideoSeen(item.channel_video_id)
+      setNewItemIds(prev => {
+        const next = new Set(prev)
+        next.delete(String(item.id))
+        return next
+      })
+    } catch {
+      // 忽略错误，不影响用户体验
+    }
+  }
+
   const handleGenerate = async (item: FeedItem) => {
     if (!item.content_url) {
       toast.error('无法获取视频链接')
       return
     }
+
+    // 标记已查看，移除高亮
+    handleMarkSeen(item)
 
     if (modelList.length === 0) {
       toast.error('请先在设置中添加模型')
@@ -530,7 +552,7 @@ export default function ChannelDetailPage() {
               <div key={item.id} className={`rounded-lg overflow-hidden border bg-card hover:shadow-md transition-shadow group ${
                 newItemIds.has(String(item.id)) ? 'ring-2 ring-amber-400 bg-amber-50' : ''
               }`}>
-                <div className={`relative bg-muted ${features.portraitVideo ? 'aspect-[9/16]' : 'aspect-video'}`}>
+                <div className={`relative bg-muted ${features.portraitVideo ? 'aspect-[9/16]' : 'aspect-video'} cursor-pointer`} onClick={() => handleMarkSeen(item)}>
                   {item.cover_url && <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
                   {features.videoDuration && item.duration && (
                     <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white px-1.5 py-0.5 rounded text-[10px]">
@@ -539,7 +561,7 @@ export default function ChannelDetailPage() {
                   )}
                 </div>
                 <div className="p-2.5">
-                  <div className="text-sm font-medium line-clamp-2 min-h-[2.5rem]">{item.title}</div>
+                  <div className="text-sm font-medium line-clamp-2 min-h-[2.5rem] cursor-pointer" onClick={() => handleMarkSeen(item)}>{item.title}</div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-muted-foreground">{timeAgo(item.published_at)}</span>
                     {item.task_id ? (
@@ -584,7 +606,7 @@ export default function ChannelDetailPage() {
                   newItemIds.has(String(item.id)) ? 'bg-amber-50 ring-1 ring-amber-300' : ''
                 }`}>
                   <td className="px-4 py-2">
-                    <div className="w-24 h-14 bg-muted rounded overflow-hidden relative">
+                    <div className="w-24 h-14 bg-muted rounded overflow-hidden relative cursor-pointer" onClick={() => handleMarkSeen(item)}>
                       {item.cover_url && <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
                       {features.videoDuration && item.duration && (
                         <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">
@@ -594,7 +616,7 @@ export default function ChannelDetailPage() {
                     </div>
                   </td>
                   <td className="px-4 py-2">
-                    <span className="font-medium">{item.title}</span>
+                    <span className="font-medium cursor-pointer" onClick={() => handleMarkSeen(item)}>{item.title}</span>
                     <div className="text-xs text-muted-foreground mt-1">{item.author}</div>
                   </td>
                   <td className="px-4 py-2 text-center">

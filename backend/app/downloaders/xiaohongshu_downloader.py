@@ -478,26 +478,13 @@ class XiaohongshuDownloader(Downloader):
 
     @staticmethod
     def _download_file(url: str, output_dir: str, filename: str) -> str:
-        """下载文件到指定目录"""
+        """下载文件到指定目录（使用统一下载工具）"""
+        from app.utils.download_helper import DownloadHelper
         # 防止路径遍历：filename 不能包含路径分隔符
         if filename != os.path.basename(filename):
             logger.warning(f"拒绝不安全的文件名: {filename}")
             return ""
-        try:
-            resp = requests.get(
-                url,
-                headers={"Referer": "https://www.xiaohongshu.com/", "User-Agent": "Mozilla/5.0"},
-                timeout=30,
-            )
-            if resp.status_code == 200:
-                # 限制文件大小（50MB）
-                if len(resp.content) > 50 * 1024 * 1024:
-                    logger.warning(f"文件过大，跳过: {filename} ({len(resp.content)} bytes)")
-                    return ""
-                path = os.path.join(output_dir, filename)
-                with open(path, "wb") as f:
-                    f.write(resp.content)
-                return path
-        except Exception as e:
-            logger.warning(f"下载文件失败 ({filename}): {e}")
-        return ""
+        return DownloadHelper.download_file(
+            url, output_dir, filename,
+            referer="https://www.xiaohongshu.com/", timeout=30
+        )

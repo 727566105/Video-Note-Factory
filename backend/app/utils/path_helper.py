@@ -144,12 +144,23 @@ def get_video_folder(author_id: str, author_name: str, video_id: str, title: str
     return video_dir
 
 
+def _note_filename(user_id: int | None = None) -> str:
+    """生成笔记文件名：有 user_id 时用 note_{user_id}.json，否则用 note.json（兼容）"""
+    if user_id is not None:
+        return f"note_{user_id}.json"
+    return "note.json"
+
+
 def get_video_file_path(author_id: str, author_name: str, video_id: str, title: str,
-                        file_type: str, platform: str = "") -> Path:
-    """在三级目录结构下获取指定类型文件路径"""
+                        file_type: str, platform: str = "", user_id: int | None = None) -> Path:
+    """在三级目录结构下获取指定类型文件路径
+
+    :param user_id: 用户 ID，note 类型文件使用 note_{user_id}.json
+    """
     video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+    if file_type == "note":
+        return video_dir / _note_filename(user_id)
     file_map = {
-        "note": "note.json",
         "audio_cache": "audio.json",
         "transcript": "transcript.json",
         "markdown": "note.md",
@@ -282,30 +293,26 @@ def get_note_file_path_v2(
     video_id: str | None,
     title: str | None,
     file_type: str,
-    platform: str = ""
+    platform: str = "",
+    user_id: int | None = None
 ) -> Path:
     """
     获取笔记文件路径（四级目录结构）
 
     - 有 author_id 时：四级路径 data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
     - 无 author_id 时：临时路径 data/video/_pending/{task_id}/
+    - note 类型文件：note_{user_id}.json（多用户隔离）
 
-    :param task_id: 任务 ID
-    :param author_id: 博主唯一 ID
-    :param author_name: 博主名称
-    :param video_id: 视频 ID（BV号/抖音ID等）
-    :param title: 笔记标题
-    :param file_type: 文件类型
-    :param platform: 平台标识
-    :return: 文件完整路径
+    :param user_id: 用户 ID，note 类型文件使用 note_{user_id}.json
     """
     if author_id:
-        return get_video_file_path(author_id, author_name, video_id, title, file_type, platform)
+        return get_video_file_path(author_id, author_name, video_id, title, file_type, platform, user_id)
     else:
         # 无 author_id 时使用 _pending 临时目录，不回退旧版 data/notes
         pending_dir = VIDEO_DIR / "_pending" / task_id
+        if file_type == "note":
+            return pending_dir / _note_filename(user_id)
         file_map = {
-            "note": "note.json",
             "audio_cache": "audio.json",
             "transcript": "transcript.json",
             "markdown": "note.md",
@@ -324,28 +331,23 @@ def find_note_file(
     video_id: str | None,
     title: str | None,
     file_type: str,
-    platform: str = ""
+    platform: str = "",
+    user_id: int | None = None
 ) -> Path | None:
     """
     查找笔记文件（按优先级在多种路径中查找）
 
     查找优先级：
-    1. 四级路径 data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
-    2. 三级路径 data/{author_id}_{author_name}/{video_id}_{title}/{file_type}.json
-    3. 临时路径 data/video/_pending/{task_id}/{file_type}.json
+    1. 四级路径 data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
+       - note 类型：优先找 note_{user_id}.json，其次 note.json（兼容）
+    2. 三级路径 data/{author_id}_{author_name}/{video_id}_{title}/
+    3. 临时路径 data/video/_pending/{task_id}/
     4. 旧版路径 data/notes/{task_id}/{file_type}.json（兼容已有数据）
 
-    :param task_id: 任务 ID
-    :param author_id: 博主唯一 ID
-    :param author_name: 博主名称
-    :param video_id: 视频 ID
-    :param title: 笔记标题
-    :param file_type: 文件类型
-    :param platform: 平台标识
-    :return: 找到的文件路径，或 None
+    :param user_id: 用户 ID，note 类型文件优先查找 note_{user_id}.json
     """
     file_map = {
-        "note": "note.json",
+        "note": _note_filename(user_id),
         "audio": "audio.json",
         "transcript": "transcript.json",
         "markdown": "note.md",
@@ -365,20 +367,44 @@ def find_note_file(
         if four_level_path.exists():
             return four_level_path
 
+        # 1.1 note 类型：找不到 note_{user_id}.json 时，找 note.json（兼容）
+        if file_type == "note" and user_id is not None:
+            legacy_note_path = VIDEO_DIR / platform_dir_name / author_folder / video_folder / "note.json"
+            if legacy_note_path.exists():
+                return legacy_note_path
+
         # 2. 三级路径（向后兼容）
         three_level_path = DATA_DIR / author_folder / video_folder / filename
         if three_level_path.exists():
             return three_level_path
+
+        # 2.1 note 类型：三级路径同样兼容 note.json
+        if file_type == "note" and user_id is not None:
+            legacy_three_path = DATA_DIR / author_folder / video_folder / "note.json"
+            if legacy_three_path.exists():
+                return legacy_three_path
 
     # 3. 临时路径（无 author_id 时的新写入位置）
     pending_path = VIDEO_DIR / "_pending" / task_id / filename
     if pending_path.exists():
         return pending_path
 
+    # 3.1 临时路径的 note.json 兼容
+    if file_type == "note" and user_id is not None:
+        legacy_pending = VIDEO_DIR / "_pending" / task_id / "note.json"
+        if legacy_pending.exists():
+            return legacy_pending
+
     # 4. 旧版路径（兼容已有数据，仅读取）
     path = NOTE_OUTPUT_DIR / task_id / filename
     if path.exists():
         return path
+
+    # 4.1 旧版路径的 note.json 兼容
+    if file_type == "note" and user_id is not None:
+        legacy_path = NOTE_OUTPUT_DIR / task_id / "note.json"
+        if legacy_path.exists():
+            return legacy_path
 
     # 5. 旧版路径带标题（兼容已有数据，仅读取）
     if title:
@@ -386,6 +412,12 @@ def find_note_file(
         path = NOTE_OUTPUT_DIR / folder_name / filename
         if path.exists():
             return path
+
+        # 5.1 带标题路径的 note.json 兼容
+        if file_type == "note" and user_id is not None:
+            legacy_path = NOTE_OUTPUT_DIR / folder_name / "note.json"
+            if legacy_path.exists():
+                return legacy_path
 
     # 6. 降级：author_id 为空时，按 video_id 在四级目录中搜索
     if not author_id and video_id and platform:
@@ -400,6 +432,11 @@ def find_note_file(
                         candidate = video_dir / filename
                         if candidate.exists():
                             return candidate
+                        # note 类型兼容
+                        if file_type == "note" and user_id is not None:
+                            legacy_candidate = video_dir / "note.json"
+                            if legacy_candidate.exists():
+                                return legacy_candidate
 
     return None
 

@@ -3,14 +3,16 @@ import { getQueueStatus, updateQueueConfig } from '@/services/note'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Settings, Minus, Plus } from 'lucide-react'
+import { Settings, Minus, Plus, Trash2 } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
+import request from '@/utils/request'
 
 export default function TaskQueueSettings() {
   const isMobile = useIsMobile()
   const [maxConcurrent, setMaxConcurrent] = useState(3)
   const [currentStatus, setCurrentStatus] = useState<{ running: number; max_concurrent: number; queued: number } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [cleanupLoading, setCleanupLoading] = useState(false)
 
   useEffect(() => {
     fetchStatus()
@@ -40,6 +42,21 @@ export default function TaskQueueSettings() {
       toast.error('更新失败')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCleanup = async () => {
+    setCleanupLoading(true)
+    try {
+      const res = await request.post('/cleanup_deleted_tasks', { older_than_days: 30 })
+      if (res) {
+        const cleaned = res.cleaned || 0
+        toast.success(`清理完成，删除 ${cleaned} 条过期记录`)
+      }
+    } catch {
+      toast.error('清理失败')
+    } finally {
+      setCleanupLoading(false)
     }
   }
 
@@ -110,6 +127,29 @@ export default function TaskQueueSettings() {
           <div className="mt-4 md:mt-6 flex justify-end">
             <Button size={isMobile ? 'sm' : 'default'} onClick={handleSave} disabled={loading || maxConcurrent === currentStatus?.max_concurrent}>
               {loading ? '保存中...' : '保存'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 数据清理 */}
+      <Card className="mt-4 md:mt-6">
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Trash2 className="h-4 w-4" />
+            <h3 className="text-sm font-medium">已删除数据清理</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            清理超过 30 天的已软删除任务记录（管理员操作，不可恢复）
+          </p>
+          <div className="flex justify-end">
+            <Button
+              variant="destructive"
+              size={isMobile ? 'sm' : 'default'}
+              onClick={handleCleanup}
+              disabled={cleanupLoading}
+            >
+              {cleanupLoading ? '清理中...' : '清理过期数据'}
             </Button>
           </div>
         </CardContent>

@@ -152,7 +152,12 @@ def fetch_xiaohongshu_user_notes(
             data = resp.json()
 
             if not data.get("success"):
-                error_msg = data.get("msg", f"API 错误")
+                error_msg = data.get("msg", "API 错误")
+                # 检测小红书 cookie 过期
+                if any(kw in str(error_msg).lower() for kw in ["登录", "login", "session", "请先", "无效"]):
+                    error_msg = "小红书 Cookie 已过期，请在设置页重新配置"
+                else:
+                    error_msg = f"小红书 API 错误: {error_msg}"
                 if first_error is None:
                     first_error = error_msg
                 logger.error(f"小红书笔记列表 API 错误: {error_msg}")

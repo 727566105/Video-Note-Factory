@@ -36,8 +36,8 @@ def extract_video_id(url: str, platform: str) -> Optional[str]:
             except requests.RequestException:
                 pass
 
-        # 匹配 douyin.com/video/1234567890123456789
-        match = re.search(r"/video/(\d+)", url)
+        # 匹配 douyin.com/video/1234567890123456789 或 douyin.com/note/1234567890123456789（图文笔记）
+        match = re.search(r"/(?:video|note)/(\d+)", url)
         return match.group(1) if match else None
 
     elif platform == "xiaohongshu":

@@ -2,20 +2,17 @@ import json
 import logging
 import os
 import re
-import socket
-import ipaddress
 import requests
 import shutil
 from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, Any
-from urllib.parse import urlparse
 
 from pydantic import HttpUrl
 from dotenv import load_dotenv
 
 from app.downloaders.base import Downloader
-from app.db.video_task_dao import delete_task_by_video, insert_video_task, get_task_by_task_id
+from app.db.video_task_dao import delete_task_by_video, insert_video_task, get_task_by_task_id, update_task_metadata
 from app.db.user_dao import get_user_by_id
 from app.enmus.exception import NoteErrorEnum, ProviderErrorEnum
 from app.enmus.task_status_enums import TaskStatus
@@ -36,6 +33,7 @@ from app.transcriber.transcriber_provider import get_transcriber, _transcribers
 from app.utils.note_helper import replace_content_markers
 from app.utils.video_helper import generate_screenshot
 from app.utils.video_reader import VideoReader
+from app.utils.download_helper import DownloadHelper
 
 # ------------------ 环境变量与全局配置 ------------------
 
@@ -57,37 +55,6 @@ from app.utils.path_helper import (
     move_note_files_to_video_folder,
     VIDEO_DIR,
 )
-
-# ------------------ 安全函数 ------------------
-
-def _is_safe_url(url: str) -> bool:
-    """
-    简单的 URL 安全检查，防止 SSRF 攻击。
-    只检查协议和内网 IP，不依赖域名白名单。
-    """
-    try:
-        parsed = urlparse(url)
-        # 只允许 http/https
-        if parsed.scheme not in ("http", "https"):
-            return False
-        hostname = parsed.hostname
-        if not hostname:
-            return False
-        # 禁止本地域名
-        blocked = ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
-        if hostname.lower() in blocked:
-            return False
-        # 检查是否为内网 IP
-        try:
-            ip = socket.gethostbyname(hostname)
-            ip_obj = ipaddress.ip_address(ip)
-            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-                return False
-        except socket.gaierror:
-            pass
-        return True
-    except Exception:
-        return False
 
 # 日志配置
 logger = logging.getLogger(__name__)
@@ -233,30 +200,21 @@ class NoteGenerator:
                                     author_id=author_id, author_name=author_name,
                                     video_id=video_id, title=_title, platform=platform)
 
-                # 下载图片到输出目录
+                # 下载图片到输出目录（使用统一下载工具）
                 image_urls = video_info.raw_info.get('images', [])
                 local_images = []
                 cover_api_url = None
+                referer = DownloadHelper.get_referer(platform)
+
                 if output_path and image_urls:
                     os.makedirs(output_path, exist_ok=True)
                     for i, img_url in enumerate(image_urls):
-                        try:
-                            if not _is_safe_url(img_url):
-                                logger.warning(f"跳过不安全的图片 URL: {img_url[:80]}")
-                                continue
-                            referer_map = {
-                                "douyin": "https://www.douyin.com/",
-                                "xiaohongshu": "https://www.xiaohongshu.com/",
-                            }
-                            referer = referer_map.get(platform, "https://www.douyin.com/")
-                            resp = requests.get(img_url, headers={"Referer": referer}, timeout=15)
-                            if resp.status_code == 200:
-                                img_path = os.path.join(output_path, f"image_{i+1}.jpg")
-                                with open(img_path, "wb") as f:
-                                    f.write(resp.content)
-                                local_images.append(img_path)
-                        except Exception as e:
-                            logger.warning(f"下载图集图片 {i+1} 失败: {e}")
+                        img_path = DownloadHelper.download_file(
+                            img_url, output_path, f"image_{i+1}.jpg",
+                            referer=referer, timeout=15
+                        )
+                        if img_path:
+                            local_images.append(img_path)
 
                     # 保存第一张图作为封面
                     if local_images:
@@ -268,7 +226,7 @@ class NoteGenerator:
                         except Exception:
                             cover_api_url = None
 
-                # 实况照片：下载视频文件（检测 images_with_video 数据而非 content_type）
+                # 实况照片：下载视频文件（使用统一下载工具）
                 live_photo_video_urls = []
                 _images_with_video = video_info.raw_info.get('images_with_video') or getattr(video_info, 'images_with_video', None)
                 if _images_with_video and output_path:
@@ -276,20 +234,13 @@ class NoteGenerator:
                     for i, item in enumerate(_images_with_video):
                         vid_url = item.get('video_url')
                         if vid_url:
-                            if not _is_safe_url(vid_url):
-                                logger.warning(f"跳过不安全的实况照片 URL: {vid_url[:80]}")
-                                continue
-                            live_photo_video_urls.append(vid_url)
-                            try:
-                                referer = referer_map.get(platform, "https://www.douyin.com/")
-                                resp = requests.get(vid_url, headers={"Referer": referer}, timeout=30)
-                                if resp.status_code == 200:
-                                    vid_path = os.path.join(output_path, f"live_photo_{i+1}.mp4")
-                                    with open(vid_path, "wb") as f:
-                                        f.write(resp.content)
-                                    logger.info(f"实况照片视频已下载: {vid_path}")
-                            except Exception as e:
-                                logger.warning(f"下载实况照片视频 {i+1} 失败: {e}")
+                            vid_path = DownloadHelper.download_file(
+                                vid_url, output_path, f"live_photo_{i+1}.mp4",
+                                referer=referer, timeout=30
+                            )
+                            if vid_path:
+                                live_photo_video_urls.append(vid_url)
+                                logger.info(f"实况照片视频已下载: {vid_path}")
                     logger.info(f"实况照片共下载 {len(live_photo_video_urls)} 个视频")
 
                 self._update_status(task_id, TaskStatus.SUMMARIZING,
@@ -366,6 +317,7 @@ class NoteGenerator:
                     video_id=video_id,
                     platform=platform,
                     content_type=video_info.content_type,
+                    user_id=user_id,
                 )
                 if smart_info:
                     result_kwargs.update(
@@ -505,7 +457,7 @@ class NoteGenerator:
             self._update_status(task_id, TaskStatus.SAVING,
                                 title=_title, author_id=author_id, author_name=author_name,
                                 video_id=video_id, platform=platform)
-            self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id, video_url=str(video_url))
+            self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id, video_url=str(video_url), user_id=user_id)
             # 保存视频元数据到数据库
             self._save_audio_metadata(task_id=task_id, audio_meta=audio_meta, ai_tags=ai_tags)
 
@@ -527,6 +479,7 @@ class NoteGenerator:
                 audio_meta=audio_meta,
                 model_name=model_name,
                 style=style,
+                user_id=user_id,
             )
 
             # 智能优选模式下附加模型信息
@@ -544,8 +497,196 @@ class NoteGenerator:
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)
             self._update_status(task_id, TaskStatus.FAILED, message=str(exc),
-                                title=_title, author_id=author_id, author_name=author_name,
-                                video_id=video_id, platform=platform)
+                                title=locals().get('_title'), author_id=locals().get('author_id'),
+                                author_name=locals().get('author_name'),
+                                video_id=locals().get('video_id'), platform=platform)
+            return None
+
+    def generate_from_transcript(
+        self,
+        source_task_id: str,
+        source_task: "VideoTask",
+        new_user_id: int,
+        video_url: str,
+        platform: str,
+        model_name: str = None,
+        provider_id: str = None,
+        smart_mode: bool = False,
+        style: str = None,
+        output_language: str = None,
+        link: bool = False,
+        screenshot: bool = False,
+        extras: str = None,
+    ) -> NoteResult | None:
+        """
+        基于 transcript 半流程生成（复用其他用户的转写结果）
+
+        :param source_task_id: 原任务 ID
+        :param source_task: 原任务数据库记录
+        :param new_user_id: 新用户 ID
+        :param video_url: 视频 URL（用于元数据）
+        :param platform: 平台
+        :param model_name: GPT 模型名称
+        :param provider_id: 模型供应商 ID
+        :param smart_mode: 是否启用智能优选
+        :param style: 笔记风格
+        :param output_language: 输出语言
+        :param link: 是否插入链接
+        :param screenshot: 是否插入截图
+        :param extras: 额外参数
+        :return: NoteResult 或 None
+        """
+        from app.utils.path_helper import find_note_file, get_note_file_path_v2
+        import uuid
+
+        new_task_id = str(uuid.uuid4())
+        logger.info(f"开始半流程生成: new_task_id={new_task_id}, source_task_id={source_task_id}")
+
+        try:
+            # 读取源 transcript
+            transcript_path = find_note_file(
+                source_task_id, source_task.author_id, source_task.author_name,
+                source_task.video_id, source_task.title, "transcript", platform
+            )
+            if not transcript_path or not transcript_path.exists():
+                logger.error(f"源 transcript 不存在: {source_task_id}")
+                return None
+
+            with open(transcript_path, "r", encoding="utf-8") as f:
+                transcript_data = json.load(f)
+            transcript = TranscriptResult(**transcript_data)
+
+            # 读取源 audio_meta
+            audio_path = find_note_file(
+                source_task_id, source_task.author_id, source_task.author_name,
+                source_task.video_id, source_task.title, "audio", platform
+            )
+            audio_meta = None
+            if audio_path and audio_path.exists():
+                with open(audio_path, "r", encoding="utf-8") as f:
+                    audio_meta_data = json.load(f)
+                audio_meta = AudioDownloadResult(**audio_meta_data)
+
+            # 创建数据库记录
+            insert_video_task(
+                video_id=source_task.video_id,
+                platform=platform,
+                task_id=new_task_id,
+                video_url=video_url,
+                user_id=new_user_id,
+                author_id=source_task.author_id,
+                author_name=source_task.author_name,
+                note_style=style,
+            )
+            update_task_metadata(
+                new_task_id,
+                title=source_task.title,
+                author=source_task.author,
+                description=source_task.description,
+                tags=source_task.tags,
+            )
+
+            self._update_status(
+                new_task_id, TaskStatus.SUMMARIZING,
+                title=source_task.title,
+                author_id=source_task.author_id,
+                author_name=source_task.author_name,
+                video_id=source_task.video_id,
+                platform=platform,
+            )
+
+            # 确定输出路径
+            markdown_path = get_note_file_path_v2(
+                new_task_id, source_task.author_id, source_task.author_name,
+                source_task.video_id, source_task.title, "markdown", platform
+            )
+            markdown_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # GPT 总结
+            smart_result = None
+            if smart_mode:
+                markdown, smart_result = self._summarize_with_smart_mode(
+                    audio_meta=audio_meta,
+                    transcript=transcript,
+                    markdown_cache_file=markdown_path,
+                    link=link,
+                    screenshot=screenshot,
+                    formats=[],
+                    style=style,
+                    extras=extras,
+                    video_img_urls=self.video_img_urls,
+                    output_language=output_language,
+                    user_id=new_user_id,
+                    task_id=new_task_id,
+                )
+            else:
+                gpt = None
+                if provider_id and model_name:
+                    gpt = GPTFactory.from_config(
+                        ModelConfig(provider_id=provider_id, model_name=model_name)
+                    )
+                markdown = self._summarize_text(
+                    audio_meta=audio_meta,
+                    transcript=transcript,
+                    gpt=gpt,
+                    markdown_cache_file=markdown_path,
+                    link=link,
+                    screenshot=screenshot,
+                    formats=[],
+                    style=style,
+                    extras=extras,
+                    video_img_urls=self.video_img_urls,
+                    output_language=output_language,
+                    task_id=new_task_id,
+                )
+
+            # 提取 AI 标签
+            from app.gpt.prompt_builder import extract_ai_tags, remove_ai_tags_marker
+            ai_tags = extract_ai_tags(markdown)
+            if ai_tags:
+                markdown = remove_ai_tags_marker(markdown)
+
+            # 完成状态
+            self._update_status(
+                new_task_id, TaskStatus.SUCCESS,
+                title=source_task.title,
+                author_id=source_task.author_id,
+                author_name=source_task.author_name,
+                video_id=source_task.video_id,
+                platform=platform,
+            )
+
+            logger.info(f"半流程生成成功: new_task_id={new_task_id}")
+
+            result_kwargs = dict(
+                markdown=markdown,
+                transcript=transcript,
+                audio_meta=audio_meta,
+                model_name=model_name,
+                style=style,
+                user_id=new_user_id,
+                task_id=new_task_id,
+                title=source_task.title,
+                author_id=source_task.author_id,
+                author_name=source_task.author_name,
+                video_id=source_task.video_id,
+                platform=platform,
+            )
+
+            if smart_result:
+                result_kwargs.update(
+                    smart_switched=smart_result.switched,
+                    used_model_id=smart_result.model_id,
+                    used_model_name=f"{smart_result.provider_name}/{smart_result.model_name}",
+                    used_provider_name=smart_result.provider_name,
+                    model_name=smart_result.model_name,
+                )
+
+            return NoteResult(**result_kwargs)
+
+        except Exception as e:
+            logger.error(f"半流程生成失败: {e}", exc_info=True)
+            self._update_status(new_task_id, TaskStatus.FAILED, message=str(e))
             return None
 
     def generate_article_note(self, title: str, author: str, description: str,
@@ -1365,7 +1506,7 @@ class NoteGenerator:
             results.append((match.group(0), total_seconds))
         return results
 
-    def _save_metadata(self, video_id: str, platform: str, task_id: str, video_url: str = None) -> None:
+    def _save_metadata(self, video_id: str, platform: str, task_id: str, video_url: str = None, user_id: int = None) -> None:
         """
         将生成的笔记任务记录插入数据库
 
@@ -1373,9 +1514,10 @@ class NoteGenerator:
         :param platform: 平台标识
         :param task_id: 任务 ID
         :param video_url: 视频链接
+        :param user_id: 用户 ID
         """
         try:
-            insert_video_task(video_id=video_id, platform=platform, task_id=task_id, video_url=video_url)
+            insert_video_task(video_id=video_id, platform=platform, task_id=task_id, video_url=video_url, user_id=user_id)
             logger.info(f"已保存任务记录到数据库 (video_id={video_id}, platform={platform}, task_id={task_id})")
         except Exception as e:
             logger.error(f"保存任务记录失败：{e}")

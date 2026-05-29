@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 export const useTaskPolling = (interval = 3000) => {
   const tasks = useTaskStore(state => state.tasks)
+  const dismissTask = useTaskStore(state => state.dismissTask)
   const updateTaskContent = useTaskStore(state => state.updateTaskContent)
   const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
 
@@ -60,6 +61,11 @@ export const useTaskPolling = (interval = 3000) => {
             }
           }
         } catch (e: any) {
+          // 403 表示任务不属于当前用户，直接移除
+          if (e?.code === 403) {
+            dismissTask(task.id)
+            continue
+          }
           const message = e?.msg || ''
           updateTaskContent(task.id, { status: 'FAILED', message })
         }

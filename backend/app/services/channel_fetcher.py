@@ -383,7 +383,11 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
                 api_msg = data.get("message", "未知错误")
 
             if api_code != 0:
-                error_msg = f"B站API错误({api_code}): {api_msg}"
+                # 检测 B站 cookie 过期：-101=账号未登录
+                if api_code == -101 or any(kw in api_msg for kw in ["未登录", "请先登录", "登录失效"]):
+                    error_msg = "B站 Cookie 已过期，请在设置页重新配置"
+                else:
+                    error_msg = f"B站API错误({api_code}): {api_msg}"
                 if first_error is None:
                     first_error = error_msg
                 logger.error(f"B站视频列表 API 错误: {api_msg} (code={api_code})")

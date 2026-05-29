@@ -32,6 +32,8 @@ export interface FeedItem {
   published_at: string | null
   is_read: number
   task_id: string | null
+  channel_video_id?: number | null
+  is_seen?: boolean
   note_available?: boolean
   available_task_id?: string | null
 }
@@ -72,8 +74,8 @@ export const fetchRefreshProgress = (progressId: string) =>
     error: string | null
   }>(`/subscriptions/progress/${progressId}`)
 
-export const fetchFeed = (limit: number = 20, offset: number = 0, type?: string) =>
-  request.get<FeedItem[]>('/feed', { params: { limit, offset, type } })
+export const fetchFeed = (limit: number = 20, offset: number = 0, type?: string, order?: 'desc' | 'asc') =>
+  request.get<FeedItem[]>('/feed', { params: { limit, offset, type, order } })
 
 export const markFeedRead = (id: number) =>
   request.put(`/feed/${id}/read`)
@@ -186,3 +188,6 @@ export const updateFetchInterval = (id: number, data: FetchIntervalRequest) =>
     fetch_at_hour: number
     fetch_at_day: number | null
   }>(`/subscriptions/${id}/fetch-interval`, data)
+
+export const markChannelVideoSeen = (channelVideoId: number) =>
+  request.post(`/channels/channel-videos/${channelVideoId}/seen`)

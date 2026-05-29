@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import type { BackendTask, TaskTags } from '@/types/api'
 
 
-export type TaskStatus = 'PENDING' | 'RUNNING' | 'QUEUED' | 'SUCCESS' | 'FAILED'
+export type TaskStatus = 'PENDING' | 'QUEUED' | 'PARSING' | 'DOWNLOADING' | 'TRANSCRIBING' | 'SUMMARIZING' | 'FORMATTING' | 'SAVING' | 'SUCCESS' | 'FAILED'
 
 export interface AudioMeta {
   cover_url: string

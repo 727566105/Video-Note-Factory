@@ -25,7 +25,7 @@ interface SubscriptionStore {
   subscribe: (url: string) => Promise<boolean>
   unsubscribe: (id: number) => Promise<void>
   toggleSubscription: (id: number) => Promise<void>
-  fetchFeed: (limit?: number, offset?: number, type?: string) => Promise<void>
+  fetchFeed: (limit?: number, offset?: number, type?: string, order?: 'desc' | 'asc') => Promise<void>
   markRead: (id: number) => Promise<void>
   markAllRead: () => Promise<void>
   refreshFeed: () => Promise<void>
@@ -96,10 +96,10 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       } catch { }
     },
 
-    fetchFeed: async (limit = 20, offset = 0, type?: string) => {
+    fetchFeed: async (limit = 20, offset = 0, type?: string, order?: 'desc' | 'asc') => {
       set({ loading: true })
       try {
-        const items = await apiFetchFeed(limit, offset, type)
+        const items = await apiFetchFeed(limit, offset, type, order)
         set({ feedItems: items || [] })
       } catch { } finally {
         set({ loading: false })

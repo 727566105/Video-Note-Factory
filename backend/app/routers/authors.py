@@ -66,7 +66,8 @@ def get_author_videos(author_id: str, limit: int = 50, offset: int = 0,
             status_path = find_note_file(task.task_id, task.author_id, task.author_name,
                                          task.video_id, task.title, "status", task.platform)
             result_path = find_note_file(task.task_id, task.author_id, task.author_name,
-                                         task.video_id, task.title, "note", task.platform)
+                                         task.video_id, task.title, "note", task.platform,
+                                         user_id=current_user.id)
 
             if status_path and status_path.exists():
                 try:

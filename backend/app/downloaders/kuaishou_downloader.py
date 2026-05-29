@@ -63,19 +63,16 @@ class KuaiShouDownloader(Downloader, ABC):
                       or video_raw_info.get('visionVideoDetail', {}).get('photo', {}).get('userName', ''))
         ks_author_id = str(video_raw_info.get('visionVideoDetail', {}).get('author', {}).get('id', ''))
 
-        # 下载封面到视频目录
+        # 下载封面到视频目录（使用统一下载工具）
         cover_url = photo_info['coverUrl']
         if cover_url and output_dir:
             try:
-                resp = requests.get(
-                    cover_url,
-                    headers={"Referer": "https://www.kuaishou.com/"},
-                    timeout=10,
+                from app.utils.download_helper import DownloadHelper
+                temp_cover = DownloadHelper.download_file(
+                    cover_url, output_dir, "_temp_cover.jpg",
+                    referer="https://www.kuaishou.com/", timeout=10
                 )
-                if resp.status_code == 200:
-                    temp_cover = os.path.join(output_dir, "_temp_cover.jpg")
-                    with open(temp_cover, "wb") as f:
-                        f.write(resp.content)
+                if temp_cover:
                     from app.utils.video_helper import save_cover_to_video_dir
                     cover_url = save_cover_to_video_dir(
                         temp_cover, output_dir, "kuaishou", ks_author_id, video_id

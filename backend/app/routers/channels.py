@@ -41,10 +41,15 @@ async def parse_url(req: ParseUrlRequest, user=Depends(get_current_user)) -> dic
 @router.get("/{platform}/{platform_id}/videos")
 async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, offset: int = 0,
                               user=Depends(get_current_user)) -> dict:
+    from app.db.channel_video_seen_dao import get_seen_ids
+
     # 先找订阅获取 subscription_id
     channel_url = CHANNEL_URL_MAP.get(platform, "").format(platform_id=platform_id)
     sub = subscription_dao.get_subscription_by_url(user.id, channel_url) if channel_url else None
     sub_id = sub.id if sub else None
+
+    # 获取用户已查看的视频 ID 集合
+    seen_ids = get_seen_ids(user.id, platform, platform_id)
 
     # 如果有订阅，从缓存的 feed_items 读取；否则实时获取
     if sub_id:
@@ -62,6 +67,10 @@ async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, o
             existing = find_completed_task_by_video(f.content_id, platform)
             if existing:
                 available_task_id = existing.task_id
+
+        cv_id = f.channel_video_id
+        is_seen = cv_id in seen_ids if cv_id else False
+
         items_data.append({
             "id": f.id,
             "content_id": f.content_id,
@@ -73,6 +82,8 @@ async def get_channel_videos(platform: str, platform_id: str, limit: int = 20, o
             "published_at": f.published_at.isoformat() if f.published_at else None,
             "is_read": f.is_read,
             "task_id": f.task_id,
+            "channel_video_id": cv_id,
+            "is_seen": is_seen,
             "note_available": bool(available_task_id),
             "available_task_id": available_task_id,
         })
@@ -173,3 +184,11 @@ async def fetch_more_channel_videos(
         "message": result.get("message", "已加入获取队列"),
         "already_queued": result.get("message") == "已在队列中",
     })
+
+
+@router.post("/channel-videos/{channel_video_id}/seen")
+async def mark_channel_video_seen(channel_video_id: int, user=Depends(get_current_user)) -> dict:
+    """标记频道视频为已查看"""
+    from app.db.channel_video_seen_dao import mark_seen
+    mark_seen(user.id, channel_video_id)
+    return R.success(msg="已标记为已查看")

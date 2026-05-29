@@ -452,7 +452,8 @@ async def export_pdf(
             video_id=getattr(task, 'video_id', None),
             title=getattr(task, 'title', None),
             file_type="note",
-            platform=getattr(task, 'platform', '') or ""
+            platform=getattr(task, 'platform', '') or "",
+            user_id=task.user_id
         )
 
         markdown_content = ""
@@ -951,7 +952,8 @@ def _export_pandoc_format(task_id: str, fmt: PandocFormat, current_user) -> Resp
         video_id=getattr(task, 'video_id', None),
         title=getattr(task, 'title', None),
         file_type="note",
-        platform=getattr(task, 'platform', '') or ""
+        platform=getattr(task, 'platform', '') or "",
+        user_id=task.user_id
     )
 
     markdown_content = ""

@@ -157,6 +157,7 @@ class DouyinDownloader(Downloader):
                 return ""
         patterns = [
             r'video/(\d+)',
+            r'note/(\d+)',
             r'aweme_id=(\d+)',
         ]
         for pattern in patterns:
@@ -302,9 +303,12 @@ class DouyinDownloader(Downloader):
         aweme = video_data['aweme_detail']
         author_info = aweme.get('author', {})
         aweme_type = aweme.get('aweme_type', 0)
+        images = aweme.get('images', [])
 
-        # 图集或实况照片
-        if aweme_type in (68, 69):
+        logger.info(f"aweme_type={aweme_type}, images_count={len(images)}")
+
+        # 图集或实况照片：按 aweme_type 或 images 字段判断（兜底检测）
+        if aweme_type in (68, 69) or images:
             images = aweme.get('images', [])
             image_urls = [img.get('url_list', [None])[0] for img in images if img.get('url_list')]
             cover_url = image_urls[0] if image_urls else None
@@ -402,12 +406,15 @@ class DouyinDownloader(Downloader):
             video_data = self.fetch_video_info(video_url)
             aweme = video_data['aweme_detail']
             aweme_type = aweme.get('aweme_type', 0)
+            images = aweme.get('images', [])
             video_id = aweme.get('aweme_id', '')
             author_id = str(aweme.get('author', {}).get('uid', ''))
             author_name = aweme.get('author', {}).get('nickname', '') or None
 
-            # 图集或实况照片：下载所有图片
-            if aweme_type in (68, 69):
+            logger.info(f"download: aweme_type={aweme_type}, images_count={len(images)}")
+
+            # 图集或实况照片：按 aweme_type 或 images 字段判断（兜底检测）
+            if aweme_type in (68, 69) or images:
                 images = aweme.get('images', [])
                 downloaded_paths = []
                 for i, img in enumerate(images):
@@ -520,21 +527,12 @@ class DouyinDownloader(Downloader):
 
     @staticmethod
     def _download_image(url: str, output_dir: str, filename: str) -> str:
-        """下载单张图片到指定目录"""
-        try:
-            resp = requests.get(
-                url,
-                headers={"Referer": "https://www.douyin.com/"},
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                path = os.path.join(output_dir, filename)
-                with open(path, "wb") as f:
-                    f.write(resp.content)
-                return path
-        except Exception as e:
-            logger.warning(f"下载图片失败 ({filename}): {e}")
-        return ""
+        """下载单张图片到指定目录（使用统一下载工具）"""
+        from app.utils.download_helper import DownloadHelper
+        return DownloadHelper.download_file(
+            url, output_dir, filename,
+            referer="https://www.douyin.com/", timeout=15
+        )
 
     def download_video(self, video_url: str, output_dir: Union[str, None] = None, force_redownload: bool = False) -> str:
 

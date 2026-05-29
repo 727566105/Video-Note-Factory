@@ -153,7 +153,8 @@ def save_note_to_file(task_id: str, note):
 
     # 使用三级路径保存
     result_path = get_note_file_path_v2(
-        task_id, author_id, author_name, video_id, title, "note", platform
+        task_id, author_id, author_name, video_id, title, "note", platform,
+        user_id=getattr(note, 'user_id', None)
     )
 
     # 检查是否存在旧版本
@@ -243,12 +244,26 @@ def _save_queued_task_params(task_id: str, data: VideoRequest, user_id: int = No
         json.dump(params, f, ensure_ascii=False)
 
 
-def _cleanup_pending(task_id: str):
-    """清理 _pending 目录中的任务残留"""
+def _cleanup_pending(task_id: str, keep_status: bool = False):
+    """清理 _pending 目录中的任务残留
+
+    :param keep_status: 是否保留 status.json 文件（失败任务需要保留状态）
+    """
     _pending = VIDEO_DIR / "_pending" / task_id
     if _pending.exists():
-        shutil.rmtree(_pending, ignore_errors=True)
-        logger.info(f"已清理 _pending 目录: {_pending}")
+        if keep_status:
+            # 保留 status.json，删除其他文件
+            status_file = _pending / "status.json"
+            for item in _pending.iterdir():
+                if item != status_file:
+                    if item.is_file():
+                        item.unlink()
+                    elif item.is_dir():
+                        shutil.rmtree(item, ignore_errors=True)
+            logger.info(f"已清理 _pending 目录（保留状态）: {_pending}")
+        else:
+            shutil.rmtree(_pending, ignore_errors=True)
+            logger.info(f"已清理 _pending 目录: {_pending}")
 
 
 def _start_queued_task(task_id: str):
@@ -279,6 +294,7 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
                   video_interval=0, grid_size=[], output_language: str = None,
                   smart_mode: bool = False, user_id: int = None
                   ):
+    task_succeeded = False
     try:
         # 智能模式不需要验证 model_name/provider_id
         if not smart_mode and (not model_name or not provider_id):
@@ -310,9 +326,10 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
             logger.warning(f"任务 {task_id} 执行失败，跳过保存")
             return
         save_note_to_file(task_id, note)
+        task_succeeded = True
     finally:
-        # 清理 _pending 残留（无论成功还是失败）
-        _cleanup_pending(task_id)
+        # 失败任务保留 status.json，成功任务完全清理
+        _cleanup_pending(task_id, keep_status=not task_succeeded)
         # 释放执行槽位，触发下一个排队任务
         next_task_id = task_queue.release(task_id)
         if next_task_id:
@@ -322,48 +339,24 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
 
 @router.post('/delete_task')
 def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> dict:
+    """软删除任务（标记 deleted_at，前端隐藏，数据保留）"""
+    from app.db.video_task_dao import soft_delete_task
     try:
-        # 优先使用 task_id 删除（更精确）
         if data.task_id:
-            # 先查询数据库获取 author 信息（删除前查询）
+            # 权限检查
             db_task = get_task_by_task_id(data.task_id)
-            # 权限检查：只允许删除自己的任务
             if not db_task or db_task.user_id != current_user.id:
                 raise HTTPException(status_code=403, detail="无权删除该任务")
-            # 删除数据库记录
-            delete_task_by_id(data.task_id)
-
-            # 删除笔记文件夹（兼容四级目录和旧版目录）
-            if db_task and db_task.author_id:
-                try:
-                    video_folder = get_video_folder(
-                        db_task.author_id, db_task.author_name,
-                        db_task.video_id, db_task.title, db_task.platform
-                    )
-                    if video_folder.exists():
-                        shutil.rmtree(video_folder)
-                        logger.info(f"已删除四级目录: {video_folder}")
-                        # 如果博主目录为空，也删除
-                        author_dir = video_folder.parent
-                        if author_dir.exists() and not any(author_dir.iterdir()):
-                            shutil.rmtree(author_dir)
-                except Exception as e:
-                    logger.warning(f"删除四级目录失败: {e}")
-
-            # 旧版目录（兼容旧数据清理）
-            note_folder = get_note_folder(data.task_id, None)
-            if note_folder.exists():
-                shutil.rmtree(note_folder)
-                logger.info(f"已删除旧版笔记文件夹: {note_folder}")
-
-            # _pending 临时目录
-            _cleanup_pending(data.task_id)
-
+            # 软删除
+            soft_delete_task(data.task_id, current_user.id)
             # 清理队列
             task_queue.remove(data.task_id)
         else:
-            # 兼容旧逻辑：通过 video_id + platform 删除
-            delete_task_by_video(data.video_id, data.platform)
+            # 兼容旧逻辑：通过 video_id + platform 软删除
+            from app.db.video_task_dao import get_user_task_for_video
+            task = get_user_task_for_video(data.video_id, data.platform, current_user.id)
+            if task:
+                soft_delete_task(task.task_id, current_user.id)
 
         return R.success(msg='删除成功')
     except HTTPException:
@@ -415,6 +408,20 @@ async def upload(file: UploadFile = File(...), current_user=Depends(get_current_
 
 @router.post("/generate_note")
 def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current_user=Depends(get_current_user)) -> dict:
+    """生成笔记端点（智能复用）
+
+    复用策略：
+    1. 当前用户已有笔记 → 提示已存在
+    2. 跨用户同风格笔记 → 直接复用 note 内容
+    3. 跨用户有 transcript 但无同风格笔记 → 半流程生成（基于 transcript）
+    4. 无可复用数据 → 全流程（下载 → 转写 → 生成）
+    """
+    from app.db.video_task_dao import (
+        get_user_task_for_video, find_matching_note, find_source_data,
+        clone_task_to_user, soft_delete_task
+    )
+    from app.services.note import NoteGenerator
+
     try:
         video_id = extract_video_id(data.video_url, data.platform)
 
@@ -422,31 +429,76 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
         if not video_id and data.platform in ("local", "local_audio") and data.video_url:
             import os
             filename = os.path.basename(data.video_url)
-            video_id, _ = os.path.splitext(filename)  # 使用文件名作为 video_id
+            video_id, _ = os.path.splitext(filename)
 
         if video_id and not data.task_id:
-            # 先检查当前用户是否已生成过该视频的笔记（避免重复提交）
-            user_own_task_id = get_task_by_video(video_id, data.platform, current_user.id)
-            if user_own_task_id:
-                # 查完整信息做兼容查找
-                db_task = get_task_by_task_id(user_own_task_id)
-                if db_task:
-                    note_path = find_note_file(
-                        user_own_task_id, db_task.author_id, db_task.author_name,
-                        db_task.video_id, db_task.title, "note", db_task.platform
-                    )
-                else:
-                    note_path = find_note_file(user_own_task_id, None, None, None, None, "note", "")
+            # Step 1: 检查当前用户是否已有笔记
+            user_task = get_user_task_for_video(video_id, data.platform, current_user.id)
+            if user_task:
+                note_path = find_note_file(
+                    user_task.task_id, user_task.author_id, user_task.author_name,
+                    user_task.video_id, user_task.title, "note", user_task.platform,
+                    user_id=current_user.id
+                )
                 if note_path and note_path.exists():
                     return R.error("该视频已生成过笔记，请直接查看或点击「重新生成」")
 
-            # 检查是否有其他用户已生成过该视频的笔记（复用）
+            # Step 2: 查找同风格可复用笔记（跨用户）
+            matching_task = find_matching_note(video_id, data.platform, current_user.id, data.style)
+            if matching_task:
+                try:
+                    clone_task_to_user(matching_task.task_id, current_user.id, video_id, data.platform, data.video_url)
+                    logger.info(f"智能复用（同风格）：用户 {current_user.id} 复用了视频 {video_id} 的笔记 "
+                                f"task_id={matching_task.task_id}, style={data.style}")
+                    return R.success({"task_id": matching_task.task_id, "reused": True, "reuse_type": "note"})
+                except Exception as e:
+                    logger.warning(f"克隆任务失败，继续检查源数据: {e}")
+
+            # Step 3: 查找可复用的源数据（transcript）但需要重新生成（不同风格）
+            source_task = find_source_data(video_id, data.platform)
+            if source_task:
+                # 半流程生成：基于已有 transcript
+                task_id = str(uuid.uuid4())
+                insert_video_task(
+                    video_id=video_id, platform=data.platform, task_id=task_id,
+                    video_url=data.video_url, user_id=current_user.id,
+                    note_style=data.style
+                )
+                # 在后台执行半流程生成
+                background_tasks.add_task(
+                    run_half_flow_task,
+                    task_id,
+                    source_task.task_id,
+                    source_task,
+                    data.video_url,
+                    data.platform,
+                    data.model_name,
+                    data.provider_id,
+                    data.smart_mode,
+                    data.style,
+                    data.output_language,
+                    data.link,
+                    data.screenshot,
+                    data.extras,
+                    current_user.id
+                )
+                logger.info(f"智能复用（源数据）：用户 {current_user.id} 基于已有 transcript 生成新笔记 "
+                            f"new_task_id={task_id}, source_task_id={source_task.task_id}")
+                return R.success({"task_id": task_id, "reuse_type": "transcript"})
+
+            # Step 4: 无可复用数据，全流程生成
+            # 检查是否有其他用户已完成（无风格匹配，fallback 复用）
             existing_task = find_completed_task_by_video(video_id, data.platform)
             if existing_task:
-                clone_task_to_user(existing_task.task_id, current_user.id, video_id, data.platform, data.video_url)
-                logger.info(f"笔记复用: 用户 {current_user.id} 复用了视频 {video_id} 的笔记 task_id={existing_task.task_id}")
-                return R.success({"task_id": existing_task.task_id, "reused": True})
+                try:
+                    clone_task_to_user(existing_task.task_id, current_user.id, video_id, data.platform, data.video_url)
+                    logger.info(f"Fallback 复用: 用户 {current_user.id} 复用了视频 {video_id} 的笔记 "
+                                f"task_id={existing_task.task_id}")
+                    return R.success({"task_id": existing_task.task_id, "reused": True, "reuse_type": "fallback"})
+                except Exception:
+                    pass
 
+        # 全流程或重试
         if data.task_id:
             task_id = data.task_id
             NoteGenerator()._update_status(task_id, TaskStatus.PENDING)
@@ -454,11 +506,18 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
         else:
             task_id = str(uuid.uuid4())
 
-        # 立即写入数据库，确保其他浏览器能通过 GET /tasks 看到该任务
-        insert_video_task(video_id=video_id, platform=data.platform, task_id=task_id, video_url=data.video_url, user_id=current_user.id)
+        # video_id 可能为 None（URL 解析失败），用 task_id 兜底确保记录能创建
+        effective_video_id = video_id or task_id
+
+        insert_video_task(
+            video_id=effective_video_id, platform=data.platform, task_id=task_id,
+            video_url=data.video_url, user_id=current_user.id,
+            note_style=data.style
+        )
 
         acquired = task_queue.acquire(task_id)
         if acquired:
+            NoteGenerator()._update_status(task_id, TaskStatus.PENDING)
             background_tasks.add_task(run_note_task, task_id, data.video_url, data.platform, data.quality, data.link,
                                       data.screenshot, data.model_name, data.provider_id, data.format, data.style,
                                       data.extras, data.video_understanding, data.video_interval, data.grid_size,
@@ -472,13 +531,57 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def run_half_flow_task(
+    task_id: str,
+    source_task_id: str,
+    source_task,
+    video_url: str,
+    platform: str,
+    model_name: str = None,
+    provider_id: str = None,
+    smart_mode: bool = False,
+    style: str = None,
+    output_language: str = None,
+    link: bool = False,
+    screenshot: bool = False,
+    extras: str = None,
+    user_id: int = None
+):
+    """后台任务：基于已有 transcript 半流程生成"""
+    from app.services.note import NoteGenerator
+    try:
+        note = NoteGenerator().generate_from_transcript(
+            source_task_id=source_task_id,
+            source_task=source_task,
+            new_user_id=user_id,
+            video_url=video_url,
+            platform=platform,
+            model_name=model_name,
+            provider_id=provider_id,
+            smart_mode=smart_mode,
+            style=style,
+            output_language=output_language,
+            link=link,
+            screenshot=screenshot,
+            extras=extras,
+        )
+        if note and note.markdown:
+            save_note_to_file(task_id, note)
+            logger.info(f"半流程生成完成: task_id={task_id}")
+        else:
+            logger.warning(f"半流程生成失败: task_id={task_id}")
+    except Exception as e:
+        logger.error(f"半流程任务执行失败: {e}")
+    finally:
+        task_queue.release(task_id)
+
+
 @router.get("/task_status/{task_id}")
 def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dict:
-    # 从数据库获取 author 信息用于兼容查找
-    from app.db.video_task_dao import get_task_by_task_id
-    db_task = get_task_by_task_id(task_id)
-    # 权限检查：只允许访问自己的任务
-    if not db_task or db_task.user_id != current_user.id:
+    # 从数据库获取 author 信息用于兼容查找（带用户过滤）
+    from app.db.video_task_dao import get_task_by_task_id_and_user
+    db_task = get_task_by_task_id_and_user(task_id, current_user.id)
+    if not db_task:
         raise HTTPException(status_code=403, detail="无权访问该任务")
     _author_id = db_task.author_id if db_task else None
     _author_name = db_task.author_name if db_task else None
@@ -487,7 +590,8 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
     _platform = db_task.platform if db_task else ""
 
     status_path = find_note_file(task_id, _author_id, _author_name, _video_id, _title, "status", _platform)
-    result_path = find_note_file(task_id, _author_id, _author_name, _video_id, _title, "note", _platform)
+    result_path = find_note_file(task_id, _author_id, _author_name, _video_id, _title, "note", _platform,
+                                  user_id=current_user.id)
 
     # 优先读状态文件
     if status_path and status_path.exists():
@@ -878,17 +982,17 @@ def check_note_availability(data: CheckAvailabilityRequest, current_user=Depends
 @router.get("/quick_view/{task_id}")
 def quick_view_note(task_id: str, current_user=Depends(get_current_user)) -> dict:
     """快速预览笔记内容（不 clone）"""
-    # 先查数据库获取标题
-    from app.db.video_task_dao import get_task_by_task_id
-    task = get_task_by_task_id(task_id)
-    # 权限检查：只允许访问自己的任务
-    if not task or task.user_id != current_user.id:
+    # 带用户过滤查询
+    from app.db.video_task_dao import get_task_by_task_id_and_user
+    task = get_task_by_task_id_and_user(task_id, current_user.id)
+    if not task:
         raise HTTPException(status_code=403, detail="无权访问该任务")
 
     result_path = find_note_file(
         task_id, task.author_id if task else None, task.author_name if task else None,
         task.video_id if task else None, task.title if task else None, "note",
-        task.platform if task else ""
+        task.platform if task else "",
+        user_id=current_user.id
     )
     if not result_path or not result_path.exists():
         raise HTTPException(status_code=404, detail="笔记文件不存在")
@@ -927,7 +1031,8 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
             )
             result_path = find_note_file(
                 task_id, task.author_id, task.author_name,
-                task.video_id, task_title, "note", task.platform
+                task.video_id, task_title, "note", task.platform,
+                user_id=current_user.id
             )
 
             # 读取状态文件，获取任务进度

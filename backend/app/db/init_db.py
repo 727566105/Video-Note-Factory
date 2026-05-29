@@ -10,6 +10,7 @@ from app.db.models.user_preferences import UserPreference
 from app.db.models.subscriptions import Subscription, FeedItem
 from app.db.models.model_usage_history import ModelUsageHistory
 from app.db.models.channel_video import ChannelVideo, ChannelFetchStatus
+from app.db.models.channel_video_seen import ChannelVideoSeen
 from app.db.engine import get_engine, Base, get_db
 from app.utils.logger import get_logger
 from sqlalchemy import text
@@ -191,6 +192,36 @@ def migrate_video_tasks_tags_column():
         db.close()
 
 
+def migrate_video_tasks_multiuser_columns():
+    """检查并添加多用户隔离相关字段"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(video_tasks)"))
+        columns = [row[1] for row in result.fetchall()]
+
+        if 'deleted_at' not in columns:
+            logger.info("video_tasks: deleted_at 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN deleted_at DATETIME"))
+            db.commit()
+            logger.info("video_tasks: deleted_at 列添加成功")
+
+        if 'source_task_id' not in columns:
+            logger.info("video_tasks: source_task_id 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN source_task_id VARCHAR"))
+            db.commit()
+            logger.info("video_tasks: source_task_id 列添加成功")
+
+        if 'note_style' not in columns:
+            logger.info("video_tasks: note_style 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE video_tasks ADD COLUMN note_style VARCHAR"))
+            db.commit()
+            logger.info("video_tasks: note_style 列添加成功")
+    except Exception as e:
+        logger.error(f"video_tasks 多用户字段迁移失败: {e}")
+    finally:
+        db.close()
+
+
 def init_db():
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
@@ -201,6 +232,7 @@ def init_db():
     migrate_subscriptions_unique_id()
     migrate_video_tasks_tags_column()
     migrate_subscriptions_fetch_time()
+    migrate_video_tasks_multiuser_columns()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户

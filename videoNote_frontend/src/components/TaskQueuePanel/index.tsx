@@ -292,11 +292,11 @@ export const TaskQueuePanel: FC = () => {
   const retryTask = useTaskStore(state => state.retryTask)
 
   const stats = useMemo(() => {
+    const processingStatuses = ['PENDING', 'QUEUED', 'PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING', 'RUNNING']
     const completed = tasks.filter(t => t.status === 'SUCCESS').length
-    const processing = tasks.filter(t => t.status === 'RUNNING' || t.status === 'QUEUED').length
+    const processing = tasks.filter(t => processingStatuses.includes(t.status)).length
     const failed = tasks.filter(t => t.status === 'FAILED').length
-    const pending = tasks.filter(t => t.status === 'PENDING').length
-    return { completed, processing, failed, pending, total: tasks.length }
+    return { completed, processing, failed, total: tasks.length }
   }, [tasks])
 
   // 点击外部关闭（排除 Radix Portal 元素）

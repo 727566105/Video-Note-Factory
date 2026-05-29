@@ -587,31 +587,6 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
 
       {/* 视频信息 */}
       <div className="px-4 py-2 flex flex-col gap-3">
-        {/* 面包屑 */}
-        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-          <button
-            onClick={() => navigate('/notes')}
-            className="hover:text-foreground transition-colors"
-          >
-            首页
-          </button>
-          {(task.author_name || authorDisplay !== task.platform) && (
-            <>
-              <span>/</span>
-              <button
-                onClick={() => {
-                  const aid = task.author_id || (task.audioMeta?.raw_info as Record<string, unknown>)?.owner?.mid || (task.audioMeta?.raw_info as Record<string, unknown>)?.uploader_id
-                  if (aid) navigate(`/authors/${aid}`)
-                }}
-                className="hover:text-foreground transition-colors"
-              >
-                {task.author_name || authorDisplay}
-              </button>
-            </>
-          )}
-          <span>/</span>
-          <span className="text-foreground truncate max-w-[200px]">{title}</span>
-        </div>
         <h2 className="text-lg font-semibold text-foreground leading-snug">{title}</h2>
         {description && (
           <div className="rounded-lg bg-muted p-2 text-sm text-muted-foreground">

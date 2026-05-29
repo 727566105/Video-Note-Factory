@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from app.auth.dependencies import get_current_user
 from app.db import subscription_dao
-from app.db.video_task_dao import find_completed_task_by_video
+from app.db.video_task_dao import find_completed_task_by_video, get_task_by_video
 from app.services.channel_fetcher import fetch_all_for_subscription
 from app.db.subscription_dao import upsert_feed_items
 from app.utils.response import ResponseWrapper as R
@@ -13,16 +13,18 @@ router = APIRouter(prefix="/api/feed", tags=["动态内容"])
 
 @router.get("")
 async def list_feed(limit: int = 20, offset: int = 0, type: str = None,
+                    order: str = "desc",
                     user=Depends(get_current_user)) -> dict:
-    items = subscription_dao.get_feed_items(user.id, limit, offset, type)
+    items = subscription_dao.get_feed_items(user.id, limit, offset, type, order)
     items_data = []
     for f in items:
-        # 检查笔记可用性：优先用 feed_item 关联的 task_id，否则跨用户查找
+        # 检查笔记可用性：优先用 feed_item 关联的 task_id，否则查当前用户的任务
         available_task_id = f.task_id
         if not available_task_id and f.content_id:
-            existing = find_completed_task_by_video(f.content_id, f.platform)
-            if existing:
-                available_task_id = existing.task_id
+            # 只查当前用户的已完成任务，不跨用户
+            existing_task_id = get_task_by_video(f.content_id, f.platform, user.id)
+            if existing_task_id:
+                available_task_id = existing_task_id
         items_data.append({
             "id": f.id,
             "subscription_id": f.subscription_id,

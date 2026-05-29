@@ -41,3 +41,4 @@ class NoteResult:
     author_name: Optional[str] = None
     video_id: Optional[str] = None
     platform: Optional[str] = None
+    user_id: Optional[int] = None  # 多用户隔离：笔记所属用户 ID

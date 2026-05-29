@@ -109,8 +109,12 @@ const STATUS_OPTIONS: FilterOption[] = [
   { value: 'SUCCESS', label: '成功' },
   { value: 'FAILED', label: '失败' },
   { value: 'PENDING', label: '等待中' },
-  { value: 'RUNNING', label: '进行中' },
   { value: 'QUEUED', label: '排队中' },
+  { value: 'PARSING', label: '解析中' },
+  { value: 'DOWNLOADING', label: '下载中' },
+  { value: 'TRANSCRIBING', label: '转写中' },
+  { value: 'SUMMARIZING', label: '总结中' },
+  { value: 'SAVING', label: '保存中' },
 ]
 
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
@@ -145,6 +149,9 @@ function getRealtimeStatus(item: NoteItem, taskStoreTasks: { id: string; status:
   const storeTask = taskStoreTasks.find(t => t.id === item.task_id)
   return storeTask?.status || item.status
 }
+
+const isProcessingStatus = (status: string) =>
+  ['PENDING', 'QUEUED', 'PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(status)
 
 // 平台名称映射
 const platformLabel: Record<string, string> = {
@@ -276,7 +283,7 @@ function MasonryNoteCard({
             <PlatformIconSmall platform={item.platform} />
           </div>
         )}
-        {(realtimeStatus === 'PENDING' || realtimeStatus === 'RUNNING' || realtimeStatus === 'QUEUED') && (
+        {isProcessingStatus(realtimeStatus) && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <LoaderCircle className="w-6 h-6 text-white animate-spin" />
           </div>
@@ -756,7 +763,7 @@ export const NoteListPage: FC = () => {
                       </div>
                     )}
                     {/* 加载状态 */}
-                    {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+                    {isProcessingStatus(getRealtimeStatus(item, taskStoreTasks)) && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <LoaderCircle className="w-6 h-6 text-white animate-spin" />
                       </div>
@@ -860,7 +867,7 @@ export const NoteListPage: FC = () => {
                         <PlatformIconSmall platform={item.platform} />
                       </div>
                     )}
-                    {(item.status === 'PENDING' || item.status === 'RUNNING' || item.status === 'QUEUED') && (
+                    {isProcessingStatus(getRealtimeStatus(item, taskStoreTasks)) && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <LoaderCircle className="w-5 h-5 text-white animate-spin" />
                       </div>

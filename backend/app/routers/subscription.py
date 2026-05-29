@@ -306,12 +306,12 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 channel_video_records = upsert_channel_videos(
                     result.items, "douyin", sub.platform_id
                 )
-                create_feed_items_from_channel_videos(
+                added = create_feed_items_from_channel_videos(
                     user.id, sub.id, channel_video_records, "douyin"
                 )
                 subscription_dao.update_subscription_check(sub_id)
                 db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
-                complete_progress(progress_id, len(result.items), db_total)
+                complete_progress(progress_id, added, db_total)
                 return
 
             # 小红书：走共享缓存路径
@@ -338,12 +338,12 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 channel_video_records = upsert_channel_videos(
                     result.items, "xiaohongshu", sub.platform_id
                 )
-                create_feed_items_from_channel_videos(
+                added = create_feed_items_from_channel_videos(
                     user.id, sub.id, channel_video_records, "xiaohongshu"
                 )
                 subscription_dao.update_subscription_check(sub_id)
                 db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
-                complete_progress(progress_id, len(result.items), db_total)
+                complete_progress(progress_id, added, db_total)
                 return
 
             # 其他平台：保持原逻辑

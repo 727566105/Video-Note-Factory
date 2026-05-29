@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity, Loader2 } from 'lucide-react'
+import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity, Loader2, ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -57,13 +57,18 @@ type ViewMode = 'grid' | 'list'
 export default function FeedPage() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
-  const { feedItems, loading, fetchFeed, markAllRead, refreshFeed, unreadCount } = useSubscriptionStore()
+  const { feedItems, loading, fetchFeed, markAllRead, unreadCount } = useSubscriptionStore()
   const addPendingTask = useTaskStore(state => state.addPendingTask)
   const { style, selectedFormats, outputLanguage } = useSummarySettingsStore()
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set())
 
-  useEffect(() => { fetchFeed() }, [fetchFeed])
+  useEffect(() => { fetchFeed(20, 0, undefined, sortOrder) }, [fetchFeed, sortOrder])
+
+  const handleRefresh = useCallback(async () => {
+    await fetchFeed(20, 0, undefined, sortOrder)
+  }, [fetchFeed, sortOrder])
 
   const handleGenerate = useCallback(async (item: FeedItem) => {
     if (item.content_type !== 'video' || !item.content_url) return
@@ -130,19 +135,28 @@ export default function FeedPage() {
         )}
         <div className="flex items-center gap-2">
           {/* 刷新按钮 - 所有尺寸 */}
-          <Button variant="outline" size="icon" className="h-8 w-8 md:hidden" onClick={refreshFeed} disabled={loading}>
+          <Button variant="outline" size="icon" className="h-8 w-8 md:hidden" onClick={handleRefresh} disabled={loading}>
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
           </Button>
-          <Button variant="outline" size="sm" className="hidden md:flex" onClick={refreshFeed} disabled={loading}>
+          <Button variant="outline" size="sm" className="hidden md:flex" onClick={handleRefresh} disabled={loading}>
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             <span className="ml-1">刷新</span>
           </Button>
 
-          {/* 桌面端：全部已读 + 视图切换 */}
+          {/* 桌面端：全部已读 + 排序 + 视图切换 */}
           <div className="hidden md:flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
               <CheckCheck className="size-4 mr-1" />全部已读
             </Button>
+            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as 'desc' | 'asc')}>
+              <SelectTrigger className="w-[80px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">最新</SelectItem>
+                <SelectItem value="asc">最早</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
               <SelectTrigger className="w-[120px] h-8">
                 <SelectValue />
@@ -154,8 +168,17 @@ export default function FeedPage() {
             </Select>
           </div>
 
-          {/* 移动端：视图切换图标 */}
-          <div className="md:hidden">
+          {/* 移动端：排序 + 视图切换 */}
+          <div className="md:hidden flex items-center gap-2">
+            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as 'desc' | 'asc')}>
+              <SelectTrigger className="w-[60px] h-8 px-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">最新</SelectItem>
+                <SelectItem value="asc">最早</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
               <SelectTrigger className="w-[40px] h-8 px-2">
                 {viewMode === 'grid' ? <LayoutGrid className="size-4" /> : <List className="size-4" />}

@@ -162,21 +162,18 @@ class BilibiliDownloader(Downloader, ABC):
                 # 获取B站视频描述
                 description = self._fetch_description(video_id)
 
-                # 下载封面到视频目录
+                # 下载封面到视频目录（使用统一下载工具）
                 author_id = str(info.get("uploader_id", "")) or str(info.get("channel_id", ""))
                 owner = info.get("owner", {})
                 author_name = owner.get("name", "") if owner else info.get("uploader", "")
                 if cover_url and output_dir:
                     try:
-                        resp = requests.get(
-                            cover_url,
-                            headers={"Referer": "https://www.bilibili.com/"},
-                            timeout=10,
+                        from app.utils.download_helper import DownloadHelper
+                        temp_cover = DownloadHelper.download_file(
+                            cover_url, output_dir, "_temp_cover.jpg",
+                            referer="https://www.bilibili.com/", timeout=10
                         )
-                        if resp.status_code == 200:
-                            temp_cover = os.path.join(output_dir, "_temp_cover.jpg")
-                            with open(temp_cover, "wb") as f:
-                                f.write(resp.content)
+                        if temp_cover:
                             from app.utils.video_helper import save_cover_to_video_dir
                             cover_url = save_cover_to_video_dir(
                                 temp_cover, output_dir, "bilibili", author_id, video_id

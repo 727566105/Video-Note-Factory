@@ -72,9 +72,9 @@ request.interceptors.response.use(
         toast.error( '请求失败，请检查网络连接或稍后再试')
       }
     }
-    return Promise.reject(res || {
-      code: -1,
-      msg: '请求失败，请检查网络连接',
+    return Promise.reject({
+      code: error.response?.status || -1,
+      msg: res?.msg || res?.detail || '请求失败，请检查网络连接',
       data: null
     } as IResponse);
   }
