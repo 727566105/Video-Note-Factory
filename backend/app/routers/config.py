@@ -16,7 +16,7 @@ PLATFORM_REQUIRED_FIELDS = {
     "bilibili": ["SESSDATA"],
     "douyin": ["ttwid", "sessionid"],
     "xiaohongshu": ["a1", "web_session"],
-    "youtube": [],
+    "youtube": ["VISITOR_INFO1_LIVE"],
     "kuaishou": [],
     "cctv": [],
 }
@@ -142,12 +142,34 @@ async def test_downloader_cookie(req: CookieTestRequest, user=Depends(require_ad
                 })
 
         elif platform == "xiaohongshu":
-            # 小红书在线验证 API 复杂且不稳定，仅做格式校验
             return R.success({
                 "valid": True,
                 "message": "小红书 Cookie 格式正确",
                 "details": "已通过格式验证，在线验证暂不支持",
             })
+
+        elif platform == "youtube":
+            resp = http_requests.get(
+                "https://www.youtube.com/feed/trending",
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Referer": "https://www.youtube.com/",
+                    "Cookie": cookie,
+                },
+                timeout=10,
+            )
+            if resp.status_code == 200 and "youtube" in resp.text.lower():
+                return R.success({
+                    "valid": True,
+                    "message": "YouTube Cookie 有效",
+                    "details": "已通过在线验证",
+                })
+            else:
+                return R.success({
+                    "valid": False,
+                    "message": "YouTube Cookie 无效或已过期",
+                    "details": "请重新获取 Cookie",
+                })
 
     except http_requests.Timeout:
         return R.success({"valid": False, "message": "验证请求超时", "details": "网络不稳定，请稍后重试"})

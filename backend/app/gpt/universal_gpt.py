@@ -25,7 +25,7 @@ class UniversalGPT(GPT):
 
     def _supports_vision(self) -> bool:
         """判断当前供应商是否支持视觉（图像输入）"""
-        if self.provider_name and self.provider_name in NON_VISION_PROVIDERS:
+        if self.provider_name and self.provider_name.lower() in [n.lower() for n in NON_VISION_PROVIDERS]:
             return False
         return True
 
