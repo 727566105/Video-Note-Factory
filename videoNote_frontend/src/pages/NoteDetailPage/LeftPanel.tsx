@@ -104,9 +104,11 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
 
   // 获取发布人名字
   const getAuthor = (): string => {
-    // 优先使用 author_name（图文笔记和视频笔记都有）
+    // 优先使用 author（数据库主字段）
+    if (task.author) return task.author
+    // 其次使用 author_name（图文笔记和视频笔记都有）
     if (task.author_name) return task.author_name
-    // 其次检查 audioMeta.author（视频笔记）
+    // 再次检查 audioMeta.author（视频笔记）
     if (task.audioMeta?.author) return task.audioMeta.author
     const raw = task.audioMeta?.raw_info as Record<string, unknown> | undefined
     if (!raw) return task.platform

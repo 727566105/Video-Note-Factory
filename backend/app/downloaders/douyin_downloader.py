@@ -300,16 +300,18 @@ class DouyinDownloader(Downloader):
     def get_video_info(self, video_url: str) -> VideoInfoResult:
         """只获取视频元数据，不下载文件"""
         video_data = self.fetch_video_info(video_url)
-        aweme = video_data['aweme_detail']
-        author_info = aweme.get('author', {})
+        aweme = video_data.get('aweme_detail') or {}
+        if not aweme:
+            raise ValueError("抖音 API 返回数据缺少 aweme_detail")
+        author_info = aweme.get('author') or {}
         aweme_type = aweme.get('aweme_type', 0)
-        images = aweme.get('images', [])
+        images = aweme.get('images') or []
 
         logger.info(f"aweme_type={aweme_type}, images_count={len(images)}")
 
         # 图集或实况照片：按 aweme_type 或 images 字段判断（兜底检测）
         if aweme_type in (68, 69) or images:
-            images = aweme.get('images', [])
+            images = aweme.get('images') or []
             image_urls = [img.get('url_list', [None])[0] for img in images if img.get('url_list')]
             cover_url = image_urls[0] if image_urls else None
             content_type = "live_photo" if aweme_type == 69 else "article"
@@ -367,8 +369,9 @@ class DouyinDownloader(Downloader):
         cover = aweme.get('video', {}).get('cover_original_scale', {})
         cover_url_list = cover.get('url_list', [])
         cover_url = cover_url_list[0] if cover_url_list else None
-        if not cover_url and aweme.get('video', {}).get('cover'):
-            cover_url_list = aweme['video']['cover'].get('url_list', [])
+        if not cover_url:
+            cover_data = (aweme.get('video') or {}).get('cover') or {}
+            cover_url_list = cover_data.get('url_list', [])
             cover_url = cover_url_list[0] if cover_url_list else None
 
         return VideoInfoResult(
@@ -404,9 +407,11 @@ class DouyinDownloader(Downloader):
             os.makedirs(output_dir, exist_ok=True)
 
             video_data = self.fetch_video_info(video_url)
-            aweme = video_data['aweme_detail']
+            aweme = video_data.get('aweme_detail') or {}
+            if not aweme:
+                raise ValueError("抖音 API 返回数据缺少 aweme_detail")
             aweme_type = aweme.get('aweme_type', 0)
-            images = aweme.get('images', [])
+            images = aweme.get('images') or []
             video_id = aweme.get('aweme_id', '')
             author_id = str(aweme.get('author', {}).get('uid', ''))
             author_name = aweme.get('author', {}).get('nickname', '') or None
@@ -415,7 +420,7 @@ class DouyinDownloader(Downloader):
 
             # 图集或实况照片：按 aweme_type 或 images 字段判断（兜底检测）
             if aweme_type in (68, 69) or images:
-                images = aweme.get('images', [])
+                images = aweme.get('images') or []
                 downloaded_paths = []
                 for i, img in enumerate(images):
                     url_list = img.get('url_list', [])
@@ -460,39 +465,58 @@ class DouyinDownloader(Downloader):
 
             # 普通视频：下载音频
             output_path = os.path.join(output_dir, f"{video_id}.mp3")
-            url = aweme['music']['play_url']['uri']
-            audio_data = requests.get(url)
-            with open(output_path, 'wb') as f:
-                f.write(audio_data.content)
-            print(url)
+            music_url = (aweme.get('music') or {}).get('play_url', {}).get('uri') or ''
+
+            if music_url:
+                from app.utils.download_helper import DownloadHelper
+                if not DownloadHelper.is_safe_url(music_url):
+                    raise ValueError(f"音频下载链接无效: {music_url[:50]}")
+                audio_data = requests.get(music_url, timeout=30)
+                with open(output_path, 'wb') as f:
+                    f.write(audio_data.content)
+            else:
+                # 音频链接为空时，从已下载的视频中提取音频
+                video_file = os.path.join(output_dir, f"{video_id}.mp4")
+                if os.path.exists(video_file):
+                    import subprocess
+                    subprocess.run(
+                        ['ffmpeg', '-i', video_file, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', output_path],
+                        capture_output=True, timeout=120
+                    )
+                else:
+                    raise ValueError("无法获取音频下载链接，且视频文件不存在")
             tags = []
             for tag in aweme.get('video_tag', []):
                 if tag.get('tag_name'):
                     tags.append(tag['tag_name'])
 
             # 提取封面 URL（安全链式取值）
-            video_info = aweme.get('video', {})
+            video_info = aweme.get('video') or {}
             cover_url = None
-            cover_original = video_info.get('cover_original_scale', {})
-            if cover_original and cover_original.get('url_list'):
-                cover_url = cover_original['url_list'][0]
-            elif video_info.get('cover', {}).get('url_list'):
-                cover_url = video_info['cover']['url_list'][0]
-            elif video_data.get('video', {}).get('big_thumbs', {}).get('img_url'):
-                cover_url = video_data['video']['big_thumbs']['img_url']
+            cover_original = video_info.get('cover_original_scale') or {}
+            url_list = cover_original.get('url_list') or []
+            if url_list:
+                cover_url = url_list[0]
+            else:
+                cover_data = video_info.get('cover') or {}
+                url_list = cover_data.get('url_list') or []
+                if url_list:
+                    cover_url = url_list[0]
+                else:
+                    big_thumbs = video_data.get('video') or {}
+                    img_url = (big_thumbs.get('big_thumbs') or {}).get('img_url')
+                    if img_url:
+                        cover_url = img_url
 
             # 下载封面到视频目录
             if cover_url and output_dir:
                 try:
-                    resp = requests.get(
-                        cover_url,
-                        headers={"Referer": "https://www.douyin.com/"},
-                        timeout=10,
+                    from app.utils.download_helper import DownloadHelper
+                    temp_cover = DownloadHelper.download_file(
+                        cover_url, output_dir, "_temp_cover.jpg",
+                        referer="https://www.douyin.com/", timeout=10
                     )
-                    if resp.status_code == 200:
-                        temp_cover = os.path.join(output_dir, "_temp_cover.jpg")
-                        with open(temp_cover, "wb") as f:
-                            f.write(resp.content)
+                    if temp_cover:
                         from app.utils.video_helper import save_cover_to_video_dir
                         cover_url = save_cover_to_video_dir(
                             temp_cover, output_dir, "douyin", author_id, video_id
@@ -556,13 +580,16 @@ class DouyinDownloader(Downloader):
             output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
 
             video_data = self.fetch_video_info(video_url)
+            aweme_detail = video_data.get('aweme_detail') or {}
+            if not aweme_detail:
+                raise ValueError("抖音 API 返回数据缺少 aweme_detail")
             output_path = output_path % {
-                "id": video_data['aweme_detail']['aweme_id'],
+                "id": aweme_detail.get('aweme_id', ''),
                 "ext": "mp4",
             }
 
             # ⛳ 无水印下载：bit_rate 优先选择 1080p
-            video_info = video_data['aweme_detail'].get('video', {})
+            video_info = aweme_detail.get('video') or {}
             url = None
 
             # 1. 优先：bit_rate 按分辨率选择 1080p
@@ -604,8 +631,12 @@ class DouyinDownloader(Downloader):
             if not url:
                 raise ValueError("无法获取视频下载链接")
 
+            from app.utils.download_helper import DownloadHelper
+            if not DownloadHelper.is_safe_url(url):
+                raise ValueError(f"视频下载链接无效: {url[:50]}")
+
             logger.info(f"视频下载 URL（前100字符）: {url[:100]}")
-            _data = requests.get(url, allow_redirects=True, headers=self.headers_config)
+            _data = requests.get(url, allow_redirects=True, headers=self.headers_config, timeout=60)
 
             with open(output_path, 'wb') as f:
                 f.write(_data.content)

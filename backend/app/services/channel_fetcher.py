@@ -140,6 +140,7 @@ def identify_platform(url: str) -> Optional[dict]:
                 "platform_id": uid,
                 "channel_url": f"https://www.douyin.com/user/{uid}",
             }
+        return _resolve_douyin_from_video(url)
 
     # 小红书
     if any(re.search(p, url) for p in PLATFORM_PATTERNS["xiaohongshu"]):
@@ -204,8 +205,8 @@ def _extract_youtube_channel(url: str) -> Optional[str]:
                 info = ydl.extract_info(url, download=False)
                 if info and info.get("channel_id"):
                     return info["channel_id"]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"yt-dlp 解析 YouTube @handle URL 失败: {e}")
     # 从视频URL
     match = re.search(r"(?:v=|youtu\.be/)([\w-]{11})", url)
     if match:
@@ -215,8 +216,9 @@ def _extract_youtube_channel(url: str) -> Optional[str]:
                 info = ydl.extract_info(url, download=False)
                 if info and info.get("channel_id"):
                     return info["channel_id"]
-        except Exception:
-            pass
+                logger.warning(f"yt-dlp 解析视频 URL 成功但未获取到 channel_id, keys: {list(info.keys()) if info else 'None'}")
+        except Exception as e:
+            logger.warning(f"yt-dlp 解析 YouTube 视频 URL 失败: {e}")
     return None
 
 
@@ -224,6 +226,36 @@ def _extract_douyin_uid(url: str) -> Optional[str]:
     # sec_uid 格式包含字母、数字、点号、下划线、短横线
     match = re.search(r"douyin\.com/user/([A-Za-z0-9_.\-]+)", url)
     return match.group(1) if match else None
+
+
+def _resolve_douyin_from_video(url: str) -> Optional[dict]:
+    """从抖音视频 URL 解析出频道信息"""
+    try:
+        video_id_match = re.search(r"douyin\.com/(?:video|note)/(\d+)", url)
+        if not video_id_match:
+            return None
+
+        from app.downloaders.douyin_downloader import DouyinDownloader
+        downloader = DouyinDownloader()
+        video_data = downloader.fetch_video_info(url)
+        aweme = video_data.get('aweme_detail') or {}
+        if not aweme:
+            return None
+
+        author = aweme.get('author') or {}
+        sec_uid = author.get('sec_uid', '')
+        nickname = author.get('nickname', '')
+
+        if sec_uid:
+            return {
+                "platform": "douyin",
+                "platform_id": sec_uid,
+                "channel_url": f"https://www.douyin.com/user/{sec_uid}",
+                "channel_name": nickname,
+            }
+    except Exception as e:
+        logger.error(f"从抖音视频URL解析频道失败: {e}")
+    return None
 
 
 def _extract_xiaohongshu_user_id(url: str) -> Optional[str]:

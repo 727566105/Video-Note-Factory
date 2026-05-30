@@ -1,4 +1,3 @@
-import styles from './index.module.css'
 import { Link, useLocation } from 'react-router-dom'
 
 export interface IMenuProps {
@@ -21,13 +20,14 @@ const MenuBar = ({ menuItem }: IMenuItem) => {
     <Link to={menuItem.path} className="w-full">
       <div
         className={
-          styles.menuBar +
-          ' flex h-12 w-full items-center gap-1 rounded px-2' +
-          (isActive ? ' bg-muted font-semibold text-primary' : '')
+          'flex h-12 w-full items-center gap-1 rounded-lg px-2 transition-colors ' +
+          (isActive
+            ? ' bg-muted font-semibold text-primary'
+            : ' text-foreground hover:bg-accent hover:text-accent-foreground')
         }
       >
-        <div>{menuItem.icon}</div>
-        <div className="text-[16px]">{menuItem.name}</div>
+        <div className="shrink-0">{menuItem.icon}</div>
+        <div className="ml-3 text-[16px]">{menuItem.name}</div>
       </div>
     </Link>
   )

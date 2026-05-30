@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 SUPPORTED_PLATFORMS = {
     "bilibili": r"(https?://)?(www\.)?bilibili\.com/video/[a-zA-Z0-9]+",
-    "youtube": r"(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/)[\w\-]+",
+    "youtube": r"(https?://)?(www\.|m\.)?(youtube\.com/watch\?v=|youtu\.be/)[\w\-]+",
     "douyin": r"(https?://)?(www\.|v\.)?douyin\.com",
     "kuaishou": r"(https?://)?(www\.)?kuaishou\.com",
     "xiaohongshu": r"(https?://)?(www\.)?xiaohongshu\.com",

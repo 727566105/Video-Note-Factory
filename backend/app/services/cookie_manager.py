@@ -1,8 +1,11 @@
 import json
+import logging
 from pathlib import Path
 from typing import Optional, Dict
 import re
 from app.utils.path_helper import PROJECT_ROOT
+
+logger = logging.getLogger(__name__)
 
 
 class CookieConfigManager:
@@ -108,15 +111,29 @@ class CookieConfigManager:
     def set(self, platform: str, cookie: str, auto_convert: bool = True):
         """
         设置指定平台的 cookie
-        
+
         Args:
             platform: 平台名称
             cookie: cookie 字符串
             auto_convert: 是否自动转换 Netscape 格式为浏览器格式
         """
+        if cookie:
+            cookie = cookie.strip()
+            # 检测 HTML 内容
+            if '<' in cookie and '>' in cookie:
+                raise ValueError("Cookie 内容包含 HTML 标签，请检查是否复制了页面内容而非 Cookie 值")
+            # 清理非 ASCII 字符
+            try:
+                cookie.encode('latin-1')
+            except UnicodeEncodeError:
+                cleaned = re.sub(r'[^\x20-\x7E]', '', cookie)
+                if cleaned != cookie:
+                    logger.warning(f"Cookie 包含非 ASCII 字符，已自动清理")
+                    cookie = cleaned.strip()
+
         if auto_convert and cookie:
             cookie = self.convert_netscape_to_browser_cookie(cookie)
-        
+
         data = self._read()
         data[platform] = {"cookie": cookie}
         self._write(data)

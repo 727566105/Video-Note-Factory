@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RefreshCw, CheckCheck, LayoutGrid, List, Plus, Activity, Loader2, ArrowUpDown } from 'lucide-react'
+import { RefreshCw, LayoutGrid, List, Plus, Activity, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -57,7 +57,7 @@ type ViewMode = 'grid' | 'list'
 export default function FeedPage() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
-  const { feedItems, loading, fetchFeed, markAllRead, unreadCount } = useSubscriptionStore()
+  const { feedItems, loading, fetchFeed, unreadCount } = useSubscriptionStore()
   const addPendingTask = useTaskStore(state => state.addPendingTask)
   const { style, selectedFormats, outputLanguage } = useSummarySettingsStore()
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
@@ -143,11 +143,8 @@ export default function FeedPage() {
             <span className="ml-1">刷新</span>
           </Button>
 
-          {/* 桌面端：全部已读 + 排序 + 视图切换 */}
+          {/* 桌面端：排序 + 视图切换 */}
           <div className="hidden md:flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
-              <CheckCheck className="size-4 mr-1" />全部已读
-            </Button>
             <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as 'desc' | 'asc')}>
               <SelectTrigger className="w-[80px] h-8">
                 <SelectValue />

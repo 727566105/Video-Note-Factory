@@ -36,12 +36,28 @@ class CookieTestRequest(BaseModel):
 async def test_downloader_cookie(req: CookieTestRequest, user=Depends(require_admin)):
     """检查 Cookie 可用性：格式校验 + 在线验证"""
     import requests as http_requests
+    from app.services.cookie_manager import CookieConfigManager
 
     platform = req.platform
     cookie = req.cookie.strip()
 
     if not cookie:
         return R.success({"valid": False, "message": "Cookie 为空", "details": ""})
+
+    # 检测非法字符（非 latin-1 编码的字符会导致 HTTP header 异常）
+    try:
+        cookie.encode('latin-1')
+    except UnicodeEncodeError:
+        return R.success({
+            "valid": False,
+            "message": "Cookie 包含非法字符（中文或特殊符号）",
+            "details": "请检查是否复制了完整的 Cookie 字符串，而非页面内容",
+        })
+
+    # 转换 Netscape 格式为浏览器格式（格式校验前必须转换）
+    converted = CookieConfigManager.convert_netscape_to_browser_cookie(cookie)
+    if converted:
+        cookie = converted
 
     # 平台不支持在线验证
     required = PLATFORM_REQUIRED_FIELDS.get(platform, [])
@@ -152,10 +168,11 @@ def get_cookie(platform: str, current_user=Depends(require_admin)) -> dict:
 
 @router.post("/update_downloader_cookie")
 def update_cookie(data: CookieUpdateRequest, current_user=Depends(require_admin)) -> dict:
-    cookie_manager.set(data.platform, data.cookie)
-    return R.success(
-
-    )
+    try:
+        cookie_manager.set(data.platform, data.cookie)
+        return R.success()
+    except ValueError as e:
+        return R.error(msg=str(e))
 
 @router.get("/sys_health")
 async def sys_health() -> dict:

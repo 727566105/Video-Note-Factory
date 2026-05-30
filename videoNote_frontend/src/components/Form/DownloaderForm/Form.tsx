@@ -21,7 +21,14 @@ import { Copy, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 const CookieSchema = z.object({
-  cookie: z.string().min(10, '请填写有效 Cookie'),
+  cookie: z.string()
+    .min(10, '请填写有效 Cookie')
+    .refine(val => !(val.includes('<') && val.includes('>')), {
+      message: '内容包含 HTML 标签，请复制纯 Cookie 文本',
+    })
+    .refine(val => !/[一-鿿]/.test(val), {
+      message: 'Cookie 不应包含中文字符，请检查复制内容',
+    }),
 })
 
 type TestResult = { valid: boolean; message: string; details?: string } | null

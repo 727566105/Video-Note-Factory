@@ -19,14 +19,15 @@ class KuaiShouDownloader(Downloader, ABC):
         """只获取视频元数据，不下载文件"""
         ks = KuaiShou()
         video_raw_info = ks.run(video_url)
-        photo_info = video_raw_info['visionVideoDetail']['photo']
-        author_info = video_raw_info.get('visionVideoDetail', {}).get('author', {})
+        vision_detail = video_raw_info.get('visionVideoDetail') or {}
+        photo_info = vision_detail.get('photo') or {}
+        author_info = vision_detail.get('author') or {}
 
         ks_author = author_info.get('name', '') or photo_info.get('userName', '')
         ks_author_id = str(author_info.get('id', ''))
 
         return VideoInfoResult(
-            title=photo_info.get('caption', '').strip().replace('\n', '').replace(' ', '_')[:50],
+            title=(photo_info.get('caption') or '').strip().replace('\n', '').replace(' ', '_')[:50],
             duration=photo_info.get('duration', 0) or 0,
             cover_url=photo_info.get('coverUrl'),
             platform="kuaishou",
@@ -53,18 +54,17 @@ class KuaiShouDownloader(Downloader, ABC):
 
         ks = KuaiShou()
         video_raw_info = ks.run(video_url)
-        print(video_raw_info)
-        photo_info = video_raw_info['visionVideoDetail']['photo']
-        video_id = photo_info['id']
-        title = photo_info['caption'].strip().replace('\n', '').replace(' ', '_')[:50]
+        vision_detail = video_raw_info.get('visionVideoDetail') or {}
+        photo_info = vision_detail.get('photo') or {}
+        video_id = photo_info.get('id', '')
+        title = (photo_info.get('caption') or '').strip().replace('\n', '').replace(' ', '_')[:50]
         mp4_path = os.path.join(output_dir, f"{video_id}.mp4")
         mp3_path = os.path.join(output_dir, f"{video_id}.mp3")
-        ks_author = (video_raw_info.get('visionVideoDetail', {}).get('author', {}).get('name', '')
-                      or video_raw_info.get('visionVideoDetail', {}).get('photo', {}).get('userName', ''))
-        ks_author_id = str(video_raw_info.get('visionVideoDetail', {}).get('author', {}).get('id', ''))
+        ks_author = (vision_detail.get('author') or {}).get('name', '') or photo_info.get('userName', '')
+        ks_author_id = str((vision_detail.get('author') or {}).get('id', ''))
 
         # 下载封面到视频目录（使用统一下载工具）
-        cover_url = photo_info['coverUrl']
+        cover_url = photo_info.get('coverUrl', '')
         if cover_url and output_dir:
             try:
                 from app.utils.download_helper import DownloadHelper
@@ -86,7 +86,7 @@ class KuaiShouDownloader(Downloader, ABC):
             return AudioDownloadResult(
                 file_path=mp3_path,
                 title=title,
-                duration=photo_info['duration'],
+                duration=photo_info.get('duration', 0) or 0,
                 cover_url=cover_url,
                 platform="kuaishou",
                 video_id=video_id,
@@ -101,7 +101,15 @@ class KuaiShouDownloader(Downloader, ABC):
             )
 
         # 下载 mp4 视频
-        resp = requests.get(photo_info['photoUrl'], stream=True)
+        photo_url = photo_info.get('photoUrl', '')
+        if not photo_url:
+            raise ValueError("无法获取快手视频下载链接")
+
+        from app.utils.download_helper import DownloadHelper
+        if not DownloadHelper.is_safe_url(photo_url):
+            raise ValueError("视频 URL 不安全或无效")
+
+        resp = requests.get(photo_url, stream=True, timeout=30)
         if resp.status_code == 200:
             with open(mp4_path, "wb") as f:
                 for chunk in resp.iter_content(1024 * 1024):
@@ -119,8 +127,8 @@ class KuaiShouDownloader(Downloader, ABC):
 
         return AudioDownloadResult(
             file_path=mp3_path,
-            title=photo_info['caption'],
-            duration=photo_info['duration'],
+            title=photo_info.get('caption', ''),
+            duration=photo_info.get('duration', 0) or 0,
             cover_url=cover_url,
             platform="kuaishou",
             video_id=video_id,

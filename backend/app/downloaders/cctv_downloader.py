@@ -279,11 +279,12 @@ class CCTVDownloader(Downloader, ABC):
             return None
 
         try:
-            resp = http_requests.get(cover_url, headers=self.headers, timeout=10)
-            if resp.status_code == 200:
-                cover_path = os.path.join(output_dir, "cover.jpg")
-                with open(cover_path, "wb") as f:
-                    f.write(resp.content)
+            from app.utils.download_helper import DownloadHelper
+            cover_path = DownloadHelper.download_file(
+                cover_url, output_dir, "cover.jpg",
+                referer="https://www.cctv.com/", timeout=10
+            )
+            if cover_path:
                 return f"/api/video_cover/cctv/cctv/{video_id}"
         except Exception as e:
             logger.warning(f"封面下载失败: {e}")
