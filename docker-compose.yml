@@ -35,6 +35,7 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - CACHE_TTL_DAYS=${CACHE_TTL_DAYS:-7}
       - CACHE_CLEAN_SCHEDULE=${CACHE_CLEAN_SCHEDULE:-0 3 * *}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-123456}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
