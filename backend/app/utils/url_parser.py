@@ -2,6 +2,10 @@ import re
 from typing import Optional
 import requests
 
+_COMMON_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+}
+
 
 def extract_video_id(url: str, platform: str) -> Optional[str]:
     """
@@ -31,8 +35,8 @@ def extract_video_id(url: str, platform: str) -> Optional[str]:
         # 先检查是否为短链接（v.douyin.com），解析重定向后的真实 URL
         if "v.douyin.com" in url:
             try:
-                response = requests.head(url, allow_redirects=True, timeout=5)
-                url = response.url  # 获取重定向后的真实 URL
+                response = requests.head(url, allow_redirects=True, timeout=5, headers=_COMMON_HEADERS)
+                url = response.url
             except requests.RequestException:
                 pass
 
@@ -65,7 +69,7 @@ def resolve_bilibili_short_url(short_url: str) -> Optional[str]:
     :return: 真实的视频链接或None
     """
     try:
-        response = requests.head(short_url, allow_redirects=True)
+        response = requests.head(short_url, allow_redirects=True, headers=_COMMON_HEADERS)
         return response.url
     except requests.RequestException as e:
         print(f"Error resolving short URL: {e}")

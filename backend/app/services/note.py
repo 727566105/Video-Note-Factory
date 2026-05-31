@@ -822,25 +822,25 @@ class NoteGenerator:
 
     def _get_downloader(self, platform: str) -> Downloader:
         """
-        根据平台名称获取对应的下载器实例
+        根据平台名称获取对应的下载器实例（每次创建新实例以读取最新 Cookie）
 
         :param platform: 平台标识，需在 SUPPORT_PLATFORM_MAP 中
         :return: 对应的 Downloader 子类实例
         """
         downloader_cls = SUPPORT_PLATFORM_MAP.get(platform)
-        logger.debug(f"实例化下载器 -  {platform}")
-        instance = None
+        logger.debug(f"实例化下载器 - {platform}")
         if not downloader_cls:
             logger.error(f"不支持的平台：{platform}")
             raise NoteError(code=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.code,
                             message=NoteErrorEnum.PLATFORM_NOT_SUPPORTED.message)
         try:
-            instance = downloader_cls
+            instance = downloader_cls()  # 每次创建新实例，读取最新 Cookie
         except Exception as e:
             logger.error(f"实例化下载器失败：{e}")
+            raise NoteError(code=NoteErrorEnum.DOWNLOADER_ERROR.code,
+                            message=f"实例化下载器失败：{e}")
 
-
-        logger.info(f"使用下载器：{downloader_cls.__class__}")
+        logger.info(f"使用下载器：{instance.__class__.__name__}")
         return instance
 
     def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus],

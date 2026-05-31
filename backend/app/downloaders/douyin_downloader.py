@@ -151,9 +151,19 @@ class DouyinDownloader(Downloader):
         if len(video_url):
             video_url = video_url[0]
             try:
-                response = requests.head(video_url, allow_redirects=True)
+                # 使用带 Cookie 和 UA 的请求头，避免触发反爬验证
+                response = requests.head(
+                    video_url,
+                    allow_redirects=True,
+                    headers={
+                        "User-Agent": DouyinConfig.HEADERS["User-Agent"],
+                        "Cookie": self.headers_config.get("Cookie", "")
+                    },
+                    timeout=10
+                )
                 url = response.url
             except Exception as e:
+                logger.warning(f"抖音短链接解析失败: {e}")
                 return ""
         patterns = [
             r'video/(\d+)',
