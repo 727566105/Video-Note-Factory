@@ -14,6 +14,7 @@ on:
         options:
           - main
           - dev
+          - dev3.0
       version:
         description: '版本号（如 v1.0.0）'
         required: false
@@ -63,6 +64,13 @@ jobs:
               echo "version_tag=$INPUT_VERSION" >> $GITHUB_OUTPUT
             else
               echo "version_tag=$TIMESTAMP" >> $GITHUB_OUTPUT
+            fi
+          elif [ "$BRANCH" = "dev3.0" ]; then
+            echo "primary_tag=dev3.0" >> $GITHUB_OUTPUT
+            if [ -n "$INPUT_VERSION" ]; then
+              echo "version_tag=$INPUT_VERSION-dev3.0" >> $GITHUB_OUTPUT
+            else
+              echo "version_tag=$TIMESTAMP-dev3.0" >> $GITHUB_OUTPUT
             fi
           else
             echo "primary_tag=dev" >> $GITHUB_OUTPUT
