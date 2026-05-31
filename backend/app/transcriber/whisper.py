@@ -32,14 +32,17 @@ MODEL_MAP={
 }
 
 class WhisperTranscriber(Transcriber):
-    # TODO:修改为可配置
     def __init__(
             self,
             model_size: str = "base",
             device: str = 'cpu',
             compute_type: str = None,
-            cpu_threads: int = 1,
+            cpu_threads: int = None,
     ):
+        # 从环境变量读取 CPU 线程数（低配服务器优化）
+        if cpu_threads is None:
+            cpu_threads = int(os.getenv("WHISPER_CPU_THREADS", "2"))
+
         if device == 'cpu' or device is None:
             self.device = 'cpu'
         else:
@@ -61,10 +64,13 @@ class WhisperTranscriber(Transcriber):
             )
             logger.info("模型下载完成")
 
+        logger.info(f"Whisper 配置: device={self.device}, compute_type={self.compute_type}, cpu_threads={cpu_threads}")
+
         self.model = WhisperModel(
             model_size_or_path=model_path,
             device=self.device,
             compute_type=self.compute_type,
+            cpu_threads=cpu_threads,
             download_root=model_dir
         )
     @staticmethod
