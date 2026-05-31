@@ -226,7 +226,7 @@ class BilibiliDownloader(Downloader, ABC):
         cookiefile = self._write_cookiefile()
 
         ydl_opts = {
-            'format': 'bv*[ext=mp4]/bestvideo+bestaudio/best',
+            'format': 'bv[height<=1080][ext=mp4]+ba[ext=m4a]/bv[height<=1080]/bestvideo[height<=1080]+bestaudio/best',
             'outtmpl': output_path,
             'noplaylist': True,
             'quiet': False,

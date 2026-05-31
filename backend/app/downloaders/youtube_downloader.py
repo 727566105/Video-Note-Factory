@@ -180,7 +180,7 @@ class YoutubeDownloader(Downloader, ABC):
         cookiefile = self._write_cookiefile()
         try:
             ydl_opts = {
-                'format': 'bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b',
+                'format': 'bv[height<=1080][ext=mp4]+ba[ext=m4a]/bv[height<=1080]/b[height<=1080][ext=mp4]/b',
                 'outtmpl': output_path,
                 'noplaylist': True,
                 'quiet': False,
