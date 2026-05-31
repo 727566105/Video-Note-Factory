@@ -8,6 +8,7 @@ services:
       - ${APP_PORT:-3015}:80
     volumes:
       - ./data:/app/data
+      - ./config:/app/backend/config
       - ./note_results:/app/note_results
       - ./static:/app/static
       - ./uploads:/app/uploads

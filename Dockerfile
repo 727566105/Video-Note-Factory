@@ -63,7 +63,7 @@ COPY ./deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY ./deploy/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
-RUN mkdir -p /app/data /app/note_results /app/static/screenshots /app/uploads/icons /app/logs
+RUN mkdir -p /app/data /app/backend/config /app/note_results /app/static/screenshots /app/uploads/icons /app/logs
 
 ENV BACKEND_HOST=0.0.0.0
 ENV ENV=production

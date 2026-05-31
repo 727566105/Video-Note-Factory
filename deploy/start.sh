@@ -3,7 +3,7 @@
 echo "Starting VideoNote..."
 
 # 创建必要的目录
-mkdir -p /app/data /app/note_results /app/static/screenshots /app/uploads/icons /app/logs
+mkdir -p /app/data /app/backend/config /app/note_results /app/static/screenshots /app/uploads/icons /app/logs
 
 # 复制预构建的 whisper 模型到 data 目录
 echo "Checking whisper models..."

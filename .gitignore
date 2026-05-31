@@ -348,3 +348,4 @@ startup-screenshot.png
 
 # Superpowers skill local cache
 .superpowers/
+config/downloader.json
