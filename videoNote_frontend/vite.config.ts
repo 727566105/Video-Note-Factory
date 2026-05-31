@@ -33,8 +33,6 @@ export default defineConfig(() => {
             ],
             // Ant Design（大型库，单独分包）
             'antd': ['antd'],
-            // 图标库（大型库）
-            'icons': ['@lobehub/icons', 'lucide-react'],
             // Markdown 相关
             'markdown': [
               'react-markdown',

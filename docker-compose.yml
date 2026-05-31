@@ -19,15 +19,22 @@ services:
       - TZ=Asia/Shanghai
       - STATIC=/static
       - OUT_DIR=./static/screenshots
-      - NOTE_OUTPUT_DIR=note_results
+      - NOTE_OUTPUT_DIR=${NOTE_OUTPUT_DIR:-data/notes}
+      - MEDIA_DIR=${MEDIA_DIR:-data/media}
+      - CACHE_DIR=${CACHE_DIR:-data/cache}
+      - EXPORT_DIR=${EXPORT_DIR:-data/exports}
       - IMAGE_BASE_URL=/static/screenshots
       - DATA_DIR=data
       - TRANSCRIBER_TYPE=${TRANSCRIBER_TYPE:-fast-whisper}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-base}
+      - GROQ_TRANSCRIBER_MODEL=${GROQ_TRANSCRIBER_MODEL:-whisper-large-v3-turbo}
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
       - WEBDAV_ENCRYPTION_KEY=${WEBDAV_ENCRYPTION_KEY:-}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
       - DATABASE_URL=sqlite:////app/data/video_note.db
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - CACHE_TTL_DAYS=${CACHE_TTL_DAYS:-7}
+      - CACHE_CLEAN_SCHEDULE=${CACHE_CLEAN_SCHEDULE:-0 3 * *}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s

@@ -13,5 +13,14 @@ export const getBaseURL = (): string => {
  */
 export const getApiBaseURL = (): string => {
   const base = import.meta.env.VITE_API_BASE_URL
-  return base ? `${base.replace(/\/$/, '')}/api` : '/api'
+  if (!base) {
+    return '/api'
+  }
+  // 如果 base 已经包含 /api 后缀，直接返回（去除尾部斜杠）
+  const normalized = base.replace(/\/$/, '')
+  if (normalized.endsWith('/api')) {
+    return normalized
+  }
+  // 否则添加 /api 后缀
+  return `${normalized}/api`
 }

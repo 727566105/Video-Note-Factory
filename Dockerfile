@@ -36,14 +36,13 @@ RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt
 
 RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} bcrypt==4.0.1
 
-RUN mkdir -p /app/backend/models/whisper && \
-    python -c "from faster_whisper import WhisperModel; WhisperModel('base', download_root='/app/backend/models/whisper', device='cpu', compute_type='int8')"
+RUN mkdir -p /app/backend/models/whisper
 
 # === 阶段3：最终镜像 ===
 FROM python:3.11-slim
 
 RUN apt-get update && \
-    apt-get install -y ffmpeg curl nginx supervisor && \
+    apt-get install -y ffmpeg curl nginx supervisor gettext-base && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -66,7 +65,6 @@ RUN chmod +x /app/start.sh
 
 RUN mkdir -p /app/data /app/note_results /app/static/screenshots /app/uploads/icons /app/logs
 
-ENV BACKEND_PORT=8483
 ENV BACKEND_HOST=0.0.0.0
 ENV ENV=production
 ENV STATIC=/static
