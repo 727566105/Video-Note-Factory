@@ -1,6 +1,6 @@
 services:
   videonote:
-    image: dick86114/videonote:latest
+    image: dick86114/videonote:dev3.0
     container_name: videonote
     restart: always
     network_mode: bridge
