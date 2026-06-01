@@ -268,7 +268,7 @@ class XiaohongshuDownloader(Downloader):
             "is_video": is_video,
             "note_type": note_type,
             "author_id": user.get("userId", ""),
-            "author_name": user.get("nickname", ""),
+            "author_name": self._clean_author_name(user.get("nickname", "")),
             "avatar_url": user.get("avatar", ""),
             "published_at": published_at,
             "raw_note": note,
@@ -290,6 +290,15 @@ class XiaohongshuDownloader(Downloader):
             hash_tags = re.findall(r'#([^\s#]+)', desc)
             tags.extend(hash_tags)
         return tags[:8]
+
+    def _clean_author_name(self, nickname: str) -> str:
+        """清理博主昵称，去除页面标题混入的内容"""
+        if not nickname:
+            return ""
+        # 小红书页面标题格式: "博主名 | 笔记标题"，| 后面是标题不是昵称
+        if "|" in nickname:
+            nickname = nickname.split("|")[0].strip()
+        return nickname
 
     def get_video_info(self, video_url: str) -> VideoInfoResult:
         """获取笔记元数据"""

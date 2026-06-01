@@ -1,6 +1,7 @@
 services:
   videonote:
     image: dick86114/videonote:dev3.0
+    pull_policy: never
     container_name: videonote
     restart: always
     network_mode: bridge
