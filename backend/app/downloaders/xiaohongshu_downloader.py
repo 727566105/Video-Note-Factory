@@ -309,38 +309,15 @@ class XiaohongshuDownloader(Downloader):
         if not parsed["is_video"]:
             image_list = note.get("imageList", [])
             image_urls = []
-            images_with_video_list = []
-            has_live_photo = False
-
-            for i, img in enumerate(image_list):
-                # 调试：打印每张图片的字段结构
-                img_keys = list(img.keys())
-                logger.debug(f"图片 {i+1} 字段: {img_keys}")
-
-                # 检查所有可能的实况照片标记字段
-                live_markers = []
-                for key in img_keys:
-                    if 'live' in key.lower() or 'video' in key.lower() or 'stream' in key.lower():
-                        live_markers.append(f"{key}={img.get(key)}")
-                if live_markers:
-                    logger.info(f"图片 {i+1} 可能的实况字段: {live_markers[:5]}")  # 只显示前5个
-
+            for img in image_list:
                 url = img.get("urlDefault", "") or img.get("url", "")
                 if url and not url.startswith("http"):
                     url = "https:" + url
                 if url:
                     image_urls.append(url)
-
-                video_url_lp = self._extract_live_photo_video(img)
-                if video_url_lp:
-                    has_live_photo = True
-                images_with_video_list.append({
-                    "image_url": url,
-                    "video_url": video_url_lp,
-                })
-
             parsed["image_urls"] = image_urls
 
+            has_live_photo, images_with_video_list = self._detect_live_photos(image_list, image_urls)
             if has_live_photo:
                 content_type = "live_photo"
                 images_with_video = images_with_video_list
@@ -383,77 +360,70 @@ class XiaohongshuDownloader(Downloader):
             raise ValueError(f"获取小红书笔记详情失败: {video_url}")
 
         parsed = self._parse_note(note, note_id)
-        content_type = "video" if parsed["is_video"] else "article"
 
-        # 图文笔记：下载所有图片 + 实况照片视频
-        if not parsed["is_video"]:
-            image_list = note.get("imageList", [])
-            downloaded_paths = []
-            images_with_video_list = []
-            has_live_photo = False
+        if parsed["is_video"]:
+            return self._download_video_note(note, parsed, note_id, output_dir)
+        else:
+            return self._download_image_note(note, parsed, note_id, output_dir)
 
-            for i, img in enumerate(image_list):
-                img_url = img.get("urlDefault", "") or img.get("url", "")
-                if img_url and not img_url.startswith("http"):
-                    img_url = "https:" + img_url
-                if img_url:
-                    ext = self._get_image_ext(img_url)
-                    img_path = self._download_file(img_url, output_dir, f"image_{i + 1}{ext}")
-                    if img_path:
-                        downloaded_paths.append(img_path)
+    def _download_image_note(self, note: dict, parsed: dict, note_id: str, output_dir: str) -> AudioDownloadResult:
+        """图集/实况照片笔记下载"""
+        image_list = note.get("imageList", [])
+        downloaded_paths = []
 
-                # 实况照片视频下载
-                live_video_url = self._extract_live_photo_video(img)
-                if live_video_url:
-                    has_live_photo = True
-                    self._download_file(live_video_url, output_dir, f"live_photo_{i + 1}.mp4")
+        for i, img in enumerate(image_list):
+            img_url = img.get("urlDefault", "") or img.get("url", "")
+            if img_url and not img_url.startswith("http"):
+                img_url = "https:" + img_url
+            if img_url:
+                ext = self._get_image_ext(img_url)
+                img_path = self._download_file(img_url, output_dir, f"image_{i + 1}{ext}")
+                if img_path:
+                    downloaded_paths.append(img_path)
+
+        # 实况照片检测与视频下载
+        has_live_photo, images_with_video = self._detect_live_photos(image_list)
+        if has_live_photo:
+            for i, item in enumerate(images_with_video):
+                if item["video_url"]:
+                    self._download_file(item["video_url"], output_dir, f"live_photo_{i + 1}.mp4")
                     logger.info(f"实况照片视频已下载: live_photo_{i + 1}.mp4")
-                images_with_video_list.append({
-                    "image_url": img_url,
-                    "video_url": live_video_url,
-                })
 
-            cover_url = downloaded_paths[0] if downloaded_paths else parsed["cover_url"]
+        content_type = "live_photo" if has_live_photo else "article"
+        cover_url = downloaded_paths[0] if downloaded_paths else parsed["cover_url"]
 
-            if has_live_photo:
-                content_type = "live_photo"
-                images_with_video_final = images_with_video_list
-            else:
-                images_with_video_final = None
+        return AudioDownloadResult(
+            file_path=None,
+            title=parsed["title"],
+            duration=0,
+            cover_url=cover_url,
+            platform="xiaohongshu",
+            video_id=note_id,
+            content_type=content_type,
+            images=downloaded_paths,
+            author_id=parsed["author_id"],
+            author_name=parsed["author_name"],
+            description=parsed["desc"],
+            raw_info={
+                "content_type": content_type,
+                "images": downloaded_paths,
+                "note_type": parsed["note_type"],
+                "images_with_video": images_with_video if has_live_photo else None,
+            },
+            tags=parsed.get("tags", []),
+        )
 
-            return AudioDownloadResult(
-                file_path=None,
-                title=parsed["title"],
-                duration=0,
-                cover_url=cover_url,
-                platform="xiaohongshu",
-                video_id=note_id,
-                content_type=content_type,
-                images=downloaded_paths,
-                author_id=parsed["author_id"],
-                author_name=parsed["author_name"],
-                description=parsed["desc"],
-                raw_info={
-                    "content_type": content_type,
-                    "images": downloaded_paths,
-                    "note_type": parsed["note_type"],
-                    "images_with_video": images_with_video_final,
-                },
-                tags=parsed.get("tags", []),
-            )
-
-        # 视频笔记：下载视频 + ffmpeg 提取音频
+    def _download_video_note(self, note: dict, parsed: dict, note_id: str, output_dir: str) -> AudioDownloadResult:
+        """视频笔记下载 + ffmpeg 音频提取"""
         video_info = note.get("video", {})
         video_url_resolved = self._extract_video_url(video_info)
         if not video_url_resolved:
             raise ValueError("无法提取视频下载地址")
 
-        # 先下载视频文件
         video_path = os.path.join(output_dir, f"{note_id}.mp4")
         audio_path = os.path.join(output_dir, f"{note_id}.mp3")
         self._download_file(video_url_resolved, output_dir, f"{note_id}.mp4")
 
-        # 用 ffmpeg 从视频提取音频
         if os.path.exists(video_path):
             try:
                 import subprocess
@@ -576,6 +546,39 @@ class XiaohongshuDownloader(Downloader):
             return video_info["url"]
 
         return ""
+
+    def _detect_live_photos(self, image_list: list, image_urls: list = None) -> tuple:
+        """
+        检测实况照片并提取信息（公共方法，消除 get_video_info/download 重复逻辑）
+
+        Args:
+            image_list: 小红书 imageList 原始数据
+            image_urls: 已提取的图片 URL 列表（可选，不传则自动提取）
+
+        Returns:
+            (has_live_photo: bool, images_with_video: list[dict])
+        """
+        has_live_photo = False
+        images_with_video = []
+
+        for i, img in enumerate(image_list):
+            # 提取图片 URL
+            if image_urls and i < len(image_urls):
+                url = image_urls[i]
+            else:
+                url = img.get("urlDefault", "") or img.get("url", "")
+                if url and not url.startswith("http"):
+                    url = "https:" + url
+
+            video_url = self._extract_live_photo_video(img)
+            if video_url:
+                has_live_photo = True
+            images_with_video.append({
+                "image_url": url,
+                "video_url": video_url,
+            })
+
+        return has_live_photo, images_with_video
 
     @staticmethod
     def _extract_live_photo_video(img: dict) -> str:

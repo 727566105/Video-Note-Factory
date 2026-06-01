@@ -965,9 +965,22 @@ class NoteGenerator:
                 data = json.loads(audio_cache_file.read_text(encoding="utf-8"))
                 audio_meta = AudioDownloadResult(**data)
 
-                # 验证缓存中的音频文件是否实际存在
-                if not audio_meta.file_path or not os.path.exists(audio_meta.file_path):
-                    logger.warning(f"音频缓存文件路径无效或不存在: {audio_meta.file_path}，删除缓存重新下载")
+                # 根据笔记类型验证缓存有效性
+                cache_valid = True
+                if audio_meta.file_path:
+                    # 视频笔记：验证音频文件存在
+                    if not os.path.exists(audio_meta.file_path):
+                        logger.warning(f"音频缓存文件不存在: {audio_meta.file_path}")
+                        cache_valid = False
+                elif audio_meta.images:
+                    # 图集笔记：验证图片文件存在
+                    missing = [p for p in audio_meta.images if p and not os.path.exists(p)]
+                    if missing:
+                        logger.warning(f"图片缓存文件缺失: {len(missing)} 个")
+                        cache_valid = False
+
+                if not cache_valid:
+                    logger.warning("缓存无效，删除缓存重新下载")
                     audio_cache_file.unlink(missing_ok=True)
                     # 跳出缓存分支，继续走下载逻辑
                 elif not need_video:
