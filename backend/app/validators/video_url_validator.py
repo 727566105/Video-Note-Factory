@@ -6,7 +6,7 @@ SUPPORTED_PLATFORMS = {
     "bilibili": r"(https?://)?(www\.)?bilibili\.com/video/[a-zA-Z0-9]+",
     "youtube": r"(https?://)?(www\.|m\.)?(youtube\.com/watch\?v=|youtu\.be/)[\w\-]+",
     "douyin": r"(https?://)?(www\.|v\.)?douyin\.com",
-    "kuaishou": r"(https?://)?(www\.)?kuaishou\.com",
+    "kuaishou": r"(https?://)?(www\.|v\.)?kuaishou\.com",
     "xiaohongshu": r"(https?://)?(www\.)?xiaohongshu\.com",
     "cctv": r"(https?://)?(tv\.|v\.)?cctv\.com/.*\.shtml",
 }
@@ -21,6 +21,10 @@ def is_supported_video_url(url: str) -> bool:
 
     # 检查是否为小红书短链接
     if parsed.netloc == "xhslink.com" or parsed.netloc.endswith(".xhslink.com"):
+        return True
+
+    # 检查是否为快手短链接
+    if parsed.netloc == "v.kuaishou.com" or parsed.netloc.endswith(".kuaishou.com"):
         return True
 
     # 检查是否为CCTV链接

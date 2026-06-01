@@ -29,6 +29,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { MediaGallery } from '@/components/MediaGallery'
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -234,12 +235,14 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
 
   // 移动端布局：简洁版本，上下滚动
   if (isMobile) {
+    const isMediaType = task.content_type === 'article' || task.content_type === 'live_photo'
+
     return (
       <div className="flex flex-col">
-        {/* 视频封面 */}
+        {/* 媒体内容区 */}
         <div className="px-3 pt-3">
           {/* 远程删除提示栏 */}
-          {remoteDeleted && (
+          {remoteDeleted && !isMediaType && (
             <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 flex items-center gap-2">
               <Globe className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
               <span className="text-xs text-yellow-700 dark:text-yellow-300">
@@ -247,46 +250,58 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               </span>
             </div>
           )}
-          <div
-            className="relative bg-muted rounded-lg overflow-hidden w-full"
-            style={{ aspectRatio: '16/9' }}
-          >
-            {coverUrl && !coverFailed ? (
-              <img
-                src={coverUrl}
-                alt={title}
-                className="w-full h-full object-contain"
-                crossOrigin="anonymous"
-                onError={() => setCoverFailed(true)}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <PlatformIcon platform={task.platform} />
-              </div>
-            )}
-            {/* 播放按钮 */}
-            {(embedUrl || videoUrl || localVideoUrl) && task.content_type !== 'article' && (
-              <button
-                onClick={async () => {
-                  if (localVideoUrl) {
-                    setIsLocalVideoActive(true)
-                    return
-                  }
-                  await checkRemoteStatus()
-                  if (embedUrl) {
-                    setIsEmbedActive(true)
-                  } else if (videoUrl) {
-                    window.open(videoUrl, '_blank', 'noopener,noreferrer')
-                  }
-                }}
-                className="absolute inset-0 flex items-center justify-center bg-black/30"
-              >
-                <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
-                  <Play className="w-6 h-6 text-white ml-0.5" />
+
+          {/* 图集/实况照片：显示媒体画廊 */}
+          {isMediaType ? (
+            <MediaGallery
+              taskId={task.id}
+              contentType={task.content_type as 'article' | 'live_photo'}
+              className="px-0 pt-0"
+            />
+          ) : (
+            /* 视频类型：封面 + 播放按钮 */
+            <div
+              className="relative bg-muted rounded-lg overflow-hidden w-full"
+              style={{ aspectRatio: '16/9' }}
+            >
+              {coverUrl && !coverFailed ? (
+                <img
+                  src={coverUrl}
+                  alt={title}
+                  className="w-full h-full object-contain"
+                  crossOrigin="anonymous"
+                  onError={() => setCoverFailed(true)}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <PlatformIcon platform={task.platform} />
                 </div>
-              </button>
-            )}
-          </div>
+              )}
+              {/* 播放按钮 */}
+              {(embedUrl || videoUrl || localVideoUrl) && (
+                <button
+                  onClick={async () => {
+                    if (localVideoUrl) {
+                      setIsLocalVideoActive(true)
+                      return
+                    }
+                    await checkRemoteStatus()
+                    if (embedUrl) {
+                      setIsEmbedActive(true)
+                    } else if (videoUrl) {
+                      window.open(videoUrl, '_blank', 'noopener,noreferrer')
+                    }
+                  }}
+                  className="absolute inset-0 flex items-center justify-center bg-black/30"
+                >
+                  <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
+                    <Play className="w-6 h-6 text-white ml-0.5" />
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* 嵌入播放器 */}
           {isEmbedActive && embedUrl && (
             <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
@@ -400,6 +415,8 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
   }
 
   // 桌面端布局：原有布局
+  const isMediaType = task.content_type === 'article' || task.content_type === 'live_photo'
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 顶栏工具按钮 */}
@@ -486,10 +503,10 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
         </Tooltip>
       </div>
 
-      {/* 视频播放器 */}
-      <div className="px-4 py-2">
+      {/* 媒体内容区 */}
+      <div className={cn("px-4 py-2", isMediaType && "flex-1 overflow-y-auto")}>
         {/* 远程删除提示栏 */}
-        {remoteDeleted && (
+        {remoteDeleted && !isMediaType && (
           <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 flex items-center gap-2">
             <Globe className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
             <span className="text-sm text-yellow-700 dark:text-yellow-300">
@@ -497,94 +514,104 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
             </span>
           </div>
         )}
-        <div
-          className="relative bg-muted rounded-xl overflow-hidden group w-full"
-          style={{ height: isPortraitVideo() ? '300px' : 'auto', aspectRatio: isPortraitVideo() ? undefined : '16/9' }}
-        >
-          {isEmbedActive && embedUrl ? (
-            <>
-              {/* iframe wrapper - 使用缩放适应容器 */}
-              <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-                <div style={getIframeWrapperStyle()}>
-                  <iframe
-                    src={embedUrl}
-                    className="w-full h-full border-0"
-                    allowFullScreen
-                  />
-                </div>
-              </div>
-              <button
-                onClick={() => setIsEmbedActive(false)}
-                className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </>
-          ) : isLocalVideoActive && localVideoUrl ? (
-            <>
-              {/* 本地视频播放器 */}
-              <video
-                src={localVideoUrl}
-                className="absolute inset-0 w-full h-full object-contain"
-                controls
-                autoPlay
-              />
-              <button
-                onClick={() => setIsLocalVideoActive(false)}
-                className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <>
-              {coverUrl && !coverFailed ? (
-                <img
-                  ref={coverRef}
-                  src={coverUrl}
-                  alt={title}
-                  className="absolute inset-0 w-full h-full object-contain"
-                  crossOrigin="anonymous"
-                  onError={() => setCoverFailed(true)}
-                  onLoad={handleCoverLoad}
-                />
-              ) : (
-                <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-muted to-muted/50">
-                  <PlatformIcon platform={task.platform} />
-                  <span className="text-xs text-muted-foreground">{title}</span>
-                </div>
-              )}
-              {(embedUrl || videoUrl || localVideoUrl) && task.content_type !== 'article' && (
-                <button
-                  onClick={async () => {
-                    // 有本地视频优先播放本地
-                    if (localVideoUrl) {
-                      setIsLocalVideoActive(true)
-                      return
-                    }
-                    // 检测远程状态
-                    await checkRemoteStatus()
-                    if (embedUrl) {
-                      setIsEmbedActive(true)
-                    } else if (videoUrl) {
-                      window.open(videoUrl, '_blank', 'noopener,noreferrer')
-                    }
-                  }}
-                  disabled={checkingRemote}
-                  className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-wait"
-                >
-                  <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
-                    {checkingRemote ? (
-                      <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <Play className="w-8 h-8 text-white ml-1" />
-                    )}
+
+        {/* 图集/实况照片：显示媒体画廊 */}
+        {isMediaType ? (
+          <MediaGallery
+            taskId={task.id}
+            contentType={task.content_type as 'article' | 'live_photo'}
+          />
+        ) : (
+          /* 视频类型：封面 + 播放按钮 */
+          <div
+            className="relative bg-muted rounded-xl overflow-hidden group w-full"
+            style={{ height: isPortraitVideo() ? '300px' : 'auto', aspectRatio: isPortraitVideo() ? undefined : '16/9' }}
+          >
+            {isEmbedActive && embedUrl ? (
+              <>
+                {/* iframe wrapper - 使用缩放适应容器 */}
+                <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                  <div style={getIframeWrapperStyle()}>
+                    <iframe
+                      src={embedUrl}
+                      className="w-full h-full border-0"
+                      allowFullScreen
+                    />
                   </div>
+                </div>
+                <button
+                  onClick={() => setIsEmbedActive(false)}
+                  className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-4 h-4" />
                 </button>
-              )}
-            </>
-          )}
-        </div>
+              </>
+            ) : isLocalVideoActive && localVideoUrl ? (
+              <>
+                {/* 本地视频播放器 */}
+                <video
+                  src={localVideoUrl}
+                  className="absolute inset-0 w-full h-full object-contain"
+                  controls
+                  autoPlay
+                />
+                <button
+                  onClick={() => setIsLocalVideoActive(false)}
+                  className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                {coverUrl && !coverFailed ? (
+                  <img
+                    ref={coverRef}
+                    src={coverUrl}
+                    alt={title}
+                    className="absolute inset-0 w-full h-full object-contain"
+                    crossOrigin="anonymous"
+                    onError={() => setCoverFailed(true)}
+                    onLoad={handleCoverLoad}
+                  />
+                ) : (
+                  <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-muted to-muted/50">
+                    <PlatformIcon platform={task.platform} />
+                    <span className="text-xs text-muted-foreground">{title}</span>
+                  </div>
+                )}
+                {(embedUrl || videoUrl || localVideoUrl) && (
+                  <button
+                    onClick={async () => {
+                      // 有本地视频优先播放本地
+                      if (localVideoUrl) {
+                        setIsLocalVideoActive(true)
+                        return
+                      }
+                      // 检测远程状态
+                      await checkRemoteStatus()
+                      if (embedUrl) {
+                        setIsEmbedActive(true)
+                      } else if (videoUrl) {
+                        window.open(videoUrl, '_blank', 'noopener,noreferrer')
+                      }
+                    }}
+                    disabled={checkingRemote}
+                    className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-wait"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
+                      {checkingRemote ? (
+                        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Play className="w-8 h-8 text-white ml-1" />
+                      )}
+                    </div>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 视频信息 */}
@@ -672,6 +699,8 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
           </div>
         )}
       </div>
+
+      {!isMediaType && <div className="flex-1" />}
 
       {/* 聊天输入框 */}
       <div className="mt-auto px-4 py-3">

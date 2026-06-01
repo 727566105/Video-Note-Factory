@@ -93,9 +93,9 @@ export function QuickAdd({ className }: QuickAddProps) {
         const detected =
           url.includes('bilibili.com') || url.includes('b23.tv') ? 'bilibili' :
           url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
-          url.includes('douyin') ? 'douyin' :
+          url.includes('douyin') || url.includes('复制打开抖音') || url.includes('douyin') || url.includes('抖音') ? 'douyin' :
           url.includes('xiaohongshu.com') || url.includes('xhslink.com') ? 'xiaohongshu' :
-          url.includes('kuaishou') ? 'kuaishou' :
+          url.includes('kuaishou') || url.includes('v.kuaishou.com') ? 'kuaishou' :
           'bilibili'
 
         const payload = {
@@ -156,9 +156,9 @@ export function QuickAdd({ className }: QuickAddProps) {
       url.includes('bilibili.com') || url.includes('b23.tv') ? 'bilibili' :
       url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
       url.includes('cctv.com') ? 'cctv' :
-      url.includes('douyin') ? 'douyin' :
+      url.includes('douyin') || url.includes('复制打开抖音') || url.includes('douyin') || url.includes('抖音') ? 'douyin' :
       url.includes('xiaohongshu.com') || url.includes('xhslink.com') ? 'xiaohongshu' :
-      url.includes('kuaishou') ? 'kuaishou' :
+      url.includes('kuaishou') || url.includes('v.kuaishou.com') ? 'kuaishou' :
       null
     setDetectedPlatform(match)
   }, [inputValue, selectedPlatform])
@@ -215,11 +215,18 @@ export function QuickAdd({ className }: QuickAddProps) {
       return
     }
 
-    // URL 格式校验
+    // 从分享文本中提取 URL（如抖音口令 "7.77 Dya:/ https://v.douyin.com/xxx 复制打开抖音"）
+    let submitUrl = inputValue.trim()
     const urlPattern = /^https?:\/\/.+\..+/i
-    if (!urlPattern.test(inputValue.trim())) {
-      toast.error('请输入有效的视频链接（以 http:// 或 https:// 开头）')
-      return
+    if (!urlPattern.test(submitUrl)) {
+      const urlMatch = submitUrl.match(/https?:\/\/[^\s<>"']+/)
+      if (urlMatch) {
+        submitUrl = urlMatch[0]
+        setInputValue(submitUrl)
+      } else {
+        toast.error('请输入有效的视频链接（以 http:// 或 https:// 开头）')
+        return
+      }
     }
 
     // 智能优选模式下跳过模型验证
@@ -230,7 +237,7 @@ export function QuickAdd({ className }: QuickAddProps) {
 
     // 预检笔记可用性
     try {
-      const checkResult = await checkNoteAvailability(inputValue.trim(), effectivePlatform)
+      const checkResult = await checkNoteAvailability(submitUrl, effectivePlatform)
       if (checkResult?.available) {
         setAvailabilityDialog(checkResult as { available: boolean; task_id?: string; title?: string })
         return
@@ -239,16 +246,17 @@ export function QuickAdd({ className }: QuickAddProps) {
       console.error('笔记可用性预检失败')
     }
 
-    await doGenerateNote()
+    await doGenerateNote(submitUrl)
   }
 
-  const doGenerateNote = async () => {
+  const doGenerateNote = async (overrideUrl?: string) => {
     setIsGenerating(true)
+    const videoUrl = overrideUrl || inputValue.trim()
 
     try {
       // 构建请求参数
       const payload = {
-        video_url: inputValue.trim(),
+        video_url: videoUrl,
         platform: effectivePlatform,
         quality: 'medium',
         smart_mode: isSmartMode,
