@@ -375,25 +375,27 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               <Link className="w-4 h-4 mr-1" />原片
             </Button>
           )}
-          <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={async () => {
-            try {
-              const token = useAuthStore.getState().token
-              const res = await fetch(`${getBaseURL()}/api/audio/${task.id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              })
-              if (!res.ok) throw new Error()
-              const blob = await res.blob()
-              const a = document.createElement('a')
-              a.href = URL.createObjectURL(blob)
-              a.download = (task.audioMeta?.title || '音频') + '.mp3'
-              a.click()
-              URL.revokeObjectURL(a.href)
-            } catch {
-              toast.error('下载失败')
-            }
-          }}>
-            <Download className="w-4 h-4 mr-1" />音频
-          </Button>
+          {!isMediaType && (
+            <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={async () => {
+              try {
+                const token = useAuthStore.getState().token
+                const res = await fetch(`${getBaseURL()}/api/audio/${task.id}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                })
+                if (!res.ok) throw new Error()
+                const blob = await res.blob()
+                const a = document.createElement('a')
+                a.href = URL.createObjectURL(blob)
+                a.download = (task.audioMeta?.title || '音频') + '.mp3'
+                a.click()
+                URL.revokeObjectURL(a.href)
+              } catch {
+                toast.error('下载失败')
+              }
+            }}>
+              <Download className="w-4 h-4 mr-1" />音频
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setSettingsOpen(true)}>
             <Settings2 className="w-4 h-4 mr-1" />设置
           </Button>
@@ -423,13 +425,13 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
       <div className="flex items-center justify-between px-4 py-2 overflow-x-auto">
         <ButtonGroup>
           <ButtonGroup className="hidden sm:flex">
-            <Button variant="outline" size="sm" onClick={() => navigate('/notes')} aria-label="返回笔记列表">
+            <Button variant="outline" size="sm" onClick={() => navigate(-1)} aria-label="返回笔记列表">
               <ArrowLeft className="size-4" />
               返回
             </Button>
           </ButtonGroup>
           <ButtonGroup className="flex sm:hidden">
-            <Button variant="outline" size="icon-sm" onClick={() => navigate('/notes')} aria-label="返回笔记列表">
+            <Button variant="outline" size="icon-sm" onClick={() => navigate(-1)} aria-label="返回笔记列表">
               <ArrowLeft className="size-4" />
             </Button>
           </ButtonGroup>
@@ -443,6 +445,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               </TooltipTrigger>
               <TooltipContent>视频信息</TooltipContent>
             </Tooltip>
+            {!isMediaType && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon-sm" aria-label="下载音频" onClick={async () => {
@@ -473,9 +476,16 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               </TooltipTrigger>
               <TooltipContent>下载音频</TooltipContent>
             </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon-sm" aria-label="原视频链接">
+                <Button variant="outline" size="icon-sm" aria-label="原视频链接" onClick={() => {
+                if (videoUrl) {
+                  window.open(videoUrl, '_blank', 'noopener,noreferrer')
+                } else {
+                  toast.error('未找到原始链接')
+                }
+              }}>
                   <Globe className="size-4" />
                 </Button>
               </TooltipTrigger>
