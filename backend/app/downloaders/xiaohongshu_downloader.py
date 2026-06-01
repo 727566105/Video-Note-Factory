@@ -312,7 +312,19 @@ class XiaohongshuDownloader(Downloader):
             images_with_video_list = []
             has_live_photo = False
 
-            for img in image_list:
+            for i, img in enumerate(image_list):
+                # 调试：打印每张图片的字段结构
+                img_keys = list(img.keys())
+                logger.debug(f"图片 {i+1} 字段: {img_keys}")
+
+                # 检查所有可能的实况照片标记字段
+                live_markers = []
+                for key in img_keys:
+                    if 'live' in key.lower() or 'video' in key.lower() or 'stream' in key.lower():
+                        live_markers.append(f"{key}={img.get(key)}")
+                if live_markers:
+                    logger.info(f"图片 {i+1} 可能的实况字段: {live_markers[:5]}")  # 只显示前5个
+
                 url = img.get("urlDefault", "") or img.get("url", "")
                 if url and not url.startswith("http"):
                     url = "https:" + url
@@ -567,33 +579,70 @@ class XiaohongshuDownloader(Downloader):
 
     @staticmethod
     def _extract_live_photo_video(img: dict) -> str:
-        """从小红书图片对象中提取实况照片视频 URL"""
-        if not img.get("livePhoto") and not img.get("live_photo"):
+        """从小红书图片对象中提取实况照片视频 URL（增强版：支持多种字段结构）"""
+        # 多种实况标记字段检测
+        is_live = (
+            img.get("livePhoto") or
+            img.get("live_photo") or
+            img.get("isLive") or
+            img.get("live") or
+            img.get("livePhotoFlag") or
+            (img.get("type") == "live") or
+            img.get("extra", {}).get("livePhoto")
+        )
+        if not is_live:
             return ""
 
+        # 多种视频 URL 来源检测
+        # 1. stream 字段（标准结构）
         stream = img.get("stream", {})
-        if not stream:
-            logger.debug(f"实况照片图片缺少 stream 字段, keys={list(img.keys())}")
-            return ""
+        if stream:
+            for codec in ["h264", "h265", "av1"]:
+                streams = stream.get(codec, [])
+                for s in streams:
+                    # masterUrl（驼峰）和 master_url（下划线）都支持
+                    master_url = s.get("masterUrl", "") or s.get("master_url", "")
+                    if not master_url and s.get("backupUrls"):
+                        master_url = s["backupUrls"][0]
+                    if not master_url and s.get("backup_urls"):
+                        master_url = s["backup_urls"][0]
+                    if master_url:
+                        if master_url.startswith("http://"):
+                            master_url = "https://" + master_url[7:]
+                        return master_url
+            url = stream.get("url", "")
+            if url:
+                if url.startswith("http://"):
+                    url = "https://" + url[7:]
+                return url
 
-        for codec in ["h264", "h265", "av1"]:
-            streams = stream.get(codec, [])
-            for s in streams:
-                master_url = s.get("master_url", "")
-                if not master_url and s.get("backup_urls"):
-                    master_url = s["backup_urls"][0]
-                if master_url:
-                    if master_url.startswith("http://"):
-                        master_url = "https://" + master_url[7:]
-                    return master_url
+        # 2. video 字段
+        video = img.get("video", {})
+        if video:
+            vid_url = video.get("url", "") or video.get("masterUrl", "")
+            if vid_url:
+                if vid_url.startswith("http://"):
+                    vid_url = "https://" + vid_url[7:]
+                return vid_url
 
-        url = stream.get("url", "")
-        if url:
-            if url.startswith("http://"):
-                url = "https://" + url[7:]
-            return url
+        # 3. liveVideo 字段
+        live_video = img.get("liveVideo", {})
+        if live_video:
+            lv_url = live_video.get("url", "")
+            if lv_url:
+                if lv_url.startswith("http://"):
+                    lv_url = "https://" + lv_url[7:]
+                return lv_url
 
-        logger.info(f"实况照片 stream 字段结构: {list(stream.keys())}")
+        # 4. 直接字段
+        direct_url = img.get("livePhotoUrl", "") or img.get("liveVideoUrl", "")
+        if direct_url:
+            if direct_url.startswith("http://"):
+                direct_url = "https://" + direct_url[7:]
+            return direct_url
+
+        # 没找到，打印所有可能相关的字段帮助调试
+        logger.info(f"实况标记存在但未找到视频 URL, 字段: {[k for k in img.keys() if 'live' in k.lower() or 'video' in k.lower() or 'stream' in k.lower()]}")
         return ""
 
     @staticmethod

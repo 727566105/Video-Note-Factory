@@ -107,6 +107,23 @@ videoNote/
    - 结果文件: `{task_id}.json` (最终笔记)
    - 支持缓存机制: 音频/转写/Markdown 都会缓存
 
+6. **媒体类型架构**
+
+   笔记根据 `content_type` 显示不同前端组件：
+
+   | content_type | 显示组件 | 播放行为 |
+   |--------------|----------|----------|
+   | `video` | 视频封面 + 播放按钮 | localVideoUrl → embedUrl → videoUrl fallback |
+   | `article` | MediaGallery 图片轮播 | 无视频播放 |
+   | `live_photo` | MediaGallery + 长按播放 | 实况照片视频 |
+
+   **播放 fallback 链** (`LeftPanel.tsx`):
+   1. `localVideoUrl` 存在 → 播放本地 mp4
+   2. `embedUrl` 存在 → iframe 嵌入播放（B站/YouTube/抖音）
+   3. `videoUrl` 存在 → 跳转外部链接
+
+   **注意**: `localVideoUrl` 需要 `author_id` 才能构建正确的四级目录路径，缺少 `author_id` 会降级到外部链接。
+
 ### 前端架构 (videoNote_frontend/)
 
 **技术栈**: React 19 + TypeScript + Vite + Tailwind CSS 4.x + Zustand + shadcn/ui + antd
@@ -268,6 +285,8 @@ data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
 - 封面图: `GET /api/video_cover/{platform}/{author_id}/{video_id}`
 - 截图: `GET /api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}`
 - 图片代理: `GET /api/image_proxy?url=<url>`（支持本地封面路径和远程图片）
+- 媒体列表: `GET /api/note_media/{task_id}`（图文笔记的图片/实况照片列表）
+- 媒体文件: `GET /api/note_media_file/{platform}/{author_id}/{video_id}/{filename}`（直接访问 image_*.jpg, live_photo_*.mp4）
 
 **路径管理核心文件**：`app/utils/path_helper.py`
 - `get_video_folder()`: 生成四级目录路径 `video/{platform}/{author}/{video}/`
