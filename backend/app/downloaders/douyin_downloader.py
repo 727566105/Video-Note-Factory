@@ -318,61 +318,39 @@ class DouyinDownloader(Downloader):
         aweme = video_data.get('aweme_detail') or {}
         if not aweme:
             raise ValueError("抖音 API 返回数据缺少 aweme_detail")
-        author_info = aweme.get('author') or {}
         aweme_type = aweme.get('aweme_type', 0)
         images = aweme.get('images') or []
+        common = self._parse_aweme_common(aweme)
 
         logger.info(f"aweme_type={aweme_type}, images_count={len(images)}")
 
         # 图集或实况照片：按 aweme_type 或 images 字段判断（兜底检测）
         if aweme_type in (68, 69) or images:
-            images = aweme.get('images') or []
             image_urls = [img.get('url_list', [None])[0] for img in images if img.get('url_list')]
             cover_url = image_urls[0] if image_urls else None
             content_type = "live_photo" if aweme_type == 69 else "article"
 
-            # 图集或实况照片：提取每张图片对应的视频URL（aweme_type 68/69 均可能含视频）
-            images_with_video = []
-            has_video = False
-            for img in images:
-                img_url = img.get('url_list', [None])[0] if img.get('url_list') else None
-                video_data = img.get('video', {})
-                video_url = None
-                # 优先 play_addr
-                play_addr = video_data.get('play_addr', {})
-                if play_addr.get('url_list'):
-                    video_url = play_addr['url_list'][0]
-                # 兜底 download_addr
-                if not video_url:
-                    download_addr = video_data.get('download_addr', {})
-                    if download_addr.get('url_list'):
-                        video_url = download_addr['url_list'][0]
-                if video_url:
-                    has_video = True
-                images_with_video.append({
-                    "image_url": img_url,
-                    "video_url": video_url,
-                })
-            # 只有存在视频时才标记为 live_photo
+            # 使用公共方法检测实况照片
+            has_video, images_with_video = self._detect_live_photos(images)
             if has_video:
                 content_type = "live_photo"
                 logger.info(f"图集含视频片段，标记为实况照片，共 {len(images_with_video)} 个视频URL")
             images_with_video = images_with_video if has_video else None
 
             return VideoInfoResult(
-                title=aweme.get('item_title', '') or aweme.get('desc', ''),
+                title=common["title"],
                 duration=0,
                 cover_url=cover_url,
                 platform="douyin",
-                video_id=aweme.get('aweme_id', ''),
-                author_id=str(author_info.get('uid', '')),
-                author_name=author_info.get('nickname', ''),
-                description=aweme.get('desc', ''),
+                video_id=common["video_id"],
+                author_id=common["author_id"],
+                author_name=common["author_name"],
+                description=common["description"],
                 content_type=content_type,
                 images_with_video=images_with_video,
                 raw_info={
                     'tags': aweme.get('caption', ''),
-                    'owner': {'name': author_info.get('nickname', '')},
+                    'owner': {'name': common["author_name"] or ''},
                     'content_type': content_type,
                     'images': image_urls,
                     'aweme_type': aweme_type,
@@ -390,18 +368,18 @@ class DouyinDownloader(Downloader):
             cover_url = cover_url_list[0] if cover_url_list else None
 
         return VideoInfoResult(
-            title=aweme.get('item_title', '') or aweme.get('desc', ''),
+            title=common["title"],
             duration=aweme.get('video', {}).get('duration', 0) or 0,
             cover_url=cover_url,
             platform="douyin",
-            video_id=aweme.get('aweme_id', ''),
-            author_id=str(author_info.get('uid', '')),
-            author_name=author_info.get('nickname', ''),
-            description=aweme.get('desc', ''),
+            video_id=common["video_id"],
+            author_id=common["author_id"],
+            author_name=common["author_name"],
+            description=common["description"],
             content_type="video",
             raw_info={
                 'tags': aweme.get('caption', ''),
-                'owner': {'name': author_info.get('nickname', '')},
+                'owner': {'name': common["author_name"] or ''},
                 'content_type': 'video',
             },
         )
@@ -427,154 +405,161 @@ class DouyinDownloader(Downloader):
                 raise ValueError("抖音 API 返回数据缺少 aweme_detail")
             aweme_type = aweme.get('aweme_type', 0)
             images = aweme.get('images') or []
-            video_id = aweme.get('aweme_id', '')
-            author_id = str(aweme.get('author', {}).get('uid', ''))
-            author_name = aweme.get('author', {}).get('nickname', '') or None
 
             logger.info(f"download: aweme_type={aweme_type}, images_count={len(images)}")
 
-            # 图集或实况照片：按 aweme_type 或 images 字段判断（兜底检测）
             if aweme_type in (68, 69) or images:
-                images = aweme.get('images') or []
-                downloaded_paths = []
-                for i, img in enumerate(images):
-                    url_list = img.get('url_list', [])
-                    if url_list:
-                        img_path = self._download_image(url_list[0], output_dir, f"image_{i+1}.jpg")
-                        if img_path:
-                            downloaded_paths.append(img_path)
-
-                content_type = "live_photo" if aweme_type == 69 else "article"
-                cover_url = downloaded_paths[0] if downloaded_paths else None
-
-                # 实况照片：尝试下载短视频
-                if aweme_type == 69:
-                    live_photo = aweme.get('live_photo', {})
-                    video_url_live = live_photo.get('video', {}).get('download_addr', {}).get('url_list', [None])[0]
-                    if video_url_live:
-                        try:
-                            video_path = self._download_image(video_url_live, output_dir, f"live_video.mp4")
-                        except Exception:
-                            video_path = None
-                    else:
-                        video_path = None
-
-                return AudioDownloadResult(
-                    file_path=None,
-                    title=aweme.get('item_title', '') or aweme.get('desc', ''),
-                    duration=0,
-                    cover_url=cover_url,
-                    platform="douyin",
-                    video_id=video_id,
-                    content_type=content_type,
-                    images=downloaded_paths,
-                    author_id=author_id,
-                    author_name=author_name,
-                    description=aweme.get('desc', ''),
-                    raw_info={
-                        'content_type': content_type,
-                        'images': downloaded_paths,
-                        'aweme_type': aweme_type,
-                    },
-                )
-
-            # 普通视频：下载音频
-            output_path = os.path.join(output_dir, f"{video_id}.mp3")
-            music_url = (aweme.get('music') or {}).get('play_url', {}).get('uri') or ''
-
-            if music_url:
-                from app.utils.download_helper import DownloadHelper
-                if not DownloadHelper.is_safe_url(music_url):
-                    raise ValueError(f"音频下载链接无效: {music_url[:50]}")
-                audio_data = requests.get(music_url, timeout=30)
-                with open(output_path, 'wb') as f:
-                    f.write(audio_data.content)
+                return self._download_image_note(aweme, output_dir, aweme_type)
             else:
-                # 音频链接为空时，从已下载的视频中提取音频
-                video_file = os.path.join(output_dir, f"{video_id}.mp4")
+                return self._download_video_note(aweme, output_dir, video_data)
+        except Exception as e:
+            raise e
 
-                # 并行下载时视频线程可能还在下载，等待文件写入完成
-                if not os.path.exists(video_file) or os.path.getsize(video_file) == 0:
-                    prev_size = 0
-                    for _ in range(60):
-                        time.sleep(2)
-                        if os.path.exists(video_file) and os.path.getsize(video_file) > 0:
-                            curr_size = os.path.getsize(video_file)
-                            if curr_size == prev_size and curr_size > 0:
-                                break
-                            prev_size = curr_size
+    def _download_image_note(self, aweme: dict, output_dir: str, aweme_type: int) -> AudioDownloadResult:
+        """图集/实况笔记：下载图片 + 每张实况照片视频"""
+        common = self._parse_aweme_common(aweme)
+        images = aweme.get('images') or []
 
-                if os.path.exists(video_file):
-                    import subprocess
-                    subprocess.run(
-                        ['ffmpeg', '-i', video_file, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', output_path],
-                        capture_output=True, timeout=120
-                    )
-                else:
-                    raise ValueError("无法获取音频下载链接，且视频文件不存在")
-            tags = []
-            for tag in aweme.get('video_tag', []):
-                if tag.get('tag_name'):
-                    tags.append(tag['tag_name'])
+        # 下载图片
+        downloaded_paths = []
+        for i, img in enumerate(images):
+            url_list = img.get('url_list', [])
+            if url_list:
+                img_path = self._download_image(url_list[0], output_dir, f"image_{i+1}.jpg")
+                if img_path:
+                    downloaded_paths.append(img_path)
 
-            # 提取封面 URL（安全链式取值）
-            video_info = aweme.get('video') or {}
-            cover_url = None
-            cover_original = video_info.get('cover_original_scale') or {}
-            url_list = cover_original.get('url_list') or []
+        content_type = "live_photo" if aweme_type == 69 else "article"
+        cover_url = downloaded_paths[0] if downloaded_paths else None
+
+        # 使用公共方法检测实况照片，下载每张图对应的视频
+        has_video, images_with_video = self._detect_live_photos(images)
+        if has_video:
+            content_type = "live_photo"
+            for i, item in enumerate(images_with_video):
+                if item["video_url"]:
+                    try:
+                        self._download_image(item["video_url"], output_dir, f"live_photo_{i+1}.mp4")
+                    except Exception as e:
+                        logger.warning(f"实况照片视频下载失败 image_{i+1}: {e}")
+
+        return AudioDownloadResult(
+            file_path=None,
+            title=common["title"],
+            duration=0,
+            cover_url=cover_url,
+            platform="douyin",
+            video_id=common["video_id"],
+            content_type=content_type,
+            images=downloaded_paths,
+            author_id=common["author_id"],
+            author_name=common["author_name"],
+            description=common["description"],
+            raw_info={
+                'content_type': content_type,
+                'images': downloaded_paths,
+                'aweme_type': aweme_type,
+            },
+        )
+
+    def _download_video_note(self, aweme: dict, output_dir: str, video_data: dict) -> AudioDownloadResult:
+        """视频笔记：下载音频 + ffmpeg fallback"""
+        common = self._parse_aweme_common(aweme)
+        video_id = common["video_id"]
+        output_path = os.path.join(output_dir, f"{video_id}.mp3")
+        music_url = (aweme.get('music') or {}).get('play_url', {}).get('uri') or ''
+
+        if music_url:
+            from app.utils.download_helper import DownloadHelper
+            if not DownloadHelper.is_safe_url(music_url):
+                raise ValueError(f"音频下载链接无效: {music_url[:50]}")
+            audio_data = requests.get(music_url, timeout=30)
+            with open(output_path, 'wb') as f:
+                f.write(audio_data.content)
+        else:
+            # 音频链接为空时，从已下载的视频中提取音频
+            video_file = os.path.join(output_dir, f"{video_id}.mp4")
+
+            # 并行下载时视频线程可能还在下载，等待文件写入完成
+            if not os.path.exists(video_file) or os.path.getsize(video_file) == 0:
+                prev_size = 0
+                for _ in range(60):
+                    time.sleep(2)
+                    if os.path.exists(video_file) and os.path.getsize(video_file) > 0:
+                        curr_size = os.path.getsize(video_file)
+                        if curr_size == prev_size and curr_size > 0:
+                            break
+                        prev_size = curr_size
+
+            if os.path.exists(video_file):
+                import subprocess
+                subprocess.run(
+                    ['ffmpeg', '-i', video_file, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', output_path],
+                    capture_output=True, timeout=120
+                )
+            else:
+                raise ValueError("无法获取音频下载链接，且视频文件不存在")
+        tags = []
+        for tag in aweme.get('video_tag', []):
+            if tag.get('tag_name'):
+                tags.append(tag['tag_name'])
+
+        # 提取封面 URL（安全链式取值）
+        video_info = aweme.get('video') or {}
+        cover_url = None
+        cover_original = video_info.get('cover_original_scale') or {}
+        url_list = cover_original.get('url_list') or []
+        if url_list:
+            cover_url = url_list[0]
+        else:
+            cover_data = video_info.get('cover') or {}
+            url_list = cover_data.get('url_list') or []
             if url_list:
                 cover_url = url_list[0]
             else:
-                cover_data = video_info.get('cover') or {}
-                url_list = cover_data.get('url_list') or []
-                if url_list:
-                    cover_url = url_list[0]
-                else:
-                    big_thumbs = video_data.get('video') or {}
-                    img_url = (big_thumbs.get('big_thumbs') or {}).get('img_url')
-                    if img_url:
-                        cover_url = img_url
+                big_thumbs = video_data.get('video') or {}
+                img_url = (big_thumbs.get('big_thumbs') or {}).get('img_url')
+                if img_url:
+                    cover_url = img_url
 
-            # 下载封面到视频目录
-            if cover_url and output_dir:
-                try:
-                    from app.utils.download_helper import DownloadHelper
-                    temp_cover = DownloadHelper.download_file(
-                        cover_url, output_dir, "_temp_cover.jpg",
-                        referer="https://www.douyin.com/", timeout=10
+        # 下载封面到视频目录
+        if cover_url and output_dir:
+            try:
+                from app.utils.download_helper import DownloadHelper
+                temp_cover = DownloadHelper.download_file(
+                    cover_url, output_dir, "_temp_cover.jpg",
+                    referer="https://www.douyin.com/", timeout=10
+                )
+                if temp_cover:
+                    from app.utils.video_helper import save_cover_to_video_dir
+                    cover_url = save_cover_to_video_dir(
+                        temp_cover, output_dir, "douyin", common["author_id"], video_id
                     )
-                    if temp_cover:
-                        from app.utils.video_helper import save_cover_to_video_dir
-                        cover_url = save_cover_to_video_dir(
-                            temp_cover, output_dir, "douyin", author_id, video_id
-                        )
-                        os.remove(temp_cover)
-                except Exception:
-                    pass
+                    os.remove(temp_cover)
+            except Exception:
+                pass
 
-            return AudioDownloadResult(
-                file_path=output_path,
-                title=aweme.get('item_title', '') or aweme.get('desc', ''),
-                duration=aweme.get('video', {}).get('duration', 0) or 0,
-                cover_url=cover_url,
-                platform="douyin",
-                video_id=video_id,
-                raw_info={
-                    'tags': aweme.get('caption', '') + ''.join(tags),
-                    'owner': {
-                        'name': author_name or '',
-                    },
-                    'uploader': author_name or '',
-                    'width': aweme.get('video', {}).get('width', 0),
-                    'height': aweme.get('video', {}).get('height', 0),
-                    'content_type': 'video',
+        return AudioDownloadResult(
+            file_path=output_path,
+            title=common["title"],
+            duration=aweme.get('video', {}).get('duration', 0) or 0,
+            cover_url=cover_url,
+            platform="douyin",
+            video_id=video_id,
+            raw_info={
+                'tags': aweme.get('caption', '') + ''.join(tags),
+                'owner': {
+                    'name': common["author_name"] or '',
                 },
-                video_path=None,
-                author_id=author_id,
-                author_name=author_name,
-            )
-        except Exception as e:
-            raise e
+                'uploader': common["author_name"] or '',
+                'width': aweme.get('video', {}).get('width', 0),
+                'height': aweme.get('video', {}).get('height', 0),
+                'content_type': 'video',
+            },
+            video_path=None,
+            author_id=common["author_id"],
+            author_name=common["author_name"],
+        )
 
     @staticmethod
     def _download_image(url: str, output_dir: str, filename: str) -> str:
@@ -584,6 +569,41 @@ class DouyinDownloader(Downloader):
             url, output_dir, filename,
             referer="https://www.douyin.com/", timeout=15
         )
+
+    def _detect_live_photos(self, images: list) -> tuple[bool, list]:
+        """检测图集中的实况照片视频（get_video_info 和 download 共用）"""
+        images_with_video = []
+        has_video = False
+        for img in images:
+            img_url = img.get('url_list', [None])[0] if img.get('url_list') else None
+            video_url = None
+            # 优先 play_addr
+            play_addr = (img.get('video') or {}).get('play_addr', {})
+            if play_addr.get('url_list'):
+                video_url = play_addr['url_list'][0]
+            # 兜底 download_addr
+            if not video_url:
+                download_addr = (img.get('video') or {}).get('download_addr', {})
+                if download_addr.get('url_list'):
+                    video_url = download_addr['url_list'][0]
+            if video_url:
+                has_video = True
+            images_with_video.append({
+                "image_url": img_url,
+                "video_url": video_url,
+            })
+        return has_video, images_with_video
+
+    def _parse_aweme_common(self, aweme: dict) -> dict:
+        """从 aweme_detail 提取公共字段，避免 get_video_info/download 重复"""
+        author_info = aweme.get('author') or {}
+        return {
+            "video_id": aweme.get('aweme_id', ''),
+            "title": aweme.get('item_title', '') or aweme.get('desc', ''),
+            "author_id": str(author_info.get('uid', '')),
+            "author_name": author_info.get('nickname', '') or None,
+            "description": aweme.get('desc', ''),
+        }
 
     def download_video(self, video_url: str, output_dir: Union[str, None] = None, force_redownload: bool = False) -> str:
 

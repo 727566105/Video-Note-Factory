@@ -35,7 +35,8 @@ class Downloader(ABC):
         """只获取视频元数据，不下载文件"""
         pass
 
-    @staticmethod
+    @abstractmethod
     def download_video(self, video_url: str,
                        output_dir: Union[str, None] = None) -> str:
+        """下载视频文件，返回视频路径"""
         pass

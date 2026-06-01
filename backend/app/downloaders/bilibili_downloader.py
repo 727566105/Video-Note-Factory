@@ -95,6 +95,20 @@ class BilibiliDownloader(Downloader, ABC):
             except Exception:
                 pass
 
+    def _extract_metadata(self, info: dict) -> dict:
+        """从 yt-dlp info 提取公共字段"""
+        author_id = str(info.get("uploader_id", "")) or str(info.get("channel_id", ""))
+        owner = info.get("owner", {})
+        author_name = owner.get("name", "") if owner else info.get("uploader", "")
+        return {
+            "video_id": info.get("id", ""),
+            "title": info.get("title", ""),
+            "duration": info.get("duration", 0) or 0,
+            "cover_url": info.get("thumbnail"),
+            "author_id": author_id or None,
+            "author_name": author_name or None,
+        }
+
     def get_video_info(self, video_url: str) -> VideoInfoResult:
         cookiefile = self._write_cookiefile()
         try:
@@ -103,18 +117,12 @@ class BilibiliDownloader(Downloader, ABC):
                 ydl_opts['cookiefile'] = cookiefile
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=False)
-                video_id = info.get("id", "")
-                title = info.get("title", "")
-                duration = info.get("duration", 0) or 0
-                cover_url = info.get("thumbnail")
-                author_id = str(info.get("uploader_id", "")) or str(info.get("channel_id", ""))
-                owner = info.get("owner", {})
-                author_name = owner.get("name", "") if owner else info.get("uploader", "")
-                description = self._fetch_description(video_id)
+                meta = self._extract_metadata(info)
+                description = self._fetch_description(meta["video_id"])
                 return VideoInfoResult(
-                    title=title, duration=duration, cover_url=cover_url,
-                    platform="bilibili", video_id=video_id,
-                    author_id=author_id or None, author_name=author_name or None,
+                    title=meta["title"], duration=meta["duration"], cover_url=meta["cover_url"],
+                    platform="bilibili", video_id=meta["video_id"],
+                    author_id=meta["author_id"], author_name=meta["author_name"],
                     description=description, raw_info=info,
                 )
         finally:
@@ -153,19 +161,14 @@ class BilibiliDownloader(Downloader, ABC):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=True)
-                video_id = info.get("id")
-                title = info.get("title")
-                duration = info.get("duration", 0)
-                cover_url = info.get("thumbnail")
-                audio_path = os.path.join(output_dir, f"{video_id}.mp3")
+                meta = self._extract_metadata(info)
+                audio_path = os.path.join(output_dir, f"{meta['video_id']}.mp3")
 
                 # 获取B站视频描述
-                description = self._fetch_description(video_id)
+                description = self._fetch_description(meta["video_id"])
 
                 # 下载封面到视频目录（使用统一下载工具）
-                author_id = str(info.get("uploader_id", "")) or str(info.get("channel_id", ""))
-                owner = info.get("owner", {})
-                author_name = owner.get("name", "") if owner else info.get("uploader", "")
+                cover_url = meta["cover_url"]
                 if cover_url and output_dir:
                     try:
                         from app.utils.download_helper import DownloadHelper
@@ -176,7 +179,7 @@ class BilibiliDownloader(Downloader, ABC):
                         if temp_cover:
                             from app.utils.video_helper import save_cover_to_video_dir
                             cover_url = save_cover_to_video_dir(
-                                temp_cover, output_dir, "bilibili", author_id, video_id
+                                temp_cover, output_dir, "bilibili", meta["author_id"], meta["video_id"]
                             )
                             os.remove(temp_cover)
                     except Exception as e:
@@ -184,16 +187,16 @@ class BilibiliDownloader(Downloader, ABC):
 
             return AudioDownloadResult(
                 file_path=audio_path,
-                title=title,
-                duration=duration,
+                title=meta["title"],
+                duration=meta["duration"],
                 cover_url=cover_url,
                 platform="bilibili",
-                video_id=video_id,
+                video_id=meta["video_id"],
                 raw_info=info,
                 video_path=None,
                 description=description,
-                author_id=author_id,
-                author_name=author_name or None,
+                author_id=meta["author_id"],
+                author_name=meta["author_name"],
                 tags=self._extract_tags(info),
             )
         except DownloadError as e:
