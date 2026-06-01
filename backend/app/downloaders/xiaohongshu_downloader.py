@@ -27,6 +27,7 @@ class XiaohongshuDownloader(Downloader):
 
     def __init__(self, cookie=None):
         super().__init__()
+        self._note_cache = {}  # 缓存笔记详情，避免重复请求
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
             "Referer": "https://www.xiaohongshu.com/",
@@ -202,12 +203,21 @@ class XiaohongshuDownloader(Downloader):
             return None
 
     def _fetch_note_detail(self, note_id: str, original_url: str = None) -> Optional[dict]:
-        """获取笔记详情，先尝试页面解析，失败后尝试 API"""
+        """获取笔记详情，先尝试页面解析，失败后尝试 API。支持缓存避免重复请求。"""
+        # 检查缓存
+        if note_id in self._note_cache:
+            logger.info(f"使用缓存的笔记详情: note_id={note_id}")
+            return self._note_cache[note_id]
+
         note = self._fetch_note_detail_page(note_id, original_url)
         if note:
+            self._note_cache[note_id] = note
             return note
         logger.info("页面解析失败，尝试 API 方式")
-        return self._fetch_note_detail_api(note_id)
+        note = self._fetch_note_detail_api(note_id)
+        if note:
+            self._note_cache[note_id] = note
+        return note
 
     def _parse_note(self, note: dict, note_id: str) -> dict:
         """解析笔记数据，返回统一格式"""
@@ -429,7 +439,7 @@ class XiaohongshuDownloader(Downloader):
         if not note_id:
             raise ValueError(f"无法提取笔记 ID: {video_url}")
 
-        note = downloader._fetch_note_detail(note_id)
+        note = downloader._fetch_note_detail(note_id, video_url)
         if not note:
             raise ValueError("获取笔记详情失败")
 
@@ -460,6 +470,24 @@ class XiaohongshuDownloader(Downloader):
                 master_url = s.get("master_url", "") or s.get("backup_urls", [""])[0]
                 if master_url:
                     return master_url
+
+        # 新版结构：mediaV2 (JSON 字符串) → stream → h264/h265
+        mediaV2_str = video_info.get("mediaV2", "")
+        if mediaV2_str and isinstance(mediaV2_str, str):
+            try:
+                mediaV2 = json.loads(mediaV2_str)
+                v2_stream = mediaV2.get("stream", {})
+                for codec in ["h264", "h265", "av1"]:
+                    streams = v2_stream.get(codec, [])
+                    for s in streams:
+                        master_url = s.get("master_url", "") or s.get("backup_urls", [""])[0]
+                        if master_url:
+                            # 确保使用 https
+                            if master_url.startswith("http://"):
+                                master_url = "https://" + master_url[7:]
+                            return master_url
+            except (json.JSONDecodeError, TypeError):
+                pass
 
         # url 字段
         if video_info.get("url"):

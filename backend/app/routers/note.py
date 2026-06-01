@@ -1,6 +1,7 @@
 # app/routers/note.py
 import json
 import os
+import re
 import uuid
 import hashlib
 import ipaddress
@@ -1380,3 +1381,107 @@ async def check_remote_status(url: str, current_user=Depends(get_current_user)):
         return {"code": 0, "data": {"exists": False, "reason": "请求超时"}}
     except Exception as e:
         return {"code": 0, "data": {"exists": False, "reason": str(e)}}
+
+
+# ==================== 媒体文件接口 ====================
+
+@router.get("/note_media/{task_id}")
+def get_note_media(task_id: str, current_user=Depends(get_current_user)) -> dict:
+    """
+    获取笔记的媒体文件列表（图片、实况视频等）
+
+    根据笔记的 content_type 返回对应的媒体文件：
+    - article: 纯图片列表
+    - live_photo: 图片列表 + 对应的实况视频
+    - video: 返回空列表（视频类型走现有播放流程）
+
+    :param task_id: 任务 ID
+    :return: 媒体文件列表
+    """
+    from app.utils.path_helper import (
+        VIDEO_DIR, _get_platform_dir, get_author_folder_name, get_video_folder_name,
+        find_note_file
+    )
+
+    try:
+        # 1. 从数据库获取任务信息
+        task = get_task_by_task_id(task_id)
+        if not task:
+            return R.error(msg="任务不存在")
+
+        author_id = task.author_id
+        author_name = task.author_name
+        video_id = task.video_id
+        title = task.title
+        platform = task.platform or ""
+
+        # 2. 读取 note.json 获取 content_type
+        note_file = find_note_file(
+            task_id, author_id, author_name, video_id, title, "note", platform,
+            user_id=current_user.id if current_user else None
+        )
+        content_type = "video"
+        if note_file and note_file.exists():
+            try:
+                with open(note_file, "r", encoding="utf-8") as f:
+                    note_data = json.load(f)
+                    content_type = note_data.get("content_type", "video")
+            except Exception:
+                pass
+
+        # 视频类型：不需要图片列表
+        if content_type == "video":
+            return R.success(data={
+                "content_type": "video",
+                "images": [],
+                "live_photos": []
+            })
+
+        # 3. 定位视频目录
+        if not author_id:
+            return R.error(msg="缺少 author_id，无法定位媒体目录")
+
+        platform_dir_name = _get_platform_dir(platform)
+        author_folder = get_author_folder_name(author_id, author_name, platform)
+        video_folder = get_video_folder_name(video_id, title)
+        video_dir = VIDEO_DIR / platform_dir_name / author_folder / video_folder
+
+        if not video_dir.exists():
+            return R.error(msg="媒体目录不存在")
+
+        # 4. 扫描目录获取图片和实况视频
+        images = []
+        live_photos = []
+
+        for f in sorted(video_dir.iterdir()):
+            if f.is_file():
+                filename = f.name.lower()
+                # 图片文件：image_*.jpg 或 cover.jpg
+                if filename.startswith("image_") and filename.endswith(".jpg"):
+                    api_url = f"/api/note_media_file/{platform}/{author_id}/{video_id}/{f.name}"
+                    images.append(api_url)
+                # 实况视频：live_photo_*.mp4
+                elif filename.startswith("live_photo_") and filename.endswith(".mp4"):
+                    # 提取索引号，匹配对应图片
+                    match = re.search(r"live_photo_(\d+)", f.name)
+                    if match:
+                        idx = match.group(1)
+                        api_url = f"/api/note_media_file/{platform}/{author_id}/{video_id}/{f.name}"
+                        live_photos.append({
+                            "index": int(idx),
+                            "video_url": api_url
+                        })
+
+        # 排序实况视频按索引
+        live_photos.sort(key=lambda x: x["index"])
+
+        return R.success(data={
+            "content_type": content_type,
+            "images": images,
+            "live_photos": live_photos,
+            "cover_url": f"/api/video_cover/{platform}/{author_id}/{video_id}"
+        })
+
+    except Exception as e:
+        logger.error(f"获取媒体文件失败: {e}")
+        return R.error(msg=str(e))

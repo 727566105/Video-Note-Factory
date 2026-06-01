@@ -179,3 +179,32 @@ html, body, #root {
   100% { transform: scale(1); opacity: 1; }
 }
 .animate-bounce-in { animation: bounce-in 0.5s ease-out; }
+
+/* Media Gallery Swiper */
+.media-swiper {
+  width: 100%;
+  overflow: hidden;
+}
+.media-swiper .swiper-slide {
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-pagination-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  opacity: 0.3;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.media-pagination-dot-active {
+  opacity: 1;
+  background: var(--foreground);
+  width: 18px;
+  border-radius: 3px;
+}

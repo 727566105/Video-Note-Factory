@@ -127,3 +127,57 @@ async def get_video_file(platform: str, author_id: str, video_id: str):
                     )
 
     raise HTTPException(status_code=404, detail="Video file not found")
+
+
+# 笔记媒体文件 API（图片、实况视频等）
+media_router = APIRouter(prefix="/api/note_media_file", tags=["note_media_file"])
+
+
+_MEDIA_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+}
+
+
+@media_router.get("/{platform}/{author_id}/{video_id}/{filename}")
+async def get_note_media_file(
+    platform: str, author_id: str, video_id: str, filename: str
+):
+    """从四级目录中读取媒体文件（图片、实况视频等）"""
+    platform_dir = _get_platform_dir(platform)
+
+    plat_path = VIDEO_DIR / platform_dir
+    if not plat_path.exists():
+        raise HTTPException(status_code=404, detail="Platform directory not found")
+
+    # 防止路径遍历攻击
+    for part in (platform, author_id, video_id, filename):
+        if ".." in part or "/" in part or "\\" in part:
+            raise HTTPException(status_code=400, detail="Invalid parameter")
+
+    # 只允许特定前缀的文件名
+    allowed_prefixes = ("image_", "live_photo_", "cover.")
+    if not any(filename.startswith(p) or filename == "cover.jpg" for p in allowed_prefixes):
+        raise HTTPException(status_code=400, detail="Filename not allowed")
+
+    for author_folder in plat_path.iterdir():
+        if not author_folder.is_dir():
+            continue
+        if not author_folder.name.startswith(author_id):
+            continue
+        for video_folder in author_folder.iterdir():
+            if not video_folder.is_dir():
+                continue
+            if not video_folder.name.startswith(video_id):
+                continue
+            file_path = video_folder / filename
+            if file_path.exists():
+                ext = file_path.suffix.lower()
+                media_type = _MEDIA_TYPES.get(ext, "application/octet-stream")
+                return FileResponse(str(file_path), media_type=media_type)
+
+    raise HTTPException(status_code=404, detail="Media file not found")

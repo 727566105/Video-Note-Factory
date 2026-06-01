@@ -23,5 +23,6 @@ def create_app(lifespan) -> FastAPI:
     app.include_router(screenshot.router)
     app.include_router(screenshot.cover_router)
     app.include_router(screenshot.video_router)
+    app.include_router(screenshot.media_router)
 
     return app

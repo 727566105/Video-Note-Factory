@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useAuthStore } from "@/store/authStore"
 import { useNavigate, useLocation } from "react-router-dom"
 import { LogOut, Settings, ArrowLeft } from "lucide-react"
-import logoImg from "@/../public/logo.png"
+
 import { Button } from "@/components/ui/button"
 import { useTaskStore } from "@/store/taskStore"
 
@@ -159,7 +159,7 @@ export function SiteHeader() {
             className="flex items-center gap-2 shrink-0"
           >
             <img
-              src={logoImg}
+              src="/logo.png"
               alt="VideoNote"
               className="h-8 w-8 rounded-lg object-cover"
             />
