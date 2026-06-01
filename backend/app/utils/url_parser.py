@@ -17,12 +17,26 @@ _URL_RE = re.compile(r'https?://[^\s<>"\']+')
 
 def _resolve_short_url(short_url: str, timeout: int = 5) -> Optional[str]:
     """通过 HTTP 重定向解析短链接的真实 URL"""
+    from urllib.parse import urlparse
+    original_hostname = urlparse(short_url).hostname
+
+    # 优先 HEAD（更快）
     try:
         response = requests.head(short_url, allow_redirects=True, timeout=timeout, headers=_COMMON_HEADERS)
-        return response.url
+        if urlparse(response.url).hostname != original_hostname:
+            return response.url
+    except requests.RequestException:
+        pass
+
+    # HEAD 未成功，尝试 GET（某些短链接服务如 xhslink.com/o/ 不支持 HEAD）
+    try:
+        response = requests.get(short_url, allow_redirects=True, timeout=timeout, headers=_COMMON_HEADERS)
+        if urlparse(response.url).hostname != original_hostname:
+            return response.url
     except requests.RequestException as e:
         logger.warning(f"解析短链接失败 {short_url}: {e}")
-        return None
+
+    return None
 
 
 def _extract_douyin_url_from_text(text: str) -> Optional[str]:

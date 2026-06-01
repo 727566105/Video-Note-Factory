@@ -52,34 +52,39 @@ class XiaohongshuDownloader(Downloader):
     def _extract_note_id(self, url: str) -> str:
         """从 URL 提取笔记 ID"""
         url = url.strip()
+        self._resolved_url = None
 
         # 小红书域名白名单
         XHS_ALLOWED_DOMAINS = ['xiaohongshu.com', 'www.xiaohongshu.com']
 
         # 处理短链接
         if 'xhslink.com' in url or '.xhslink.com' in url:
+            resolved_url = None
+            # 优先 HEAD（更快）
             try:
                 resp = requests.head(url, headers=self.headers, allow_redirects=True, timeout=10)
-                resolved_url = resp.url
-                # 安全检查：验证重定向目标是否属于小红书域名
-                parsed = urlparse(resolved_url)
-                if parsed.hostname not in XHS_ALLOWED_DOMAINS:
-                    logger.error(f"短链接重定向到非小红书域名: {parsed.hostname}")
-                    return ""
-                url = resolved_url
+                parsed = urlparse(resp.url)
+                if parsed.hostname in XHS_ALLOWED_DOMAINS:
+                    resolved_url = resp.url
             except Exception:
-                # GET 兜底
+                pass
+
+            # HEAD 未成功重定向，尝试 GET（xhslink.com/o/ 格式不支持 HEAD）
+            if not resolved_url:
                 try:
                     resp = requests.get(url, headers=self.headers, timeout=10, allow_redirects=True)
-                    resolved_url = resp.url
-                    parsed = urlparse(resolved_url)
-                    if parsed.hostname not in XHS_ALLOWED_DOMAINS:
-                        logger.error(f"短链接重定向到非小红书域名: {parsed.hostname}")
-                        return ""
-                    url = resolved_url
+                    parsed = urlparse(resp.url)
+                    if parsed.hostname in XHS_ALLOWED_DOMAINS:
+                        resolved_url = resp.url
                 except Exception as e:
                     logger.error(f"解析小红书短链接失败: {e}")
                     return ""
+
+            if not resolved_url:
+                logger.error("短链接重定向到非小红书域名或解析失败")
+                return ""
+            self._resolved_url = resolved_url
+            url = resolved_url
 
         # 从 URL 提取 note_id
         # https://www.xiaohongshu.com/explore/{note_id}
@@ -108,8 +113,11 @@ class XiaohongshuDownloader(Downloader):
 
     def _fetch_note_detail_page(self, note_id: str, original_url: str = None) -> Optional[dict]:
         """通过页面解析获取笔记详情（更可靠，不需要 API 签名）"""
-        # 优先使用原始 URL（可能包含 xsec_token 等必要参数）
-        if original_url and note_id in original_url:
+        # 优先使用短链接解析后的完整 URL（可能包含 xsec_token 等必要参数）
+        resolved = getattr(self, '_resolved_url', None)
+        if resolved and note_id in resolved:
+            url = resolved
+        elif original_url and note_id in original_url:
             url = original_url
         else:
             url = f"{XHS_DOMAIN}/explore/{note_id}"
