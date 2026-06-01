@@ -16,6 +16,7 @@ class DownloadHelper:
     TRUSTED_CDN_SUFFIXES = (
         "douyinpic.com",      # 抖音图片 CDN
         "douyinvod.com",      # 抖音视频 CDN（实况照片等）
+        "douyinstatic.com",   # 抖音音乐 CDN
         "douyin.com",         # 抖音主站
         "byteimg.com",        # 字节跳动图片 CDN
         "bytedance.com",      # 字节跳动

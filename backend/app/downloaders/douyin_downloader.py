@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import re
+import time
 from typing import Union, Optional
 from urllib.parse import quote, urlencode
 import logging
@@ -139,6 +140,8 @@ class DouyinDownloader(Downloader):
         self.proxies_config = DouyinConfig.PROXIES.copy()
         self.ttwid_config = DouyinConfig.TTWID.copy()
         self.ms_token_config = DouyinConfig.MS_TOKEN.copy()
+        self._cached_aweme_id = None
+        self._cached_video_data = None
 
     @staticmethod
     def find_url(string: str) -> list:
@@ -211,21 +214,17 @@ class DouyinDownloader(Downloader):
 
     def fetch_video_info(self, video_url: str) -> json:
         """
-        获取抖音视频信息
-        
-        Args:
-            video_url: 视频 URL 或分享文本
-            
-        Returns:
-            视频信息的 JSON 数据
-            
-        Raises:
-            ValueError: 当请求失败或响应无效时
+        获取抖音视频信息（带缓存，避免并行下载时重复请求）
         """
         try:
             aweme_id = self.extract_video_id(video_url)
             if not aweme_id:
                 raise ValueError(f"无法从 URL 中提取视频 ID: {video_url}")
+
+            # 缓存命中检查
+            if self._cached_aweme_id == aweme_id and self._cached_video_data:
+                logger.info(f"使用缓存的视频信息: {aweme_id}")
+                return self._cached_video_data
             
             logger.info(f"开始获取抖音视频信息，aweme_id: {aweme_id}")
             
@@ -272,12 +271,18 @@ class DouyinDownloader(Downloader):
                 # 检查响应结构
                 if 'aweme_detail' not in json_data:
                     logger.warning(f"响应中缺少 aweme_detail 字段，完整响应: {json.dumps(json_data, ensure_ascii=False)[:500]}")
-                    
+
                     # 检查是否有错误信息
                     if 'status_code' in json_data and json_data['status_code'] != 0:
                         error_msg = json_data.get('status_msg', '未知错误')
                         raise ValueError(f"抖音 API 返回错误: {error_msg}")
-                
+
+                    # aweme_detail 缺失但无错误码，抛出异常
+                    raise ValueError(f"抖音 API 响应缺少 aweme_detail: {json.dumps(json_data, ensure_ascii=False)[:200]}")
+
+                # 缓存结果
+                self._cached_aweme_id = aweme_id
+                self._cached_video_data = json_data
                 return json_data
                 
             except json.JSONDecodeError as e:
@@ -487,6 +492,18 @@ class DouyinDownloader(Downloader):
             else:
                 # 音频链接为空时，从已下载的视频中提取音频
                 video_file = os.path.join(output_dir, f"{video_id}.mp4")
+
+                # 并行下载时视频线程可能还在下载，等待文件写入完成
+                if not os.path.exists(video_file) or os.path.getsize(video_file) == 0:
+                    prev_size = 0
+                    for _ in range(60):
+                        time.sleep(2)
+                        if os.path.exists(video_file) and os.path.getsize(video_file) > 0:
+                            curr_size = os.path.getsize(video_file)
+                            if curr_size == prev_size and curr_size > 0:
+                                break
+                            prev_size = curr_size
+
                 if os.path.exists(video_file):
                     import subprocess
                     subprocess.run(
