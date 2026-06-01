@@ -5,17 +5,25 @@
 
 set -e
 
-PROJECT_ROOT="/Users/dickies/Documents/workspaces/VideoNote-v3"
-BACKEND_PORT=8483
-FRONTEND_PORT=3015
+# 获取脚本所在目录（项目根目录）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 从 .env 读取端口配置，如果不存在则使用默认值
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    BACKEND_PORT=$(grep -E "^BACKEND_PORT=" "$SCRIPT_DIR/.env" | cut -d'=' -f2 || echo "")
+    FRONTEND_PORT=$(grep -E "^FRONTEND_PORT=" "$SCRIPT_DIR/.env" | cut -d'=' -f2 || echo "")
+    APP_PORT=$(grep -E "^APP_PORT=" "$SCRIPT_DIR/.env" | cut -d'=' -f2 || echo "")
+fi
+BACKEND_PORT=${BACKEND_PORT:-8483}
+FRONTEND_PORT=${FRONTEND_PORT:-${APP_PORT:-3015}}
 
 echo "=========================================="
 echo "  VideoNote 服务关闭脚本"
 echo "=========================================="
 echo ""
 
-cd "$PROJECT_ROOT"
-echo "[INFO] 工作目录: $PROJECT_ROOT"
+cd "$SCRIPT_DIR"
+echo "[INFO] 工作目录: $SCRIPT_DIR"
 
 # 1. 停止 Docker 容器
 echo ""
@@ -65,6 +73,17 @@ stop_port_process() {
 
 stop_port_process $BACKEND_PORT "后端"
 stop_port_process $FRONTEND_PORT "前端"
+
+# 额外清理其他可能的前端端口（兼容不同配置）
+for port in 3015 3016; do
+    if [ "$port" != "$FRONTEND_PORT" ] && [ "$port" != "$BACKEND_PORT" ]; then
+        pid=$(lsof -ti:$port 2>/dev/null || true)
+        if [ -n "$pid" ]; then
+            echo "[INFO] 清理额外端口 $port (PID: $pid)"
+            kill -9 $pid 2>/dev/null || true
+        fi
+    fi
+done
 
 # 额外清理可能残留的进程
 echo ""
