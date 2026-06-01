@@ -102,6 +102,7 @@ export function MediaGallery({ taskId, contentType, className }: MediaGalleryPro
         loop={total > 2}
         slidesPerView={1}
         spaceBetween={0}
+        autoHeight={true}
       >
         {mediaData.images.map((imageUrl, idx) => {
           const livePhoto = mediaData.live_photos.find(lp => lp.index === idx + 1)

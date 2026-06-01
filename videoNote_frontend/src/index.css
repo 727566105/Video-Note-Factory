@@ -185,7 +185,11 @@ html, body, #root {
   width: 100%;
   overflow: hidden;
 }
+.media-swiper .swiper-wrapper {
+  height: auto;
+}
 .media-swiper .swiper-slide {
+  height: auto;
   flex-shrink: 0;
   overflow: hidden;
   display: flex;
