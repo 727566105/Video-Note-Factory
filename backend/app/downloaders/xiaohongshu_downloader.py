@@ -304,18 +304,36 @@ class XiaohongshuDownloader(Downloader):
         parsed = self._parse_note(note, note_id)
         content_type = "video" if parsed["is_video"] else "article"
 
-        # 图文：提取图片 URL 列表
+        # 图文：提取图片 URL 列表 + 实况照片检测
         images_with_video = None
         if not parsed["is_video"]:
             image_list = note.get("imageList", [])
             image_urls = []
+            images_with_video_list = []
+            has_live_photo = False
+
             for img in image_list:
                 url = img.get("urlDefault", "") or img.get("url", "")
                 if url and not url.startswith("http"):
                     url = "https:" + url
                 if url:
                     image_urls.append(url)
+
+                video_url_lp = self._extract_live_photo_video(img)
+                if video_url_lp:
+                    has_live_photo = True
+                images_with_video_list.append({
+                    "image_url": url,
+                    "video_url": video_url_lp,
+                })
+
             parsed["image_urls"] = image_urls
+
+            if has_live_photo:
+                content_type = "live_photo"
+                images_with_video = images_with_video_list
+                live_count = sum(1 for x in images_with_video_list if x["video_url"])
+                logger.info(f"检测到实况照片，共 {live_count} 个视频")
 
         return VideoInfoResult(
             title=parsed["title"],
@@ -333,6 +351,7 @@ class XiaohongshuDownloader(Downloader):
                 "note_type": parsed["note_type"],
                 "images": parsed.get("image_urls", []),
                 "owner": {"name": parsed["author_name"]},
+                "images_with_video": images_with_video,
             },
         )
 
@@ -354,10 +373,13 @@ class XiaohongshuDownloader(Downloader):
         parsed = self._parse_note(note, note_id)
         content_type = "video" if parsed["is_video"] else "article"
 
-        # 图文笔记：下载所有图片
+        # 图文笔记：下载所有图片 + 实况照片视频
         if not parsed["is_video"]:
             image_list = note.get("imageList", [])
             downloaded_paths = []
+            images_with_video_list = []
+            has_live_photo = False
+
             for i, img in enumerate(image_list):
                 img_url = img.get("urlDefault", "") or img.get("url", "")
                 if img_url and not img_url.startswith("http"):
@@ -368,7 +390,24 @@ class XiaohongshuDownloader(Downloader):
                     if img_path:
                         downloaded_paths.append(img_path)
 
+                # 实况照片视频下载
+                live_video_url = self._extract_live_photo_video(img)
+                if live_video_url:
+                    has_live_photo = True
+                    self._download_file(live_video_url, output_dir, f"live_photo_{i + 1}.mp4")
+                    logger.info(f"实况照片视频已下载: live_photo_{i + 1}.mp4")
+                images_with_video_list.append({
+                    "image_url": img_url,
+                    "video_url": live_video_url,
+                })
+
             cover_url = downloaded_paths[0] if downloaded_paths else parsed["cover_url"]
+
+            if has_live_photo:
+                content_type = "live_photo"
+                images_with_video_final = images_with_video_list
+            else:
+                images_with_video_final = None
 
             return AudioDownloadResult(
                 file_path=None,
@@ -377,27 +416,50 @@ class XiaohongshuDownloader(Downloader):
                 cover_url=cover_url,
                 platform="xiaohongshu",
                 video_id=note_id,
-                content_type="article",
+                content_type=content_type,
                 images=downloaded_paths,
                 author_id=parsed["author_id"],
                 author_name=parsed["author_name"],
                 description=parsed["desc"],
                 raw_info={
-                    "content_type": "article",
+                    "content_type": content_type,
                     "images": downloaded_paths,
                     "note_type": parsed["note_type"],
+                    "images_with_video": images_with_video_final,
                 },
                 tags=parsed.get("tags", []),
             )
 
-        # 视频笔记：下载音频
+        # 视频笔记：下载视频 + ffmpeg 提取音频
         video_info = note.get("video", {})
         video_url_resolved = self._extract_video_url(video_info)
         if not video_url_resolved:
             raise ValueError("无法提取视频下载地址")
 
+        # 先下载视频文件
+        video_path = os.path.join(output_dir, f"{note_id}.mp4")
         audio_path = os.path.join(output_dir, f"{note_id}.mp3")
-        self._download_file(video_url_resolved, output_dir, f"{note_id}.mp3")
+        self._download_file(video_url_resolved, output_dir, f"{note_id}.mp4")
+
+        # 用 ffmpeg 从视频提取音频
+        if os.path.exists(video_path):
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["ffmpeg", "-y", "-i", video_path, "-vn", "-acodec", "libmp3lame", "-q:a", "2", audio_path],
+                    capture_output=True, text=True, timeout=60
+                )
+                if result.returncode != 0:
+                    logger.warning(f"ffmpeg 音频提取失败: {result.stderr[:200]}")
+                    audio_path = video_path
+                else:
+                    logger.info(f"音频提取成功: {audio_path}")
+            except Exception as e:
+                logger.warning(f"ffmpeg 提取音频异常: {e}")
+                audio_path = video_path
+        else:
+            logger.warning(f"视频文件下载失败，无法提取音频")
+            audio_path = None
 
         # 封面下载
         cover_url = parsed["cover_url"]
@@ -501,6 +563,37 @@ class XiaohongshuDownloader(Downloader):
         if video_info.get("url"):
             return video_info["url"]
 
+        return ""
+
+    @staticmethod
+    def _extract_live_photo_video(img: dict) -> str:
+        """从小红书图片对象中提取实况照片视频 URL"""
+        if not img.get("livePhoto") and not img.get("live_photo"):
+            return ""
+
+        stream = img.get("stream", {})
+        if not stream:
+            logger.debug(f"实况照片图片缺少 stream 字段, keys={list(img.keys())}")
+            return ""
+
+        for codec in ["h264", "h265", "av1"]:
+            streams = stream.get(codec, [])
+            for s in streams:
+                master_url = s.get("master_url", "")
+                if not master_url and s.get("backup_urls"):
+                    master_url = s["backup_urls"][0]
+                if master_url:
+                    if master_url.startswith("http://"):
+                        master_url = "https://" + master_url[7:]
+                    return master_url
+
+        url = stream.get("url", "")
+        if url:
+            if url.startswith("http://"):
+                url = "https://" + url[7:]
+            return url
+
+        logger.info(f"实况照片 stream 字段结构: {list(stream.keys())}")
         return ""
 
     @staticmethod

@@ -127,6 +127,7 @@ class WhisperTranscriber(Transcriber):
             return result
         except Exception as e:
             logger.error(f"转写失败：{e}")
+            raise
 
 
     def on_finish(self,video_path:str,result: TranscriptResult)->None:

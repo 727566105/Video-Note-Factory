@@ -4,7 +4,10 @@ import ipaddress
 import logging
 import os
 import requests
+import time
 from urllib.parse import urlparse
+from requests.exceptions import ConnectionError, Timeout, ChunkedEncodingError
+from urllib3.exceptions import IncompleteRead
 
 logger = logging.getLogger(__name__)
 
@@ -88,17 +91,21 @@ class DownloadHelper:
         output_path: str,
         filename: str,
         referer: str = None,
-        timeout: int = 15
+        timeout: int = 30,
+        max_retries: int = 3,
+        stream: bool = True,
     ) -> str:
         """
-        统一文件下载方法，包含安全检查。
+        统一文件下载方法，包含安全检查和重试机制。
 
         Args:
             url: 文件 URL
             output_path: 输出目录
             filename: 输出文件名
             referer: Referer Header（可选）
-            timeout: 超时时间（秒）
+            timeout: 超时时间（秒），默认 30s
+            max_retries: 最大重试次数，默认 3 次
+            stream: 是否使用流式下载（大文件推荐），默认 True
 
         Returns:
             str: 本地文件路径，失败返回空字符串
@@ -114,20 +121,41 @@ class DownloadHelper:
         if referer:
             headers["Referer"] = referer
 
-        try:
-            resp = requests.get(url, headers=headers, timeout=timeout)
-            if resp.status_code == 200:
-                file_path = os.path.join(output_path, filename)
-                with open(file_path, "wb") as f:
-                    f.write(resp.content)
-                logger.info(f"文件下载成功: {file_path}")
-                return file_path
-            else:
-                logger.warning(f"下载失败，状态码: {resp.status_code}, URL: {url[:80]}...")
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = requests.get(url, headers=headers, timeout=timeout, stream=stream)
+                if resp.status_code == 200:
+                    file_path = os.path.join(output_path, filename)
+                    if stream:
+                        with open(file_path, "wb") as f:
+                            for chunk in resp.iter_content(chunk_size=8192):
+                                if chunk:
+                                    f.write(chunk)
+                    else:
+                        with open(file_path, "wb") as f:
+                            f.write(resp.content)
+                    logger.info(f"文件下载成功: {file_path}")
+                    return file_path
+                else:
+                    logger.warning(f"下载失败，状态码: {resp.status_code}, URL: {url[:80]}...")
+                    if attempt < max_retries:
+                        time.sleep(2)
+                        continue
+                    return ""
+            except (ConnectionError, Timeout, IncompleteRead, ChunkedEncodingError) as e:
+                logger.warning(f"下载网络异常 (尝试 {attempt}/{max_retries}): {e}, URL: {url[:80]}...")
+                if attempt < max_retries:
+                    time.sleep(3)
+                    continue
                 return ""
-        except Exception as e:
-            logger.warning(f"下载异常: {e}, URL: {url[:80]}...")
-            return ""
+            except Exception as e:
+                logger.warning(f"下载异常: {e}, URL: {url[:80]}...")
+                if attempt < max_retries:
+                    time.sleep(2)
+                    continue
+                return ""
+
+        return ""
 
     @staticmethod
     def get_referer(platform: str) -> str:

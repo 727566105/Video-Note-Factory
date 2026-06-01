@@ -965,63 +965,68 @@ class NoteGenerator:
                 data = json.loads(audio_cache_file.read_text(encoding="utf-8"))
                 audio_meta = AudioDownloadResult(**data)
 
-                # 不需要视频，直接返回缓存的音频
-                if not need_video:
+                # 验证缓存中的音频文件是否实际存在
+                if not audio_meta.file_path or not os.path.exists(audio_meta.file_path):
+                    logger.warning(f"音频缓存文件路径无效或不存在: {audio_meta.file_path}，删除缓存重新下载")
+                    audio_cache_file.unlink(missing_ok=True)
+                    # 跳出缓存分支，继续走下载逻辑
+                elif not need_video:
+                    # 不需要视频，直接返回缓存的音频
                     return audio_meta
+                else:
+                    # 需要视频，检查视频是否已缓存（使用 video_id 查找）
+                    _author_name = None
+                    if audio_meta.raw_info:
+                        owner = audio_meta.raw_info.get("owner", {})
+                        _author_name = owner.get("name", "") if owner else ""
+                        if not _author_name:
+                            _author_name = audio_meta.raw_info.get("uploader", "")
+                        if not _author_name:
+                            _author_name = audio_meta.raw_info.get("channel", "")
 
-                # 需要视频，检查视频是否已缓存（使用 video_id 查找）
-                _author_name = None
-                if audio_meta.raw_info:
-                    owner = audio_meta.raw_info.get("owner", {})
-                    _author_name = owner.get("name", "") if owner else ""
-                    if not _author_name:
-                        _author_name = audio_meta.raw_info.get("uploader", "")
-                    if not _author_name:
-                        _author_name = audio_meta.raw_info.get("channel", "")
-
-                if self._check_video_cached(
-                    audio_meta.video_id,
-                    author_id=audio_meta.author_id,
-                    author_name=_author_name,
-                    title=audio_meta.title,
-                    platform=audio_meta.platform,
-                ):
-                    logger.info("视频已缓存，跳过下载")
-                    self._restore_cached_video(
-                        audio_meta.video_id, grid_size, video_interval,
+                    if self._check_video_cached(
+                        audio_meta.video_id,
                         author_id=audio_meta.author_id,
                         author_name=_author_name,
                         title=audio_meta.title,
                         platform=audio_meta.platform,
-                    )
+                    ):
+                        logger.info("视频已缓存，跳过下载")
+                        self._restore_cached_video(
+                            audio_meta.video_id, grid_size, video_interval,
+                            author_id=audio_meta.author_id,
+                            author_name=_author_name,
+                            title=audio_meta.title,
+                            platform=audio_meta.platform,
+                        )
+                        return audio_meta
+
+                    # 音频有缓存但视频没有，只下载视频
+                    logger.info("音频已缓存，仅下载视频")
+                    try:
+                        video_result = downloader.download_video(video_url, output_path)
+                        if video_result:
+                            self.video_path = Path(video_result)
+                            logger.info(f"视频下载完成：{self.video_path}")
+                            if grid_size:
+                                try:
+                                    self.video_img_urls = VideoReader(
+                                        video_path=str(self.video_path),
+                                        grid_size=tuple(grid_size),
+                                        frame_interval=video_interval,
+                                        unit_width=1280,
+                                        unit_height=720,
+                                        save_quality=90,
+                                    ).run()
+                                except Exception as exc:
+                                    logger.warning(f"缩略图生成失败：{exc}")
+                                    self.video_img_urls = []
+                        else:
+                            logger.warning("视频下载返回为空")
+                    except Exception as exc:
+                        logger.warning(f"视频下载失败（不影响音频缓存）：{exc}")
+
                     return audio_meta
-
-                # 音频有缓存但视频没有，只下载视频
-                logger.info("音频已缓存，仅下载视频")
-                try:
-                    video_result = downloader.download_video(video_url, output_path)
-                    if video_result:
-                        self.video_path = Path(video_result)
-                        logger.info(f"视频下载完成：{self.video_path}")
-                        if grid_size:
-                            try:
-                                self.video_img_urls = VideoReader(
-                                    video_path=str(self.video_path),
-                                    grid_size=tuple(grid_size),
-                                    frame_interval=video_interval,
-                                    unit_width=1280,
-                                    unit_height=720,
-                                    save_quality=90,
-                                ).run()
-                            except Exception as exc:
-                                logger.warning(f"缩略图生成失败：{exc}")
-                                self.video_img_urls = []
-                    else:
-                        logger.warning("视频下载返回为空")
-                except Exception as exc:
-                    logger.warning(f"视频下载失败（不影响音频缓存）：{exc}")
-
-                return audio_meta
 
             except Exception as e:
                 logger.warning(f"读取音频缓存失败，将重新下载：{e}")
