@@ -504,7 +504,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
       </div>
 
       {/* 媒体内容区 */}
-      <div className={cn("px-4 py-2", isMediaType && "flex-1 overflow-y-auto")}>
+      <div className="px-4 py-2 overflow-y-auto">
         {/* 远程删除提示栏 */}
         {remoteDeleted && !isMediaType && (
           <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 flex items-center gap-2">
