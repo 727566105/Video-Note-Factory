@@ -6,14 +6,11 @@ import {
   TriangleAlertIcon,
 } from "lucide-react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-import { useThemeStore } from "@/store/themeStore"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const theme = useThemeStore(state => state.theme)
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="light"
       className="toaster group"
       position="top-center"
       duration={5000}
