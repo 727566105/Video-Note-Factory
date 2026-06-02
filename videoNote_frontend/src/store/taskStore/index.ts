@@ -265,6 +265,7 @@ export const useTaskStore = create<TaskStore>()(
               return {
                 id: t.task_id,
                 status: taskStatus,
+                message: t.message || '',
                 markdown: markdownValue,
                 transcript: t.note?.transcript || {
                   full_text: '',

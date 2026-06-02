@@ -6,10 +6,33 @@ import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel, { type LocalSettings } from './RightPanel'
 import DetailNav from './DetailNav'
-import { Loader2, ArrowLeft, Video, FileText } from 'lucide-react'
+import { Loader2, ArrowLeft, Video, FileText, CircleX } from 'lucide-react'
 import { isProcessingStatus, hasMarkdownContent, ProcessingSpinner } from './processing'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
+import { useModelStore } from '@/store/modelStore'
+import { toast } from 'sonner'
+
+type ErrorCategory = {
+  type: string
+  label: string
+  color: string
+}
+
+function classifyError(msg: string): ErrorCategory {
+  const m = msg.toLowerCase()
+  if (/429|rate.?limit|限流|访问量过大|too many/.test(m))
+    return { type: 'rate_limit', label: 'API 限流', color: 'bg-orange-100 text-orange-700' }
+  if (/下载|download|video\.?download|yt-dlp/.test(m))
+    return { type: 'download', label: '下载失败', color: 'bg-red-100 text-red-700' }
+  if (/供应商|provider|api.?地址|api.?key|connect.?test/.test(m))
+    return { type: 'provider', label: '供应商错误', color: 'bg-purple-100 text-purple-700' }
+  if (/模型|model|转写|transcri|gpt|summar|总结|格式化|formatt/.test(m))
+    return { type: 'model', label: '模型调用失败', color: 'bg-blue-100 text-blue-700' }
+  if (/connection|timeout|连接|超时|network|网络/.test(m))
+    return { type: 'network', label: '网络连接失败', color: 'bg-yellow-100 text-yellow-700' }
+  return { type: 'unknown', label: '生成失败', color: 'bg-gray-100 text-gray-700' }
+}
 
 function ProcessingView({ status }: { status: string }) {
   return (
@@ -38,17 +61,53 @@ function FailedView({ message, taskId }: { message?: string; taskId: string }) {
     if (retrying) return
     setRetrying(true)
     try {
-      await useTaskStore.getState().retryTask(taskId)
+      const store = useModelStore.getState()
+      if (store.modelList.length === 0) {
+        await store.loadEnabledModels()
+      }
+      const modelList = useModelStore.getState().modelList
+      const task = useTaskStore.getState().tasks.find(t => t.id === taskId)
+      const prevModel = task?.formData?.model_name
+        ? modelList.find(m => m.model_name === task.formData.model_name)
+        : null
+      const model = prevModel || modelList[0]
+      if (!model) {
+        toast.error('没有可用的模型，请先在设置中添加模型')
+        setRetrying(false)
+        return
+      }
+      const payload = {
+        ...task?.formData,
+        model_name: model.model_name,
+        provider_id: model.provider_id,
+      }
+      await useTaskStore.getState().retryTask(taskId, payload)
     } catch {
-      // retryTask 内部已 toast
       setRetrying(false)
     }
   }
 
+  const category = message ? classifyError(message) : null
+
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background">
-      <div className="text-lg font-medium text-red-500">生成失败</div>
-      {message && <div className="text-sm text-muted-foreground">{message}</div>}
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background px-8">
+      <div className="flex items-center gap-2 text-lg font-medium text-red-500">
+        <CircleX className="h-5 w-5" />
+        生成失败
+      </div>
+      {category && (
+        <span className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium ${category.color}`}>
+          {category.label}
+        </span>
+      )}
+      {message && (
+        <div className="w-full max-w-lg rounded-md border bg-muted/50 p-3">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">错误详情</p>
+          <p className="max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-foreground">
+            {message}
+          </p>
+        </div>
+      )}
       <div className="mt-4 flex gap-3">
         <button
           onClick={handleRetry}
