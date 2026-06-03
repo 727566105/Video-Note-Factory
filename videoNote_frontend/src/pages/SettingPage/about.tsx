@@ -23,7 +23,7 @@ export default function AboutPage() {
               height={isMobile ? 40 : 50}
               className="rounded-lg"
             />
-<h1 className={isMobile ? 'text-2xl font-bold' : 'text-4xl font-bold'}>videoNote v3.0.3</h1>
+<h1 className={isMobile ? 'text-2xl font-bold' : 'text-4xl font-bold'}>videoNote v3.0.31</h1>
           </div>
           <p className={cn(
             "text-muted-foreground mb-4 md:mb-6 italic",
