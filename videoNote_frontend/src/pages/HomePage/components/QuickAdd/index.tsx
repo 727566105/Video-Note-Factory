@@ -3,6 +3,9 @@ import { useSearchParams } from 'react-router-dom'
 import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2, FileBox, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useHomeGuide } from '@/hooks/useHomeGuide'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { GuideOverlay } from '@/components/GuideOverlay'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -42,6 +45,8 @@ export function QuickAdd({ className }: QuickAddProps) {
   const { selectedModel, modelList, loadEnabledModels } = useModelStore()
   const { addPendingTask } = useTaskStore()
   const autoSubmitRef = useRef(false)
+  const guide = useHomeGuide()
+  const isMobile = useIsMobile()
 
   // 笔记可用性预检对话框
   const [availabilityDialog, setAvailabilityDialog] = useState<{ available: boolean; task_id?: string; title?: string } | null>(null)
@@ -52,6 +57,13 @@ export function QuickAdd({ className }: QuickAddProps) {
       loadEnabledModels()
     }
   }, [])
+
+  // 首次进入首页时显示引导（仅桌面端）
+  useEffect(() => {
+    if (isMobile || !guide.shouldShow()) return
+    const timer = setTimeout(guide.startGuide, 800)
+    return () => clearTimeout(timer)
+  }, [isMobile])
 
   // 从 URL 参数读取链接并自动触发提交
   useEffect(() => {
@@ -420,7 +432,7 @@ export function QuickAdd({ className }: QuickAddProps) {
       {/* 链接输入 */}
       {activeTab === 'link' && (
       <div className="w-full max-w-[1000px] flex flex-col gap-4">
-        <div className="flex flex-col border-2 border-border rounded-xl bg-background overflow-hidden">
+        <div data-guide="home-input" className="flex flex-col border-2 border-border rounded-xl bg-background overflow-hidden">
           {/* 输入框 */}
           <div className="p-4">
             <textarea
@@ -435,6 +447,7 @@ export function QuickAdd({ className }: QuickAddProps) {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-t border-border">
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
+                data-guide="home-settings"
                 className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={() => setSettingsOpen(true)}
               >
@@ -443,6 +456,7 @@ export function QuickAdd({ className }: QuickAddProps) {
                 <span className="sm:hidden">设置</span>
               </button>
               <button
+                data-guide="home-model"
                 className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                 onClick={() => setModelSelectOpen(true)}
               >
@@ -451,7 +465,7 @@ export function QuickAdd({ className }: QuickAddProps) {
               </button>
               {/* 平台选择下拉器 */}
               <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                <SelectTrigger className="h-7 px-2.5 border-0 bg-transparent gap-1 text-sm text-foreground hover:bg-accent rounded-md focus:ring-0 focus:ring-offset-0 [&>svg]:hidden w-auto">
+                <SelectTrigger data-guide="home-platform" className="h-7 px-2.5 border-0 bg-transparent gap-1 text-sm text-foreground hover:bg-accent rounded-md focus:ring-0 focus:ring-offset-0 [&>svg]:hidden w-auto">
                   {selectedPlatform === 'auto' ? (
                     <div className="flex items-center gap-1.5">
                       <Wand2 className="w-4 h-4" />
@@ -513,6 +527,7 @@ export function QuickAdd({ className }: QuickAddProps) {
         {/* 生成笔记按钮 */}
         <div className="flex justify-center">
           <Button
+            data-guide="home-generate"
             className="w-[280px] h-12 rounded-3xl bg-foreground text-primary-foreground hover:bg-foreground/90 flex items-center gap-2 text-base font-medium"
             onClick={handleGenerateNote}
             disabled={isGenerating}
@@ -698,6 +713,17 @@ export function QuickAdd({ className }: QuickAddProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 新手引导 */}
+      {guide.active && (
+        <GuideOverlay
+          steps={guide.steps}
+          currentStep={guide.step}
+          onNext={guide.next}
+          onPrev={guide.prev}
+          onClose={guide.close}
+        />
       )}
     </div>
   )

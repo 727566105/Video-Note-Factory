@@ -5,7 +5,8 @@ import { Navigation, Pagination } from 'swiper/modules'
 import { cn } from '@/lib/utils'
 import { getBaseURL } from '@/utils/api'
 import request from '@/utils/request'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react'
+import { FullscreenViewer } from '@/components/FullscreenViewer'
 
 import 'swiper/css'
 import 'swiper/css/navigation'
@@ -29,6 +30,7 @@ export function MediaGallery({ taskId, contentType, className }: MediaGalleryPro
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const swiperRef = useRef<HTMLDivElement>(null)
   const swiperInstance = useRef<SwiperType | null>(null)
 
@@ -85,6 +87,12 @@ export function MediaGallery({ taskId, contentType, className }: MediaGalleryPro
 
   const pagClass = `media-pag-${taskId}`
 
+  const fullImages = mediaData.images.map(url => url.startsWith('/') ? `${getBaseURL()}${url}` : url)
+  const fullLivePhotos = mediaData.live_photos.map(lp => ({
+    ...lp,
+    video_url: lp.video_url.startsWith('/') ? `${getBaseURL()}${lp.video_url}` : lp.video_url,
+  }))
+
   return (
     <div ref={swiperRef} className={cn('relative group/media', className)}>
       <Swiper
@@ -120,9 +128,17 @@ export function MediaGallery({ taskId, contentType, className }: MediaGalleryPro
         })}
       </Swiper>
 
-      {/* 分数指示器 */}
-      <div className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full bg-black/50 text-white text-xs font-medium backdrop-blur-sm">
-        {activeIndex + 1}/{total}
+      {/* 分数指示器 + 全屏按钮 */}
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+        <button
+          onClick={() => setFullscreenOpen(true)}
+          className="p-1.5 rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/60 backdrop-blur-sm transition-colors"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+        <div className="px-2.5 py-1 rounded-full bg-black/50 text-white text-xs font-medium backdrop-blur-sm">
+          {activeIndex + 1}/{total}
+        </div>
       </div>
 
       {/* 左箭头 */}
@@ -153,6 +169,15 @@ export function MediaGallery({ taskId, contentType, className }: MediaGalleryPro
       {showNavigation && (
         <div className={cn(pagClass, 'flex items-center justify-center gap-1.5 mt-2')} />
       )}
+
+      {/* 全屏查看器 */}
+      <FullscreenViewer
+        open={fullscreenOpen}
+        onClose={() => setFullscreenOpen(false)}
+        images={fullImages}
+        livePhotos={fullLivePhotos}
+        initialIndex={activeIndex}
+      />
     </div>
   )
 }
@@ -165,25 +190,24 @@ interface LivePhotoItemProps {
 
 function LivePhotoItem({ imageUrl, videoUrl, isLivePhoto }: LivePhotoItemProps) {
   const [isPlaying, setIsPlaying] = useState(false)
-  const [pressTimer, setPressTimer] = useState<number | null>(null)
+  const pressTimer = useRef<number | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const handlePressStart = () => {
     if (!isLivePhoto || !videoUrl) return
-    const timer = window.setTimeout(() => {
+    pressTimer.current = window.setTimeout(() => {
       setIsPlaying(true)
       if (videoRef.current) {
         videoRef.current.currentTime = 0
         videoRef.current.play()
       }
     }, 200)
-    setPressTimer(timer)
   }
 
   const handlePressEnd = () => {
-    if (pressTimer) {
-      clearTimeout(pressTimer)
-      setPressTimer(null)
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current)
+      pressTimer.current = null
     }
     if (isPlaying) {
       setIsPlaying(false)
@@ -212,7 +236,16 @@ function LivePhotoItem({ imageUrl, videoUrl, isLivePhoto }: LivePhotoItemProps) 
       onTouchCancel={handlePressEnd}
       onMouseDown={handlePressStart}
       onMouseUp={handlePressEnd}
-      onMouseLeave={handlePressEnd}
+      onMouseLeave={() => {
+        if (pressTimer.current) {
+          clearTimeout(pressTimer.current)
+          pressTimer.current = null
+        }
+        if (isPlaying) {
+          setIsPlaying(false)
+          if (videoRef.current) videoRef.current.pause()
+        }
+      }}
     >
       <img
         src={imageUrl}
