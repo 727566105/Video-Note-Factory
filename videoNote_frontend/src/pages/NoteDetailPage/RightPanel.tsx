@@ -310,7 +310,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 标签栏 */}
-      <div className="flex items-center gap-1 px-4 pt-4 pb-2">
+      <div data-guide="tab-bar" className="flex items-center gap-1 px-4 pt-4 pb-2">
         <div className="flex items-center gap-1 bg-muted p-1 rounded-md">
           {tabs.map((tab) => {
             const TabIcon =
@@ -340,7 +340,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
       {/* 状态行 */}
       <div className="flex items-center justify-end px-4 py-1">
         <div className="flex items-center gap-2">
-          <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} />
+          <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} data-guide="regenerate-btn" />
           <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
         </div>
       </div>
@@ -348,11 +348,11 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
       {/* 内容区 */}
       <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-border bg-accent/30 m-4">
         {/* Sticky 工具栏 */}
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
+        <div data-guide="toolbar" className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
           <div className="flex items-center gap-2">
             {isMultiVersion && (
               <Select value={currentVerId} onValueChange={setCurrentVerId}>
-                <SelectTrigger className="h-7 w-[140px] text-xs">
+                <SelectTrigger data-guide="version-select" className="h-7 w-[140px] text-xs">
                   <SelectValue>
                     {currentVerId ? `版本（${currentVerId.slice(-6)}）` : '选择版本'}
                   </SelectValue>

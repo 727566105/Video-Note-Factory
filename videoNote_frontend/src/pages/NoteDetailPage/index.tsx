@@ -9,6 +9,7 @@ import DetailNav from './DetailNav'
 import { Loader2, ArrowLeft, Video, FileText, CircleX } from 'lucide-react'
 import { isProcessingStatus, hasMarkdownContent, ProcessingSpinner } from './processing'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useDetailGuide } from '@/hooks/useDetailGuide'
 import { Button } from '@/components/ui/button'
 import { useModelStore } from '@/store/modelStore'
 import { toast } from 'sonner'
@@ -148,6 +149,7 @@ export default function NoteDetailPage() {
   const [loading, setLoading] = useState(!task)
   const [notFound, setNotFound] = useState(false)
   const isMobile = useIsMobile()
+  const { startGuide, shouldShow } = useDetailGuide()
 
   // 拖拽分割线
   const [leftWidth, setLeftWidth] = useState(592)
@@ -215,6 +217,13 @@ export default function NoteDetailPage() {
         setLoading(false)
       })
   }, [id, task, loadTasksFromBackend])
+
+  // 首次进入 SUCCESS 状态的桌面端详情页时显示引导
+  useEffect(() => {
+    if (isMobile || !task || task.status !== 'SUCCESS' || !shouldShow()) return
+    const timer = setTimeout(startGuide, 800)
+    return () => clearTimeout(timer)
+  }, [task?.status, isMobile])
 
   const onMouseDown = useCallback(() => {
     isDragging.current = true
@@ -354,6 +363,7 @@ export default function NoteDetailPage() {
 
       {/* 拖拽分割线 */}
       <div
+        data-guide="split-handle"
         className="w-4 shrink-0 cursor-col-resize flex flex-col items-center justify-center h-full relative group"
         onMouseDown={onMouseDown}
       >
