@@ -8,7 +8,20 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useAuthStore } from "@/store/authStore"
 import { useNavigate, useLocation } from "react-router-dom"
-import { LogOut, Settings, ArrowLeft } from "lucide-react"
+import {
+  ArrowLeft,
+  LogOut,
+  User,
+  BotMessageSquare,
+  HardDriveDownload,
+  Info,
+  BookOpen,
+  Cloud,
+  ListOrdered,
+  Users,
+  Rss,
+  UserCog,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useTaskStore } from "@/store/taskStore"
@@ -95,7 +108,27 @@ export function SiteHeader() {
   const logout = useAuthStore(state => state.logout)
   const tasks = useTaskStore(state => state.tasks)
 
+  const isAdmin = useAuthStore(state => state.isAdmin())
+
+  const adminItems = [
+    { path: '/settings/model', label: 'AI 模型设置', icon: <BotMessageSquare className="mr-2 h-4 w-4" /> },
+    { path: '/settings/taskqueue', label: '任务队列', icon: <ListOrdered className="mr-2 h-4 w-4" /> },
+    { path: '/settings/download', label: '下载配置', icon: <HardDriveDownload className="mr-2 h-4 w-4" /> },
+    { path: '/settings/subscription', label: '订阅设置', icon: <Rss className="mr-2 h-4 w-4" /> },
+  ]
+
+  const commonItems = [
+    { path: '/settings/users', label: '用户管理', icon: <UserCog className="mr-2 h-4 w-4" /> },
+  ]
+
+  const baseItems = [
+    { path: '/settings/siyuan', label: '思源笔记', icon: <BookOpen className="mr-2 h-4 w-4" /> },
+    { path: '/settings/webdav', label: 'WebDAV 备份', icon: <Cloud className="mr-2 h-4 w-4" /> },
+    { path: '/settings/about', label: '关于', icon: <Info className="mr-2 h-4 w-4" /> },
+  ]
+
   const handleLogout = () => {
+    useTaskStore.getState().clearTasks()
     logout()
     navigate("/login")
   }
@@ -194,11 +227,44 @@ export function SiteHeader() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
-              <Settings className="mr-2 h-4 w-4" />
-              设置
+            <DropdownMenuItem className="cursor-pointer">
+              <User className="mr-2 h-4 w-4" />
+              个人资料
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout}>
+
+            {isAdmin && adminItems.map(item => (
+              <DropdownMenuItem
+                key={item.path}
+                className="cursor-pointer"
+                onClick={() => navigate(item.path)}
+              >
+                {item.icon}
+                {item.label}
+              </DropdownMenuItem>
+            ))}
+
+            {commonItems.map(item => (
+              <DropdownMenuItem
+                key={item.path}
+                className="cursor-pointer"
+                onClick={() => navigate(item.path)}
+              >
+                {item.icon}
+                {item.label}
+              </DropdownMenuItem>
+            ))}
+            {baseItems.map(item => (
+              <DropdownMenuItem
+                key={item.path}
+                className="cursor-pointer"
+                onClick={() => navigate(item.path)}
+              >
+                {item.icon}
+                {item.label}
+              </DropdownMenuItem>
+            ))}
+
+            <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               退出登录
             </DropdownMenuItem>

@@ -1,5 +1,4 @@
 import SettingLayout from '@/layouts/SettingLayout.tsx'
-import Menu from '@/pages/SettingPage/Menu'
 import { useProviderStore } from '@/store/providerStore'
 import { useEffect } from 'react'
 
@@ -10,7 +9,7 @@ const SettingPage = () => {
   }, [])
   return (
     <div className="h-full w-full">
-      <SettingLayout Menu={<Menu />} />
+      <SettingLayout />
     </div>
   )
 }

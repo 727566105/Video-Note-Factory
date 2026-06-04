@@ -2,8 +2,17 @@
 
 import {
   LogOut,
-  Settings,
   User,
+  BotMessageSquare,
+  HardDriveDownload,
+  Info,
+  BookOpen,
+  Cloud,
+  ListOrdered,
+  Users,
+  Rss,
+  UserCog,
+  Settings,
 } from "lucide-react"
 
 import {
@@ -36,7 +45,25 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const logout = useAuthStore(state => state.logout)
+  const isAdmin = useAuthStore(state => state.isAdmin())
   const navigate = useNavigate()
+
+  const adminItems = [
+    { path: '/settings/model', label: 'AI 模型设置', icon: <BotMessageSquare className="mr-2 h-4 w-4" /> },
+    { path: '/settings/taskqueue', label: '任务队列', icon: <ListOrdered className="mr-2 h-4 w-4" /> },
+    { path: '/settings/download', label: '下载配置', icon: <HardDriveDownload className="mr-2 h-4 w-4" /> },
+    { path: '/settings/subscription', label: '订阅设置', icon: <Rss className="mr-2 h-4 w-4" /> },
+  ]
+
+  const commonItems = [
+    { path: '/settings/users', label: '用户管理', icon: <UserCog className="mr-2 h-4 w-4" /> },
+  ]
+
+  const baseItems = [
+    { path: '/settings/siyuan', label: '思源笔记', icon: <BookOpen className="mr-2 h-4 w-4" /> },
+    { path: '/settings/webdav', label: 'WebDAV 备份', icon: <Cloud className="mr-2 h-4 w-4" /> },
+    { path: '/settings/about', label: '关于', icon: <Info className="mr-2 h-4 w-4" /> },
+  ]
 
   return (
     <SidebarMenu>
@@ -73,9 +100,9 @@ export function NavUser({
                   </span>
                 </div>
               </div>
-
-              {/* 设置图标 */}
-              <Settings className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+              <div className="group-data-[collapsible=icon]:hidden">
+                <Settings className="size-4 text-muted-foreground" />
+              </div>
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -108,16 +135,56 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+
             <DropdownMenuGroup>
               <DropdownMenuItem className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 个人资料
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/settings')}>
-                <Settings className="mr-2 h-4 w-4" />
-                设置
-              </DropdownMenuItem>
             </DropdownMenuGroup>
+
+            <DropdownMenuSeparator />
+
+            {/* 管理员设置 */}
+            {isAdmin && (
+              <DropdownMenuGroup>
+                {adminItems.map(item => (
+                  <DropdownMenuItem
+                    key={item.path}
+                    className="cursor-pointer"
+                    onClick={() => navigate(item.path)}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            )}
+
+            {/* 普通设置 */}
+            <DropdownMenuGroup>
+              {commonItems.map(item => (
+                <DropdownMenuItem
+                  key={item.path}
+                  className="cursor-pointer"
+                  onClick={() => navigate(item.path)}
+                >
+                  {item.icon}
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
+              {baseItems.map(item => (
+                <DropdownMenuItem
+                  key={item.path}
+                  className="cursor-pointer"
+                  onClick={() => navigate(item.path)}
+                >
+                  {item.icon}
+                  {item.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+
             <DropdownMenuSeparator />
             <DropdownMenuItem className="cursor-pointer" onClick={() => { useTaskStore.getState().clearTasks(); logout(); navigate('/login') }}>
               <LogOut className="mr-2 h-4 w-4" />
