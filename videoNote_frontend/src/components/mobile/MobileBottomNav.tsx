@@ -48,7 +48,7 @@ export function MobileBottomNav() {
   // 资源菜单
   const resourceItems: MenuItem[] = [
     { path: '/notes', label: '笔记列表', icon: <NotebookPen className="size-4" /> },
-    { path: '/library', label: '资源库', icon: <Library className="size-4" /> },
+    { path: '/library', label: '合集', icon: <Library className="size-4" /> },
     { path: '/output', label: '产出物', icon: <Box className="size-4" /> },
   ]
 

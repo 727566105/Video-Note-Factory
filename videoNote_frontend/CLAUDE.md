@@ -10,18 +10,20 @@ pnpm dev              # 启动开发服务器 (端口 3015)
 pnpm build            # 构建生产版本
 pnpm lint             # ESLint 检查
 pnpm preview          # 预览构建结果
+pnpm test             # 运行测试 (vitest)
+pnpm test:e2e         # 运行 E2E 测试 (playwright)
 ```
+
+**注意**: 从项目根目录运行时需用 `pnpm --dir videoNote_frontend <command>`。
 
 ## 前端架构
 
 ### 技术栈
-- React 19 + TypeScript
-- Vite 构建工具
-- Tailwind CSS 4.x 样式
-- Zustand 状态管理 (带 persist 中间件)
-- Radix UI + shadcn/ui 组件
-- antd 补充组件
+- React 19 + TypeScript + Vite
+- Tailwind CSS 4.x + shadcn/ui + antd
+- Zustand (带 persist 中间件)
 - react-hook-form + zod 表单验证
+- Swiper 轮播组件
 
 ### 状态管理 (`src/store/`)
 
@@ -38,46 +40,34 @@ pnpm preview          # 预览构建结果
 | `webdavStore` | WebDAV 备份配置 | 是 | — |
 | `themeStore` | 主题切换 | 是 | — |
 
-### 路由结构 (`src/App.tsx`)
-- `ProtectedRoute`: 需要登录认证
-- `AdminRoute`: 需要管理员权限（包裹 model/download/taskqueue/subscription）
-```
-/login                      → 登录页
-/                           → 首页 (笔记生成)
-/notes                      → 笔记列表
-/notes/:id                  → 笔记详情
-/feed                       → 订阅动态
-/channels                   → 频道管理
-/channel/:platform/:id      → 频道详情
-/authors                    → 博主列表
-/authors/:id                → 博主详情
-/settings                   → 设置页
-  /settings/model           → 模型供应商 [AdminRoute]
-  /settings/download        → 下载器配置 [AdminRoute]
-  /settings/taskqueue       → 任务队列 [AdminRoute]
-  /settings/siyuan          → 思源笔记配置
-  /settings/webdav          → WebDAV 备份配置
-  /settings/about           → 关于页面
-  /settings/subscription    → 订阅管理 [AdminRoute]
-  /settings/users           → 用户管理
-```
+### 设置页架构
+- 无侧边栏，设置项在用户下拉菜单中（`nav-user.tsx` 桌面端 / `site-header.tsx` 移动端）
+- 管理员专属项通过 `isAdmin()` 判断显示
+- 桌面端 `/settings` 重定向到 `/settings/about`
 
-### 布局模式
-- 桌面端: `SidebarProvider` + `AppSidebar` 侧边栏布局
-- 移动端: `SiteHeader` + `MobileBottomNav` 底部导航 + `SwipeBackHandler` 滑动返回
+### 笔记详情页 (`src/pages/NoteDetailPage/`)
+- `LeftPanel.tsx`: 视频播放 + 任务状态 + 总结设置
+- `RightPanel.tsx`: Markdown / 思维导图 / 转写文本 + 导出
+- `processing.tsx`: 处理中/失败状态视图
+- 局部设置 `localSettings` 隔离全局 store
 
-### 平台图标系统 (`src/components/Icons/platform.tsx`)
-- 8 个平台 Logo SVG 组件: BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, CCTVLogo, LocalLogo, AudioLogo
-- 默认尺寸 `w-6 h-6`，通过 `className` prop 覆盖
-- 各页面独立维护 `iconMap` 字典，未知平台 fallback 到 `LocalLogo`
+### 自定义组件
+- `GuideOverlay`: 自建引导组件，`createPortal` + `box-shadow` 聚光灯
+- `FullscreenViewer`: 全屏图片查看器（缩放/拖拽/实况照片）
+- `MediaGallery`: Swiper 轮播 + 实况照片长按播放
 
-### 任务轮询机制 (`src/hooks/useTaskPolling.ts`)
-- 每 3 秒轮询后端 `/api/task_status/{task_id}`
-- 仅轮询 PENDING/RUNNING 状态的任务
-- 成功时更新 taskStore 并显示 toast 提示
+### 总结设置默认值
+- `videoUnderstanding`: 默认 `true`
+- `selectedFormats`: 默认全部 `['toc', 'link', 'screenshot', 'summary']`
+- 默认值在 store、`SummarySettings`、`NoteForm`、`NoteDetailPage` 四处保持一致
+
+### 自定义 Hooks (`src/hooks/`)
+- `useTaskPolling`: 每 3 秒轮询任务状态
+- `use-mobile`: 移动端检测
+- `useHomeGuide` / `useDetailGuide`: 新用户引导
+- `useCheckBackend` / `useConfigHealth`: 后端健康检查
+- `usePlatformFeatures`: 平台特性检测
 
 ### 请求封装 (`src/utils/request.ts`)
-基于 axios 的统一封装：
-- 自动提取 `response.data.data` (后端返回格式 `{ code, msg, data }`)
-- `code === 0` 视为成功
+- 基于 axios，后端返回格式 `{ code, msg, data }`，`code === 0` 为成功
 - 错误时自动 toast 提示

@@ -61,7 +61,7 @@ export function Sidebar({ className }: SidebarProps) {
           hasDropdown
           onClick={() => navigate('/notes')}
         />
-        <NavItem icon={<Library className="w-4 h-4" />} label="知 - 资源库 (2)" hasDropdown />
+        <NavItem icon={<Library className="w-4 h-4" />} label="合集" hasDropdown onClick={() => navigate('/library')} />
         <NavItem icon={<Box className="w-4 h-4" />} label="行 - 产出物" hasDropdown />
       </div>
 

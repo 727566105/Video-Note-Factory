@@ -62,11 +62,11 @@ export function SummarySettings({
   // 根据模式决定使用哪个数据源
   const getStyle = () => mode === 'local' ? (localValues?.style || 'minimal') : globalStore.style
   const getOutputLanguage = () => mode === 'local' ? (localValues?.outputLanguage || 'zh') : globalStore.outputLanguage
-  const getVideoUnderstanding = () => mode === 'local' ? (localValues?.videoUnderstanding ?? false) : globalStore.videoUnderstanding
+  const getVideoUnderstanding = () => mode === 'local' ? (localValues?.videoUnderstanding ?? true) : globalStore.videoUnderstanding
   const getVideoInterval = () => mode === 'local' ? (localValues?.videoInterval || 4) : globalStore.videoInterval
   const getGridCols = () => mode === 'local' ? (localValues?.gridCols || 3) : globalStore.gridCols
   const getGridRows = () => mode === 'local' ? (localValues?.gridRows || 3) : globalStore.gridRows
-  const getSelectedFormats = () => mode === 'local' ? (localValues?.selectedFormats || []) : globalStore.selectedFormats
+  const getSelectedFormats = () => mode === 'local' ? (localValues?.selectedFormats || ['toc', 'link', 'screenshot', 'summary']) : globalStore.selectedFormats
   const getExtras = () => mode === 'local' ? (localValues?.extras || '') : globalStore.extras
 
   // 设置器：global 模式直接操作 store，local 模式调用回调

@@ -46,7 +46,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
       saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
     },
 
-    videoUnderstanding: false,
+    videoUnderstanding: true,
     setVideoUnderstanding: value => {
       set({ videoUnderstanding: value })
       saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
@@ -69,7 +69,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
       saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
     },
 
-    selectedFormats: ['summary'],
+    selectedFormats: ['toc', 'link', 'screenshot', 'summary'],
     setSelectedFormats: formats => {
       set({ selectedFormats: formats })
       saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
@@ -94,11 +94,11 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
       set({
         style: data.style ?? 'minimal',
         outputLanguage: data.outputLanguage ?? 'zh',
-        videoUnderstanding: data.videoUnderstanding ?? false,
+        videoUnderstanding: data.videoUnderstanding ?? true,
         videoInterval: data.videoInterval ?? 4,
         gridCols: data.gridCols ?? 3,
         gridRows: data.gridRows ?? 3,
-        selectedFormats: data.selectedFormats ?? ['summary'],
+        selectedFormats: data.selectedFormats ?? ['toc', 'link', 'screenshot', 'summary'],
         extras: data.extras ?? '',
       })
     },

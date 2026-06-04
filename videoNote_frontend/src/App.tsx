@@ -26,6 +26,8 @@ const FeedPage = lazy(() => import('@/pages/FeedPage'))
 const ChannelsPage = lazy(() => import('@/pages/ChannelsPage'))
 const ChannelDetailPage = lazy(() => import('@/pages/ChannelDetailPage'))
 const AuthorDetailPage = lazy(() => import('./pages/AuthorDetailPage'))
+const LibraryPage = lazy(() => import('@/pages/LibraryPage'))
+const CollectionDetail = lazy(() => import('@/pages/LibraryPage/CollectionDetail'))
 
 import { TooltipProvider } from '@/components/ui/tooltip'
 
@@ -138,6 +140,8 @@ function App() {
             <Route path="channel/:platform/:id" element={<Suspense fallback={<PageLoader />}><ChannelDetailPage /></Suspense>} />
             <Route path="authors" element={<Suspense fallback={<PageLoader />}><AuthorsPage /></Suspense>} />
             <Route path="authors/:id" element={<Suspense fallback={<PageLoader />}><AuthorDetailPage /></Suspense>} />
+            <Route path="library" element={<Suspense fallback={<PageLoader />}><LibraryPage /></Suspense>} />
+            <Route path="library/:id" element={<Suspense fallback={<PageLoader />}><CollectionDetail /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingPage /></Suspense>}>
               {/* 移动端由 SettingLayout 显示设置列表，桌面端重定向由 SettingLayout 内部处理 */}
               <Route path="model" element={<AdminRoute><Suspense fallback={<PageLoader />}><Model /></Suspense></AdminRoute>}>

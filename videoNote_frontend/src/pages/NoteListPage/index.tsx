@@ -92,6 +92,7 @@ import { AuthorFilter } from '@/components/AuthorFilter'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, CCTVLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform'
 import { getAuthors, type AuthorInfo } from '@/services/author'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { AddToCollectionDialog } from '@/pages/LibraryPage/components/AddToCollectionDialog'
 
 // 平台筛选选项
 const PLATFORM_OPTIONS: FilterOption[] = [
@@ -387,6 +388,7 @@ export const NoteListPage: FC = () => {
   const [playDialogOpen, setPlayDialogOpen] = useState(false)
   const [playItem, setPlayItem] = useState<NoteItem | null>(null)
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
+  const [addToCollectionOpen, setAddToCollectionOpen] = useState(false)
   const localStorageViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
   // 移动端自动使用卡片视图，桌面端使用 localStorage 存储
@@ -673,7 +675,12 @@ export const NoteListPage: FC = () => {
                 selected={selectedStatuses}
                 onChange={setSelectedStatuses}
               />
-              <Button variant="outline" className="gap-2">
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={selectedRows.length === 0}
+                onClick={() => setAddToCollectionOpen(true)}
+              >
                 <FolderPlus className="w-4 h-4" />
                 添加到合集
               </Button>
@@ -1033,6 +1040,17 @@ export const NoteListPage: FC = () => {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* 添加到合集弹窗 */}
+      <AddToCollectionDialog
+        open={addToCollectionOpen}
+        onOpenChange={setAddToCollectionOpen}
+        taskIds={selectedRows}
+        onSuccess={() => {
+          setSelectedRows([])
+          toast.success('已添加到合集')
+        }}
+      />
     </div>
   )
 }

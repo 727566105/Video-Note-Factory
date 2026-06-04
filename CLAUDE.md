@@ -156,7 +156,7 @@ videoNote/
    /channel/:platform/:id      → 频道详情
    /authors                    → 博主列表
    /authors/:id                → 博主详情
-   /settings                   → 设置页
+   /settings                   → 设置页（桌面端重定向到 /settings/about）
      /settings/model           → 模型供应商 [AdminRoute]
      /settings/download        → 下载器配置 [AdminRoute]
      /settings/taskqueue       → 任务队列 [AdminRoute]
@@ -170,6 +170,28 @@ videoNote/
 3. **布局模式** — 桌面端与移动端分开处理
    - 桌面端: `SidebarProvider` + `AppSidebar` 侧边栏布局
    - 移动端: `SiteHeader` + `MobileBottomNav` 底部导航 + `SwipeBackHandler` 滑动返回
+
+4. **设置页架构** — 无侧边栏，设置项在用户下拉菜单中
+   - 设置子项（AI 模型设置、任务队列、下载配置、订阅设置、用户管理、思源笔记、WebDAV 备份、关于）全部位于 `nav-user.tsx`（桌面端）和 `site-header.tsx`（移动端）的下拉菜单中
+   - 管理员专属项通过 `isAdmin()` 判断显示
+   - 桌面端访问 `/settings` 自动重定向到 `/settings/about`
+   - 移动端 `/settings` 显示设置列表，子页面直接显示内容
+
+5. **笔记详情页** — 左右分栏结构
+   - `LeftPanel.tsx`: 视频播放/封面 + 任务状态 + 总结设置面板
+   - `RightPanel.tsx`: Markdown 渲染 / 思维导图 / 转写文本 三种视图 + 导出功能
+   - `processing.tsx`: 任务处理中/失败状态视图
+   - 局部设置（`localSettings`）隔离全局 store，仅影响当前笔记的重新生成
+
+6. **自定义组件**
+   - `GuideOverlay`: 自建引导组件（替代 driver.js），用 `createPortal` + `box-shadow` 聚光灯效果
+   - `FullscreenViewer`: 全屏图片查看器，支持缩放/拖拽/键盘导航/实况照片长按播放
+   - `MediaGallery`: Swiper 轮播图组件，支持实况照片长按播放 + 全屏查看按钮
+
+7. **总结设置默认值** (`summarySettingsStore`)
+   - `videoUnderstanding`: 默认 `true`（启用）
+   - `selectedFormats`: 默认全部启用 `['toc', 'link', 'screenshot', 'summary']`
+   - 以上默认值在 store、`SummarySettings`、`NoteForm`、`NoteDetailPage` 四处保持一致
 
 4. **请求封装** (`src/utils/request.ts`)
    - 基于 axios，后端返回格式 `{ code, msg, data }`，`code === 0` 为成功

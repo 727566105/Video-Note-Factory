@@ -227,10 +227,10 @@ const NoteForm = () => {
       extras: formData.extras || '',
       screenshot: formData.screenshot ?? false,
       link: formData.link ?? false,
-      video_understanding: formData.video_understanding ?? false,
+      video_understanding: formData.video_understanding ?? true,
       video_interval: formData.video_interval ?? 4,
       grid_size: formData.grid_size ?? [3, 3],
-      format: formData.format ?? [],
+      format: formData.format ?? ['toc', 'link', 'screenshot', 'summary'],
     })
   }, [
     // 当下面任意一个变了，就重新 reset
@@ -319,10 +319,10 @@ const NoteForm = () => {
       style: 'minimal',
       video_interval: 4,
       grid_size: [3, 3],
-      format: [],
+      format: ['toc', 'link', 'screenshot', 'summary'],
       screenshot: false,
       link: false,
-      video_understanding: false,
+      video_understanding: true,
     })
   }
   const FormButton = () => {

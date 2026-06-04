@@ -33,7 +33,7 @@ const pageTitleMap: Record<string, string> = {
   '/channels': '频道管理',
   '/authors': '博主',
   '/settings': '设置',
-  '/library': '资源库',
+  '/library': '合集',
   '/output': '产出物',
   '/hot': '热门',
 }
@@ -46,6 +46,8 @@ function isNotFoundPage(pathname: string): boolean {
   if (pathname.match(/^\/notes\/[^/]+$/)) return false
   if (pathname.match(/^\/channel\/[^/]+\/[^/]+$/)) return false
   if (pathname.match(/^\/authors\/[^/]+$/)) return false
+  // 合集详情页
+  if (pathname.match(/^\/library\/[^/]+$/)) return false
   // 设置子页面路径模式匹配成功就不是 404
   if (pathname.match(/^\/settings\/[^/]+$/)) return false
   if (pathname.match(/^\/settings\/model\/[^/]+$/)) return false
@@ -64,6 +66,8 @@ function isDetailPage(pathname: string): boolean {
   if (pathname.match(/^\/authors\/[^/]+$/)) return true
   // 设置子页面（不包括设置根目录）
   if (pathname.startsWith('/settings/') && pathname !== '/settings') return true
+  // 合集详情
+  if (pathname.match(/^\/library\/[^/]+$/)) return true
   return false
 }
 
@@ -154,6 +158,10 @@ export function SiteHeader() {
     if (pathname.match(/^\/authors\/[^/]+$/)) {
       return '视频列表'
     }
+    // 合集详情
+    if (pathname.match(/^\/library\/[^/]+$/)) {
+      return '合集详情'
+    }
     // 设置子页面
     return getPageTitle(pathname)
   }
@@ -174,6 +182,8 @@ export function SiteHeader() {
       navigate('/channels')
     } else if (pathname.startsWith('/authors/')) {
       navigate('/authors')
+    } else if (pathname.startsWith('/library/')) {
+      navigate('/library')
     } else if (pathname.startsWith('/settings/')) {
       navigate('/settings')
     } else {

@@ -147,9 +147,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip="知 - 资源库">
+              <SidebarMenuButton
+                tooltip="合集"
+                isActive={location.pathname.startsWith("/library")}
+                onClick={() => navigate("/library")}
+              >
                 <Library />
-                <span>知 - 资源库 (2)</span>
+                <span>合集</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
