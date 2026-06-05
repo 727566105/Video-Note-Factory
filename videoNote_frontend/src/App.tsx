@@ -12,6 +12,7 @@ const SettingPage = lazy(() => import('@/pages/SettingPage/index.tsx'))
 const Model = lazy(() => import('@/pages/SettingPage/Model.tsx'))
 const ProviderForm = lazy(() => import('@/components/Form/modelForm/Form.tsx'))
 const AboutPage = lazy(() => import('@/pages/SettingPage/about.tsx'))
+const ProfilePage = lazy(() => import('@/pages/SettingPage/Profile.tsx'))
 const SiyuanSettings = lazy(() => import('@/pages/SettingPage/Siyuan.tsx'))
 const WebDAVSettings = lazy(() => import('@/pages/SettingPage/WebDAV.tsx'))
 const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
@@ -153,6 +154,7 @@ function App() {
               <Route path="siyuan" element={<Suspense fallback={<PageLoader />}><SiyuanSettings /></Suspense>} />
               <Route path="webdav" element={<Suspense fallback={<PageLoader />}><WebDAVSettings /></Suspense>} />
               <Route path="about" element={<Suspense fallback={<PageLoader />}><AboutPage /></Suspense>} />
+              <Route path="profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />
               <Route path="subscription" element={<AdminRoute><Suspense fallback={<PageLoader />}><SubscriptionSettings /></Suspense></AdminRoute>} />
               <Route path="users" element={<Suspense fallback={<PageLoader />}><UsersPage /></Suspense>} />
               <Route path="*" element={<NotFoundPage />} />
