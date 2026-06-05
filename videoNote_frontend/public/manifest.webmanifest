@@ -1,0 +1,43 @@
+{
+  "name": "VideoNote",
+  "short_name": "VideoNote",
+  "description": "VideoNote AI 视频笔记，让音视频看得快、搜得到、用得好。",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#2D2D2D",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "education", "utilities"],
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "快速添加笔记",
+      "short_name": "添加笔记",
+      "description": "打开 VideoNote 链接输入页",
+      "url": "/",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "笔记列表",
+      "short_name": "笔记",
+      "description": "查看已生成的音视频笔记",
+      "url": "/notes",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

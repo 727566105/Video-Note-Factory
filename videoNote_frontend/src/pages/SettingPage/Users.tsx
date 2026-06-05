@@ -205,18 +205,19 @@ const Users = () => {
 
   // 管理员：完整的用户管理
   return (
-    <div className="flex flex-col gap-4 md:gap-6 p-4 md:p-6">
-      {/* 标题 - 仅桌面端显示 */}
-      {!isMobile && (
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">用户管理</h3>
-        </div>
-      )}
-      {/* 新增按钮 */}
-      <Button onClick={() => setAdding(true)} disabled={adding} size={isMobile ? 'sm' : 'default'} className="w-full md:w-auto">
-        <Plus className="mr-1 h-4 w-4" />
-        新增用户
-      </Button>
+    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
+      <div className="flex items-center justify-between gap-3">
+        {!isMobile && <h3 className="text-lg font-semibold">用户管理</h3>}
+        <Button
+          onClick={() => setAdding(true)}
+          disabled={adding}
+          size={isMobile ? 'sm' : 'default'}
+          className={isMobile ? 'ml-auto w-fit' : 'ml-auto w-fit min-w-[112px]'}
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          新增用户
+        </Button>
+      </div>
 
       {adding && (
         <div className="rounded-lg border bg-muted p-3 md:p-4">

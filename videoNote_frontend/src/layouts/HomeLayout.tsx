@@ -19,11 +19,16 @@ const HomeLayout: () => JSX.Element = () => {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 主内容区 */}
-        <main
-          className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-cover bg-center p-4 md:p-8"
-          style={{ backgroundImage: "url('/home-background.png')" }}
-        >
-          <div className="absolute inset-0 bg-background/10 dark:bg-background/55" />
+        <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 md:p-8">
+          <div
+            className="absolute inset-0 bg-cover bg-center dark:hidden"
+            style={{ backgroundImage: "url('/home-background-light.svg')" }}
+          />
+          <div
+            className="absolute inset-0 hidden bg-cover bg-center dark:block"
+            style={{ backgroundImage: "url('/home-background.svg')" }}
+          />
+          <div className="absolute inset-0 bg-background/0 dark:bg-[#2D2D2D]/30" />
           <ConfigHealthBanner />
           <div className="relative z-10 flex w-full max-w-5xl items-center justify-center">
             <QuickAdd className="h-auto" />

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useAuthStore } from '@/store/authStore'
+import { ThemeModeSelector } from '@/components/ThemeModeSelector'
 
 type SettingItem = {
   path: string
@@ -148,10 +149,10 @@ function SettingsHome({
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-6 lg:p-8">
         <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
           <div
-            className="absolute inset-0 bg-cover bg-center opacity-55"
-            style={{ backgroundImage: "url('/home-background.png')" }}
+            className="absolute inset-0 bg-cover bg-center opacity-80"
+            style={{ backgroundImage: "url('/settings-background.svg')" }}
           />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--background))_0%,hsl(var(--background)/0.92)_42%,hsl(var(--background)/0.5)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--background))_0%,hsl(var(--background)/0.88)_43%,hsl(var(--background)/0.38)_100%)]" />
           <div className="relative flex min-h-[190px] flex-col justify-end gap-4 p-5 md:p-7">
             <div className="flex w-fit items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
               <Settings className="size-3.5 text-primary" />
@@ -204,6 +205,9 @@ function SettingsHome({
           </div>
 
           <aside className="space-y-4">
+            <section className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
+              <ThemeModeSelector />
+            </section>
             <section className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-600">
@@ -299,6 +303,11 @@ function SettingsNavigation({
           </div>
         ))}
       </nav>
+      <div className="border-t border-border/70 p-4">
+        <div className="rounded-2xl border border-border/70 bg-background/70 p-3 shadow-sm">
+          <ThemeModeSelector compact />
+        </div>
+      </div>
     </aside>
   )
 }
@@ -318,6 +327,9 @@ function MobileSettingsHome({ groups }: { groups: SettingGroup[] }) {
             <p className="text-sm text-muted-foreground">按场景整理配置入口</p>
           </div>
         </div>
+      </div>
+      <div className="mb-5 rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+        <ThemeModeSelector compact />
       </div>
       <div className="space-y-5">
         {groups.map(group => (

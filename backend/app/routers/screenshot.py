@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
 
 from app.utils.path_helper import VIDEO_DIR, _get_platform_dir
+from app.utils.video_helper import is_blank_image
 
 # 1x1 transparent GIF
 _TRANSPARENT_GIF = (
@@ -43,6 +44,11 @@ async def get_video_screenshot(
                 continue
             screenshot_path = video_folder / "screenshots" / filename
             if screenshot_path.exists():
+                cover_path = video_folder / "cover.jpg"
+                if is_blank_image(screenshot_path) and cover_path.exists():
+                    return FileResponse(
+                        str(cover_path), media_type="image/jpeg"
+                    )
                 return FileResponse(
                     str(screenshot_path), media_type="image/jpeg"
                 )

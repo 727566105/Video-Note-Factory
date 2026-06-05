@@ -2,8 +2,11 @@
 
 import {
   LogOut,
+  Monitor,
+  Moon,
   User,
   Settings,
+  Sun,
 } from "lucide-react"
 
 import {
@@ -12,7 +15,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -24,6 +32,13 @@ import {
 import { useAuthStore } from "@/store/authStore"
 import { useTaskStore } from "@/store/taskStore"
 import { useNavigate } from "react-router-dom"
+import { useThemeMode, type ThemeMode } from "@/components/ThemeProvider"
+
+const themeLabels: Record<ThemeMode, string> = {
+  system: '跟随系统',
+  light: '浅色',
+  dark: '深色',
+}
 
 export function NavUser({
   user,
@@ -36,6 +51,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const logout = useAuthStore(state => state.logout)
+  const { mode, setMode } = useThemeMode()
   const navigate = useNavigate()
 
   return (
@@ -124,6 +140,29 @@ export function NavUser({
                 <Settings className="mr-2 h-4 w-4" />
                 设置中心
               </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="cursor-pointer">
+                  <Monitor className="mr-2 h-4 w-4" />
+                  外观模式
+                  <span className="ml-auto text-xs text-muted-foreground">{themeLabels[mode]}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="min-w-40">
+                  <DropdownMenuRadioGroup value={mode} onValueChange={value => setMode(value as ThemeMode)}>
+                    <DropdownMenuRadioItem value="system" className="cursor-pointer">
+                      <Monitor className="mr-2 h-4 w-4" />
+                      跟随系统
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="light" className="cursor-pointer">
+                      <Sun className="mr-2 h-4 w-4" />
+                      浅色
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark" className="cursor-pointer">
+                      <Moon className="mr-2 h-4 w-4" />
+                      深色
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             </DropdownMenuGroup>
 
             <DropdownMenuSeparator />

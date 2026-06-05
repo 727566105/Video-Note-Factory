@@ -11,6 +11,7 @@ import {
   RefreshCw,
   ScrollText,
   Link,
+  Share2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -48,6 +49,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { useIsMobile } from '@/hooks/use-mobile'
+import SharePosterDialog from '@/components/SharePosterDialog'
 
 type TabKey = 'summary' | 'transcript' | 'mindmap' | 'original'
 
@@ -88,6 +90,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
 
   // 设置 currentTaskId，让 TranscriptViewer 等组件能读取当前任务
   useEffect(() => {
@@ -249,6 +252,9 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExportDialogOpen(true)}>
               <Download className="w-4 h-4" />
             </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShareDialogOpen(true)} disabled={!selectedContent}>
+              <Share2 className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
@@ -293,6 +299,12 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
 
         {/* 弹窗 */}
         <ExportDialog open={exportDialogOpen} onOpenChange={setExportDialogOpen} task={task} />
+        <SharePosterDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          task={task}
+          content={selectedContent}
+        />
         <ConfirmDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
@@ -337,6 +349,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
           })}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <ActionBtn icon={<Share2 className="w-3.5 h-3.5" />} label="分享" onClick={() => setShareDialogOpen(true)} disabled={!selectedContent} />
             <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} dataGuide="regenerate-btn" />
             <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
           </div>
@@ -481,6 +494,12 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
         task={task}
         selectedContent={selectedContent}
       />
+      <SharePosterDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        task={task}
+        content={selectedContent}
+      />
     </div>
   )
 }
@@ -491,19 +510,22 @@ function ActionBtn({
   highlight,
   onClick,
   dataGuide,
+  disabled,
 }: {
   icon: React.ReactNode
   label?: string
   highlight?: boolean
   onClick?: () => void
   dataGuide?: string
+  disabled?: boolean
 }) {
   return (
     <button
       onClick={onClick}
       data-guide={dataGuide}
+      disabled={disabled}
       className={cn(
-        'flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs transition-colors',
+        'flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs transition-colors disabled:pointer-events-none disabled:opacity-45',
         highlight
           ? 'border border-pink-400 text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
           : 'border border-border text-foreground hover:bg-accent'

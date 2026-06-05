@@ -112,41 +112,41 @@ body {
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.155 0.018 255.4);
-  --foreground: oklch(0.955 0.004 247.9);
-  --card: oklch(0.205 0.021 255.4);
-  --card-foreground: oklch(0.955 0.004 247.9);
-  --popover: oklch(0.205 0.021 255.4);
-  --popover-foreground: oklch(0.955 0.004 247.9);
-  --primary: oklch(0.67 0.182 258.8);
-  --primary-light: oklch(0.28 0.08 259.2);
-  --primary-foreground: oklch(0.985 0.003 247.86);
-  --secondary: oklch(0.255 0.022 255.4);
-  --secondary-foreground: oklch(0.94 0.006 247.9);
-  --muted: oklch(0.255 0.022 255.4);
-  --muted-foreground: oklch(0.69 0.023 255.1);
-  --accent: oklch(0.295 0.055 258.4);
-  --accent-foreground: oklch(0.95 0.018 255.1);
+  --background: #2D2D2D;
+  --foreground: #F4F5F7;
+  --card: #343434;
+  --card-foreground: #F4F5F7;
+  --popover: #363636;
+  --popover-foreground: #F4F5F7;
+  --primary: #70A7FF;
+  --primary-light: #243B59;
+  --primary-foreground: #F8FAFC;
+  --secondary: #3B3B3B;
+  --secondary-foreground: #ECEFF3;
+  --muted: #3A3A3A;
+  --muted-foreground: #B7BDC6;
+  --accent: #3F4856;
+  --accent-foreground: #F2F6FF;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.67 0.182 258.8);
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 16%);
+  --ring: #70A7FF;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.18 0.02 255.4);
-  --sidebar-foreground: oklch(0.89 0.01 247.9);
+  --sidebar: #303030;
+  --sidebar-foreground: #E7EAEE;
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(0.255 0.034 258.2);
-  --sidebar-accent-foreground: oklch(0.94 0.018 255.1);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-accent: #3C4350;
+  --sidebar-accent-foreground: #F2F6FF;
+  --sidebar-border: rgb(255 255 255 / 10%);
   --sidebar-ring: var(--ring);
-  --surface-subtle: oklch(0.18 0.018 255.4);
-  --surface-raised: oklch(0.205 0.021 255.4);
-  --shadow-soft: 0 18px 48px rgb(0 0 0 / 0.34);
+  --surface-subtle: #323232;
+  --surface-raised: #353535;
+  --shadow-soft: 0 18px 48px rgb(0 0 0 / 0.26);
 }
 
 @theme inline {
