@@ -150,7 +150,7 @@ export default function NoteDetailPage() {
   const isMobile = useIsMobile()
 
   // 拖拽分割线
-  const [leftWidth, setLeftWidth] = useState(592)
+  const [leftWidth, setLeftWidth] = useState(520)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
 
@@ -235,10 +235,12 @@ export default function NoteDetailPage() {
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging.current || !containerRef.current) return
       const containerRect = containerRef.current.getBoundingClientRect()
-      const sidebarWidth = 56
       const navWidth = 64
-      const newLeftWidth = e.clientX - containerRect.left - sidebarWidth
-      const clamped = Math.max(400, Math.min(newLeftWidth, containerRect.width - sidebarWidth - navWidth - 300))
+      const splitWidth = 16
+      const leftMin = 380
+      const rightMin = 420
+      const newLeftWidth = e.clientX - containerRect.left
+      const clamped = Math.max(leftMin, Math.min(newLeftWidth, containerRect.width - navWidth - splitWidth - rightMin))
 
       pendingWidth = clamped
       if (!rafId) {
@@ -329,7 +331,7 @@ export default function NoteDetailPage() {
   return (
     <div className="flex h-full w-full overflow-hidden bg-background" ref={containerRef}>
       {/* 左栏（根据 panelSwapped 决定是视频还是笔记） */}
-      <div className="flex flex-col overflow-hidden" style={{ width: leftWidth, minWidth: 400 }}>
+      <div className="flex flex-col overflow-hidden" style={{ width: leftWidth, minWidth: 380 }}>
         {/* 面板内容（带切换动画） */}
         <div
           key={`left-${panelSwapped}`}

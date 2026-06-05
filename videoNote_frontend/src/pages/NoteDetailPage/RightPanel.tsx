@@ -308,10 +308,11 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
 
   // 桌面端布局
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-background/80">
       {/* 标签栏 */}
-      <div data-guide="tab-bar" className="flex items-center gap-1 px-4 pt-4 pb-2">
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-md">
+      <div data-guide="tab-bar" className="shrink-0 border-b border-border/60 bg-background/90 px-4 py-3 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1">
           {tabs.map((tab) => {
             const TabIcon =
               tab.key === 'summary' ? FileText :
@@ -323,7 +324,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={cn(
-                  'flex items-center gap-1 h-8 px-3 rounded text-xs font-medium transition-colors',
+                  'flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors',
                   activeTab === tab.key
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -334,25 +335,22 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
               </button>
             )
           })}
-        </div>
-      </div>
-
-      {/* 状态行 */}
-      <div className="flex items-center justify-end px-4 py-1">
-        <div className="flex items-center gap-2">
-          <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} data-guide="regenerate-btn" />
-          <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} dataGuide="regenerate-btn" />
+            <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
+          </div>
         </div>
       </div>
 
       {/* 内容区 */}
-      <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-border bg-accent/30 m-4">
+      <div className="m-4 min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-background/85 shadow-sm">
         {/* Sticky 工具栏 */}
-        <div data-guide="toolbar" className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
-          <div className="flex items-center gap-2">
+        <div data-guide="toolbar" className="sticky top-0 z-10 flex flex-col gap-2 border-b bg-background/95 px-4 py-3 backdrop-blur-sm">
+          <div className="flex min-w-0 flex-col gap-2">
             {isMultiVersion && (
               <Select value={currentVerId} onValueChange={setCurrentVerId}>
-                <SelectTrigger data-guide="version-select" className="h-7 w-[140px] text-xs">
+                <SelectTrigger data-guide="version-select" className="h-8 w-[150px] text-xs">
                   <SelectValue>
                     {currentVerId ? `版本（${currentVerId.slice(-6)}）` : '选择版本'}
                   </SelectValue>
@@ -366,22 +364,24 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
                 </SelectContent>
               </Select>
             )}
-            {modelName && (
-              <Badge variant="secondary" className="bg-pink-100 text-pink-700 hover:bg-pink-200 text-xs">
-                {modelName}
-              </Badge>
-            )}
-            {styleName && (
-              <Badge variant="secondary" className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 text-xs">
-                {styleName}
-              </Badge>
-            )}
-            {createTime && (
-              <span className="text-xs text-muted-foreground">{formatDate(createTime)}</span>
-            )}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {modelName && (
+                <Badge variant="secondary" className="inline-block max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap bg-pink-100 text-xs text-pink-700 hover:bg-pink-200 2xl:max-w-[240px]">
+                  {modelName}
+                </Badge>
+              )}
+              {styleName && (
+                <Badge variant="secondary" className="inline-block max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-cyan-100 text-xs text-cyan-700 hover:bg-cyan-200">
+                  {styleName}
+                </Badge>
+              )}
+              {createTime && (
+                <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(createTime)}</span>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-1">
             <ActionBtn icon={<Copy className="w-3.5 h-3.5" />} label="复制" onClick={handleCopy} />
             <ButtonGroup>
               <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="导出" onClick={() => setExportDialogOpen(true)} />
@@ -410,7 +410,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
         </div>
 
         {/* 内容区域 */}
-        <div className={cn("p-4", activeTab === 'mindmap' && "h-[600px]")}>
+        <div className={cn("p-4 md:p-6", activeTab === 'summary' && "mx-auto max-w-4xl", activeTab === 'mindmap' && "h-[600px] max-w-none")}>
           {isProcessing && processingStatus ? (
             <ProcessingSpinner status={processingStatus} />
           ) : activeTab === 'summary' ? (
@@ -490,15 +490,18 @@ function ActionBtn({
   label,
   highlight,
   onClick,
+  dataGuide,
 }: {
   icon: React.ReactNode
   label?: string
   highlight?: boolean
   onClick?: () => void
+  dataGuide?: string
 }) {
   return (
     <button
       onClick={onClick}
+      data-guide={dataGuide}
       className={cn(
         'flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs transition-colors',
         highlight
