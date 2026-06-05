@@ -9,9 +9,12 @@ import type { Task } from '@/store/taskStore'
 import type { TaskTags } from '@/types/api'
 
 const NotePreview = memo(function NotePreview({ note }: { note: string }) {
+  const cleanedNote = note?.replace(/[#*_\[\]>`]/g, '').trim()
   return (
-    <div className="min-w-0 max-w-md">
-      <div className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-line">{note}</div>
+    <div className="min-w-0 max-w-xl">
+      <div className="line-clamp-2 text-sm leading-6 text-muted-foreground">
+        {cleanedNote || '暂无内容预览'}
+      </div>
     </div>
   )
 })
@@ -100,6 +103,56 @@ const platformLabel: Record<string, string> = {
   local_audio: '本地音频',
 }
 
+function TagsCompact({ item, onUpdate }: { item: NoteItem; onUpdate?: (id: string, tags: any) => void }) {
+  const tags = [
+    ...(item.tags?.platform_tags || []).map(tag => ({ key: `p-${tag}`, label: tag, tone: 'primary' as const })),
+    ...(item.tags?.ai_tags || []).map(tag => ({ key: `a-${tag}`, label: `#${tag}`, tone: 'muted' as const })),
+    ...(item.tags?.manual_tags || []).map(tag => ({ key: `m-${tag}`, label: `#${tag}`, tone: 'plain' as const })),
+  ]
+
+  if (tags.length === 0) {
+    return (
+      <div onClick={e => e.stopPropagation()}>
+        <TagEditorPopover
+          taskId={item.task_id}
+          tags={item.tags}
+          onUpdate={(newTags) => onUpdate?.(item.id, newTags)}
+          hideTrigger
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 flex max-h-14 flex-wrap items-center gap-1.5 overflow-hidden" onClick={e => e.stopPropagation()}>
+      {tags.slice(0, 6).map(tag => (
+        <span
+          key={tag.key}
+          className={cn(
+            "inline-flex max-w-[120px] items-center truncate rounded-md border px-2 py-0.5 text-[11px] font-medium leading-5",
+            tag.tone === 'primary' && "border-primary/20 bg-primary-light text-primary",
+            tag.tone === 'muted' && "border-border bg-secondary text-secondary-foreground",
+            tag.tone === 'plain' && "border-border bg-card text-muted-foreground",
+          )}
+        >
+          {tag.label}
+        </span>
+      ))}
+      {tags.length > 6 && (
+        <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-medium leading-5 text-muted-foreground">
+          +{tags.length - 6}
+        </span>
+      )}
+      <TagEditorPopover
+        taskId={item.task_id}
+        tags={item.tags}
+        onUpdate={(newTags) => onUpdate?.(item.id, newTags)}
+        hideTrigger
+      />
+    </div>
+  )
+}
+
 export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
   return [
     {
@@ -125,12 +178,12 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       ),
       enableSorting: false,
       enableHiding: false,
-      size: 40,
+      size: 36,
     },
     {
       accessorKey: 'cover',
       header: '封面',
-      size: 240,
+      size: 140,
       cell: ({ row }) => {
         const item = row.original
         const status = getRealtimeStatus(item, props.taskStoreTasks)
@@ -138,8 +191,8 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
         const isProcessing = isProcessingStatus(status)
 
         return (
-          <div className="w-60 py-2">
-            <div className="relative h-56 overflow-hidden rounded-lg bg-muted">
+          <div className="w-28 py-2">
+            <div className="relative aspect-video overflow-hidden rounded-xl border border-border/70 bg-muted shadow-sm">
               {item.cover && !props.failedCovers.has(item.id) ? (
                 <img
                   src={item.cover}
@@ -153,26 +206,14 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
                   <span className="text-xs text-muted-foreground">{item.author || platformLabel[item.platform]}</span>
                 </div>
               )}
-              {/* 博主名覆盖左下角 */}
-              {item.author && (
-                <div className="absolute bottom-2 left-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded">
-                  {item.author}
-                </div>
-              )}
-              {/* 订阅状态覆盖右下角 */}
-              {item.video_url && props.isSubscribable(item.platform) && props.isSubscribed(item.author) && (
-                <div className="absolute bottom-2 right-2 bg-gray-800/80 text-white text-xs px-2 py-1 rounded">
-                  已订阅
-                </div>
-              )}
               {/* 收藏按钮右上角 */}
               {props.isSubscribable(item.platform) && item.author && (
                 <button
                   className={cn(
-                    'absolute top-2 right-2 p-1.5 rounded-full transition-colors',
+                    'absolute right-1.5 top-1.5 rounded-lg p-1.5 shadow-sm backdrop-blur transition-colors',
                     props.isSubscribed(item.author)
                       ? 'bg-primary text-white'
-                      : 'bg-white/80 text-gray-600 hover:bg-primary hover:text-white',
+                      : 'bg-background/85 text-muted-foreground hover:bg-primary hover:text-white',
                   )}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -188,48 +229,22 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
               )}
               {/* 处理中状态覆盖 */}
               {isProcessing && (
-                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2">
-                  <LoaderCircle className="w-6 h-6 text-white animate-spin" />
-                  <span className="text-white text-sm">{stepLabel} ({currentStep}/6)</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/45">
+                  <LoaderCircle className="h-4 w-4 animate-spin text-white" />
+                  <span className="text-xs text-white">{stepLabel} ({currentStep}/6)</span>
                 </div>
               )}
               {(status === 'QUEUED' || status === 'PENDING') && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <LoaderCircle className="w-6 h-6 text-white animate-spin" />
+                  <LoaderCircle className="h-4 w-4 animate-spin text-white" />
                 </div>
               )}
               {status === 'FAILED' && (
                 <div className="absolute inset-0 bg-red-500/40 flex items-center justify-center">
-                  <span className="text-white text-sm">生成失败</span>
+                  <span className="text-xs text-white">失败</span>
                 </div>
               )}
             </div>
-            {/* 标签行 - 圆角胶囊 */}
-            {(item.tags?.platform_tags?.length || item.tags?.ai_tags?.length || item.tags?.manual_tags?.length) && (
-              <div className="mt-2 flex flex-wrap justify-end gap-2 items-center" onClick={e => e.stopPropagation()}>
-                {item.tags?.platform_tags?.map((tag, i) => (
-                  <span key={`p${i}`} className="rounded-full border border-blue-200 bg-blue-50 text-blue-600 px-2.5 py-0.5 text-xs">
-                    {tag}
-                  </span>
-                ))}
-                {item.tags?.ai_tags?.map((tag, i) => (
-                  <span key={`a${i}`} className="rounded-full border border-purple-200 bg-purple-50 text-purple-600 px-2.5 py-0.5 text-xs">
-                    #{tag}
-                  </span>
-                ))}
-                {item.tags?.manual_tags?.map((tag, i) => (
-                  <span key={`m${i}`} className="rounded-full border border-green-200 bg-green-50 text-green-600 px-2.5 py-0.5 text-xs">
-                    #{tag}
-                  </span>
-                ))}
-                <TagEditorPopover
-                  taskId={item.task_id}
-                  tags={item.tags}
-                  onUpdate={(newTags) => props.onTagsUpdate?.(item.id, newTags)}
-                  hideTrigger
-                />
-              </div>
-            )}
           </div>
         )
       },
@@ -245,19 +260,21 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
           <ArrowUpDown className="h-4 w-4" />
         </button>
       ),
+      size: 340,
       cell: ({ row }) => {
         const item = row.original
         return (
           <div className="min-w-0 py-2">
-            <div className="font-medium text-foreground line-clamp-2 text-sm">{item.title}</div>
-            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+            <div className="line-clamp-1 text-sm font-semibold text-foreground">{item.title}</div>
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <PlatformIconSmall platform={item.platform} />
                 {item.author || platformLabel[item.platform]}
               </span>
-              <span>·</span>
+              <span className="text-muted-foreground/45">/</span>
               <span>{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : ''}</span>
             </div>
+            <TagsCompact item={item} onUpdate={props.onTagsUpdate} />
           </div>
         )
       },
@@ -265,12 +282,13 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
     {
       accessorKey: 'note',
       header: '内容预览',
+      size: 420,
       cell: ({ row }) => <NotePreview note={row.original.note} />,
     },
     {
       id: 'actions',
       header: () => <div className="text-right">操作</div>,
-      size: 80,
+      size: 72,
       cell: ({ row }) => {
         const item = row.original
         const status = getRealtimeStatus(item, props.taskStoreTasks)

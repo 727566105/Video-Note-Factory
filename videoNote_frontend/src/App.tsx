@@ -98,7 +98,7 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     return (
       <TooltipProvider delayDuration={0}>
         <SwipeBackHandler>
-          <div className="h-screen flex flex-col bg-background">
+          <div className="flex h-dvh flex-col bg-background">
             <SiteHeader />
             <div className="flex-1 min-h-0 overflow-auto">
               {children}
@@ -114,9 +114,11 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset className="h-full overflow-hidden">
-        <div className="h-full overflow-auto">
+      <SidebarInset className="h-full overflow-hidden bg-background">
+        <div className="h-full overflow-auto p-3">
+          <div className="app-surface h-full min-h-0 overflow-hidden rounded-2xl border border-border/70">
           {children}
+          </div>
         </div>
       </SidebarInset>
     </SidebarProvider>

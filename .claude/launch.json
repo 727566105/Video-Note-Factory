@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "/Users/dickies/Documents/workspaces/VideoNote-v3/.venv/bin/python",
+      "runtimeArgs": ["main.py"],
+      "port": 8483,
+      "cwd": "backend"
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3015,
+      "cwd": "videoNote_frontend"
+    }
+  ]
+}

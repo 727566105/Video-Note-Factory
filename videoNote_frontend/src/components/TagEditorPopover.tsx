@@ -3,7 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { X, Plus, Loader2 } from 'lucide-react'
+import { X, Plus, Loader2, Pencil } from 'lucide-react'
 import { updateNoteTags } from '@/services/note'
 import { toast } from 'sonner'
 import type { TaskTags } from '@/types/api'
@@ -85,8 +85,8 @@ export function TagEditorPopover({ taskId, tags, onUpdate, hideTrigger }: Props)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Badge variant="outline" className={`cursor-pointer hover:bg-accent text-xs gap-1${hideTrigger ? ' sr-only' : ''}`}>
-          <span className="text-[10px]">✏️</span>
+        <Badge variant="outline" className={`cursor-pointer gap-1 text-xs hover:bg-accent${hideTrigger ? ' sr-only' : ''}`}>
+          <Pencil className="size-3" />
           <span>编辑</span>
         </Badge>
       </PopoverTrigger>
@@ -98,9 +98,9 @@ export function TagEditorPopover({ taskId, tags, onUpdate, hideTrigger }: Props)
             <div className="text-xs text-muted-foreground mb-2">平台标签</div>
             <div className="flex gap-1 flex-wrap min-h-[28px]">
               {platformTags.map((tag, i) => (
-                <Badge key={i} className="bg-blue-50 text-blue-600 border-blue-200 text-xs gap-1 pr-1">
+                <Badge key={i} className="gap-1 border-primary/20 bg-primary-light pr-1 text-xs text-primary">
                   {tag}
-                  <X className="size-3 cursor-pointer hover:text-blue-800" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('platform', i)} />
+                  <X className="size-3 cursor-pointer hover:text-primary/75" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('platform', i)} />
                 </Badge>
               ))}
               {platformTags.length === 0 && <span className="text-xs text-muted-foreground">暂无标签</span>}
@@ -111,9 +111,9 @@ export function TagEditorPopover({ taskId, tags, onUpdate, hideTrigger }: Props)
             <div className="text-xs text-muted-foreground mb-2">AI 标签</div>
             <div className="flex gap-1 flex-wrap min-h-[28px]">
               {aiTags.map((tag, i) => (
-                <Badge key={i} className="bg-purple-50 text-purple-600 border-purple-200 text-xs gap-1 pr-1">
+                <Badge key={i} className="gap-1 border-border bg-secondary pr-1 text-xs text-secondary-foreground">
                   {tag}
-                  <X className="size-3 cursor-pointer hover:text-purple-800" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('ai', i)} />
+                  <X className="size-3 cursor-pointer hover:text-foreground" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('ai', i)} />
                 </Badge>
               ))}
               {aiTags.length === 0 && <span className="text-xs text-muted-foreground">暂无标签</span>}
@@ -124,9 +124,9 @@ export function TagEditorPopover({ taskId, tags, onUpdate, hideTrigger }: Props)
             <div className="text-xs text-muted-foreground mb-2">手动标签</div>
             <div className="flex gap-1 flex-wrap min-h-[28px]">
               {manualTags.map((tag, i) => (
-                <Badge key={i} className="bg-green-50 text-green-600 border-green-200 text-xs gap-1 pr-1">
+                <Badge key={i} className="gap-1 border-border bg-card pr-1 text-xs text-muted-foreground">
                   {tag}
-                  <X className="size-3 cursor-pointer hover:text-green-800" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('manual', i)} />
+                  <X className="size-3 cursor-pointer hover:text-foreground" style={{ pointerEvents: 'auto' }} onClick={() => handleRemoveTag('manual', i)} />
                 </Badge>
               ))}
               {manualTags.length === 0 && <span className="text-xs text-muted-foreground">暂无标签</span>}

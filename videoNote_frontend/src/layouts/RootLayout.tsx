@@ -12,7 +12,7 @@ export const metadata = {
 
 const RootLayout: FC<RootLayoutProps> = ({ children }) => {
   return (
-    <div className="h-full overflow-hidden bg-background font-sans text-foreground">
+    <div className="h-full overflow-hidden bg-background font-sans text-foreground selection:bg-primary/15 selection:text-foreground">
       <Toaster />
       {children}
     </div>

@@ -220,7 +220,7 @@ export default function AboutPage() {
                   isMobile ? "text-base" : "text-xl"
                 )}>videoNote 交流微信群</h3>
                 <div className="bg-muted mx-auto flex h-40 w-40 md:h-52 md:w-52 items-center justify-center rounded-md">
-                  <img src={'https://common-1304618721.cos.ap-chengdu.myqcloud.com/wechat.png'} />
+                  <img src={'/wechat-qr.svg'} alt="视频交流微信群" />
                 </div>
               </div>
             </div>

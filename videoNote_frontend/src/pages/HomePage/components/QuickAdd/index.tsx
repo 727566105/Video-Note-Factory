@@ -400,20 +400,20 @@ export function QuickAdd({ className }: QuickAddProps) {
   }
 
   return (
-    <div className={cn("flex flex-col items-center justify-center w-full h-full gap-6 p-4 md:p-8", className)}>
+    <div className={cn("flex h-full w-full flex-col items-center justify-center gap-6 p-4 md:p-8", className)}>
       {/* 标题区域 */}
-      <div className="flex flex-col items-center gap-2">
-        <h1 className="text-3xl font-semibold bg-gradient-to-r from-[#FF6B9D] to-[#9B59B6] bg-clip-text text-transparent">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
           VideoNote
         </h1>
-        <p className="text-lg text-foreground">
+        <p className="max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
           让你的音视频看得快，搜得到，用得好
         </p>
       </div>
 
       {/* 标签容器 */}
       <div className="flex items-center justify-center">
-        <div className="flex items-center gap-1.5 bg-muted p-1.5 rounded-md">
+        <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-muted/70 p-1 shadow-xs">
           <TabButton
             icon={<Link className="w-4 h-4" />}
             label="链接"
@@ -431,24 +431,24 @@ export function QuickAdd({ className }: QuickAddProps) {
 
       {/* 链接输入 */}
       {activeTab === 'link' && (
-      <div className="w-full max-w-[1000px] flex flex-col gap-4">
-        <div data-guide="home-input" className="flex flex-col border-2 border-border rounded-xl bg-background overflow-hidden">
+      <div className="flex w-full max-w-[920px] flex-col gap-4">
+        <div data-guide="home-input" className="app-surface flex flex-col overflow-hidden rounded-2xl border border-border/80">
           {/* 输入框 */}
-          <div className="p-4">
+          <div className="p-4 md:p-5">
             <textarea
               placeholder="请输入视频网站链接"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              className="w-full h-20 resize-none border-0 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-sm"
+              className="h-24 w-full resize-none border-0 bg-transparent text-base leading-7 text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
             />
           </div>
 
           {/* 操作栏 */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-t border-border">
+          <div className="flex flex-col gap-2 border-t border-border/70 bg-muted/35 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 data-guide="home-settings"
-                className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+                className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => setSettingsOpen(true)}
               >
                 <SlidersHorizontal className="w-4 h-4" />
@@ -457,7 +457,7 @@ export function QuickAdd({ className }: QuickAddProps) {
               </button>
               <button
                 data-guide="home-model"
-                className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+                className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => setModelSelectOpen(true)}
               >
                 <Sparkles className="w-4 h-4" />
@@ -465,7 +465,7 @@ export function QuickAdd({ className }: QuickAddProps) {
               </button>
               {/* 平台选择下拉器 */}
               <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                <SelectTrigger data-guide="home-platform" className="h-7 px-2.5 border-0 bg-transparent gap-1 text-sm text-foreground hover:bg-accent rounded-md focus:ring-0 focus:ring-offset-0 [&>svg]:hidden w-auto">
+                <SelectTrigger data-guide="home-platform" className="h-8 w-auto gap-1 rounded-lg border-0 bg-transparent px-2.5 text-sm text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
                   {selectedPlatform === 'auto' ? (
                     <div className="flex items-center gap-1.5">
                       <Wand2 className="w-4 h-4" />
@@ -504,7 +504,7 @@ export function QuickAdd({ className }: QuickAddProps) {
               </Select>
               {/* 快速粘贴按钮 - 移动端放在左侧 */}
               <button
-                className="flex items-center justify-center gap-1 h-7 px-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors sm:hidden"
+                className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:hidden"
                 onClick={handleQuickPaste}
               >
                 <Clipboard className="w-4 h-4" />
@@ -514,7 +514,7 @@ export function QuickAdd({ className }: QuickAddProps) {
             {/* 快速粘贴按钮 - 桌面端放在右侧 */}
             <div className="hidden sm:flex items-center gap-2">
               <button
-                className="flex items-center justify-center gap-1.5 h-7 px-3 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+                className="interactive-lift flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={handleQuickPaste}
               >
                 <Clipboard className="w-4 h-4" />
@@ -528,7 +528,7 @@ export function QuickAdd({ className }: QuickAddProps) {
         <div className="flex justify-center">
           <Button
             data-guide="home-generate"
-            className="w-[280px] h-12 rounded-3xl bg-foreground text-primary-foreground hover:bg-foreground/90 flex items-center gap-2 text-base font-medium"
+            className="flex h-12 w-[280px] items-center gap-2 rounded-xl text-base font-semibold"
             onClick={handleGenerateNote}
             disabled={isGenerating}
           >
@@ -543,11 +543,11 @@ export function QuickAdd({ className }: QuickAddProps) {
 
         {/* 底部链接 - 移动端隐藏 */}
         <div className="hidden sm:flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <button className="flex items-center justify-center gap-1.5 h-8 px-3 hover:bg-accent hover:text-foreground rounded-md transition-colors">
+          <button className="interactive-lift flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 hover:bg-accent hover:text-accent-foreground">
             <Zap className="w-4 h-4" />
             热门链接
           </button>
-          <button className="flex items-center justify-center gap-1.5 h-8 px-3 hover:bg-accent hover:text-foreground rounded-md transition-colors">
+          <button className="interactive-lift flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 hover:bg-accent hover:text-accent-foreground">
             <Link className="w-4 h-4" />
             批量链接
           </button>
@@ -557,13 +557,10 @@ export function QuickAdd({ className }: QuickAddProps) {
 
       {/* 上传标签页 */}
       {activeTab === 'upload' && (
-      <div className="w-full max-w-[800px] flex flex-col items-center gap-4">
+      <div className="flex w-full max-w-[820px] flex-col items-center gap-4">
         {/* 上传区域 */}
         <div
-          className="w-full flex flex-col items-center justify-center gap-4 py-6 px-4
-                     border-2 border-dashed border-input rounded-lg
-                     bg-background hover:border-pink-200 dark:hover:border-pink-400/30
-                     transition-shadow cursor-pointer shadow-sm"
+          className="app-surface flex w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-input px-4 py-8 transition-[border-color,box-shadow,transform] hover:border-primary/45"
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
           onDrop={handleDrop}
           onClick={pickFiles}
@@ -571,13 +568,13 @@ export function QuickAdd({ className }: QuickAddProps) {
           <FileBox className="w-8 h-8 text-muted-foreground -mb-2" />
 
           {/* 视觉化总结开关 */}
-          <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-current/20">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/60 px-4 py-2">
             <Label htmlFor="visual-summary" className="text-sm font-medium cursor-pointer">视觉化总结</Label>
             <Switch
               id="visual-summary"
               checked={videoUnderstanding}
               onCheckedChange={setVideoUnderstanding}
-              className="data-[state=checked]:bg-pink-400"
+              className="data-[state=checked]:bg-primary"
             />
           </div>
 
@@ -598,7 +595,7 @@ export function QuickAdd({ className }: QuickAddProps) {
         {selectedFiles.length > 0 && (
           <div className="w-full flex flex-col gap-2">
             {selectedFiles.map((file, idx) => (
-              <div key={idx} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-background">
+              <div key={idx} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2 shadow-xs">
                 <span className="flex-1 text-sm truncate">{file.name}</span>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {(file.size / 1024 / 1024).toFixed(1)} MB
@@ -648,7 +645,7 @@ export function QuickAdd({ className }: QuickAddProps) {
 
         {/* 提交按钮 */}
         <Button
-          className="w-[280px] h-12 rounded-3xl bg-foreground text-primary-foreground hover:bg-foreground/90 flex items-center gap-2 text-base font-medium"
+          className="flex h-12 w-[280px] items-center gap-2 rounded-xl text-base font-semibold"
           onClick={handleUploadGenerate}
           disabled={selectedFiles.length === 0 || isGenerating}
         >
@@ -671,7 +668,7 @@ export function QuickAdd({ className }: QuickAddProps) {
       {/* 笔记可用性预检对话框 */}
       {availabilityDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setAvailabilityDialog(null)}>
-          <div className="bg-background rounded-lg shadow-lg max-w-md w-full p-6 relative" onClick={e => e.stopPropagation()}>
+          <div className="app-surface relative w-full max-w-md rounded-2xl border border-border p-6" onClick={e => e.stopPropagation()}>
             <button
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => setAvailabilityDialog(null)}
@@ -679,7 +676,7 @@ export function QuickAdd({ className }: QuickAddProps) {
             >
               <X className="size-4" />
             </button>
-            <h3 className="text-lg font-bold mb-2">发现已有笔记</h3>
+            <h3 className="mb-2 text-lg font-semibold">发现已有笔记</h3>
             <p className="text-muted-foreground mb-4">
               该视频已有现成笔记{availabilityDialog.title ? `「${availabilityDialog.title}」` : ''}，可以直接查看，无需重新生成。
             </p>
@@ -741,9 +738,9 @@ function TabButton({ icon, label, isActive, onClick }: TabButtonProps) {
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-normal transition-all",
+        "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all",
         isActive
-          ? "bg-background text-foreground shadow-sm"
+          ? "bg-card text-foreground shadow-sm"
           : "bg-transparent text-muted-foreground hover:text-foreground"
       )}
     >
