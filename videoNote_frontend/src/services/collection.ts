@@ -106,3 +106,8 @@ export async function generateCollectionSummary(params: {
   const { collectionId, ...body } = params
   return await request.post(`/collections/${collectionId}/generate_summary`, body)
 }
+
+export async function getTaskCollectionMap(): Promise<Record<string, { id: string; name: string }[]>> {
+  const data = await request.get('/collections/task_map')
+  return data ?? {}
+}

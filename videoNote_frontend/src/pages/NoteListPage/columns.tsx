@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { type ColumnDef, type HeaderContext } from '@tanstack/react-table'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw } from 'lucide-react'
+import { Trash2, LoaderCircle, Rss, ArrowUpDown, RotateCw, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, LocalLogo, AudioLogo, XiaohongshuLogo, CCTVLogo } from '@/components/Icons/platform'
 import { TagEditorPopover } from '@/components/TagEditorPopover'
@@ -58,6 +58,8 @@ interface ColumnProps {
   isSubscribable: (platform: string) => boolean
   taskStoreTasks: Task[]
   onTagsUpdate?: (id: string, tags: any) => void
+  taskCollectionMap: Record<string, { id: string; name: string }[]>
+  onNavigateToCollection: (collectionId: string) => void
 }
 
 // 从 taskStore 获取实时状态，优先使用 taskStore 的值
@@ -247,6 +249,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       ),
       cell: ({ row }) => {
         const item = row.original
+        const collections = props.taskCollectionMap[item.task_id]
         return (
           <div className="min-w-0 py-2">
             <div className="font-medium text-foreground line-clamp-2 text-sm">{item.title}</div>
@@ -258,6 +261,20 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
               <span>·</span>
               <span>{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : ''}</span>
             </div>
+            {collections?.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
+                {collections.map(c => (
+                  <span
+                    key={c.id}
+                    className="inline-flex items-center gap-0.5 text-[10px] bg-violet-500/10 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded cursor-pointer hover:bg-violet-500/20 transition-colors"
+                    onClick={() => props.onNavigateToCollection(c.id)}
+                  >
+                    <Library className="w-2.5 h-2.5" />
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )
       },

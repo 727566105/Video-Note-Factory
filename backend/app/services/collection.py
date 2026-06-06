@@ -382,6 +382,7 @@ def generate_collection_summary(
             title=task.title,
             file_type="note",
             platform=task.platform,
+            user_id=user_id,
         )
         if not note_path or not note_path.exists():
             logger.warning(f"笔记文件不存在: task_id={task.task_id}")
@@ -455,15 +456,53 @@ def generate_collection_summary(
     return _serialize_summary(existing)
 
 
+def get_task_collection_map(db: Session, user_id: int) -> dict:
+    """获取 task_id → [{id, name}] 的映射，一次查询返回所有笔记所属的合集"""
+    rows = (
+        db.query(CollectionItem.task_id, Collection.id, Collection.name)
+        .join(Collection, CollectionItem.collection_id == Collection.id)
+        .filter(Collection.user_id == user_id)
+        .all()
+    )
+    mapping: dict[str, list[dict]] = {}
+    for task_id, coll_id, coll_name in rows:
+        mapping.setdefault(task_id, []).append({"id": coll_id, "name": coll_name})
+    return mapping
+
+
 # ---------------------------------------------------------------------------
 # 内部辅助函数
 # ---------------------------------------------------------------------------
 
-def _get_gpt(model_name: str, provider_id: str):
-    """根据 provider_id 和 model_name 获取 GPT 实例"""
+def _get_gpt(model_name: str = None, provider_id: str = None):
+    """根据 provider_id 和 model_name 获取 GPT 实例，未指定时自动选择第一个可用供应商"""
+    if not provider_id:
+        from app.db.provider_dao import get_enabled_providers
+        providers = get_enabled_providers()
+        if not providers:
+            raise ValueError("没有可用的模型供应商，请先在设置中配置")
+        provider_id = providers[0].id
+        logger.info(f"未指定供应商，自动选择: {providers[0].name} ({provider_id})")
+
     provider = ProviderService.get_provider_by_id(provider_id)
     if not provider:
         raise ValueError(f"未找到模型供应商: provider_id={provider_id}")
+
+    if not model_name:
+        from app.db.model_dao import get_models_by_provider
+        # provider.id 是字符串，但 Model.provider_id 可能是 int，两种都试
+        models = get_models_by_provider(provider_id)
+        if not models:
+            try:
+                models = get_models_by_provider(int(provider_id))
+            except (ValueError, TypeError):
+                pass
+        if models:
+            model_name = models[0]["model_name"]
+            logger.info(f"未指定模型，自动选择: {model_name}")
+        else:
+            model_name = provider.get("default_model") or "gpt-3.5-turbo"
+            logger.info(f"未找到模型记录，使用默认: {model_name}")
 
     config = ModelConfig(
         api_key=provider["api_key"],

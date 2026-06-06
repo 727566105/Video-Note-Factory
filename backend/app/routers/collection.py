@@ -50,6 +50,16 @@ async def list_collections(user=Depends(get_current_user)):
         db.close()
 
 
+@router.get("/task_map")
+async def get_task_collection_map(user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.get_task_collection_map(db, user.id)
+        return R.success(result)
+    finally:
+        db.close()
+
+
 @router.post("")
 async def create_collection(req: CreateCollectionRequest, user=Depends(get_current_user)):
     db = next(get_db())

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Trash2, GripVertical, Sparkles, Settings2, LoaderCircle, FolderOpen,
-  SquarePlus, Share2, MessageSquare, Brain, Map, Pencil, ArrowUpDown, MoreHorizontal,
-  RotateCcw,
+  SquarePlus, Share2, Brain, Map, Pencil, ArrowUpDown, MoreHorizontal,
+  RotateCcw, SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,55 +19,51 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { useCollectionStore } from '@/store/collectionStore'
 import { useModelStore } from '@/store/modelStore'
 import { useProviderStore } from '@/store/providerStore'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
-
-const STYLES = [
-  { label: '精简', value: 'minimal' },
-  { label: '详细', value: 'detailed' },
-  { label: '学术', value: 'academic' },
-  { label: '教程', value: 'tutorial' },
-  { label: '商业风格', value: 'business' },
-  { label: '会议纪要', value: 'meeting_minutes' },
-]
+import { SummarySettings, type LocalSummaryValues } from '@/components/SummarySettings'
 
 export function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { currentDetail, loading, generating, fetchDetail, removeItem, generateSummary, updateCollection } = useCollectionStore()
-  const { provider: providers } = useProviderStore()
-  const { models } = useModelStore()
+  const { provider: providers, fetchProviderList } = useProviderStore()
+  const { modelList, loadEnabledModels } = useModelStore()
 
-  // 总结设置
-  const [style, setStyle] = useState('minimal')
-  const [selectedProviderId, setSelectedProviderId] = useState('')
-  const [selectedModelName, setSelectedModelName] = useState('')
-  const [extras, setExtras] = useState('')
+  // 总结设置对话框
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // 本地总结设置值（用于传给后端）
+  const [localSettings, setLocalSettings] = useState<LocalSummaryValues>({
+    style: 'minimal',
+    outputLanguage: 'zh',
+    videoUnderstanding: true,
+    videoInterval: 4,
+    gridCols: 3,
+    gridRows: 3,
+    selectedFormats: ['toc', 'link', 'screenshot', 'summary'],
+    extras: '',
+  })
 
   // 编辑信息
   const [editOpen, setEditOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
 
-  // 总结设置面板展开
-  const [summarySettingsOpen, setSummarySettingsOpen] = useState(false)
 
   useEffect(() => {
     if (id) fetchDetail(id)
   }, [id])
+
+  useEffect(() => {
+    if (providers.length === 0) fetchProviderList()
+    if (modelList.length === 0) loadEnabledModels()
+  }, [])
 
   useEffect(() => {
     if (currentDetail) {
@@ -83,7 +79,7 @@ export function CollectionDetail() {
 
   const handleGenerate = async () => {
     if (!id) return
-    await generateSummary(id, style, selectedModelName || undefined, selectedProviderId || undefined, extras || undefined)
+    await generateSummary(id, localSettings.style, undefined, undefined, localSettings.extras)
   }
 
   const handleSaveEdit = async () => {
@@ -113,7 +109,7 @@ export function CollectionDetail() {
   const summary = currentDetail.summary
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-4xl">
+    <div className="p-4 md:p-6 space-y-5">
       {/* ====== 1. 页面头部 ====== */}
       <div className="space-y-4">
         {/* 移动端返回 */}
@@ -171,15 +167,6 @@ export function CollectionDetail() {
           <Button variant="outline" size="sm" className="h-8">
             <Share2 className="w-4 h-4 mr-1.5" />
             分享合集
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 border-pink-200 text-pink-600 hover:bg-pink-50 hover:text-pink-700 dark:border-pink-800 dark:text-pink-400 dark:hover:bg-pink-950"
-            onClick={() => setSummarySettingsOpen(!summarySettingsOpen)}
-          >
-            <MessageSquare className="w-4 h-4 mr-1.5" />
-            Ask AI
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -256,65 +243,28 @@ export function CollectionDetail() {
           </div>
         )}
 
-        {/* 总结设置折叠面板 */}
-        {summarySettingsOpen && (
-          <div className="space-y-3 pt-3 border-t">
-            <p className="text-xs font-medium text-muted-foreground">总结设置</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">风格</label>
-                <Select value={style} onValueChange={setStyle}>
-                  <SelectTrigger className="mt-1 h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STYLES.map(s => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">供应商</label>
-                <Select value={selectedProviderId} onValueChange={v => { setSelectedProviderId(v); setSelectedModelName('') }}>
-                  <SelectTrigger className="mt-1 h-8 text-sm">
-                    <SelectValue placeholder="默认" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(providers ?? []).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">模型</label>
-                <Select value={selectedModelName} onValueChange={setSelectedModelName}>
-                  <SelectTrigger className="mt-1 h-8 text-sm">
-                    <SelectValue placeholder="默认" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(models ?? [])
-                      .filter(m => !selectedProviderId || m.provider_id === selectedProviderId)
-                      .map(m => (
-                        <SelectItem key={m.id} value={m.model_name}>{m.model_name}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">额外提示词</label>
-              <Input
-                value={extras}
-                onChange={e => setExtras(e.target.value)}
-                placeholder="可选"
-                className="mt-1 h-8 text-sm"
-              />
-            </div>
-          </div>
-        )}
+        {/* 总结设置按钮 */}
+        <div className="pt-3 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <SlidersHorizontal className="w-4 h-4 mr-2" />
+            总结设置
+          </Button>
+        </div>
       </div>
+
+      {/* 总结设置对话框 */}
+      <SummarySettings
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        mode="local"
+        localValues={localSettings}
+        onLocalChange={setLocalSettings}
+      />
 
       {/* ====== 3. 内容统计栏 ====== */}
       <div className="flex items-center justify-between gap-3 py-2 border-b">
@@ -371,7 +321,7 @@ export function CollectionDetail() {
 
               {/* 信息 */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{item.title || '无标题'}</p>
+                <p className="text-sm font-medium truncate hover:text-blue-500 cursor-pointer transition-colors" onClick={() => navigate(`/notes/${item.task_id}`)}>{item.title || '无标题'}</p>
                 {item.platform && (
                   <span className="inline-block mt-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
                     {item.platform}

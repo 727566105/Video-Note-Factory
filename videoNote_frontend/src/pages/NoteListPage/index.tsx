@@ -93,6 +93,8 @@ import { BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, C
 import { getAuthors, type AuthorInfo } from '@/services/author'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { AddToCollectionDialog } from '@/pages/LibraryPage/components/AddToCollectionDialog'
+import { getTaskCollectionMap } from '@/services/collection'
+import { Library } from 'lucide-react'
 
 // 平台筛选选项
 const PLATFORM_OPTIONS: FilterOption[] = [
@@ -389,6 +391,7 @@ export const NoteListPage: FC = () => {
   const [playItem, setPlayItem] = useState<NoteItem | null>(null)
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
   const [addToCollectionOpen, setAddToCollectionOpen] = useState(false)
+  const [taskCollectionMap, setTaskCollectionMap] = useState<Record<string, { id: string; name: string }[]>>({})
   const localStorageViewMode = useSystemStore(state => state.noteViewMode)
   const setNoteViewMode = useSystemStore(state => state.setNoteViewMode)
   // 移动端自动使用卡片视图，桌面端使用 localStorage 存储
@@ -474,6 +477,10 @@ export const NoteListPage: FC = () => {
   }
 
   useEffect(() => { fetchNotes() }, [])
+
+  useEffect(() => {
+    getTaskCollectionMap().then(setTaskCollectionMap).catch(() => {})
+  }, [])
 
   // 加载博主列表
   useEffect(() => {
@@ -742,6 +749,8 @@ export const NoteListPage: FC = () => {
           isSubscribable={isSubscribable}
           taskStoreTasks={taskStoreTasks}
           onTagsUpdate={handleTagsUpdate}
+          taskCollectionMap={taskCollectionMap}
+          onNavigateToCollection={(collectionId: string) => navigate(`/library/${collectionId}`)}
         />
       ) : noteViewMode === 'card' ? (
         /* 卡片视图 */
@@ -842,6 +851,21 @@ export const NoteListPage: FC = () => {
                     <div className="mt-2" onClick={e => e.stopPropagation()}>
                       <TagsRow item={item} onTagsUpdate={handleTagsUpdate} />
                     </div>
+                    {/* 合集标签 */}
+                    {taskCollectionMap[item.task_id]?.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
+                        {taskCollectionMap[item.task_id].map(c => (
+                          <span
+                            key={c.id}
+                            className="inline-flex items-center gap-0.5 text-[10px] bg-violet-500/10 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded cursor-pointer hover:bg-violet-500/20 transition-colors"
+                            onClick={() => navigate(`/library/${c.id}`)}
+                          >
+                            <Library className="w-2.5 h-2.5" />
+                            {c.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1073,6 +1097,8 @@ function DataTable({
   isSubscribable,
   taskStoreTasks,
   onTagsUpdate,
+  taskCollectionMap,
+  onNavigateToCollection,
 }: {
   data: NoteItem[]
   loading: boolean
@@ -1089,6 +1115,8 @@ function DataTable({
   isSubscribable: (platform: string) => boolean
   taskStoreTasks: Task[]
   onTagsUpdate: (id: string, tags: any) => void
+  taskCollectionMap: Record<string, { id: string; name: string }[]>
+  onNavigateToCollection: (collectionId: string) => void
 }) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
@@ -1112,8 +1140,10 @@ function DataTable({
         isSubscribable,
         taskStoreTasks,
         onTagsUpdate,
+        taskCollectionMap,
+        onNavigateToCollection,
       }),
-    [onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable, taskStoreTasks, onTagsUpdate],
+    [onSelectRow, onSelectAll, onRowClick, onDelete, onRegenerate, onSubscribe, failedCovers, onCoverError, isSubscribed, isSubscribable, taskStoreTasks, onTagsUpdate, taskCollectionMap, onNavigateToCollection],
   )
 
   const table = useReactTable({
