@@ -1,5 +1,6 @@
 import type { ReactNode, FC } from 'react'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 interface RootLayoutProps {
   children: ReactNode
@@ -12,10 +13,12 @@ export const metadata = {
 
 const RootLayout: FC<RootLayoutProps> = ({ children }) => {
   return (
-    <div className="h-full overflow-hidden bg-background font-sans text-foreground">
-      <Toaster />
-      {children}
-    </div>
+    <ThemeProvider>
+      <div className="h-full overflow-hidden bg-background font-sans text-foreground selection:bg-primary/15 selection:text-foreground">
+        <Toaster />
+        {children}
+      </div>
+    </ThemeProvider>
   )
 }
 

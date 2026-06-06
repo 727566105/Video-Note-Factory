@@ -16,13 +16,22 @@ const HomeLayout: () => JSX.Element = () => {
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 主内容区 */}
-        <main className="flex-1 overflow-hidden flex flex-col items-center justify-center p-4 md:p-6">
+        <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 md:p-8">
+          <div
+            className="absolute inset-0 bg-cover bg-center dark:hidden"
+            style={{ backgroundImage: "url('/home-background-light.svg')" }}
+          />
+          <div
+            className="absolute inset-0 hidden bg-cover bg-center dark:block"
+            style={{ backgroundImage: "url('/home-background.svg')" }}
+          />
+          <div className="absolute inset-0 bg-background/0 dark:bg-[#2D2D2D]/30" />
           <ConfigHealthBanner />
-          <div className="w-full max-w-2xl">
-            <QuickAdd />
+          <div className="relative z-10 flex w-full max-w-5xl items-center justify-center">
+            <QuickAdd className="h-auto" />
           </div>
         </main>
       </div>

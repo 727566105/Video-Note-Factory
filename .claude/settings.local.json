@@ -131,7 +131,13 @@
       "Bash(git status *)",
       "Bash(git *)",
       "WebFetch(domain:github.com)",
-      "Bash(ps *)"
+      "Bash(ps *)",
+      "Bash(rtk read *)",
+      "Bash(rtk ps *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk wc *)",
+      "Bash(mv stop.sh stop.sh.local)",
+      "Bash(rtk git *)"
     ]
   }
 }

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import subprocess
 import os
 import uuid
+from PIL import Image, ImageStat
 load_dotenv()
 api_path = os.getenv("API_BASE_URL", "http://localhost")
 BACKEND_PORT= os.getenv("BACKEND_PORT", 8483)
@@ -12,6 +13,18 @@ BACKEND_PORT= os.getenv("BACKEND_PORT", 8483)
 BACKEND_BASE_URL = f"{api_path}:{BACKEND_PORT}"
 
 from typing import Optional
+
+
+def is_blank_image(image_path: Path, stddev_threshold: float = 3.0) -> bool:
+    """Return true when a generated frame is effectively a solid-color blank."""
+    try:
+        with Image.open(image_path) as image:
+            stat = ImageStat.Stat(image.convert("RGB").resize((32, 18)))
+            return max(stat.stddev) < stddev_threshold
+    except Exception:
+        return False
+
+
 def generate_screenshot(video_path: str, output_dir: str, timestamp: int, index: int) -> str:
     """
     使用 ffmpeg 生成截图，返回生成图片路径
@@ -22,20 +35,33 @@ def generate_screenshot(video_path: str, output_dir: str, timestamp: int, index:
     filename = f"screenshot_{index:03}_{uuid.uuid4()}.jpg"
     output_path = output_dir / filename
 
-    command = [
-        "ffmpeg",
-        "-ss", str(timestamp),
-        "-i", str(video_path),
-        "-frames:v", "1",
-        "-q:v", "2",
-        str(output_path),
-        "-y"
-    ]
+    candidate_timestamps = [max(0, timestamp)]
+    if timestamp <= 1:
+        candidate_timestamps.extend([2, 3, 5, 8])
+    else:
+        candidate_timestamps.extend([timestamp + 1, timestamp + 2])
 
-    result = subprocess.run(command, capture_output=True, text=True)
+    last_error = ""
+    for candidate in dict.fromkeys(candidate_timestamps):
+        command = [
+            "ffmpeg",
+            "-ss", str(candidate),
+            "-i", str(video_path),
+            "-frames:v", "1",
+            "-q:v", "2",
+            str(output_path),
+            "-y"
+        ]
 
-    if result.returncode != 0 or not output_path.exists():
-        raise RuntimeError(f"截图生成失败 (timestamp={timestamp}): {result.stderr or '文件未创建'}")
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0 or not output_path.exists():
+            last_error = result.stderr or "文件未创建"
+            continue
+        if not is_blank_image(output_path):
+            return str(output_path)
+
+    if not output_path.exists():
+        raise RuntimeError(f"截图生成失败 (timestamp={timestamp}): {last_error or '文件未创建'}")
 
     return str(output_path)
 

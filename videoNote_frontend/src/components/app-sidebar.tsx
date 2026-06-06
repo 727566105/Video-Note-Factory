@@ -64,7 +64,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   return (
-    <Sidebar {...props} className="border-r border-border" collapsible="icon">
+    <Sidebar {...props} collapsible="icon">
       {/* ===== HEADER ===== */}
       <SidebarHeader>
         {/* Logo */}
@@ -73,20 +73,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {/* 展开态: 完整 Logo + 切换按钮 */}
             <SidebarMenuButton
               size="lg"
-              className="cursor-pointer group-data-[collapsible=icon]:hidden"
+              className="h-12 cursor-pointer group-data-[collapsible=icon]:hidden"
               onClick={() => navigate("/")}
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden bg-sidebar-primary">
+              <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-xl bg-sidebar-primary shadow-sm shadow-primary/20">
                 <img src="/logo.png" alt="VideoNote" className="size-8 object-cover" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">VideoNote</span>
-                <span className="truncate text-xs">AI 视频笔记</span>
+                <span className="truncate font-semibold tracking-tight">VideoNote</span>
+                <span className="truncate text-xs text-sidebar-foreground/55">AI 视频笔记</span>
               </div>
               <div
                 role="button"
                 tabIndex={0}
-                className="inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-all outline-none hover:bg-accent hover:text-accent-foreground size-7 -ml-1"
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-sm font-medium outline-none transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground -ml-1"
                 onClick={(e) => { e.stopPropagation(); toggleSidebar() }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); toggleSidebar() } }}
               >
@@ -96,7 +96,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuButton>
             {/* 折叠态: 仅切换按钮 */}
             <button
-              className="hidden group-data-[collapsible=icon]:inline-flex shrink-0 items-center justify-center rounded-md text-sm font-medium transition-all outline-none hover:bg-accent hover:text-accent-foreground size-8"
+              className="hidden size-8 shrink-0 items-center justify-center rounded-lg text-sm font-medium outline-none transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:inline-flex"
               onClick={toggleSidebar}
             >
               <PanelLeft className="size-4" />
@@ -107,7 +107,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         {/* 搜索 — 展开态为输入框，折叠态消失 */}
         <div className="px-2 group-data-[collapsible=icon]:hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-sidebar-accent rounded-md">
+          <div className="flex items-center gap-2 rounded-xl border border-sidebar-border bg-sidebar-accent/65 px-3 py-2 shadow-xs">
             <Search className="size-4 text-sidebar-foreground/60 shrink-0" />
             <input
               type="text"

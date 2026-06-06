@@ -5,12 +5,16 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
+import type { CSSProperties } from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { useThemeMode } from "@/components/ThemeProvider"
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { resolvedMode } = useThemeMode()
+
   return (
     <Sonner
-      theme="light"
+      theme={resolvedMode}
       className="toaster group"
       position="top-center"
       duration={5000}
@@ -27,7 +31,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
-        } as React.CSSProperties
+        } as CSSProperties
       }
       {...props}
     />

@@ -11,16 +11,8 @@ import { useNavigate, useLocation } from "react-router-dom"
 import {
   ArrowLeft,
   LogOut,
+  Settings,
   User,
-  BotMessageSquare,
-  HardDriveDownload,
-  Info,
-  BookOpen,
-  Cloud,
-  ListOrdered,
-  Users,
-  Rss,
-  UserCog,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -92,6 +84,7 @@ function getPageTitle(pathname: string): string {
       'siyuan': '思源笔记',
       'webdav': 'WebDAV 备份',
       'about': '关于',
+      'profile': '个人资料',
       'subscription': '订阅设置',
       'users': '用户管理',
       'taskqueue': '任务队列',
@@ -111,25 +104,6 @@ export function SiteHeader() {
   const user = useAuthStore(state => state.user)
   const logout = useAuthStore(state => state.logout)
   const tasks = useTaskStore(state => state.tasks)
-
-  const isAdmin = useAuthStore(state => state.isAdmin())
-
-  const adminItems = [
-    { path: '/settings/model', label: 'AI 模型设置', icon: <BotMessageSquare className="mr-2 h-4 w-4" /> },
-    { path: '/settings/taskqueue', label: '任务队列', icon: <ListOrdered className="mr-2 h-4 w-4" /> },
-    { path: '/settings/download', label: '下载配置', icon: <HardDriveDownload className="mr-2 h-4 w-4" /> },
-    { path: '/settings/subscription', label: '订阅设置', icon: <Rss className="mr-2 h-4 w-4" /> },
-  ]
-
-  const commonItems = [
-    { path: '/settings/users', label: '用户管理', icon: <UserCog className="mr-2 h-4 w-4" /> },
-  ]
-
-  const baseItems = [
-    { path: '/settings/siyuan', label: '思源笔记', icon: <BookOpen className="mr-2 h-4 w-4" /> },
-    { path: '/settings/webdav', label: 'WebDAV 备份', icon: <Cloud className="mr-2 h-4 w-4" /> },
-    { path: '/settings/about', label: '关于', icon: <Info className="mr-2 h-4 w-4" /> },
-  ]
 
   const handleLogout = () => {
     useTaskStore.getState().clearTasks()
@@ -237,42 +211,20 @@ export function SiteHeader() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem className="cursor-pointer">
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => navigate('/settings/profile')}
+            >
               <User className="mr-2 h-4 w-4" />
               个人资料
             </DropdownMenuItem>
-
-            {isAdmin && adminItems.map(item => (
-              <DropdownMenuItem
-                key={item.path}
-                className="cursor-pointer"
-                onClick={() => navigate(item.path)}
-              >
-                {item.icon}
-                {item.label}
-              </DropdownMenuItem>
-            ))}
-
-            {commonItems.map(item => (
-              <DropdownMenuItem
-                key={item.path}
-                className="cursor-pointer"
-                onClick={() => navigate(item.path)}
-              >
-                {item.icon}
-                {item.label}
-              </DropdownMenuItem>
-            ))}
-            {baseItems.map(item => (
-              <DropdownMenuItem
-                key={item.path}
-                className="cursor-pointer"
-                onClick={() => navigate(item.path)}
-              >
-                {item.icon}
-                {item.label}
-              </DropdownMenuItem>
-            ))}
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => navigate('/settings')}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              设置中心
+            </DropdownMenuItem>
 
             <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />

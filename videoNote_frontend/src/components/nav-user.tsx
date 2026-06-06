@@ -2,17 +2,11 @@
 
 import {
   LogOut,
+  Monitor,
+  Moon,
   User,
-  BotMessageSquare,
-  HardDriveDownload,
-  Info,
-  BookOpen,
-  Cloud,
-  ListOrdered,
-  Users,
-  Rss,
-  UserCog,
   Settings,
+  Sun,
 } from "lucide-react"
 
 import {
@@ -21,7 +15,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -33,6 +32,13 @@ import {
 import { useAuthStore } from "@/store/authStore"
 import { useTaskStore } from "@/store/taskStore"
 import { useNavigate } from "react-router-dom"
+import { useThemeMode, type ThemeMode } from "@/components/ThemeProvider"
+
+const themeLabels: Record<ThemeMode, string> = {
+  system: '跟随系统',
+  light: '浅色',
+  dark: '深色',
+}
 
 export function NavUser({
   user,
@@ -45,25 +51,8 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const logout = useAuthStore(state => state.logout)
-  const isAdmin = useAuthStore(state => state.isAdmin())
+  const { mode, setMode } = useThemeMode()
   const navigate = useNavigate()
-
-  const adminItems = [
-    { path: '/settings/model', label: 'AI 模型设置', icon: <BotMessageSquare className="mr-2 h-4 w-4" /> },
-    { path: '/settings/taskqueue', label: '任务队列', icon: <ListOrdered className="mr-2 h-4 w-4" /> },
-    { path: '/settings/download', label: '下载配置', icon: <HardDriveDownload className="mr-2 h-4 w-4" /> },
-    { path: '/settings/subscription', label: '订阅设置', icon: <Rss className="mr-2 h-4 w-4" /> },
-  ]
-
-  const commonItems = [
-    { path: '/settings/users', label: '用户管理', icon: <UserCog className="mr-2 h-4 w-4" /> },
-  ]
-
-  const baseItems = [
-    { path: '/settings/siyuan', label: '思源笔记', icon: <BookOpen className="mr-2 h-4 w-4" /> },
-    { path: '/settings/webdav', label: 'WebDAV 备份', icon: <Cloud className="mr-2 h-4 w-4" /> },
-    { path: '/settings/about', label: '关于', icon: <Info className="mr-2 h-4 w-4" /> },
-  ]
 
   return (
     <SidebarMenu>
@@ -137,52 +126,43 @@ export function NavUser({
             <DropdownMenuSeparator />
 
             <DropdownMenuGroup>
-              <DropdownMenuItem className="cursor-pointer">
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => navigate('/settings/profile')}
+              >
                 <User className="mr-2 h-4 w-4" />
                 个人资料
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-
-            <DropdownMenuSeparator />
-
-            {/* 管理员设置 */}
-            {isAdmin && (
-              <DropdownMenuGroup>
-                {adminItems.map(item => (
-                  <DropdownMenuItem
-                    key={item.path}
-                    className="cursor-pointer"
-                    onClick={() => navigate(item.path)}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuGroup>
-            )}
-
-            {/* 普通设置 */}
-            <DropdownMenuGroup>
-              {commonItems.map(item => (
-                <DropdownMenuItem
-                  key={item.path}
-                  className="cursor-pointer"
-                  onClick={() => navigate(item.path)}
-                >
-                  {item.icon}
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
-              {baseItems.map(item => (
-                <DropdownMenuItem
-                  key={item.path}
-                  className="cursor-pointer"
-                  onClick={() => navigate(item.path)}
-                >
-                  {item.icon}
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => navigate('/settings')}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                设置中心
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="cursor-pointer">
+                  <Monitor className="mr-2 h-4 w-4" />
+                  外观模式
+                  <span className="ml-auto text-xs text-muted-foreground">{themeLabels[mode]}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="min-w-40">
+                  <DropdownMenuRadioGroup value={mode} onValueChange={value => setMode(value as ThemeMode)}>
+                    <DropdownMenuRadioItem value="system" className="cursor-pointer">
+                      <Monitor className="mr-2 h-4 w-4" />
+                      跟随系统
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="light" className="cursor-pointer">
+                      <Sun className="mr-2 h-4 w-4" />
+                      浅色
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark" className="cursor-pointer">
+                      <Moon className="mr-2 h-4 w-4" />
+                      深色
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             </DropdownMenuGroup>
 
             <DropdownMenuSeparator />

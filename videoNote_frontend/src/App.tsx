@@ -12,6 +12,7 @@ const SettingPage = lazy(() => import('@/pages/SettingPage/index.tsx'))
 const Model = lazy(() => import('@/pages/SettingPage/Model.tsx'))
 const ProviderForm = lazy(() => import('@/components/Form/modelForm/Form.tsx'))
 const AboutPage = lazy(() => import('@/pages/SettingPage/about.tsx'))
+const ProfilePage = lazy(() => import('@/pages/SettingPage/Profile.tsx'))
 const SiyuanSettings = lazy(() => import('@/pages/SettingPage/Siyuan.tsx'))
 const WebDAVSettings = lazy(() => import('@/pages/SettingPage/WebDAV.tsx'))
 const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
@@ -100,7 +101,7 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
     return (
       <TooltipProvider delayDuration={0}>
         <SwipeBackHandler>
-          <div className="h-screen flex flex-col bg-background">
+          <div className="flex h-dvh flex-col bg-background">
             <SiteHeader />
             <div className="flex-1 min-h-0 overflow-auto">
               {children}
@@ -116,9 +117,11 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset className="h-full overflow-hidden">
-        <div className="h-full overflow-auto">
+      <SidebarInset className="h-full overflow-hidden bg-background">
+        <div className="h-full overflow-auto p-3">
+          <div className="app-surface h-full min-h-0 overflow-hidden rounded-2xl border border-border/70">
           {children}
+          </div>
         </div>
       </SidebarInset>
     </SidebarProvider>
@@ -155,6 +158,7 @@ function App() {
               <Route path="siyuan" element={<Suspense fallback={<PageLoader />}><SiyuanSettings /></Suspense>} />
               <Route path="webdav" element={<Suspense fallback={<PageLoader />}><WebDAVSettings /></Suspense>} />
               <Route path="about" element={<Suspense fallback={<PageLoader />}><AboutPage /></Suspense>} />
+              <Route path="profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />
               <Route path="subscription" element={<AdminRoute><Suspense fallback={<PageLoader />}><SubscriptionSettings /></Suspense></AdminRoute>} />
               <Route path="users" element={<Suspense fallback={<PageLoader />}><UsersPage /></Suspense>} />
               <Route path="*" element={<NotFoundPage />} />

@@ -420,23 +420,24 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
   const isMediaType = task.content_type === 'article' || task.content_type === 'live_photo'
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-background/80">
       {/* 顶栏工具按钮 */}
-      <div className="flex items-center justify-between px-4 py-2 overflow-x-auto">
-        <ButtonGroup>
-          <ButtonGroup className="hidden sm:flex">
+      <div className="shrink-0 border-b border-border/60 bg-background/90 px-4 py-3 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <ButtonGroup className="hidden sm:flex">
             <Button variant="outline" size="sm" onClick={() => navigate(-1)} aria-label="返回笔记列表">
               <ArrowLeft className="size-4" />
               返回
             </Button>
-          </ButtonGroup>
-          <ButtonGroup className="flex sm:hidden">
+            </ButtonGroup>
+            <ButtonGroup className="flex sm:hidden">
             <Button variant="outline" size="icon-sm" onClick={() => navigate(-1)} aria-label="返回笔记列表">
               <ArrowLeft className="size-4" />
             </Button>
-          </ButtonGroup>
-          <ButtonGroupSeparator />
-          <ButtonGroup>
+            </ButtonGroup>
+            <ButtonGroupSeparator className="hidden sm:block" />
+            <ButtonGroup>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon-sm" aria-label="视频信息">
@@ -491,30 +492,31 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
               </TooltipTrigger>
               <TooltipContent>原视频链接</TooltipContent>
             </Tooltip>
-          </ButtonGroup>
-          <ButtonGroup>
-            <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+            </ButtonGroup>
+            <ButtonGroup className="min-w-0">
+            <Button variant="outline" size="sm" className="min-w-0" onClick={() => setSettingsOpen(true)}>
               <Settings2 className="size-4" />
-              总结设置
+              <span className="hidden min-[520px]:inline">总结设置</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setModelOpen(true)}>
+            <Button variant="outline" size="sm" className="min-w-0" onClick={() => setModelOpen(true)}>
               <Sparkles className="size-4" />
-              默认模型
+              <span className="hidden min-[520px]:inline">默认模型</span>
             </Button>
-          </ButtonGroup>
-        </ButtonGroup>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" size="icon-sm" aria-label="切换面板布局" onClick={() => setPanelSwapped(!useSystemStore.getState().panelSwapped)}>
-              <ArrowLeftRight className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>切换面板布局</TooltipContent>
-        </Tooltip>
+            </ButtonGroup>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon-sm" className="shrink-0" aria-label="切换面板布局" onClick={() => setPanelSwapped(!useSystemStore.getState().panelSwapped)}>
+                <ArrowLeftRight className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>切换面板布局</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
       {/* 媒体内容区 */}
-      <div className="px-4 py-2 overflow-y-auto">
+      <div className="px-4 py-3 overflow-y-auto">
         {/* 远程删除提示栏 */}
         {remoteDeleted && !isMediaType && (
           <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 flex items-center gap-2">
@@ -534,7 +536,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
         ) : (
           /* 视频类型：封面 + 播放按钮 */
           <div
-            className="relative bg-muted rounded-xl overflow-hidden group w-full"
+            className="relative w-full overflow-hidden rounded-2xl bg-muted shadow-sm ring-1 ring-border/60 group"
             style={{ height: isPortraitVideo() ? '300px' : 'auto', aspectRatio: isPortraitVideo() ? undefined : '16/9' }}
           >
             {isEmbedActive && embedUrl ? (
@@ -625,14 +627,14 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
       </div>
 
       {/* 视频信息 */}
-      <div className="px-4 py-2 flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-foreground leading-snug">{title}</h2>
+      <div className="px-4 py-3 flex flex-col gap-3">
+        <h2 className="break-words text-lg font-semibold leading-snug text-foreground">{title}</h2>
         {description && (
           <div className="rounded-lg bg-muted p-2 text-sm text-muted-foreground">
             <p
               className={cn(
-                'whitespace-pre-wrap',
-                descExpanded ? '' : 'max-h-5 overflow-hidden'
+                'whitespace-pre-wrap break-words leading-6',
+                descExpanded ? '' : 'max-h-16 overflow-hidden'
               )}
             >
               {description}
@@ -651,8 +653,8 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
             </button>
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{authorDisplay}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 break-words text-sm text-muted-foreground">{authorDisplay}</span>
           {canSubscribe && (
             <Toggle
               size="sm"
@@ -683,7 +685,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
         </div>
         {/* 标签显示 */}
         {(task.tags?.platform_tags?.length || task.tags?.ai_tags?.length || task.tags?.manual_tags?.length) && (
-          <div className="flex gap-1 flex-wrap items-center">
+          <div className="flex flex-wrap items-center gap-1.5">
             {task.tags?.platform_tags?.map((tag, i) => (
               <Badge key={`p${i}`} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] h-5 px-1.5">
                 {tag}
@@ -714,7 +716,7 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
 
       {/* 聊天输入框 */}
       <div className="mt-auto px-4 py-3">
-        <div className="flex items-center h-11 rounded-lg border border-border bg-background px-4">
+        <div className="flex h-11 items-center rounded-xl border border-border bg-background px-4 shadow-sm">
           <span className="text-sm text-muted-foreground">聊天窗口</span>
         </div>
       </div>
@@ -772,4 +774,3 @@ function PlatformIconSmall({ platform }: { platform: string }) {
   }
   return iconMap[platform] ?? <LocalLogo className="w-4 h-4" />
 }
-

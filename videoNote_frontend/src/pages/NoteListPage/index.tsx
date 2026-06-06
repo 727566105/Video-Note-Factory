@@ -184,22 +184,22 @@ const platformIconMap: Record<string, React.ReactNode> = {
 function TagsRow({ item, onTagsUpdate }: { item: NoteItem; onTagsUpdate: (id: string, tags: any) => void }) {
   const hasTags = (item.tags?.platform_tags?.length || 0) > 0 || (item.tags?.ai_tags?.length || 0) > 0 || (item.tags?.manual_tags?.length || 0) > 0
   return (
-    <div className="flex gap-2 flex-wrap items-center mt-2" onClick={e => e.stopPropagation()}>
+    <div className="mt-2 flex flex-wrap items-center gap-2" onClick={e => e.stopPropagation()}>
       {/* 平台标签 - 蓝色 */}
       {item.tags?.platform_tags?.map((tag, i) => (
-        <span key={`p${i}`} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100">
+        <span key={`p${i}`} className="inline-flex cursor-pointer items-center rounded-lg border border-primary/20 bg-primary-light px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:border-primary/35">
           {tag}
         </span>
       ))}
       {/* AI 标签 - 紫色 */}
       {item.tags?.ai_tags?.map((tag, i) => (
-        <span key={`a${i}`} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100">
+        <span key={`a${i}`} className="inline-flex cursor-pointer items-center rounded-lg border border-border bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground transition-colors hover:border-primary/25">
           #{tag}
         </span>
       ))}
       {/* 手动标签 - 绿色 */}
       {item.tags?.manual_tags?.map((tag, i) => (
-        <span key={`m${i}`} className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer bg-green-50 text-green-600 border-green-200 hover:bg-green-100">
+        <span key={`m${i}`} className="inline-flex cursor-pointer items-center rounded-lg border border-border bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/25 hover:text-foreground">
           #{tag}
         </span>
       ))}
@@ -269,7 +269,7 @@ function MasonryNoteCard({
   return (
     <div
       ref={cardRef}
-      className="group rounded-xl border bg-card overflow-hidden cursor-pointer transition-shadow hover:shadow-md mb-4 break-inside-avoid"
+      className="group mb-4 break-inside-avoid cursor-pointer overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
       onClick={onClick}
     >
       {/* 封面 */}
@@ -293,7 +293,7 @@ function MasonryNoteCard({
         )}
         {item.author && (
           <div className="absolute bottom-0 left-0 flex items-center gap-1">
-            <span className="bg-opacity-50 rounded bg-gray-800 p-1 px-2 text-sm font-bold text-white">
+            <span className="rounded-lg bg-foreground/80 px-2 py-1 text-xs font-medium text-background backdrop-blur">
               {item.author}
             </span>
             {['bilibili', 'youtube', 'douyin', 'kuaishou'].includes(item.platform) && (
@@ -312,7 +312,7 @@ function MasonryNoteCard({
           </div>
         )}
         {/* 平台标识 */}
-        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-foreground/60 flex items-center justify-center">
+        <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-background/85 shadow-sm backdrop-blur">
           {platformIconMap[item.platform] || <LocalLogo className="w-3.5 h-3.5" />}
         </div>
         <button
@@ -359,7 +359,7 @@ function MasonryNoteCard({
       {isSuccess && (
         <div className="flex justify-end px-4 pb-4">
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             onClick={(e) => { e.stopPropagation(); onClick() }}
           >
@@ -622,47 +622,48 @@ export const NoteListPage: FC = () => {
   })
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex flex-col gap-3 p-4 md:p-6 md:gap-4 shrink-0">
-        {/* 标题行 - 仅桌面端显示 */}
-        {!isMobile && (
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl md:text-2xl font-semibold text-foreground">笔记列表</h1>
-          </div>
-        )}
-
-        {/* 分隔线 */}
-        <div className="h-px bg-border" />
-
-        {/* 标签行 - 移动端隐藏视图切换 */}
-        {!isMobile && (
-          <div className="flex items-center justify-between">
-            <Select value={localStorageViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry' | 'compact')}>
-              <SelectTrigger className="w-[150px] hover:bg-accent">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
-                <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
-                <SelectItem value="compact"><span className="flex items-center gap-2"><Rows4 className="size-4" />紧凑</span></SelectItem>
-                <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* 工具栏 */}
-        <div className="flex items-center justify-between gap-2 md:gap-4">
-          <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-            <div className="relative flex-1 md:flex-none">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索笔记..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:max-w-80 pl-9"
-              />
+    <div className="flex h-full flex-col overflow-hidden bg-transparent">
+      <div className="shrink-0 border-b border-border/70 bg-card/80 p-4 backdrop-blur md:p-6">
+        <div className="flex flex-col gap-3 md:gap-4">
+          {/* 标题行 - 仅桌面端显示 */}
+          {!isMobile && (
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">笔记列表</h1>
+                <p className="mt-1 text-sm text-muted-foreground">管理、筛选和回看已生成的音视频笔记</p>
+              </div>
             </div>
+          )}
+
+          {/* 标签行 - 移动端隐藏视图切换 */}
+          {!isMobile && (
+            <div className="flex items-center justify-between">
+              <Select value={localStorageViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry' | 'compact')}>
+                <SelectTrigger className="w-[150px] hover:bg-accent">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
+                  <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
+                  <SelectItem value="compact"><span className="flex items-center gap-2"><Rows4 className="size-4" />紧凑</span></SelectItem>
+                  <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* 工具栏 */}
+          <div className="flex items-center justify-between gap-2 md:gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+              <div className="relative flex-1 md:flex-none">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="搜索笔记..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 md:max-w-80"
+                />
+              </div>
             {/* 筛选组件 - 桌面端 */}
             <div className="hidden md:flex items-center gap-3">
               <AuthorFilter
@@ -727,6 +728,7 @@ export const NoteListPage: FC = () => {
           </Button>
         </div>
       </div>
+      </div>
 
       {/* 视图内容 */}
       {noteViewMode === 'table' ? (
@@ -754,7 +756,7 @@ export const NoteListPage: FC = () => {
         />
       ) : noteViewMode === 'card' ? (
         /* 卡片视图 */
-        <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6">
           {loading ? (
             <TableSkeleton rows={3} />
           ) : filteredNotes.length === 0 ? (
@@ -764,7 +766,7 @@ export const NoteListPage: FC = () => {
               {filteredNotes.map((item) => (
                 <div
                   key={item.id}
-                  className="group rounded-xl border border-border bg-background overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/20"
+                  className="group cursor-pointer overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
                   onClick={() => handleNoteClick(item)}
                 >
                   {/* 封面 */}
@@ -800,7 +802,7 @@ export const NoteListPage: FC = () => {
                     {/* 作者徽章 + 订阅按钮 */}
                     {item.author && (
                       <div className="absolute bottom-2 left-2 flex items-center gap-1">
-                        <span className="px-2 py-0.5 rounded text-xs text-background bg-foreground/80">
+                        <span className="rounded-lg bg-foreground/80 px-2 py-0.5 text-xs text-background backdrop-blur">
                           {item.author}
                         </span>
                         {isSubscribable(item.platform) && (
@@ -826,7 +828,7 @@ export const NoteListPage: FC = () => {
                       </div>
                     )}
                     {/* 平台标识 */}
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-foreground/60 flex items-center justify-center">
+                    <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-background/85 shadow-sm backdrop-blur">
                       {platformIconMap[item.platform] || <LocalLogo className="w-3.5 h-3.5" />}
                     </div>
                     {/* 删除按钮 */}
@@ -874,7 +876,7 @@ export const NoteListPage: FC = () => {
         </div>
       ) : noteViewMode === 'compact' ? (
         /* 紧凑视图 */
-        <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6">
           {loading ? (
             <TableSkeleton rows={3} />
           ) : filteredNotes.length === 0 ? (
@@ -884,7 +886,7 @@ export const NoteListPage: FC = () => {
               {filteredNotes.map((item) => (
                 <div
                   key={item.id}
-                  className="group rounded-xl border border-border bg-background overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/20"
+                  className="group cursor-pointer overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
                   onClick={() => handleNoteClick(item)}
                 >
                   {/* 封面 */}
@@ -904,13 +906,13 @@ export const NoteListPage: FC = () => {
                     {/* 作者徽章 */}
                     {item.author && (
                       <div className="absolute bottom-1 left-1 flex items-center gap-1">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] text-background bg-foreground/80 line-clamp-1 max-w-[80%]">
+                        <span className="line-clamp-1 max-w-[80%] rounded-md bg-foreground/80 px-1.5 py-0.5 text-[10px] text-background backdrop-blur">
                           {item.author}
                         </span>
                       </div>
                     )}
                     {/* 平台标识 */}
-                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-foreground/60 flex items-center justify-center">
+                    <div className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-background/85 shadow-sm backdrop-blur">
                       {platformIconMap[item.platform] || <LocalLogo className="w-3 h-3" />}
                     </div>
                     {/* 删除按钮 */}
@@ -939,7 +941,7 @@ export const NoteListPage: FC = () => {
         </div>
       ) : (
         /* 瀑布流视图 */
-        <div className="flex-1 min-h-0 overflow-auto px-6 pb-6">
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-6">
           {loading ? (
             <TableSkeleton rows={3} />
           ) : filteredNotes.length === 0 ? (
@@ -1167,12 +1169,15 @@ function DataTable({
   const totalCount = table.getFilteredRowModel().rows.length
 
   return (
-    <div className="flex-1 min-h-0 border border-border rounded-lg overflow-auto flex flex-col mx-6">
+    <div className="m-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-card shadow-xs md:m-6">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <span className="text-sm text-muted-foreground">
-          已选择 {selectedCount} 行（共 {totalCount} 行）
-        </span>
+      <div className="flex items-center justify-between border-b border-border/70 bg-card px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-foreground">笔记数据</span>
+          <span className="rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground">
+            已选择 {selectedCount} 行 / 共 {totalCount} 行
+          </span>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
@@ -1196,12 +1201,17 @@ function DataTable({
         </DropdownMenu>
       </div>
 
-      <Table>
+      <div className="min-h-0 flex-1 overflow-auto">
+      <Table className="table-fixed">
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} className="hover:bg-muted/50">
+            <TableRow key={headerGroup.id} className="bg-muted/35 hover:bg-muted/35">
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id} style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}>
+                <TableHead
+                  key={header.id}
+                  className="h-11 px-4 text-xs font-semibold text-muted-foreground"
+                  style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                >
                   {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                 </TableHead>
               ))}
@@ -1226,13 +1236,21 @@ function DataTable({
               <TableRow
                 key={row.id}
                 className={cn(
-                  'cursor-pointer transition-all duration-200',
-                  selectedRows.includes(row.original.id) && 'bg-accent',
+                  'cursor-pointer border-border/70 transition-colors duration-200 hover:bg-accent/35',
+                  selectedRows.includes(row.original.id) && 'bg-accent/70',
                 )}
                 onClick={() => onRowClick(row.original)}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}>
+                  <TableCell
+                    key={cell.id}
+                    className={cn(
+                      "px-4 py-3 align-middle",
+                      cell.column.id === 'select' && "pr-0",
+                      cell.column.id === 'actions' && "text-right",
+                    )}
+                    style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
@@ -1241,9 +1259,10 @@ function DataTable({
           )}
         </TableBody>
       </Table>
+      </div>
 
       {/* 分页 */}
-      <div className="flex items-center justify-between px-4 py-4 border-t border-border">
+      <div className="flex items-center justify-between border-t border-border/70 bg-card px-4 py-3">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Select
             value={String(table.getState().pagination.pageSize)}
@@ -1287,4 +1306,3 @@ function DataTable({
     </div>
   )
 }
-
