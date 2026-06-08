@@ -306,7 +306,7 @@ export function QuickAdd({ className }: QuickAddProps) {
     }
   }
 
-  const ACCEPT_TYPES = 'video/*,.mp4,audio/*,.mp3,.mpeg,.mpga,.m4a,.wav,.webm,.acc,.flac,.ogg,.opus,.wma,.wmv,.mov,.avi,.mkv'
+  const ACCEPT_TYPES = 'video/*,.mp4,.mpeg,.mpg,audio/*,.mp3,.mpga,.m4a,.wav,.webm,.aac,.flac,.ogg,.opus,.wma,.wmv,.mov,.avi,.mkv'
 
   const pickFiles = () => {
     const input = document.createElement('input')
@@ -586,7 +586,7 @@ export function QuickAdd({ className }: QuickAddProps) {
               <span className="pl-1">可同时选择多个文件 (单个文件大小 ≤2G)</span>
             </p>
             <span className="text-xs text-foreground/40">
-              支持格式：mp3, mp4, mov, mpg, m4a, wav, webm, avi, mkv 等
+              支持格式：mp3, mp4, mov, m4a, wav, webm, avi, mkv, aac, flac, ogg, wma, wmv, flv 等
             </span>
           </div>
         </div>

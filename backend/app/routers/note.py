@@ -88,9 +88,9 @@ ALLOWED_EXTENSIONS = {
     # 图片类型
     "jpg", "jpeg", "png", "webp", "gif", "bmp", "svg",
     # 视频类型
-    "mp4", "avi", "mov", "mkv", "webm", "flv", "wmv",
+    "mp4", "avi", "mov", "mkv", "webm", "flv", "wmv", "mpeg", "mpg",
     # 音频类型
-    "mp3", "wav", "aac", "ogg", "flac", "m4a", "wma",
+    "mp3", "wav", "aac", "ogg", "flac", "m4a", "wma", "opus",
 }
 MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 
@@ -385,7 +385,7 @@ async def upload(file: UploadFile = File(...), current_user=Depends(get_current_
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
-            detail=f"文件过大: {file_size / 1024 / 1024:.2f}MB，最大允许 100MB"
+            detail=f"文件过大: {file_size / 1024 / 1024 / 1024:.2f}GB，最大允许 2GB"
         )
 
     if file_size == 0:
