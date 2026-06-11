@@ -27,6 +27,7 @@ import { useProviderStore } from '@/store/providerStore'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { SummarySettings, type LocalSummaryValues } from '@/components/SummarySettings'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 
 export function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -38,16 +39,17 @@ export function CollectionDetail() {
   // 总结设置对话框
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  // 本地总结设置值（用于传给后端）
+  // 本地总结设置值（初始值从全局设置继承）
+  const globalSettings = useSummarySettingsStore()
   const [localSettings, setLocalSettings] = useState<LocalSummaryValues>({
-    style: 'minimal',
-    outputLanguage: 'zh',
-    videoUnderstanding: true,
-    videoInterval: 4,
-    gridCols: 3,
-    gridRows: 3,
-    selectedFormats: ['toc', 'link', 'screenshot', 'summary'],
-    extras: '',
+    style: globalSettings.style,
+    outputLanguage: globalSettings.outputLanguage,
+    videoUnderstanding: globalSettings.videoUnderstanding,
+    videoInterval: globalSettings.videoInterval,
+    gridCols: globalSettings.gridCols,
+    gridRows: globalSettings.gridRows,
+    selectedFormats: globalSettings.selectedFormats,
+    extras: globalSettings.extras,
   })
 
   // 编辑信息
@@ -109,7 +111,7 @@ export function CollectionDetail() {
   const summary = currentDetail.summary
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
+    <div className="h-full overflow-auto p-4 md:p-6 space-y-5">
       {/* ====== 1. 页面头部 ====== */}
       <div className="space-y-4">
         {/* 移动端返回 */}
@@ -122,9 +124,10 @@ export function CollectionDetail() {
 
         {/* 头部卡片 */}
         <div className="flex items-start gap-4">
-          <div className="hidden md:flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <FolderOpen className="size-6" />
-          </div>
+          <Button variant="outline" size="sm" className="hidden md:flex shrink-0" onClick={() => navigate('/library')}>
+            <ArrowLeft className="size-4" />
+            返回
+          </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-semibold truncate">{currentDetail.name}</h1>

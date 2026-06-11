@@ -40,9 +40,25 @@ python3 main.py              # 启动后端 (默认端口 8483)
 ### 后端测试
 ```bash
 cd backend
-python3 -m pytest tests/     # 运行测试
-python3 -m app.routers.test_export  # 单独测试导出功能
+python3 -m pytest tests/              # 运行所有测试
+python3 -m pytest tests/test_export.py -v          # 运行单个测试文件
+python3 -m pytest tests/test_export.py::test_export_markdown -v  # 运行单个测试函数
+python3 -m app.routers.test_export    # 单独测试导出功能
 ```
+
+### 前端测试
+```bash
+cd videoNote_frontend
+pnpm test                             # 运行 Vitest 单元测试
+pnpm test:watch                       # 运行 Vitest 监听模式
+pnpm test:e2e                         # 运行 Playwright E2E 测试
+pnpm test:e2e:ui                      # 运行 E2E 测试（带 UI）
+```
+
+**Playwright 配置** (`playwright.config.ts`):
+- E2E 测试目录: `./e2e`
+- 自动启动后端 (端口 8483) 和前端 (端口 3015)
+- 支持 Chromium 浏览器测试
 
 ### 前端开发
 ```bash
@@ -340,7 +356,20 @@ JWT Bearer Token 认证，通过 `app/auth/` 模块实现：
 - **跨用户复用**: 新用户订阅已有频道时，复制 FeedItem 但不复制 task_id；笔记可用性通过 API 跨用户检测
 - **频道统计**: `subscription_dao.get_channel_stats()` 聚合订阅者数、视频数、笔记数
 
-## 版本号更新
+## CI 测试配置
+
+GitHub Actions 工作流 (`.github/workflows/test.yml`):
+- **backend-tests**: Python 3.11 + pytest
+- **frontend-unit-tests**: Node.js 20 + Vitest
+- **frontend-e2e-tests**: Python 后端 + Playwright E2E
+
+CI 环境变量要求:
+```bash
+JWT_SECRET_KEY=ci-test-secret
+BACKEND_PORT=8483
+WEBDAV_ENCRYPTION_KEY=<encryption-key>
+DEFAULT_ADMIN_PASSWORD=123456
+```
 
 版本号需同步修改 3 处：
 1. `README.md` — `<h1>videoNote v{version}</h1>`
