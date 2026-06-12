@@ -208,18 +208,19 @@ videoNote/
    - `videoUnderstanding`: 默认 `true`（启用）
    - `selectedFormats`: 默认全部启用 `['toc', 'link', 'screenshot', 'summary']`
    - 以上默认值在 store、`SummarySettings`、`NoteForm`、`NoteDetailPage` 四处保持一致
+   - 合集详情页（`CollectionDetail`）使用 local 模式，初始值从全局 store 继承
 
-4. **请求封装** (`src/utils/request.ts`)
+8. **请求封装** (`src/utils/request.ts`)
    - 基于 axios，后端返回格式 `{ code, msg, data }`，`code === 0` 为成功
    - 错误时自动 toast 提示
 
-5. **任务轮询** (`src/hooks/useTaskPolling.ts`)
+9. **任务轮询** (`src/hooks/useTaskPolling.ts`)
    - 每 3 秒轮询 `/api/task_status/{task_id}`
    - 仅轮询 PENDING/RUNNING 状态的任务
 
-6. **平台图标系统** (`src/components/Icons/platform.tsx`)
-   - 8 个平台 Logo SVG 组件: BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, CCTVLogo, LocalLogo, AudioLogo
-   - 默认尺寸 `w-6 h-6`，通过 `className` prop 覆盖
+10. **平台图标系统** (`src/components/Icons/platform.tsx`)
+    - 8 个平台 Logo SVG 组件: BiliBiliLogo, YoutubeLogo, DouyinLogo, KuaishouLogo, XiaohongshuLogo, CCTVLogo, LocalLogo, AudioLogo
+    - 默认尺寸 `w-6 h-6`，通过 `className` prop 覆盖
 
 ### 浏览器插件 (browser-extension/)
 
@@ -342,6 +343,12 @@ data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
 
 **数据库迁移**: `app/db/init_db.py` 中通过 `migrate_video_tasks_table()` 和 `migrate_feed_items_table()` 函数检查并添加新列。新增字段必须同时更新模型文件和迁移函数。
 
+## 合集与资料库系统
+
+- **合集** (`/library`): 用户创建合集，将多个笔记按标签或手动归类
+- **合集总结**: AI 分析合集内所有视频内容，生成结构化综合总结
+- **总结设置**: 合集详情页使用 local 模式，初始值从全局 `summarySettingsStore` 继承
+
 ## 认证系统
 
 JWT Bearer Token 认证，通过 `app/auth/` 模块实现：
@@ -370,6 +377,8 @@ BACKEND_PORT=8483
 WEBDAV_ENCRYPTION_KEY=<encryption-key>
 DEFAULT_ADMIN_PASSWORD=123456
 ```
+
+## 版本号更新
 
 版本号需同步修改 3 处：
 1. `README.md` — `<h1>videoNote v{version}</h1>`

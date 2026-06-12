@@ -14,6 +14,7 @@ export const getStepProgress = (status: string): { currentStep: number; stepLabe
   const step = PROGRESS_STEPS.find(s => s.key === status)
   if (!step) {
     if (status === 'FAILED') return { currentStep: 0, stepLabel: '失败' }
+    if (status === 'CANCELLED') return { currentStep: 0, stepLabel: '已取消' }
     if (status === 'QUEUED' || status === 'PENDING') return { currentStep: 0, stepLabel: '排队' }
     return { currentStep: 0, stepLabel: '未知' }
   }
@@ -31,7 +32,7 @@ export function hasMarkdownContent(markdown: string | unknown[] | undefined): bo
   return false
 }
 
-export function ProcessingSpinner({ status }: { status: string }) {
+export function ProcessingSpinner({ status, onCancel }: { status: string; onCancel?: () => void }) {
   const { currentStep, stepLabel } = getStepProgress(status)
   return (
     <div className="flex flex-col items-center gap-4 py-12">
@@ -49,6 +50,14 @@ export function ProcessingSpinner({ status }: { status: string }) {
           />
         ))}
       </div>
+      {onCancel && (
+        <button
+          onClick={onCancel}
+          className="mt-2 text-sm text-muted-foreground hover:text-destructive transition-colors"
+        >
+          取消生成
+        </button>
+      )}
     </div>
   )
 }

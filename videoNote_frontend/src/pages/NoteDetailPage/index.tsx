@@ -6,7 +6,7 @@ import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel, { type LocalSettings } from './RightPanel'
 import DetailNav from './DetailNav'
-import { Loader2, ArrowLeft, Video, FileText, CircleX } from 'lucide-react'
+import { Loader2, ArrowLeft, Video, FileText, CircleX, Ban } from 'lucide-react'
 import { isProcessingStatus, hasMarkdownContent, ProcessingSpinner } from './processing'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -19,10 +19,12 @@ type ErrorCategory = {
   color: string
 }
 
-function classifyError(msg: string): ErrorCategory {
+function classifyError(msg: string, platform?: string): ErrorCategory {
   const m = msg.toLowerCase()
   if (/429|rate.?limit|限流|访问量过大|too many/.test(m))
     return { type: 'rate_limit', label: 'API 限流', color: 'bg-orange-100 text-orange-700' }
+  if (/cookie|验证.*失败|登录.*过期|cookie.*失效|被反爬/.test(m) || (platform === 'douyin' && /解析|parse|download|获取.*失败/.test(m)))
+    return { type: 'cookie', label: 'Cookie 过期', color: 'bg-amber-100 text-amber-700' }
   if (/下载|download|video\.?download|yt-dlp/.test(m))
     return { type: 'download', label: '下载失败', color: 'bg-red-100 text-red-700' }
   if (/供应商|provider|api.?地址|api.?key|connect.?test/.test(m))
@@ -34,26 +36,34 @@ function classifyError(msg: string): ErrorCategory {
   return { type: 'unknown', label: '生成失败', color: 'bg-gray-100 text-gray-700' }
 }
 
-function ProcessingView({ status }: { status: string }) {
+function ProcessingView({ status, taskId }: { status: string; taskId: string }) {
+  const cancelTask = useTaskStore(state => state.cancelTask)
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-6 bg-background">
-      <ProcessingSpinner status={status} />
+      <ProcessingSpinner status={status} onCancel={() => cancelTask(taskId)} />
       <div className="text-xs text-muted-foreground">刷新页面后进度条仍会实时展示</div>
     </div>
   )
 }
 
-function QueuedView() {
+function QueuedView({ taskId }: { taskId: string }) {
+  const cancelTask = useTaskStore(state => state.cancelTask)
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background">
       <Loader2 className="size-8 animate-spin text-amber-500" />
       <div className="text-lg font-medium text-foreground">排队等待中...</div>
       <div className="text-sm text-muted-foreground">任务正在排队，请稍候</div>
+      <button
+        onClick={() => cancelTask(taskId)}
+        className="mt-2 text-sm text-muted-foreground hover:text-destructive transition-colors"
+      >
+        取消排队
+      </button>
     </div>
   )
 }
 
-function FailedView({ message, taskId }: { message?: string; taskId: string }) {
+function FailedView({ message, taskId, platform }: { message?: string; taskId: string; platform?: string }) {
   const navigate = useNavigate()
   const [retrying, setRetrying] = useState(false)
 
@@ -87,7 +97,7 @@ function FailedView({ message, taskId }: { message?: string; taskId: string }) {
     }
   }
 
-  const category = message ? classifyError(message) : null
+  const category = message ? classifyError(message, platform) : null
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background px-8">
@@ -107,6 +117,13 @@ function FailedView({ message, taskId }: { message?: string; taskId: string }) {
             {message}
           </p>
         </div>
+      )}
+      {category?.type === 'cookie' && (
+        <p className="text-sm text-amber-600">
+          💡 抖音 Cookie 可能已过期，请在
+          <button onClick={() => navigate('/settings/download')} className="underline hover:text-amber-700 mx-1">设置→下载配置</button>
+          中更新 Cookie
+        </p>
       )}
       <div className="mt-4 flex gap-3">
         <button
@@ -292,15 +309,23 @@ export default function NoteDetailPage() {
   const processing = isProcessingStatus(task.status)
   const hasContent = hasMarkdownContent(task.markdown)
   if (processing && !hasContent) {
-    return <ProcessingView status={task.status} />
+    return <ProcessingView status={task.status} taskId={task.id} />
   }
 
   // 排队中：有已有内容也局部显示
   const queued = task.status === 'QUEUED' || task.status === 'PENDING'
+  if (queued && !hasContent) {
+    return <QueuedView taskId={task.id} />
+  }
 
   // 任务失败时显示失败提示
   if (task.status === 'FAILED') {
-    return <FailedView message={task.message} taskId={task.id} />
+    return <FailedView message={task.message} taskId={task.id} platform={task.platform} />
+  }
+
+  // 任务取消时显示取消提示
+  if (task.status === 'CANCELLED') {
+    return <FailedView message="任务已取消" taskId={task.id} />
   }
 
   // 移动端：单页上下滚动布局（顶部栏由 SiteHeader 处理）

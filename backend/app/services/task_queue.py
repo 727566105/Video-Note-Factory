@@ -27,6 +27,7 @@ class TaskQueueManager:
         self.max_concurrent = int(os.getenv("MAX_CONCURRENT_TASKS", "3"))
         self.running_tasks: set[str] = set()
         self.queued_tasks: deque[str] = deque()
+        self.cancelled_tasks: set[str] = set()
         logger.info(f"TaskQueueManager 初始化，最大并发数: {self.max_concurrent}")
 
     def acquire(self, task_id: str) -> bool:
@@ -68,6 +69,20 @@ class TaskQueueManager:
         except ValueError:
             pass  # 任务不在排队队列中
         logger.info(f"任务 {task_id} 已从队列中移除")
+
+    def cancel(self, task_id: str):
+        """取消任务：标记为已取消 + 从队列移除"""
+        self.cancelled_tasks.add(task_id)
+        self.remove(task_id)
+        logger.info(f"任务 {task_id} 已标记为取消")
+
+    def is_cancelled(self, task_id: str) -> bool:
+        """检查任务是否已被取消"""
+        return task_id in self.cancelled_tasks
+
+    def clear_cancelled(self, task_id: str):
+        """清除取消标记（用于任务完成后清理）"""
+        self.cancelled_tasks.discard(task_id)
 
     def get_queue_position(self, task_id: str) -> int:
         """获取排队位置，0 表示执行中，-1 表示不在队列中。"""

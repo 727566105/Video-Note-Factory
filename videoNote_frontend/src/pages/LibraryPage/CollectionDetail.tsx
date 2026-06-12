@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Trash2, GripVertical, Sparkles, Settings2, LoaderCircle, FolderOpen,
   SquarePlus, Share2, Brain, Map, Pencil, ArrowUpDown, MoreHorizontal,
-  RotateCcw, SlidersHorizontal,
+  RotateCcw, SlidersHorizontal, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { SummarySettings, type LocalSummaryValues } from '@/components/SummarySettings'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
+import { ExportDialog } from '@/components/ExportDialog'
 
 export function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -38,6 +39,9 @@ export function CollectionDetail() {
 
   // 总结设置对话框
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // 导出对话框
+  const [exportOpen, setExportOpen] = useState(false)
 
   // 本地总结设置值（初始值从全局设置继承）
   const globalSettings = useSummarySettingsStore()
@@ -198,6 +202,9 @@ export function CollectionDetail() {
           </div>
           {summary?.content && (
             <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setExportOpen(true)}>
+                <Download className="w-3.5 h-3.5 mr-1" />导出
+              </Button>
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
                 <Map className="w-3.5 h-3.5 mr-1" />思维导图
               </Button>
@@ -267,6 +274,15 @@ export function CollectionDetail() {
         mode="local"
         localValues={localSettings}
         onLocalChange={setLocalSettings}
+      />
+
+      {/* 导出对话框 — 复用笔记详情的导出组件 */}
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        selectedContent={summary?.content || ''}
+        collectionId={id}
+        collectionTitle={currentDetail?.name || '合集总结'}
       />
 
       {/* ====== 3. 内容统计栏 ====== */}

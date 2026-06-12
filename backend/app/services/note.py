@@ -35,6 +35,14 @@ from app.utils.video_helper import generate_screenshot
 from app.utils.video_reader import VideoReader
 from app.utils.download_helper import DownloadHelper
 
+# 取消任务相关
+from app.services.task_queue import task_queue
+
+class TaskCancelledError(Exception):
+    """任务被用户取消时抛出"""
+    pass
+
+
 # ------------------ 环境变量与全局配置 ------------------
 
 # 从 .env 文件中加载环境变量
@@ -126,6 +134,8 @@ class NoteGenerator:
         try:
             logger.info(f"开始生成笔记 (task_id={task_id}, smart_mode={smart_mode})")
 
+            self._check_cancelled(task_id)
+
             # 重试场景：先从数据库获取已存的 author 信息
             from app.db.video_task_dao import get_task_by_task_id
             existing_task = get_task_by_task_id(task_id)
@@ -141,6 +151,7 @@ class NoteGenerator:
 
             # 获取下载器
             downloader = self._get_downloader(platform)
+            self._check_cancelled(task_id)
 
             # 非智能模式：提前获取 GPT 实例
             gpt = None
@@ -195,6 +206,7 @@ class NoteGenerator:
 
             # 检测图集/实况照片内容：跳过下载和转写，直接生成图文笔记
             if video_info and getattr(video_info, 'content_type', 'video') in ('article', 'live_photo'):
+                self._check_cancelled(task_id)
                 logger.info(f"检测到图集内容 (content_type={video_info.content_type})，走图文笔记流程")
                 self._update_status(task_id, TaskStatus.DOWNLOADING,
                                     author_id=author_id, author_name=author_name,
@@ -329,6 +341,7 @@ class NoteGenerator:
                 return NoteResult(**result_kwargs)
 
             # 1. 下载音频/视频
+            self._check_cancelled(task_id)
             audio_meta = self._download_media(
                 downloader=downloader,
                 video_url=video_url,
@@ -394,6 +407,7 @@ class NoteGenerator:
                 _title = audio_meta.title
 
             # 2. 转写文字
+            self._check_cancelled(task_id)
             transcript = self._transcribe_audio(
                 audio_file=audio_meta.file_path,
                 transcript_cache_file=transcript_cache_file,
@@ -403,6 +417,8 @@ class NoteGenerator:
 
             # 3. GPT 总结
             smart_result = None
+            # 3. AI 总结
+            self._check_cancelled(task_id)
             if smart_mode and user_id:
                 # 智能优选模式：使用 SmartModelSelector 进行重试
                 markdown, smart_result = self._summarize_with_smart_mode(
@@ -454,6 +470,7 @@ class NoteGenerator:
                 logger.info(f"提取到 AI 标签: {ai_tags}")
 
             # 5. 保存记录到数据库
+            self._check_cancelled(task_id)
             self._update_status(task_id, TaskStatus.SAVING,
                                 title=_title, author_id=author_id, author_name=author_name,
                                 video_id=video_id, platform=platform)
@@ -494,6 +511,14 @@ class NoteGenerator:
 
             return NoteResult(**result_kwargs)
 
+        except TaskCancelledError:
+            logger.info(f"任务被用户取消 (task_id={task_id})")
+            self._update_status(task_id, TaskStatus.CANCELLED, message="任务已取消",
+                                title=locals().get('_title'), author_id=locals().get('author_id'),
+                                author_name=locals().get('author_name'),
+                                video_id=locals().get('video_id'), platform=platform)
+            task_queue.clear_cancelled(task_id)
+            return None
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)
             self._update_status(task_id, TaskStatus.FAILED, message=str(exc),
@@ -842,6 +867,11 @@ class NoteGenerator:
 
         logger.info(f"使用下载器：{instance.__class__.__name__}")
         return instance
+
+    def _check_cancelled(self, task_id: Optional[str]):
+        """检查任务是否已被取消，如果已取消则抛出 TaskCancelledError"""
+        if task_id and task_queue.is_cancelled(task_id):
+            raise TaskCancelledError(f"任务 {task_id} 已被用户取消")
 
     def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus],
                        message: Optional[str] = None, title: Optional[str] = None,

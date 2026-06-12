@@ -15,8 +15,11 @@ import MarkdownRenderer from '@/components/MarkdownRenderer'
 interface ExportDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  task: Task
+  task?: Task
   selectedContent: string
+  /** 合集模式：传入 collectionId 和 title 后使用合集导出 API */
+  collectionId?: string
+  collectionTitle?: string
 }
 
 interface ContentSection {
@@ -28,7 +31,7 @@ interface ContentSection {
   items: { id: string; label: string; checked: boolean; disabled: boolean; badge?: string }[]
 }
 
-export function ExportDialog({ open, onOpenChange, task, selectedContent }: ExportDialogProps) {
+export function ExportDialog({ open, onOpenChange, task, selectedContent, collectionId, collectionTitle }: ExportDialogProps) {
   const [activeTab, setActiveTab] = useState('download')
 
   // 内容选择状态
@@ -119,6 +122,8 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   }
 
   // 操作函数
+  const fileName = collectionTitle || task?.audioMeta?.title || 'note'
+
   const handleCopyMarkdown = () => {
     navigator.clipboard.writeText(selectedContent)
     toast.success('已复制 Markdown 到剪贴板')
@@ -141,7 +146,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   }
 
   const handleDownloadMarkdown = () => {
-    const name = task.audioMeta?.title || 'note'
+    const name = fileName
     const blob = new Blob([selectedContent], { type: 'text/markdown;charset=utf-8' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
@@ -153,7 +158,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   }
 
   const handleDownloadText = () => {
-    const name = task.audioMeta?.title || 'note'
+    const name = fileName
     const plainText = selectedContent
       .replace(/#+\s/g, '')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -172,22 +177,23 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   }
 
   const handleDownloadPdf = async () => {
-    if (!task.id) return
+    if (!task?.id && !collectionId) return
     try {
       const token = useAuthStore.getState().token
-      const response = await fetch(`/api/export/pdf/${task.id}`, {
+      const url = collectionId
+        ? `/api/export/pdf/collection/${collectionId}`
+        : `/api/export/pdf/${task!.id}`
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (!response.ok) throw new Error('PDF 导出失败')
       const blob = await response.blob()
-      const filename = task.audioMeta?.title || 'note'
-      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `${filename}.pdf`
+      a.href = URL.createObjectURL(blob)
+      a.download = `${fileName}.pdf`
       document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      URL.revokeObjectURL(a.href)
       document.body.removeChild(a)
       toast.success('PDF 导出成功')
     } catch {
@@ -196,22 +202,23 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
   }
 
   const handleDownloadPandocFormat = async (format: string, ext: string) => {
-    if (!task.id) return
+    if (!task?.id && !collectionId) return
     try {
       const token = useAuthStore.getState().token
-      const response = await fetch(`/api/export/${format}/${task.id}`, {
+      const url = collectionId
+        ? `/api/export/${format}/collection/${collectionId}`
+        : `/api/export/${format}/${task!.id}`
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (!response.ok) throw new Error()
       const blob = await response.blob()
-      const filename = task.audioMeta?.title || '笔记'
-      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `${filename}.${ext}`
+      a.href = URL.createObjectURL(blob)
+      a.download = `${fileName}.${ext}`
       document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      URL.revokeObjectURL(a.href)
       document.body.removeChild(a)
       toast.success(`${ext.toUpperCase()} 导出成功`)
     } catch {
@@ -466,7 +473,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent }: Expo
                       </button>
                       <button
                         onClick={() => {
-                          if (task.id) {
+                          if (task?.id) {
                             toast.promise(
                               fetch(`/api/export/siyuan/${task.id}`, { method: 'POST' }),
                               {

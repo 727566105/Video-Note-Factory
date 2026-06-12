@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import type { BackendTask, TaskTags } from '@/types/api'
 
 
-export type TaskStatus = 'PENDING' | 'QUEUED' | 'PARSING' | 'DOWNLOADING' | 'TRANSCRIBING' | 'SUMMARIZING' | 'FORMATTING' | 'SAVING' | 'SUCCESS' | 'FAILED'
+export type TaskStatus = 'PENDING' | 'QUEUED' | 'PARSING' | 'DOWNLOADING' | 'TRANSCRIBING' | 'SUMMARIZING' | 'FORMATTING' | 'SAVING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
 
 export interface AudioMeta {
   cover_url: string
@@ -81,6 +81,7 @@ interface TaskStore {
   setCurrentTask: (taskId: string | null) => void
   getCurrentTask: () => Task | null
   retryTask: (id: string, payload?: Record<string, unknown>) => Promise<void>
+  cancelTask: (id: string) => Promise<void>
   loadTasksFromBackend: () => Promise<void>
 }
 
@@ -225,8 +226,26 @@ export const useTaskStore = create<TaskStore>()(
           throw e
         }
       },
+      cancelTask: async (id: string) => {
+        if (!id) {
+          toast.error('任务不存在')
+          return
+        }
+        try {
+          const { default: request } = await import('@/utils/request')
+          await request.post('/cancel_task', { task_id: id })
+          set(state => ({
+            tasks: state.tasks.map(t =>
+              t.id === id ? { ...t, status: 'CANCELLED' as TaskStatus, message: '任务已取消' } : t
+            ),
+          }))
+          toast.success('任务已取消')
+        } catch {
+          toast.error('取消任务失败')
+        }
+      },
 
-      clearTasks: () => set({ tasks: [], currentTaskId: null }),
+clearTasks: () => set({ tasks: [], currentTaskId: null }),
 
       dismissTasks: (statuses) => set(state => ({
         tasks: state.tasks.filter(t => !statuses.includes(t.status)),

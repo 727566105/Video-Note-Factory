@@ -44,6 +44,10 @@ from app.utils.path_helper import (
 router = APIRouter()
 
 
+class CancelRequest(BaseModel):
+    task_id: str
+
+
 class RecordRequest(BaseModel):
     video_id: Optional[str] = None
     platform: Optional[str] = None
@@ -364,6 +368,28 @@ def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> 
         raise
     except Exception as e:
         logger.error(f"删除任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cancel_task")
+def cancel_task(data: CancelRequest, current_user=Depends(get_current_user)) -> dict:
+    """取消正在运行或排队的任务"""
+    try:
+        db_task = get_task_by_task_id(data.task_id)
+        if not db_task or db_task.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权取消该任务")
+
+        # 标记取消（正在运行的任务会在下一个检查点停止）
+        task_queue.cancel(data.task_id)
+
+        # 立即更新状态文件为 CANCELLED（对卡住的任务立即生效）
+        NoteGenerator()._update_status(data.task_id, TaskStatus.CANCELLED, message="任务已取消")
+
+        return R.success(msg='任务已取消')
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"取消任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -21,6 +21,9 @@ from app.utils.path_helper import (
 )
 from app.db.video_task_dao import get_task_by_task_id
 from app.utils.pandoc_export import export_with_pandoc, is_pandoc_available, _resolve_image_paths
+from app.db.engine import get_db
+from app.services.collection import get_collection_summary
+from app.db.models.collection import Collection
 
 # PDF 样式主题
 StyleType = Literal["default", "simple", "print", "academic"]
@@ -1087,3 +1090,134 @@ async def export_docx(task_id: str, current_user=Depends(get_current_user)):
 async def export_epub(task_id: str, current_user=Depends(get_current_user)):
     """导出笔记为 EPUB"""
     return _export_pandoc_format(task_id, "epub", current_user)
+
+
+# ==================== 合集总结导出 ====================
+
+def _get_collection_summary_content(collection_id: str, current_user):
+    """从数据库获取合集总结内容，返回 (markdown_content, title)"""
+    db = next(get_db())
+    try:
+        # 验证合集归属
+        collection = db.query(Collection).filter(Collection.id == collection_id).first()
+        if not collection:
+            raise HTTPException(status_code=404, detail="合集不存在")
+        if collection.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权访问该合集")
+
+        summary = get_collection_summary(db, collection_id)
+        if not summary or not summary.get("content"):
+            raise HTTPException(status_code=404, detail="合集总结不存在，请先生成总结")
+
+        return summary["content"], collection.name
+    finally:
+        db.close()
+
+
+@router.get("/pdf/collection/{collection_id}")
+async def export_collection_pdf(
+    collection_id: str,
+    style: StyleType = Query(default="default", description="PDF 样式主题"),
+    current_user=Depends(get_current_user)
+):
+    """导出合集总结为 PDF"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+
+    # 生成 PDF
+    import tempfile
+    from weasyprint import HTML
+    css_content = PDF_STYLES.get(style, PDF_STYLES["default"])
+
+    html_content = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>{css_content}</style></head>
+<body><h1>{title} - 合集总结</h1>{_markdown_to_html_paragraphs(markdown_content)}</body></html>"""
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        HTML(string=html_content).write_pdf(tmp.name)
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        filename = quote(f"{safe_title}_总结.pdf")
+        return FileResponse(
+            path=tmp.name,
+            media_type="application/pdf",
+            filename=f"{safe_title}_总结.pdf",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"}
+        )
+
+
+def _markdown_to_html_paragraphs(markdown_content: str) -> str:
+    """将 Markdown 简单转换为 HTML（用于合集总结 PDF 导出）"""
+    try:
+        import markdown
+        return markdown.markdown(markdown_content, extensions=['tables', 'fenced_code', 'toc'])
+    except ImportError:
+        # 回退：将换行转为 <br>
+        return markdown_content.replace('\n', '<br>')
+
+
+@router.get("/html/collection/{collection_id}")
+async def export_collection_html(collection_id: str, current_user=Depends(get_current_user)):
+    """导出合集总结为 HTML"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+    if not is_pandoc_available():
+        raise HTTPException(status_code=501, detail="Pandoc 未安装，无法导出 HTML")
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode='w', encoding='utf-8') as tmp:
+        export_with_pandoc(
+            markdown_content=markdown_content,
+            output_format="html",
+            output_path=Path(tmp.name),
+            title=f"{title} - 合集总结",
+        )
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        return FileResponse(
+            path=tmp.name,
+            media_type="text/html",
+            filename=f"{safe_title}_总结.html",
+        )
+
+
+@router.get("/docx/collection/{collection_id}")
+async def export_collection_docx(collection_id: str, current_user=Depends(get_current_user)):
+    """导出合集总结为 Word (.docx)"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+    if not is_pandoc_available():
+        raise HTTPException(status_code=501, detail="Pandoc 未安装，无法导出 Word")
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        export_with_pandoc(
+            markdown_content=markdown_content,
+            output_format="docx",
+            output_path=Path(tmp.name),
+            title=f"{title} - 合集总结",
+        )
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        return FileResponse(
+            path=tmp.name,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename=f"{safe_title}_总结.docx",
+        )
+
+
+@router.get("/epub/collection/{collection_id}")
+async def export_collection_epub(collection_id: str, current_user=Depends(get_current_user)):
+    """导出合集总结为 EPUB"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+    if not is_pandoc_available():
+        raise HTTPException(status_code=501, detail="Pandoc 未安装，无法导出 EPUB")
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+        export_with_pandoc(
+            markdown_content=markdown_content,
+            output_format="epub",
+            output_path=Path(tmp.name),
+            title=f"{title} - 合集总结",
+        )
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        return FileResponse(
+            path=tmp.name,
+            media_type="application/epub+zip",
+            filename=f"{safe_title}_总结.epub",
+        )
