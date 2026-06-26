@@ -13,10 +13,15 @@ export const exportConfigs = async () => {
  * 导出配置为 JSON 文件下载
  */
 import { getApiBaseURL } from '@/utils/api'
+import { useAuthStore } from '@/store/authStore'
 
 export const exportConfigsFile = async () => {
+  // 后端 /configs/export/file 受 require_admin 保护（HTTPBearer），
+  // 这里用原生 fetch 下载 blob，必须显式带 Authorization，否则 401。
+  const token = useAuthStore.getState().token
   const response = await fetch(`${getApiBaseURL()}/configs/export/file`, {
     method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
 
   if (!response.ok) {
