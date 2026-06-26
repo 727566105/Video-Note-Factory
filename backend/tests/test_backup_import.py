@@ -114,3 +114,84 @@ def test_roundtrip_media_files_match(tmp_path, monkeypatch):
     assert (out / "cover.jpg").read_bytes() == b"img-bytes"
     assert (out / "audio.mp3").read_bytes() == b"audio-bytes"
     assert not (tgt / "video" / "_pending").exists(), "_pending 不应被导出/导入"
+
+
+def test_roundtrip_db_rows_match(tmp_path, monkeypatch):
+    """DB 行经 export→import 完整找回"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "x").mkdir()
+    (webdav_backup.VIDEO_DIR / "x" / "note.md").write_text("# t")
+    _seed_db(webdav_backup.DB_FILE, [(1, "alpha"), (2, "beta"), (3, "gamma")])
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    _point(monkeypatch, tgt)
+    assert not (tgt / "video_note.db").exists(), "目标初始应无 DB"
+    restore_from_local_file(zip_path)
+    assert _db_rows(tgt / "video_note.db") == [(1, "alpha"), (2, "beta"), (3, "gamma")]
+
+
+def test_configs_restore_invokes_daos(tmp_path, monkeypatch):
+    """configs.json 中的 webdav/siyuan/providers 被对应 DAO 写回（真实密钥）"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    calls = {"webdav": [], "siyuan": [], "insert": [], "update": [], "get": []}
+    monkeypatch.setattr("app.db.webdav_config_dao.upsert_config",
+                        lambda **kw: calls["webdav"].append(kw))
+    monkeypatch.setattr("app.db.siyuan_config_dao.upsert_config",
+                        lambda **kw: calls["siyuan"].append(kw))
+    monkeypatch.setattr("app.db.provider_dao.get_provider_by_id",
+                        lambda pid: (calls["get"].append(pid), None)[1])
+    monkeypatch.setattr("app.db.provider_dao.insert_provider",
+                        lambda **kw: calls["insert"].append(kw))
+    monkeypatch.setattr("app.db.provider_dao.update_provider",
+                        lambda *a, **kw: calls["update"].append((a, kw)))
+
+    cfg = {"version": "1.0", "exported_at": "2026-06-26T00:00:00", "configs": {
+        "webdav_config": {"url": "http://w", "username": "u", "password": "realpwd",
+                          "path": "/", "auto_backup_enabled": 1, "auto_backup_schedule": "0 2 * * *"},
+        "siyuan_config": {"api_url": "http://s", "api_token": "realtoken", "default_notebook": "nb"},
+        "providers": [
+            {"id": 1, "name": "p1", "api_key": "k1", "base_url": "u", "logo": "", "type": "openai", "enabled": 1},
+            {"id": 2, "name": "p2", "api_key": "k2", "base_url": "u", "logo": "", "type": "openai", "enabled": 1},
+        ],
+    }}
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "x")])
+    zip_path = _zip_with_db(tgt / "pkg.zip", db, {"configs.json": json.dumps(cfg, ensure_ascii=False)})
+    restore_from_local_file(zip_path)
+
+    assert len(calls["webdav"]) == 1 and calls["webdav"][0]["password"] == "realpwd"
+    assert len(calls["siyuan"]) == 1 and calls["siyuan"][0]["api_token"] == "realtoken"
+    assert len(calls["insert"]) == 2, "两个 provider 都应 insert（get 返回 None）"
+    assert {c["id"] for c in calls["insert"]} == {1, 2}
+
+
+def test_configs_with_placeholder_secrets_skipped(tmp_path, monkeypatch):
+    """密码/Key 为占位符 '********' 时对应 DAO 不应被调用"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    calls = {"webdav": 0, "siyuan": 0, "insert": 0, "update": 0}
+    monkeypatch.setattr("app.db.webdav_config_dao.upsert_config",
+                        lambda **kw: calls.__setitem__("webdav", calls["webdav"] + 1))
+    monkeypatch.setattr("app.db.siyuan_config_dao.upsert_config",
+                        lambda **kw: calls.__setitem__("siyuan", calls["siyuan"] + 1))
+    monkeypatch.setattr("app.db.provider_dao.get_provider_by_id", lambda pid: None)
+    monkeypatch.setattr("app.db.provider_dao.insert_provider",
+                        lambda **kw: calls.__setitem__("insert", calls["insert"] + 1))
+    monkeypatch.setattr("app.db.provider_dao.update_provider",
+                        lambda *a, **kw: calls.__setitem__("update", calls["update"] + 1))
+
+    cfg = {"version": "1.0", "exported_at": "2026-06-26T00:00:00", "configs": {
+        "webdav_config": {"password": "********", "url": "http://w", "username": "u",
+                          "path": "/", "auto_backup_enabled": 0, "auto_backup_schedule": "0 2 * * *"},
+        "siyuan_config": {"api_token": "********", "api_url": "http://s", "default_notebook": None},
+        "providers": [{"id": 1, "name": "p", "api_key": "********", "base_url": "", "logo": "", "type": "", "enabled": 1}],
+    }}
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "x")])
+    zip_path = _zip_with_db(tgt / "pkg.zip", db, {"configs.json": json.dumps(cfg, ensure_ascii=False)})
+    restore_from_local_file(zip_path)
+
+    assert calls == {"webdav": 0, "siyuan": 0, "insert": 0, "update": 0}, "占位符密钥应全部跳过"
