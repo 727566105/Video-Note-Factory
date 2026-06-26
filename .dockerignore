@@ -319,3 +319,19 @@ cython_debug/
 /backend/bili_note.db
 /backend/uploads/*
 /BiliNote_frontend/.idea/*
+
+# === 运行时数据 / 版本库 / 本地调试产物（不进镜像，避免构建上下文爆炸）===
+# 根目录 data/ 是 docker-compose 挂载卷（含音视频/DB），绝不能进构建上下文
+/data/
+/.git/
+/.backup_temp/
+/.vite/
+/.playwright-mcp/
+/.claude/
+/docs/
+/backend/test_screenshots/
+/backend/test_report.md
+/backend/tests/
+*.network-response
+video-note-toolbar.txt
+**/*.swp
