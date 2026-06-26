@@ -619,9 +619,10 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         if progress_callback:
             progress_callback(60, "正在恢复数据库...")
 
-        # 关闭数据库连接
-        from app.db.engine import SessionLocal
-        SessionLocal.remove()
+        # 释放连接池，确保 SQLite 文件可被替换
+        # （SessionLocal 是 sessionmaker，无 remove()；用 engine.dispose() 释放池连接）
+        from app.db.engine import engine
+        engine.dispose()
 
         # 替换数据库文件
         shutil.copy2(extracted_db, DB_FILE)
@@ -793,9 +794,9 @@ def _rollback_restore(backup_dir: Path):
         # 恢复数据库
         backup_db = backup_dir / DB_FILENAME
         if backup_db.exists() and DB_FILE:
-            # 关闭数据库连接
-            from app.db.engine import SessionLocal
-            SessionLocal.remove()
+            # 释放连接池，确保 SQLite 文件可被替换
+            from app.db.engine import engine
+            engine.dispose()
             shutil.copy2(backup_db, DB_FILE)
 
         # 恢复媒体目录（video 优先，note_results 兼容旧包）
