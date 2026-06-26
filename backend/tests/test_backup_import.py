@@ -7,7 +7,6 @@
 import inspect
 import json
 import sqlite3
-import sys
 import zipfile
 from pathlib import Path
 
@@ -369,17 +368,13 @@ def test_import_corrupt_zip_raises(tmp_path, monkeypatch):
         restore_from_local_file(zip_path)
 
 
-@pytest.mark.xfail(
-    sys.version_info < (3, 12),
-    reason="Python<3.12 的 zipfile.extractall 不清洗 '../'，代码无显式 zip-slip 防护；"
-           "建议解压前校验 resolve() 在 restore_temp_dir 内（当前依赖运行时防护）",
-    strict=True,
-)
 def test_zip_slip_not_written_outside_target(tmp_path, monkeypatch):
     """恶意 arcname 含 '../' 不应写出 restore 目录之外
 
-    Python 3.12+ 的 extractall 会清洗 '..'，canary 落在 restore 内 → 断言通过。
-    Python<3.12 不清洗 → canary 逃逸到 restore 之外 → xfail（建议加显式防护）。
+    CPython 的 zipfile.extractall 自 3.6.2 起清洗 '..'（路径穿越防护），
+    canary 被归一化进 restore_temp_dir 内、随后被 finally 清理。
+    本测试作为回归守卫：若将来换成不清洗的手动解压，canary 会逃逸到
+    tgt/temp/__outside_canary__（restore 父级，不被 finally 清理）→ 断言失败。
     """
     tgt = tmp_path / "tgt"
     _point(monkeypatch, tgt)
