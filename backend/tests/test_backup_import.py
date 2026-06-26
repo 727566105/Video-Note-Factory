@@ -195,3 +195,73 @@ def test_configs_with_placeholder_secrets_skipped(tmp_path, monkeypatch):
     restore_from_local_file(zip_path)
 
     assert calls == {"webdav": 0, "siyuan": 0, "insert": 0, "update": 0}, "占位符密钥应全部跳过"
+
+
+# ==================== ② 整体替换语义 + gap ====================
+
+def test_import_replaces_video_dir_whole(tmp_path, monkeypatch):
+    """目标 video 里的'孤儿文件'应被整体替换清掉（_replace_dir 删除重建）"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "bilibili" / "a" / "v").mkdir(parents=True)
+    (webdav_backup.VIDEO_DIR / "bilibili" / "a" / "v" / "note.md").write_text("# src")
+    _seed_db(webdav_backup.DB_FILE, [(1, "s")])
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    _point(monkeypatch, tgt)
+    orphan = webdav_backup.VIDEO_DIR / "douyin" / "orphan" / "v"
+    orphan.mkdir(parents=True)
+    (orphan / "orphan.md").write_text("# orphan")
+    restore_from_local_file(zip_path)
+
+    assert (tgt / "video" / "bilibili" / "a" / "v" / "note.md").read_text() == "# src"
+    assert not (tgt / "video" / "douyin" / "orphan").exists(), "孤儿目录应被整体替换清掉"
+
+
+def test_import_replaces_db_whole(tmp_path, monkeypatch):
+    """目标 DB 里的额外行应被文件级覆盖清掉"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "x").mkdir()
+    (webdav_backup.VIDEO_DIR / "x" / "note.md").write_text("# t")
+    _seed_db(webdav_backup.DB_FILE, [(1, "src")])
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    _point(monkeypatch, tgt)
+    _seed_db(webdav_backup.DB_FILE, [(1, "tgt-original"), (2, "extra-will-vanish")])
+    restore_from_local_file(zip_path)
+    assert _db_rows(tgt / "video_note.db") == [(1, "src")], "额外行应被覆盖消失"
+
+
+def test_gap_configs_do_not_delete_absent_providers(tmp_path, monkeypatch):
+    """【已知 gap】备份里没有的 provider 不会被删除，目标里的旧 provider 残留"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    existing = {1: {"id": 1, "name": "P_old"}}  # 目标已有 provider id=1
+    inserted, updated = [], []
+    monkeypatch.setattr("app.db.provider_dao.get_provider_by_id",
+                        lambda pid: existing.get(pid))
+    monkeypatch.setattr("app.db.provider_dao.insert_provider",
+                        lambda **kw: inserted.append(kw))
+    monkeypatch.setattr("app.db.provider_dao.update_provider",
+                        lambda *a, **kw: updated.append((a, kw)))
+
+    # 备份里只有 provider id=2
+    cfg = {"version": "1.0", "exported_at": "2026-06-26T00:00:00", "configs": {"providers": [
+        {"id": 2, "name": "P_new", "api_key": "k", "base_url": "u", "logo": "", "type": "openai", "enabled": 1}]}}
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "x")])
+    zip_path = _zip_with_db(tgt / "pkg.zip", db, {"configs.json": json.dumps(cfg, ensure_ascii=False)})
+    restore_from_local_file(zip_path)
+
+    assert [c["id"] for c in inserted] == [2], "只应 insert 备份中的 id=2"
+    assert 1 in existing, "目标原有的 id=1 既未被查询也未被删除 → 残留（gap）"
+
+
+def test_gap_rollback_does_not_restore_configs():
+    """【已知 gap】_rollback_restore 不含任何 configs 还原逻辑（静态契约）"""
+    src = inspect.getsource(webdav_backup._rollback_restore).lower()
+    assert "configs" not in src, "回滚当前不还原 configs（已知 gap，建议后续补）"
+    assert "_restore_configs" not in src
