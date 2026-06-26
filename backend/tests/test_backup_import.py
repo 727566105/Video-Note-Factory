@@ -265,3 +265,67 @@ def test_gap_rollback_does_not_restore_configs():
     src = inspect.getsource(webdav_backup._rollback_restore).lower()
     assert "configs" not in src, "回滚当前不还原 configs（已知 gap，建议后续补）"
     assert "_restore_configs" not in src
+
+
+# ==================== ③ 回滚 / 失败注入 ====================
+
+def test_pre_restore_snapshot_captured(tmp_path, monkeypatch):
+    """成功导入后，pre_restore 快照目录应留存且含 DB+video+note_results"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    # 目标原始内容
+    (webdav_backup.VIDEO_DIR / "a").mkdir()
+    (webdav_backup.VIDEO_DIR / "a" / "f.md").write_text("v")
+    webdav_backup.NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    (webdav_backup.NOTE_OUTPUT_DIR / "n.md").write_text("n")
+    _seed_db(webdav_backup.DB_FILE, [(1, "orig")])
+    # 源包
+    db2 = tgt / "_src" / "video_note.db"
+    _seed_db(db2, [(1, "new")])
+    zip_path = _zip_with_db(tgt / "pkg.zip", db2, {})
+
+    restore_from_local_file(zip_path)
+
+    snaps = list((tgt / "temp").glob("pre_restore_*"))
+    assert len(snaps) == 1, "应恰好建立一个 pre_restore 快照"
+    snap = snaps[0]
+    assert (snap / "video_note.db").exists()
+    assert (snap / "video" / "a" / "f.md").exists()
+    assert (snap / "note_results" / "n.md").exists()
+
+
+def test_rollback_restores_db_and_video_on_failure(tmp_path, monkeypatch):
+    """恢复中途失败后，DB 与 video 应完全回滚到导入前"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "a").mkdir()
+    (webdav_backup.VIDEO_DIR / "a" / "src.md").write_text("src")
+    _seed_db(webdav_backup.DB_FILE, [(1, "src")])
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    _point(monkeypatch, tgt)
+    (webdav_backup.VIDEO_DIR / "a").mkdir()
+    (webdav_backup.VIDEO_DIR / "a" / "orig.md").write_text("orig")
+    _seed_db(webdav_backup.DB_FILE, [(1, "orig")])
+    orig_db_hash = (tgt / "video_note.db").read_bytes()
+
+    # 注入：_replace_dir 第 1 次调用抛异常（恢复 video 时），之后恢复原行为供回滚用
+    original = WebDAVBackup._replace_dir
+    counter = {"n": 0}
+
+    def boom(src_d, dest_d):
+        counter["n"] += 1
+        if counter["n"] == 1:
+            raise RuntimeError("注入失败")
+        return original(src_d, dest_d)
+
+    monkeypatch.setattr(WebDAVBackup, "_replace_dir", staticmethod(boom))
+
+    with pytest.raises(RuntimeError, match="注入失败"):
+        restore_from_local_file(zip_path)
+
+    # 回滚后：DB 字节 + video 内容都应回到导入前
+    assert (tgt / "video_note.db").read_bytes() == orig_db_hash
+    assert (webdav_backup.VIDEO_DIR / "a" / "orig.md").read_text() == "orig"
+    assert not (webdav_backup.VIDEO_DIR / "a" / "src.md").exists()
