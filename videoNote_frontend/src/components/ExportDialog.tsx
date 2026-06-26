@@ -475,7 +475,7 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent, collec
                         onClick={() => {
                           if (task?.id) {
                             toast.promise(
-                              fetch(`/api/export/siyuan/${task.id}`, { method: 'POST' }),
+                              fetch(`/api/siyuan/export/siyuan/${task.id}`, { method: 'POST', headers: { Authorization: `Bearer ${useAuthStore.getState().token || ''}` } }),
                               {
                                 loading: '正在保存到思源笔记...',
                                 success: '已保存到思源笔记',
