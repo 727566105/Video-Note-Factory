@@ -302,35 +302,8 @@ def delete_backup(backup_name: str, current_user=Depends(get_current_user)) -> d
 
 # ==================== 恢复操作 ====================
 
-@router.post("/restore/{backup_name}")
-def restore_backup(backup_name: str, current_user=Depends(get_current_user)) -> dict:
-    """从备份恢复数据"""
-    try:
-        config = dao_get_config()
-        if not config:
-            return R.error(msg="请先配置 WebDAV 连接")
-
-        # 检查状态
-        status = get_backup_status()
-        if status["is_busy"]:
-            return R.error(msg=f"恢复操作正在执行中: {status['message']}")
-
-        # 检查密码是否可以解密
-        password = get_decrypted_password()
-        if not password:
-            logger.warning("密码解密失败，无法恢复备份")
-            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
-
-        backup_service = WebDAVBackup(config)
-        result = backup_service.restore_backup(backup_name)
-        return R.success(data=result, msg="恢复成功")
-
-    except Exception as e:
-        if "无法解密密码" in str(e):
-            logger.warning("密码解密失败，无法恢复备份")
-            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
-        logger.error(f"恢复失败: {e}")
-        return R.error(msg=f"恢复失败: {str(e)}")
+# 注意：/restore/upload 必须注册在 /restore/{backup_name} 之前，
+# 否则路径参数路由会把它 shadow 掉（backup_name="upload"），导致上传导入端点不可达。
 
 
 @router.post("/restore/upload")
@@ -373,6 +346,37 @@ def restore_from_upload(file: UploadFile = UploadFile(...), current_user=Depends
         # 清理临时文件
         if 'local_zip_path' in locals() and local_zip_path.exists():
             local_zip_path.unlink()
+
+
+@router.post("/restore/{backup_name}")
+def restore_backup(backup_name: str, current_user=Depends(get_current_user)) -> dict:
+    """从备份恢复数据"""
+    try:
+        config = dao_get_config()
+        if not config:
+            return R.error(msg="请先配置 WebDAV 连接")
+
+        # 检查状态
+        status = get_backup_status()
+        if status["is_busy"]:
+            return R.error(msg=f"恢复操作正在执行中: {status['message']}")
+
+        # 检查密码是否可以解密
+        password = get_decrypted_password()
+        if not password:
+            logger.warning("密码解密失败，无法恢复备份")
+            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
+
+        backup_service = WebDAVBackup(config)
+        result = backup_service.restore_backup(backup_name)
+        return R.success(data=result, msg="恢复成功")
+
+    except Exception as e:
+        if "无法解密密码" in str(e):
+            logger.warning("密码解密失败，无法恢复备份")
+            return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
+        logger.error(f"恢复失败: {e}")
+        return R.error(msg=f"恢复失败: {str(e)}")
 
 
 # ==================== 定时任务 ====================

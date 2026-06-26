@@ -434,3 +434,30 @@ def test_db_schema_not_upgraded_on_import(tmp_path, monkeypatch):
     cols = [r[1] for r in con.execute("PRAGMA table_info(video_tasks)")]
     con.close()
     assert cols == ["id", "legacy_col"], "导入不应升级 schema（需重启跑迁移）"
+
+
+def test_restore_upload_route_not_shadowed(tmp_path, monkeypatch):
+    """回归：POST /restore/upload 必须命中 restore_from_upload，而非被 /restore/{backup_name} shadow
+
+    历史 bug：path 参数路由先注册，把 /restore/upload 吃成 backup_name='upload'，
+    导致上传导入端点不可达、永远返回 '请先配置 WebDAV 连接'。
+    """
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.routers import webdav as webdav_router
+    from app.auth.dependencies import get_current_user
+
+    app = FastAPI()
+    app.include_router(webdav_router.router, prefix="/api/webdav")
+    app.dependency_overrides[get_current_user] = lambda: {"id": 1, "username": "admin", "role": "admin"}
+    client = TestClient(app)
+
+    # 上传一个非 zip 文件：restore_from_upload 应返回'只支持 .zip'，而非 WebDAV 守卫文案
+    resp = client.post(
+        "/api/webdav/restore/upload",
+        files={"file": ("not_a_zip.txt", b"hello", "application/octet-stream")},
+    )
+    body = resp.json()
+    assert body["code"] != 0, "应被拒绝"
+    assert ".zip" in body["msg"], f"应命中 restore_from_upload（.zip 校验），实际: {body['msg']}"
+    assert "WebDAV" not in body["msg"], "不应被 /restore/{{backup_name}} shadow 到 WebDAV 守卫"
