@@ -7,6 +7,7 @@
 import inspect
 import json
 import sqlite3
+import sys
 import zipfile
 from pathlib import Path
 
@@ -329,3 +330,107 @@ def test_rollback_restores_db_and_video_on_failure(tmp_path, monkeypatch):
     assert (tgt / "video_note.db").read_bytes() == orig_db_hash
     assert (webdav_backup.VIDEO_DIR / "a" / "orig.md").read_text() == "orig"
     assert not (webdav_backup.VIDEO_DIR / "a" / "src.md").exists()
+
+
+# ==================== ④ 边界 / 安全 ====================
+
+def test_import_missing_db_raises(tmp_path, monkeypatch):
+    """zip 只有 video、无 DB → 抛'缺少数据库'"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    zip_path = tgt / "pkg.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("video/a/note.md", "# t")
+    with pytest.raises(Exception, match="缺少数据库"):
+        restore_from_local_file(zip_path)
+
+
+def test_import_legacy_note_results_package(tmp_path, monkeypatch):
+    """旧格式包（note_results/ 而非 video/）走兼容路径"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "l")])
+    zip_path = tgt / "pkg.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(db, "video_note.db")
+        zf.writestr("note_results/old.md", "# old")
+    restore_from_local_file(zip_path)
+    assert (tgt / "notes" / "old.md").read_text(encoding="utf-8") == "# old"
+
+
+def test_import_corrupt_zip_raises(tmp_path, monkeypatch):
+    """非 zip 文件 → 抛'已损坏'"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    zip_path = tgt / "bad.zip"
+    zip_path.write_bytes(b"not a zip file")
+    with pytest.raises(Exception, match="已损坏"):
+        restore_from_local_file(zip_path)
+
+
+@pytest.mark.xfail(
+    sys.version_info < (3, 12),
+    reason="Python<3.12 的 zipfile.extractall 不清洗 '../'，代码无显式 zip-slip 防护；"
+           "建议解压前校验 resolve() 在 restore_temp_dir 内（当前依赖运行时防护）",
+    strict=True,
+)
+def test_zip_slip_not_written_outside_target(tmp_path, monkeypatch):
+    """恶意 arcname 含 '../' 不应写出 restore 目录之外
+
+    Python 3.12+ 的 extractall 会清洗 '..'，canary 落在 restore 内 → 断言通过。
+    Python<3.12 不清洗 → canary 逃逸到 restore 之外 → xfail（建议加显式防护）。
+    """
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "z")])
+    zip_path = tgt / "pkg.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(db, "video_note.db")
+        zf.writestr("../__outside_canary__", "PWNED")
+    restore_from_local_file(zip_path)
+    # canary 不应出现在 restore 目录之外（restore_temp_dir = tgt/temp/restore）
+    assert not (tgt / "temp" / "__outside_canary__").exists(), \
+        "zip-slip：canary 逃逸到 restore 目录之外"
+
+
+def test_import_twice_idempotent(tmp_path, monkeypatch):
+    """同一包连续导入两次，最终 DB/video 状态一致"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "a").mkdir()
+    (webdav_backup.VIDEO_DIR / "a" / "m.md").write_text("# m")
+    _seed_db(webdav_backup.DB_FILE, [(1, "a"), (2, "b")])
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    _point(monkeypatch, tgt)
+    restore_from_local_file(zip_path)
+    snap1 = (tgt / "video_note.db").read_bytes(), sorted(p.relative_to(tgt) for p in (tgt / "video").rglob("*") if p.is_file())
+    restore_from_local_file(zip_path)
+    snap2 = (tgt / "video_note.db").read_bytes(), sorted(p.relative_to(tgt) for p in (tgt / "video").rglob("*") if p.is_file())
+    assert snap1 == snap2
+
+
+def test_db_schema_not_upgraded_on_import(tmp_path, monkeypatch):
+    """【已知】import 仅文件级覆盖，不自动跑 schema 迁移（需重启 app）"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    # 源 DB 用'旧 schema'：video_tasks 只有 legacy_col 列
+    con = sqlite3.connect(webdav_backup.DB_FILE)
+    con.execute("CREATE TABLE video_tasks (id INTEGER PRIMARY KEY, legacy_col TEXT)")
+    con.execute("INSERT INTO video_tasks (id, legacy_col) VALUES (1, 'old')")
+    con.commit()
+    con.close()
+    (webdav_backup.VIDEO_DIR / "a").mkdir()
+    (webdav_backup.VIDEO_DIR / "a" / "f.md").write_text("x")
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    _point(monkeypatch, tgt)
+    restore_from_local_file(zip_path)
+    con = sqlite3.connect(tgt / "video_note.db")
+    cols = [r[1] for r in con.execute("PRAGMA table_info(video_tasks)")]
+    con.close()
+    assert cols == ["id", "legacy_col"], "导入不应升级 schema（需重启跑迁移）"

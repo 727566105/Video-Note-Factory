@@ -603,6 +603,9 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         pre_restore_backup_dir = BACKUP_TEMP_DIR / f"pre_restore_{timestamp}"
+        # 同秒内重复导入时该目录可能已存在（成功后不清理），先清空再建，避免 copytree 冲突
+        if pre_restore_backup_dir.exists():
+            shutil.rmtree(pre_restore_backup_dir, ignore_errors=True)
         pre_restore_backup_dir.mkdir(parents=True, exist_ok=True)
 
         # 备份当前数据库
