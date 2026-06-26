@@ -15,18 +15,22 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # 使用统一的路径管理工具
-from app.utils.path_helper import NOTE_OUTPUT_DIR, PROJECT_ROOT
+from app.utils.path_helper import NOTE_OUTPUT_DIR, VIDEO_DIR, DATA_DIR, PROJECT_ROOT
 
-# 从环境变量获取数据库路径，与 engine.py 保持一致
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///video_note.db")
+# 数据库路径与 engine.py 完全一致
+# 修复：原默认值 video_note.db 与 engine 的 data/video_note.db 不一致，
+# 导致 DB_FILE 指向不存在的文件，备份会漏掉整个数据库
+from app.db.engine import DATABASE_URL
 if DATABASE_URL.startswith("sqlite:///"):
-    DB_FILE = PROJECT_ROOT / DATABASE_URL.replace("sqlite:///", "")
+    DB_FILE = Path(DATABASE_URL.replace("sqlite:///", ""))
     DB_FILENAME = DB_FILE.name
 else:
     DB_FILE = None
     DB_FILENAME = None
 # 临时备份目录
 BACKUP_TEMP_DIR = PROJECT_ROOT / ".backup_temp"
+# 本地导出 zip 存放目录
+LOCAL_BACKUP_DIR = DATA_DIR / "backups"
 
 # 全局状态，用于并发控制
 _backup_in_progress = False
@@ -121,6 +125,19 @@ class WebDAVBackup:
             _current_message = ""
             _current_progress = 0
 
+    @staticmethod
+    def _replace_dir(src: Path, dest: Path):
+        """用 src 目录整体替换 dest 目录（清空 dest 后复制 src 内容）"""
+        if dest.exists():
+            shutil.rmtree(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        for item in src.iterdir():
+            target = dest / item.name
+            if item.is_dir():
+                shutil.copytree(item, target)
+            else:
+                shutil.copy2(item, target)
+
     def _collect_backup_files(self, progress: BackupProgress = None) -> list[Path]:
         """收集需要备份的文件"""
         files = []
@@ -128,11 +145,15 @@ class WebDAVBackup:
         if progress:
             progress.update(10, "正在收集备份文件...")
 
-        # 收集 note_results 目录
-        if NOTE_OUTPUT_DIR.exists():
-            for file_path in NOTE_OUTPUT_DIR.rglob("*"):
-                if file_path.is_file():
-                    files.append(file_path)
+        # 收集 data/video 目录（笔记正文、封面、截图、音视频）
+        if VIDEO_DIR.exists():
+            for file_path in VIDEO_DIR.rglob("*"):
+                if not file_path.is_file():
+                    continue
+                # 排除 _pending 临时任务目录
+                if "_pending" in file_path.parts:
+                    continue
+                files.append(file_path)
 
         # 添加数据库文件
         if DB_FILE and DB_FILE.exists():
@@ -174,8 +195,8 @@ class WebDAVBackup:
                     arcname = DB_FILENAME
                 else:
                     try:
-                        rel_path = file_path.relative_to(NOTE_OUTPUT_DIR)
-                        arcname = f"note_results/{rel_path}"
+                        rel_path = file_path.relative_to(VIDEO_DIR)
+                        arcname = f"video/{rel_path}"
                     except ValueError:
                         arcname = file_path.name
 
@@ -237,7 +258,7 @@ class WebDAVBackup:
 
         return remote_path
 
-    def create_backup(self, backup_type: str = "manual", progress_callback: Callable = None) -> dict:
+    def create_backup(self, backup_type: str = "manual", target: str = "webdav", progress_callback: Callable = None) -> dict:
         """
         创建备份
 
@@ -269,17 +290,23 @@ class WebDAVBackup:
             # 2. 创建压缩包
             zip_path = self._create_zip_archive(files, progress)
 
-            # 3. 上传到 WebDAV
-            remote_path = self._upload_to_webdav(zip_path, progress)
-
-            # 4. 获取文件信息
+            # 3. 获取文件信息（在移动/删除前计算）
             file_size = zip_path.stat().st_size
             file_count = len(files)
 
-            # 5. 清理临时文件
-            zip_path.unlink()
+            # 4. 根据目标处理 zip
+            if target == "local":
+                # 本地导出：保留到 LOCAL_BACKUP_DIR，不上传
+                LOCAL_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+                local_dest = LOCAL_BACKUP_DIR / zip_path.name
+                shutil.move(str(zip_path), str(local_dest))
+                remote_path = None
+            else:
+                # WebDAV：上传后清理临时 zip
+                remote_path = self._upload_to_webdav(zip_path, progress)
+                zip_path.unlink()
 
-            # 6. 记录备份历史
+            # 5. 记录备份历史
             add_backup_record(
                 type=backup_type,
                 status="success",
@@ -287,19 +314,21 @@ class WebDAVBackup:
                 file_count=file_count
             )
 
-            # 更新最后备份时间
-            from app.db.webdav_config_dao import update_last_backup_time
-            update_last_backup_time()
+            # 更新最后备份时间（仅 WebDAV 模式）
+            if target == "webdav":
+                from app.db.webdav_config_dao import update_last_backup_time
+                update_last_backup_time()
 
             if progress:
-                progress.update(100, "备份完成")
+                progress.update(100, "导出完成" if target == "local" else "备份完成")
 
             result = {
                 "success": True,
                 "remote_path": remote_path,
+                "filename": zip_path.name,
                 "file_size": file_size,
                 "file_count": file_count,
-                "message": "备份成功"
+                "message": "导出成功" if target == "local" else "备份成功"
             }
 
             _current_message = "备份成功"
@@ -454,21 +483,16 @@ class WebDAVBackup:
             if progress:
                 progress.update(80, "正在恢复笔记文件...")
 
-            # 5. 恢复笔记文件
-            restored_notes = restore_temp_dir / "note_results"
-            if restored_notes.exists():
-                # 清理现有 note_results 目录
-                if NOTE_OUTPUT_DIR.exists():
-                    shutil.rmtree(NOTE_OUTPUT_DIR)
-                NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-                # 复制恢复的文件
-                for item in restored_notes.iterdir():
-                    dest = NOTE_OUTPUT_DIR / item.name
-                    if item.is_dir():
-                        shutil.copytree(item, dest)
-                    else:
-                        shutil.copy2(item, dest)
+            # 5. 恢复笔记/媒体文件（video/ 优先，note_results/ 兼容旧包）
+            restored_video = restore_temp_dir / "video"
+            if restored_video.exists():
+                WebDAVBackup._replace_dir(restored_video, VIDEO_DIR)
+            else:
+                restored_notes = restore_temp_dir / "note_results"
+                if restored_notes.exists():
+                    if not NOTE_OUTPUT_DIR.exists():
+                        NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                    WebDAVBackup._replace_dir(restored_notes, NOTE_OUTPUT_DIR)
 
             if progress:
                 progress.update(100, "恢复完成")
@@ -585,7 +609,9 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         if DB_FILE and DB_FILE.exists():
             shutil.copy2(DB_FILE, pre_restore_backup_dir / DB_FILENAME)
 
-        # 备份当前笔记目录
+        # 备份当前媒体目录
+        if VIDEO_DIR.exists():
+            shutil.copytree(VIDEO_DIR, pre_restore_backup_dir / "video")
         if NOTE_OUTPUT_DIR.exists():
             shutil.copytree(NOTE_OUTPUT_DIR, pre_restore_backup_dir / "note_results")
 
@@ -604,20 +630,16 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         if progress_callback:
             progress_callback(80, "正在恢复笔记文件...")
 
-        extracted_notes = restore_temp_dir / "note_results"
-        if extracted_notes.exists():
-            # 备份并替换笔记目录
-            if NOTE_OUTPUT_DIR.exists():
-                shutil.rmtree(NOTE_OUTPUT_DIR)
-            NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-            # 复制恢复的文件
-            for item in extracted_notes.iterdir():
-                dest = NOTE_OUTPUT_DIR / item.name
-                if item.is_dir():
-                    shutil.copytree(item, dest)
-                else:
-                    shutil.copy2(item, dest)
+        # 恢复媒体文件（video/ 优先，note_results/ 兼容旧包）
+        extracted_video = restore_temp_dir / "video"
+        if extracted_video.exists():
+            WebDAVBackup._replace_dir(extracted_video, VIDEO_DIR)
+        else:
+            extracted_notes = restore_temp_dir / "note_results"
+            if extracted_notes.exists():
+                if not NOTE_OUTPUT_DIR.exists():
+                    NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                WebDAVBackup._replace_dir(extracted_notes, NOTE_OUTPUT_DIR)
 
         # 6. 恢复配置文件（如果存在）
         if progress_callback:
@@ -776,13 +798,15 @@ def _rollback_restore(backup_dir: Path):
             SessionLocal.remove()
             shutil.copy2(backup_db, DB_FILE)
 
-        # 恢复笔记目录
+        # 恢复媒体目录（video 优先，note_results 兼容旧包）
+        backup_video = backup_dir / "video"
+        if backup_video.exists():
+            WebDAVBackup._replace_dir(backup_video, VIDEO_DIR)
         backup_notes = backup_dir / "note_results"
         if backup_notes.exists():
-            if NOTE_OUTPUT_DIR.exists():
-                shutil.rmtree(NOTE_OUTPUT_DIR)
-            NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(backup_notes, NOTE_OUTPUT_DIR)
+            if not NOTE_OUTPUT_DIR.exists():
+                NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            WebDAVBackup._replace_dir(backup_notes, NOTE_OUTPUT_DIR)
 
         logger.info(f"已回滚到恢复前状态: {backup_dir}")
 

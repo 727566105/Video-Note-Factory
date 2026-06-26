@@ -12,6 +12,8 @@ import {
   deleteBackup as deleteBackupApi,
   restoreBackup,
   restoreFromUpload,
+  exportLocalBackup,
+  listLocalBackups,
   enableSchedule,
   updateSchedule,
   disableSchedule,
@@ -73,6 +75,9 @@ interface WebDAVStore {
   // 操作 - 恢复
   restoreBackup: (backupName: string) => Promise<void>
   restoreFromUpload: (file: File) => Promise<void>
+
+  // 操作 - 本地整机包导出
+  exportLocal: () => Promise<string | null>
 
   // 操作 - 定时任务
   loadSchedule: () => Promise<void>
@@ -195,6 +200,34 @@ export const useWebDAVStore = create<WebDAVStore>()(
         try {
           await createBackup('manual')
           await get().loadSchedule()
+        } catch (error) {
+          throw error
+        } finally {
+          set({ isBackingUp: false })
+        }
+      },
+
+      // 导出整机包到本地（轮询进度，完成后返回最新文件名）
+      exportLocal: async () => {
+        const state = get()
+        if (state.isBackingUp) {
+          return null
+        }
+        set({ isBackingUp: true })
+        try {
+          await exportLocalBackup()
+          // 轮询直到完成（30 分钟上限）
+          const deadline = Date.now() + 30 * 60 * 1000
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1500))
+            const data = await getBackupStatus()
+            set({ backupStatus: data || get().backupStatus })
+            if (data && !data.is_busy) break
+          }
+          // 取最新本地备份
+          const list = await listLocalBackups()
+          const latest = list?.backups?.[0]
+          return latest?.name || null
         } catch (error) {
           throw error
         } finally {

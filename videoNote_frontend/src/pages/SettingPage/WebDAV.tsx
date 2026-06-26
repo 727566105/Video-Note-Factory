@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { exportConfigsFile } from '@/services/configBackup'
+import { buildDownloadBackupUrl } from '@/services/webdav'
 import ConfigImportDialog from './components/ConfigImportDialog'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -68,6 +69,7 @@ const WebDAVSettings = () => {
     isTesting,
     isBackingUp,
     isRestoring,
+    backupStatus,
     loadConfig,
     saveConfig,
     updateConfig,
@@ -78,6 +80,7 @@ const WebDAVSettings = () => {
     deleteBackup,
     restoreBackup,
     restoreFromUpload,
+    exportLocal,
     loadSchedule,
     enableSchedule,
     disableSchedule,
@@ -260,6 +263,28 @@ const WebDAVSettings = () => {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '未知错误'
       toast.error(`备份失败：${message}`)
+    }
+  }
+
+  // 导出整机包到本地
+  const handleExportLocal = async () => {
+    try {
+      toast.info('正在导出整机包，数据较大请耐心等待...')
+      const filename = await exportLocal()
+      if (filename) {
+        const a = document.createElement('a')
+        a.href = buildDownloadBackupUrl(filename)
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        toast.success(`导出成功：${filename}`)
+      } else {
+        toast.error('导出失败或已有任务在执行')
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      toast.error(`导出失败：${message}`)
     }
   }
 
@@ -643,6 +668,53 @@ const WebDAVSettings = () => {
         </Form>
       </div>
 
+      {/* 整机迁移 - 始终可见，不依赖 WebDAV 配置 */}
+      <div className="rounded-lg border border-border bg-background p-4 md:p-6 shadow-sm">
+        <div className="mb-4 border-b pb-4">
+          {!isMobile && (
+            <div>
+              <h2 className="text-xl font-bold text-foreground">整机迁移</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                导出全部数据（账号、笔记、合集、媒体、配置）为整机包，或从整机包导入到新项目，不依赖 WebDAV
+              </p>
+            </div>
+          )}
+        </div>
+
+        <Alert className="mb-4 border-blue-200 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-sm text-blue-800">
+            <strong>适用场景：</strong>整机迁移到新项目。导出包含完整数据库与全部媒体文件（含音视频），导入将<strong>整体替换</strong>当前数据，恢复前自动备份。
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {isBackingUp && backupStatus?.is_busy && (
+            <span className="text-xs text-muted-foreground mr-2">
+              进度：{backupStatus.progress || 0}% - {backupStatus.message || '处理中...'}
+            </span>
+          )}
+          <Button
+            type="button"
+            onClick={handleExportLocal}
+            disabled={isBackingUp}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {isBackingUp ? '导出中...' : '导出整机包'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setUploadRestoreDialogOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            导入整机包
+          </Button>
+        </div>
+      </div>
+
       {/* 备份文件管理 */}
       {isConfigured && (
         <div className="rounded-lg border border-border bg-background p-4 md:p-6 shadow-sm">
@@ -675,15 +747,6 @@ const WebDAVSettings = () => {
               >
                 <Upload className="h-4 w-4" />
                 {isBackingUp ? '备份中...' : '立即备份'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setUploadRestoreDialogOpen(true)}
-                className="flex items-center gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                导入本地备份
               </Button>
             </div>
           </div>
@@ -849,7 +912,7 @@ const WebDAVSettings = () => {
           <DialogHeader>
             <DialogTitle>导入备份文件</DialogTitle>
             <DialogDescription>
-              选择本地的备份 ZIP 文件进行恢复。恢复前会自动备份当前数据。
+              选择本地的整机包 ZIP 文件恢复。将<strong>整体替换</strong>当前的账号、笔记、合集与全部媒体文件（含音视频），恢复前会自动备份当前数据。适合迁移到新项目。
             </DialogDescription>
           </DialogHeader>
 

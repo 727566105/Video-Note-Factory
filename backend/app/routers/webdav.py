@@ -1,10 +1,12 @@
 """WebDAV 备份 API 路由"""
+import threading
 from fastapi import APIRouter, BackgroundTasks, UploadFile, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
 
-from app.services.webdav_backup import WebDAVBackup, get_backup_status, restore_from_local_file
+from app.services.webdav_backup import WebDAVBackup, get_backup_status, restore_from_local_file, LOCAL_BACKUP_DIR
 from app.db.webdav_config_dao import (
     get_config as dao_get_config,
     upsert_config,
@@ -20,7 +22,7 @@ from app.db.backup_history_dao import (
 )
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_flexible
 
 logger = get_logger(__name__)
 
@@ -164,29 +166,71 @@ def test_connection(data: TestConnectionRequest, current_user=Depends(get_curren
 
 # ==================== 备份操作 ====================
 
+def _run_backup_async(backup_type: str, target: str):
+    """后台线程执行备份，捕获异常避免线程静默退出"""
+    try:
+        if target == "local":
+            svc = WebDAVBackup.__new__(WebDAVBackup)
+            svc.config = None
+            svc.client = None
+        else:
+            svc = WebDAVBackup()
+        svc.create_backup(backup_type=backup_type, target=target)
+    except Exception as e:
+        logger.error(f"后台备份失败: {e}")
+
+
 @router.post("/backup")
 def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual", current_user=Depends(get_current_user)) -> dict:
-    """手动触发备份"""
+    """手动触发备份（异步，上传到 WebDAV）"""
     try:
-        config = dao_get_config()
-        if not config:
-            return R.error(msg="请先配置 WebDAV 连接")
-
-        # 检查状态
         status = get_backup_status()
         if status["is_busy"]:
             return R.error(msg=f"备份操作正在执行中: {status['message']}")
-
-        # 创建备份服务
-        backup_service = WebDAVBackup(config)
-
-        # 执行备份（同步执行，便于获取结果）
-        result = backup_service.create_backup(backup_type=backup_type)
-        return R.success(data=result, msg="备份成功")
-
+        config = dao_get_config()
+        if not config:
+            return R.error(msg="请先配置 WebDAV 连接")
+        threading.Thread(target=_run_backup_async, args=(backup_type, "webdav"), daemon=True).start()
+        return R.success(data={"started": True}, msg="备份已开始，请查看进度")
     except Exception as e:
-        logger.error(f"备份失败: {e}")
-        return R.error(msg=f"备份失败: {str(e)}")
+        logger.error(f"启动备份失败: {e}")
+        return R.error(msg=f"启动备份失败: {str(e)}")
+
+
+@router.post("/backup/local")
+def create_local_backup(background_tasks: BackgroundTasks, current_user=Depends(get_current_user)) -> dict:
+    """导出整机包到本地（异步，不依赖 WebDAV）"""
+    try:
+        status = get_backup_status()
+        if status["is_busy"]:
+            return R.error(msg=f"操作正在执行中: {status['message']}")
+        threading.Thread(target=_run_backup_async, args=("manual", "local"), daemon=True).start()
+        return R.success(data={"started": True}, msg="导出已开始，请查看进度")
+    except Exception as e:
+        logger.error(f"启动本地导出失败: {e}")
+        return R.error(msg=f"启动导出失败: {str(e)}")
+
+
+@router.get("/backup/local")
+def list_local_backups(current_user=Depends(get_current_user)) -> dict:
+    """列出本地导出的整机包"""
+    backups = []
+    if LOCAL_BACKUP_DIR.exists():
+        for f in sorted(LOCAL_BACKUP_DIR.glob("*.zip"), key=lambda x: x.name, reverse=True):
+            backups.append({"name": f.name, "size": f.stat().st_size})
+    return R.success(data={"backups": backups, "total": len(backups)})
+
+
+@router.get("/backup/download/{filename}")
+def download_local_backup(filename: str, current_user=Depends(get_current_user_flexible)):
+    """下载本地整机包 zip（流式）"""
+    # 防路径穿越
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return R.error(msg="非法文件名")
+    path = LOCAL_BACKUP_DIR / filename
+    if not path.exists() or not path.is_file():
+        return R.error(msg="文件不存在")
+    return FileResponse(str(path), filename=filename, media_type="application/zip")
 
 
 @router.get("/backup/status")

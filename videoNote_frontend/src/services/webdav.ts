@@ -1,4 +1,6 @@
 import request from '@/utils/request.ts'
+import { getApiBaseURL } from '@/utils/api'
+import { useAuthStore } from '@/store/authStore'
 
 // ==================== 配置管理 ====================
 
@@ -138,4 +140,22 @@ export const restoreFromUpload = async (file: File) => {
       'Content-Type': 'multipart/form-data',
     },
   })
+}
+
+// ==================== 本地整机包导出/下载 ====================
+
+// 异步触发本地整机包导出
+export const exportLocalBackup = async () => {
+  return await request.post('/webdav/backup/local')
+}
+
+// 列出本地导出的整机包
+export const listLocalBackups = async () => {
+  return await request.get('/webdav/backup/local')
+}
+
+// 拼接下载 URL（浏览器原生跳转下载，带 token query 以支持大文件流式下载）
+export const buildDownloadBackupUrl = (filename: string) => {
+  const token = useAuthStore.getState().token || ''
+  return `${getApiBaseURL()}/webdav/backup/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`
 }
