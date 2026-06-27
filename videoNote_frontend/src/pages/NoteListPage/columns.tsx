@@ -185,7 +185,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
     {
       accessorKey: 'cover',
       header: '封面',
-      size: 140,
+      size: 180,
       cell: ({ row }) => {
         const item = row.original
         const status = getRealtimeStatus(item, props.taskStoreTasks)
@@ -193,7 +193,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
         const isProcessing = isProcessingStatus(status)
 
         return (
-          <div className="w-28 py-2">
+          <div className="w-40 py-2">
             <div className="relative aspect-video overflow-hidden rounded-xl border border-border/70 bg-muted shadow-sm">
               {item.cover && !props.failedCovers.has(item.id) ? (
                 <img
