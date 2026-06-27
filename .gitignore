@@ -355,3 +355,15 @@ startup-screenshot.png
 # Superpowers skill local cache
 .superpowers/
 config/downloader.json
+
+# 调试与测试残留（截图/快照/临时产物，勿提交）
+.vite/
+*.swp
+.playwright-mcp/
+backend/test_screenshots/
+backend/test_report.md
+videoNote_frontend/*.png
+videoNote_frontend/*.txt
+*.network-response
+open_chrome.mjs
+video-note-toolbar.txt
