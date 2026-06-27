@@ -9,7 +9,6 @@ lerna-debug.log*
 .DS_Store
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-BiliNote/pnpm-lock.yaml
 !videoNote_frontend/pnpm-lock.yaml
 # Runtime data
 pids
@@ -69,7 +68,6 @@ web_modules/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
-.BiliNote-dev/*
 # Optional REPL history
 .node_repl_history
 
@@ -335,7 +333,6 @@ cython_debug/
 /backend/config/*
 /config/downloader.json
 backend/.env.bak
-/BiliNote_frontend/.idea/*
 docs/superpowers/
 .trae/
 /note_results/

@@ -9,7 +9,6 @@ lerna-debug.log*
 .DS_Store
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-BiliNote/pnpm-lock.yaml
 # Runtime data
 pids
 *.pid
@@ -62,7 +61,6 @@ web_modules/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
-.BiliNote-dev/*
 # Optional REPL history
 .node_repl_history
 
@@ -318,7 +316,6 @@ cython_debug/
 /backend/.idea/*
 /backend/bili_note.db
 /backend/uploads/*
-/BiliNote_frontend/.idea/*
 
 # === 运行时数据 / 版本库 / 本地调试产物（不进镜像，避免构建上下文爆炸）===
 # 根目录 data/ 是 docker-compose 挂载卷（含音视频/DB），绝不能进构建上下文
