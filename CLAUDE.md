@@ -212,6 +212,8 @@ videoNote/
 
 8. **请求封装** (`src/utils/request.ts`)
    - 基于 axios，后端返回格式 `{ code, msg, data }`，`code === 0` 为成功
+   - **拦截器剥壳契约**：成功时拦截器 `return res.data`（剥掉 `{code,msg,data}` 外壳，resolve 出**裸 data**），失败时 `Promise.reject`
+   - ⚠️ **组件层不要判 `response.code`**：`request.xxx()` 成功 resolve 的就是裸 data，直接用；错误统一走 catch（拦截器已 reject 并 toast）。误写 `if (response.code === 200)` 会永远走失败分支（曾导致「导入配置 → 文件解析失败」bug）
    - 错误时自动 toast 提示
 
 9. **任务轮询** (`src/hooks/useTaskPolling.ts`)
@@ -367,8 +369,10 @@ JWT Bearer Token 认证，通过 `app/auth/` 模块实现：
 
 GitHub Actions 工作流 (`.github/workflows/test.yml`):
 - **backend-tests**: Python 3.11 + pytest
-- **frontend-unit-tests**: Node.js 20 + Vitest
+- **frontend-unit-tests**: Node.js 22 + Vitest
 - **frontend-e2e-tests**: Python 后端 + Playwright E2E
+
+> Node 必须为 22（≥22.13）：`package.json` 声明 `packageManager: pnpm@11.8.0`，pnpm 11 依赖 `node:sqlite`（Node 22.5+ 内置），Node 20 会在 `pnpm install` 阶段崩溃。
 
 CI 环境变量要求:
 ```bash
@@ -377,6 +381,17 @@ BACKEND_PORT=8483
 WEBDAV_ENCRYPTION_KEY=<encryption-key>
 DEFAULT_ADMIN_PASSWORD=123456
 ```
+
+## 构建与 Docker 发布
+
+- **pnpm 版本**：`package.json` 的 `packageManager: pnpm@11.8.0`（corepack 锁定），要求 Node ≥22.13；CI 与 Dockerfile 均用 Node 22 对齐
+- **Dockerfile**：前端阶段 `node:22` + `pnpm install --frozen-lockfile`，依赖 `videoNote_frontend/pnpm-lock.yaml`（**已入库，勿再忽略**）
+- **子目录 `.gitignore` 陷阱**：`videoNote_frontend/.gitignore` 的规则会覆盖根 `.gitignore` 的 `!` 放行；排查「文件被忽略」用 `git check-ignore -v --no-index <path>`
+- **Docker 镜像发布**：`Docker Build and Push` workflow 是 `workflow_dispatch`（手动触发，push 不自动触发）
+  ```bash
+  gh workflow run "Docker Build and Push" --ref dev3.0   # 触发发布
+  gh run watch <run-id>                                    # 监控构建（约 5 分钟）
+  ```
 
 ## 版本号更新
 
