@@ -647,14 +647,7 @@ class NoteGenerator:
             else:
                 gpt = None
                 if provider_id and model_name:
-                    provider_info = ProviderService.get_provider_by_id(provider_id)
-                    gpt = GPTFactory.from_config(
-                        ModelConfig(
-                            provider_id=provider_id,
-                            model_name=model_name,
-                            provider=provider_info["name"] if provider_info else "",
-                        )
-                    )
+                    gpt = self._get_gpt(model_name, provider_id)
                 markdown = self._summarize_text(
                     audio_meta=audio_meta,
                     transcript=transcript,
