@@ -39,11 +39,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.8.0  # 与 package.json 的 packageManager 声明保持一致（pnpm 11 需 Node ≥22.13）
       - name: Install frontend dependencies
         run: |
           cd videoNote_frontend
@@ -81,11 +81,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.8.0  # 与 package.json 的 packageManager 声明保持一致（pnpm 11 需 Node ≥22.13）
       - name: Install frontend dependencies
         run: |
           cd videoNote_frontend
