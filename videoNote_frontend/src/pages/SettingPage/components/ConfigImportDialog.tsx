@@ -67,17 +67,14 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
     setFileError('')
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await previewImport(file)
-      if (response.code === 200) {
-        setConfigData(response.data.config_data)
-        setPreview(response.data)
-        setStep('preview')
-      } else {
-        setFileError(response.msg || '文件解析失败')
-      }
+      // 后端 preview 接口不返回 config_data，前端自行解析上传文件，
+      // 得到完整配置数据，供后续 executeImport 使用
+      const parsed = JSON.parse(await file.text())
+      // request 拦截器成功时已剥掉 {code,msg,data} 外壳，直接返回 preview 对象
+      const preview = await previewImport(file)
+      setConfigData(parsed)
+      setPreview(preview)
+      setStep('preview')
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '文件解析失败'
       setFileError(message)
@@ -122,21 +119,17 @@ const ConfigImportDialog = ({ open, onOpenChange }: ConfigImportDialogProps) => 
     setIsProcessing(true)
 
     try {
-      const response = await executeImport(configData as Record<string, unknown>, selectedItems, credentials)
+      // request 拦截器成功时已剥掉 {code,msg,data} 外壳，直接返回 {success, failed, skipped}
+      const result = await executeImport(configData as Record<string, unknown>, selectedItems, credentials)
+      setImportResult(result)
+      setStep('result')
 
-      if (response.code === 200) {
-        setImportResult(response.data)
-        setStep('result')
-
-        // 显示成功/失败消息
-        const { success, failed, skipped } = response.data
-        if (failed.length === 0 && skipped.length === 0) {
-          toast.success(`成功导入 ${success.length} 项配置`)
-        } else {
-          toast.success(`导入完成：成功 ${success.length} 项，失败 ${failed.length} 项，跳过 ${skipped.length} 项`)
-        }
+      // 显示成功/失败消息
+      const { success, failed, skipped } = result
+      if (failed.length === 0 && skipped.length === 0) {
+        toast.success(`成功导入 ${success.length} 项配置`)
       } else {
-        toast.error(response.msg || '导入失败')
+        toast.success(`导入完成：成功 ${success.length} 项，失败 ${failed.length} 项，跳过 ${skipped.length} 项`)
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '未知错误'

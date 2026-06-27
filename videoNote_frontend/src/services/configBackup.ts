@@ -46,15 +46,16 @@ export const exportConfigsFile = async () => {
  * 预览配置导入文件
  * @param file 配置文件
  */
-export const previewImport = async (file: File) => {
+export const previewImport = async (file: File): Promise<ConfigPreviewResponse> => {
   const formData = new FormData()
   formData.append('file', file)
 
-  return await request.post('/configs/import/preview', formData, {
+  // request 响应拦截器成功时已剥掉 {code,msg,data} 外壳，直接返回 data（即 preview 对象）
+  return request.post('/configs/import/preview', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-  })
+  }) as unknown as Promise<ConfigPreviewResponse>
 }
 
 /**
@@ -75,12 +76,13 @@ export const executeImport = async (
   configData: ConfigData,
   selectedItems: string[],
   credentials?: Record<string, Record<string, string>>
-) => {
-  return await request.post('/configs/import/execute', {
+): Promise<ImportExecuteResponse> => {
+  // request 响应拦截器成功时已剥掉 {code,msg,data} 外壳，直接返回 data（即导入结果）
+  return request.post('/configs/import/execute', {
     config_data: configData,
     selected_items: selectedItems,
     credentials: credentials || {},
-  })
+  }) as unknown as Promise<ImportExecuteResponse>
 }
 
 // ==================== 类型定义 ====================
