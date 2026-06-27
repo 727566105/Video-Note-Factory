@@ -7,8 +7,8 @@ ARG NPM_REGISTRY=https://registry.npmjs.org
 RUN npm install -g pnpm
 
 WORKDIR /app/frontend
-COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-workspace.yaml ./
-RUN pnpm config set registry ${NPM_REGISTRY} && pnpm install
+COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-workspace.yaml ./videoNote_frontend/pnpm-lock.yaml ./
+RUN pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
