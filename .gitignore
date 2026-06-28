@@ -89,6 +89,9 @@ web_modules/
 .pids/
 scripts/
 
+# nohup 后台运行输出（运行日志，勿提交）
+nohup.out
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
