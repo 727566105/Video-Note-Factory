@@ -29,6 +29,16 @@ CONFIG_VERSION = "1.0"
 # 敏感信息占位符
 SENSITIVE_PLACEHOLDER = "********"
 
+# 占位符集合：导出源端常存的假值，原样导入无意义
+_SENSITIVE_PLACEHOLDERS = {SENSITIVE_PLACEHOLDER, "sk-test"}
+
+
+def _is_placeholder(value: str | None) -> bool:
+    """判断敏感信息值是否为空或占位符（应跳过导入）"""
+    if not value:
+        return True
+    return value in _SENSITIVE_PLACEHOLDERS
+
 
 class ConfigExporter:
     """配置导出器"""
