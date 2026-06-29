@@ -38,6 +38,8 @@ _restore_in_progress = False
 _current_operation = None
 _current_progress = 0
 _current_message = ""
+# 恢复时被跳过的文件（文件名超长等 OSError），供 /backup/status 透传给前端
+_current_skipped_files: list[str] = []
 
 
 class BackupProgress:
@@ -546,8 +548,37 @@ def get_backup_status() -> dict:
         "is_busy": _backup_in_progress or _restore_in_progress,
         "current_operation": _current_operation,
         "progress": _current_progress,
-        "message": _current_message
+        "message": _current_message,
+        "skipped_files": list(_current_skipped_files),
     }
+
+
+def _safe_extract_all(zip_path: Path, dest: Path) -> list[str]:
+    """逐文件解压 zip，跳过因文件名过长等 OSError 失败的条目。
+
+    Args:
+        zip_path: 待解压的 zip 文件路径
+        dest: 解压目标目录
+
+    Returns:
+        被跳过的条目名列表（供结果展示）
+
+    Raises:
+        Exception: 当被跳过的条目是数据库文件时（无库则恢复无意义）
+    """
+    skipped: list[str] = []
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        for member in zip_ref.infolist():
+            try:
+                zip_ref.extract(member, dest)
+            except OSError as e:
+                member_name = member.filename
+                logger.warning(f"解压跳过条目（{e}）: {member_name}")
+                # 数据库文件失败视为致命错误（无库则恢复无意义）
+                if DB_FILENAME and os.path.basename(member_name) == DB_FILENAME:
+                    raise Exception(f"数据库文件解压失败，无法继续恢复: {member_name} ({e})")
+                skipped.append(member_name)
+    return skipped
 
 
 def _set_restore_progress(progress: int, message: str, callback: Callable = None):
