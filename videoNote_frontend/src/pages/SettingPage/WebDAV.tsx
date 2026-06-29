@@ -136,6 +136,26 @@ const WebDAVSettings = () => {
     })
   }, [])
 
+  // 恢复完成后读取跳过列表（轮询成功后 store 写入 localStorage，再 reload 触发本逻辑）
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('restore_skipped_files')
+      if (!raw) return
+      localStorage.removeItem('restore_skipped_files')
+      const { files, ts } = JSON.parse(raw) as { files: string[]; ts: number }
+      // 仅处理 5 分钟内的记录，避免陈旧提示
+      if (Date.now() - ts > 5 * 60 * 1000) return
+      if (files && files.length > 0) {
+        toast.warning(`恢复完成，已跳过 ${files.length} 个文件名超长的文件`, {
+          description: files.slice(0, 5).join('\n') + (files.length > 5 ? `\n...等 ${files.length} 个` : ''),
+          duration: 8000,
+        })
+      }
+    } catch {
+      // 解析失败静默忽略
+    }
+  }, [])
+
   // 当配置加载后，只在初次加载时填充表单
   useEffect(() => {
     if (config && !isInitialized) {
