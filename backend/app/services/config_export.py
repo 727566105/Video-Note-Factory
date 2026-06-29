@@ -266,7 +266,7 @@ class ConfigImporter:
     @staticmethod
     def import_configs(
         config_data: dict[str, Any],
-        selected_items: list[str],
+        selected_items: list[str] | None = None,
         credentials: dict[str, dict[str, str]] | None = None
     ) -> dict[str, Any]:
         """
@@ -274,9 +274,11 @@ class ConfigImporter:
 
         Args:
             config_data: 解析后的配置数据
-            selected_items: 要导入的配置项列表
+            selected_items: 要导入的配置项列表。为空/None 时自动导入全部存在的项
+                （providers/siyuan_config/webdav_config，不含 downloader_config）
             credentials: 敏感信息字典，格式为 {"type": {"field": "value"}}
                 例如: {"providers": {"openai": "sk-xxx"}, "webdav_config": {"password": "xxx"}}
+                可选；为空时优先使用 config_data 中自带的敏感信息
 
         Returns:
             dict: 导入结果，包含成功和失败的配置项
@@ -290,11 +292,23 @@ class ConfigImporter:
         configs = config_data.get("configs", {})
         credentials = credentials or {}
 
+        # selected_items 为空/None 时，自动展开为全部存在的配置项
+        if not selected_items:
+            selected_items = []
+            if configs.get("providers"):
+                selected_items.append("providers")
+            if configs.get("siyuan_config"):
+                selected_items.append("siyuan_config")
+            if configs.get("webdav_config"):
+                selected_items.append("webdav_config")
+            # downloader_config 不自动加入（硬编码，必 skipped）
+
         # 导入 AI 模型设置
         if "providers" in selected_items:
             try:
                 providers = configs.get("providers", [])
                 provider_creds = credentials.get("providers", {})
+                imported_count = 0
 
                 for provider_data in providers:
                     provider_id = provider_data.get("id")
@@ -309,14 +323,14 @@ class ConfigImporter:
                     except Exception:
                         pass
 
-                    # 获取 API Key（从凭证中获取，或使用占位符）
-                    api_key = provider_creds.get(provider_id, "")
+                    # 获取 API Key：优先用 credentials，其次用文件自带值
+                    api_key = provider_creds.get(provider_id, "") or provider_data.get("api_key", "")
 
-                    if not api_key or api_key == SENSITIVE_PLACEHOLDER:
+                    if _is_placeholder(api_key):
                         results["skipped"].append({
                             "type": "providers",
                             "id": provider_id,
-                            "reason": "缺少 API Key"
+                            "reason": "API Key 为空或占位符"
                         })
                         continue
 
@@ -342,12 +356,18 @@ class ConfigImporter:
                             type_=provider_data.get("type"),
                             enabled=provider_data.get("enabled", 1)
                         )
+                    imported_count += 1
 
-                results["success"].append({
-                    "type": "providers",
-                    "count": len(providers)
-                })
-                logger.info(f"Imported {len(providers)} providers")
+                # 仅当至少有 1 个 provider 成功写入时才计入 success；
+                # 否则不归 failed（占位符已逐个进 skipped），仅记日志
+                if imported_count > 0:
+                    results["success"].append({
+                        "type": "providers",
+                        "count": imported_count
+                    })
+                    logger.info(f"Imported {imported_count} providers")
+                else:
+                    logger.warning("No provider imported: all API Key are placeholder")
             except Exception as e:
                 logger.error(f"Failed to import providers: {e}")
                 results["failed"].append({
@@ -372,14 +392,14 @@ class ConfigImporter:
                         "reason": "配置为空"
                     })
                 else:
-                    # 获取 API Token
+                    # 获取 API Token：优先用 credentials，其次用文件自带值
                     siyuan_creds = credentials.get("siyuan_config", {})
-                    api_token = siyuan_creds.get("api_token", "")
+                    api_token = siyuan_creds.get("api_token", "") or siyuan_config.get("api_token", "")
 
-                    if not api_token or api_token == SENSITIVE_PLACEHOLDER:
+                    if _is_placeholder(api_token):
                         results["skipped"].append({
                             "type": "siyuan_config",
-                            "reason": "缺少 API Token"
+                            "reason": "API Token 为空或占位符"
                         })
                     else:
                         upsert_siyuan_config(
@@ -409,14 +429,14 @@ class ConfigImporter:
                         "reason": "配置为空"
                     })
                 else:
-                    # 获取密码
+                    # 获取密码：优先用 credentials，其次用文件自带值
                     webdav_creds = credentials.get("webdav_config", {})
-                    password = webdav_creds.get("password", "")
+                    password = webdav_creds.get("password", "") or webdav_config.get("password", "")
 
-                    if not password or password == SENSITIVE_PLACEHOLDER:
+                    if _is_placeholder(password):
                         results["skipped"].append({
                             "type": "webdav_config",
-                            "reason": "缺少密码"
+                            "reason": "密码为空或占位符"
                         })
                     else:
                         upsert_webdav_config(
