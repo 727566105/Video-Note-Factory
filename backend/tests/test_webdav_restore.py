@@ -107,7 +107,11 @@ def _make_zip_with_long_name(zip_path, db_filename="video_note.db"):
 
 
 def test_safe_extract_all_skips_long_filename(tmp_path):
-    """_safe_extract_all 遇超长文件名条目跳过，正常条目落地"""
+    """_safe_extract_all 遇超长文件名条目跳过，正常条目落地
+
+    注：截断逻辑（>200字节按 sanitize_path_name 缩短）会先尝试挽救，仍失败才跳过。
+    此处用 300 字符文件名触发截断，截断后可落地，因此不进 skipped。
+    """
     from app.services.webdav_backup import _safe_extract_all, DB_FILENAME
 
     zip_path = tmp_path / "test.zip"
@@ -121,34 +125,73 @@ def test_safe_extract_all_skips_long_filename(tmp_path):
     assert (dest / "normal.txt").exists()
     # DB 文件落地（短名，不会超长）
     assert (dest / DB_FILENAME).exists()
-    # 超长名条目被跳过
-    assert len(skipped) == 1
-    assert "a" * 300 in skipped[0]
+    # 超长名条目经截断后已落地，不再跳过
+    assert skipped == []
 
 
-def test_safe_extract_all_raises_on_db_failure(tmp_path):
-    """数据库文件解压失败视为致命错误（无库则恢复无意义）"""
+def test_safe_extract_all_truncates_overlong_path(tmp_path):
+    """_safe_extract_all 对超长路径段自动截断后落地（模拟整机包旧目录名 >255 字节）"""
     import zipfile
     from app.services.webdav_backup import _safe_extract_all
 
-    # 构造一个 zip，其中 DB 文件名超长，使 extract 触发 OSError
-    long_db_name = "b" * 300 + ".db"
+    # 构造 258 字节的目录段（中文，模拟旧整机包 {video_id}_{长描述}）
+    long_segment = "7646057570286228212_" + "真实自然的画面质感，" * 18  # 远超 255 字节
+    assert len(long_segment.encode("utf-8")) > 255
+
+    zip_path = tmp_path / "test.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"video/douyin/author_1/{long_segment}/cover.jpg", "封面")
+        zf.writestr(f"video/douyin/author_1/{long_segment}/note_1.json", "{}")
+        zf.writestr("normal.txt", "正常")
+
+    dest = tmp_path / "extract"
+    dest.mkdir()
+    skipped = _safe_extract_all(zip_path, dest)
+
+    # 全部落地，无跳过
+    assert skipped == []
+    assert (dest / "normal.txt").exists()
+    # 落地的目录段经截断，字节数 < 255
+    landed_seg = next(
+        p.name for p in (dest / "video/douyin/author_1").iterdir() if p.is_dir()
+    )
+    assert len(landed_seg.encode("utf-8")) < 255
+    # 截断后保留 video_id 前缀（运行时自愈合依据）
+    assert landed_seg.startswith("7646057570286228212_")
+    # 落地目录下文件存在
+    assert any(p.name == "cover.jpg" for p in (dest / "video/douyin/author_1" / landed_seg).iterdir())
+
+
+def test_safe_extract_all_raises_on_db_failure(tmp_path, monkeypatch):
+    """数据库文件解压失败视为致命错误（无库则恢复无意义）
+
+    DB 文件名正常（短名），但写入时触发 OSError（如磁盘满/权限），
+    断言抛出 "数据库文件解压失败" 异常。
+    """
+    import builtins
+    import zipfile
+    from app.services.webdav_backup import _safe_extract_all, DB_FILENAME
+
     zip_path = tmp_path / "test.zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("normal.txt", "正常文件内容")
-        zf.writestr(long_db_name, "fake db content")
+        zf.writestr(DB_FILENAME, "fake db content")
 
     dest = tmp_path / "extract"
     dest.mkdir()
 
-    import app.services.webdav_backup as wb
-    original = wb.DB_FILENAME
-    wb.DB_FILENAME = long_db_name
-    try:
-        with pytest.raises(Exception, match="数据库文件解压失败"):
-            _safe_extract_all(zip_path, dest)
-    finally:
-        wb.DB_FILENAME = original
+    real_open = builtins.open
+
+    def patched_open(file, mode="r", *args, **kwargs):
+        # DB 文件写入时模拟 OSError
+        if "w" in mode and str(file).endswith(DB_FILENAME):
+            raise OSError(28, "模拟写入失败", str(file))
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", patched_open)
+
+    with pytest.raises(Exception, match="数据库文件解压失败"):
+        _safe_extract_all(zip_path, dest)
 
 
 def test_format_skipped_files_truncates_and_limits():

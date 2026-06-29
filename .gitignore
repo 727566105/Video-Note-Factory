@@ -349,6 +349,9 @@ data/
 backend/app/config/
 backend/app/data/
 
+# 备份/恢复临时目录（导入整机包时的临时产物，勿提交）
+.backup_temp/
+
 # Test screenshots
 *.verify.png
 startup-screenshot.png

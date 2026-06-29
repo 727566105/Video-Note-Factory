@@ -15,7 +15,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # 使用统一的路径管理工具
-from app.utils.path_helper import NOTE_OUTPUT_DIR, VIDEO_DIR, DATA_DIR, PROJECT_ROOT
+from app.utils.path_helper import NOTE_OUTPUT_DIR, VIDEO_DIR, DATA_DIR, PROJECT_ROOT, sanitize_path_name
 
 # 数据库路径与 engine.py 完全一致
 # 修复：原默认值 video_note.db 与 engine 的 data/video_note.db 不一致，
@@ -579,12 +579,38 @@ def _safe_extract_all(zip_path: Path, dest: Path) -> list[str]:
         Exception: 当被跳过的条目是数据库文件时（无库则恢复无意义）
     """
     skipped: list[str] = []
+    dest_resolved = dest.resolve()
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         for member in zip_ref.infolist():
+            # zip-slip 防护：拒绝 ..、绝对路径等逃逸条目，确保解压落在 dest 内
+            member_name = member.filename
+            if member_name.startswith('/') or '..' in member_name.split('/'):
+                logger.warning(f"解压跳过可疑路径（zip-slip）: {member_name}")
+                if DB_FILENAME and os.path.basename(member_name) == DB_FILENAME:
+                    raise Exception(f"数据库文件路径非法，无法继续恢复: {member_name}")
+                skipped.append(member_name)
+                continue
+            # 拆分原路径，仅对超过 200 字节的段按 sanitize_path_name 截断
+            # （旧机器/旧代码打包的整机包可能含 >255 字节的目录段，照原路径解压会触发 Errno 36）
+            parts = member.filename.split('/')
+            safe_parts = [
+                sanitize_path_name(p) if len(p.encode('utf-8')) > 200 else p
+                for p in parts
+            ]
+            target = dest.joinpath(*safe_parts)
+            # 二次防护：resolve 后必须仍在 dest 内
+            if dest_resolved not in target.resolve().parents and target.resolve() != dest_resolved:
+                logger.warning(f"解压跳过逃逸路径: {member_name}")
+                skipped.append(member_name)
+                continue
             try:
-                zip_ref.extract(member, dest)
+                if member.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with zip_ref.open(member) as src, open(target, 'wb') as out:
+                        shutil.copyfileobj(src, out)
             except OSError as e:
-                member_name = member.filename
                 logger.warning(f"解压跳过条目（{e}）: {member_name}")
                 # 数据库文件失败视为致命错误（无库则恢复无意义）
                 if DB_FILENAME and os.path.basename(member_name) == DB_FILENAME:

@@ -155,6 +155,20 @@ def get_video_folder(author_id: str, author_name: str, video_id: str, title: str
     author_dir = get_author_folder(author_id, author_name, platform)
     video_dir_name = get_video_folder_name(video_id, title)
     video_dir = author_dir / video_dir_name
+
+    # 自愈合：解压落地与运行时计算的截断点可能不同（整段截断 vs title 单独截断），
+    # 按 video_id_ 前缀复用已存在的目录，避免新建空目录导致媒体/笔记打不开
+    if video_id and not video_dir.exists() and author_dir.exists():
+        vid_prefix = sanitize_path_name(str(video_id)) + "_"
+        try:
+            for existing in author_dir.iterdir():
+                if not existing.is_dir():
+                    continue
+                if existing.name.startswith(vid_prefix):
+                    return existing
+        except Exception:
+            pass
+
     video_dir.mkdir(parents=True, exist_ok=True)
     return video_dir
 
@@ -378,15 +392,36 @@ def find_note_file(
 
         # 1. 四级路径
         platform_dir_name = _get_platform_dir(platform)
-        four_level_path = VIDEO_DIR / platform_dir_name / author_folder / video_folder / filename
+        four_level_base = VIDEO_DIR / platform_dir_name / author_folder / video_folder
+        four_level_path = four_level_base / filename
         if four_level_path.exists():
             return four_level_path
 
         # 1.1 note 类型：找不到 note_{user_id}.json 时，找 note.json（兼容）
         if file_type == "note" and user_id is not None:
-            legacy_note_path = VIDEO_DIR / platform_dir_name / author_folder / video_folder / "note.json"
+            legacy_note_path = four_level_base / "note.json"
             if legacy_note_path.exists():
                 return legacy_note_path
+
+        # 1.2 自愈合：精确目录不存在时，按 video_id_ 前缀扫描截断点不同的已有目录
+        # （旧整机包导入时解压截断点可能与当前 get_video_folder_name 不一致）
+        if video_id:
+            vid_prefix = sanitize_path_name(str(video_id)) + "_"
+            author_dir = VIDEO_DIR / platform_dir_name / author_folder
+            if author_dir.exists():
+                try:
+                    for existing in author_dir.iterdir():
+                        if not existing.is_dir() or not existing.name.startswith(vid_prefix):
+                            continue
+                        candidate = existing / filename
+                        if candidate.exists():
+                            return candidate
+                        if file_type == "note" and user_id is not None:
+                            legacy_candidate = existing / "note.json"
+                            if legacy_candidate.exists():
+                                return legacy_candidate
+                except Exception:
+                    pass
 
         # 2. 三级路径（向后兼容）
         three_level_path = DATA_DIR / author_folder / video_folder / filename
