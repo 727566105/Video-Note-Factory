@@ -581,6 +581,17 @@ def _safe_extract_all(zip_path: Path, dest: Path) -> list[str]:
     return skipped
 
 
+def _format_skipped_files(skipped: list[str]) -> list[str]:
+    """格式化跳过列表用于展示：单条截断到 80 字符，列表上限 20 条。"""
+    result = []
+    for name in skipped[:20]:
+        if len(name) > 80:
+            result.append(name[:80] + "…")
+        else:
+            result.append(name)
+    return result
+
+
 def _set_restore_progress(progress: int, message: str, callback: Callable = None):
     """更新恢复全局进度状态（供 /backup/status 轮询），并转发给可选的 callback"""
     global _current_progress, _current_message
@@ -602,7 +613,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
     Returns:
         dict: 恢复结果
     """
-    global _restore_in_progress, _current_operation, _current_progress, _current_message
+    global _restore_in_progress, _current_operation, _current_progress, _current_message, _current_skipped_files
 
     if _restore_in_progress:
         raise Exception("恢复操作正在执行中")
@@ -611,6 +622,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
     _current_operation = "restore"
     _current_progress = 0
     _current_message = "开始恢复..."
+    _current_skipped_files = []
 
     restore_temp_dir = BACKUP_TEMP_DIR / "restore"
     restore_temp_dir.mkdir(parents=True, exist_ok=True)
@@ -625,11 +637,13 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         if not zipfile.is_zipfile(zip_path):
             raise Exception("备份文件已损坏")
 
-        # 解压到临时目录
+        # 解压到临时目录（容错：跳过文件名超长等条目，避免一个失败导致全军覆没）
         _set_restore_progress(20, "正在解压备份文件...", progress_callback)
 
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(restore_temp_dir)
+        skipped = _safe_extract_all(zip_path, restore_temp_dir)
+        if skipped:
+            _current_skipped_files = skipped
+            logger.warning(f"恢复时跳过 {len(skipped)} 个文件（文件名过长等）: {skipped}")
 
         # 2. 验证备份内容
         extracted_db = restore_temp_dir / DB_FILENAME
@@ -690,18 +704,27 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
 
         _set_restore_progress(100, "恢复完成", progress_callback)
 
-        _current_message = "恢复成功"
+        skipped_count = len(_current_skipped_files)
+        if skipped_count > 0:
+            message = f"数据恢复成功（跳过 {skipped_count} 个文件名超长的文件）"
+        else:
+            message = "数据恢复成功"
+
+        _current_message = message
         _current_progress = 100
 
         return {
             "success": True,
             "pre_restore_backup": str(pre_restore_backup_dir),
-            "message": "数据恢复成功"
+            "message": message,
+            "skipped_count": skipped_count,
+            "skipped_files": _format_skipped_files(_current_skipped_files),
         }
 
     except Exception as e:
         logger.error(f"从本地文件恢复失败: {e}")
         _current_message = f"恢复失败: {str(e)}"
+        _current_skipped_files = []
         # 恢复失败时回滚
         if pre_restore_backup_dir and pre_restore_backup_dir.exists():
             _rollback_restore(pre_restore_backup_dir)
