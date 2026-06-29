@@ -42,6 +42,7 @@ interface BackupStatus {
   current_operation: string | null
   progress: number
   message: string
+  skipped_files?: string[]
 }
 
 interface WebDAVStore {
@@ -307,7 +308,15 @@ export const useWebDAVStore = create<WebDAVStore>()(
           if (lastMessage.includes('失败')) {
             throw new Error(lastMessage)
           }
-          // 恢复成功，重新加载数据
+          // 恢复成功：若后端透传了跳过列表，暂存到 localStorage 供 reload 后展示
+          const skippedFiles = get().backupStatus.skipped_files || []
+          if (skippedFiles.length > 0) {
+            localStorage.setItem(
+              'restore_skipped_files',
+              JSON.stringify({ files: skippedFiles, ts: Date.now() })
+            )
+          }
+          // 重新加载数据
           window.location.reload()
         } catch (error) {
           throw error
