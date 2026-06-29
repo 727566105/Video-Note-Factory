@@ -69,20 +69,25 @@ export const previewImportJson = async (configData: ConfigData) => {
 /**
  * 执行配置导入
  * @param configData 配置数据
- * @param selectedItems 用户选择的配置项
- * @param credentials 敏感信息凭证
+ * @param selectedItems 用户选择的配置项（可选，空则后端自动全导入）
+ * @param credentials 敏感信息凭证（可选，空则用文件自带值）
  */
 export const executeImport = async (
   configData: ConfigData,
-  selectedItems: string[],
+  selectedItems?: string[],
   credentials?: Record<string, Record<string, string>>
 ): Promise<ImportExecuteResponse> => {
   // request 响应拦截器成功时已剥掉 {code,msg,data} 外壳，直接返回 data（即导入结果）
-  return request.post('/configs/import/execute', {
+  const payload: Record<string, unknown> = {
     config_data: configData,
-    selected_items: selectedItems,
-    credentials: credentials || {},
-  }) as unknown as Promise<ImportExecuteResponse>
+  }
+  if (selectedItems && selectedItems.length > 0) {
+    payload.selected_items = selectedItems
+  }
+  if (credentials) {
+    payload.credentials = credentials
+  }
+  return request.post('/configs/import/execute', payload) as unknown as Promise<ImportExecuteResponse>
 }
 
 // ==================== 类型定义 ====================
