@@ -67,8 +67,12 @@ def sanitize_folder_name(name: str, max_length: int = 100) -> str:
     return safe_name
 
 
-def sanitize_path_name(name: str, max_length: int = 80) -> str:
-    """严格过滤文件/目录名，用于三级层级目录命名"""
+def sanitize_path_name(name: str, max_length: int = 200) -> str:
+    """严格过滤文件/目录名，用于三级层级目录命名。
+    max_length 按 UTF-8 字节数计算（文件系统按字节限制单文件名 255）。
+    默认 200 字节，预留 video_id/author_id 前缀 + 分隔符空间，确保
+    完整目录名 {id}_{name} 总字节数 < 255。
+    """
     if not name:
         return "untitled"
     name = re.sub(r'[\x00-\x1f]', '', name)
@@ -78,8 +82,19 @@ def sanitize_path_name(name: str, max_length: int = 80) -> str:
     name = name.strip('_')
     if not name:
         return "untitled"
-    if len(name) > max_length:
-        name = name[:max_length].rstrip('_') + '...'
+    encoded = name.encode('utf-8')
+    if len(encoded) > max_length:
+        # 按字节安全截断：留 3 字节给 "..."，回退到能成功 decode 的最长前缀
+        limit = max_length - 3
+        cut_bytes = encoded[:limit]
+        # 逐步回退尾部字节，直到落在完整 UTF-8 字符边界（能成功 decode）
+        while cut_bytes:
+            try:
+                cut_bytes.decode('utf-8')
+                break
+            except UnicodeDecodeError:
+                cut_bytes = cut_bytes[:-1]
+        name = cut_bytes.decode('utf-8').rstrip('_') + '...'
     return name
 
 
