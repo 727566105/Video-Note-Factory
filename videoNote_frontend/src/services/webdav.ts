@@ -130,14 +130,21 @@ export const deleteAllHistory = async () => {
   return await request.delete('/webdav/history')
 }
 
-// 从上传的文件恢复数据
-export const restoreFromUpload = async (file: File) => {
+// 从上传的文件恢复数据（后端异步执行恢复，此处仅上传+触发，立即返回 {started:true}）
+// timeout:0 禁用 axios 超时（1.6G 整机包上传远超默认 30s）；onProgress 上报上传百分比
+export const restoreFromUpload = async (file: File, onProgress?: (percent: number) => void) => {
   const formData = new FormData()
   formData.append('file', file)
 
   return await request.post('/webdav/restore/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
+    },
+    timeout: 0,
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
     },
   })
 }

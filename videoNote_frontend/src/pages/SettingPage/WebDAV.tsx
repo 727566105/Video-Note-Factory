@@ -101,6 +101,8 @@ const WebDAVSettings = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showDetailedInfo, setShowDetailedInfo] = useState(false)
+  // 整机包导入：上传百分比（恢复阶段改读 backupStatus）
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
 
   // 删除确认弹窗
   const [deleteConfigDialogOpen, setDeleteConfigDialogOpen] = useState(false)
@@ -333,13 +335,17 @@ const WebDAVSettings = () => {
     }
 
     try {
-      await restoreFromUpload(selectedFile)
-      toast.success('恢复成功，页面将刷新')
+      setUploadProgress(0)
+      // store 内部：上传+触发后台恢复 → 轮询恢复进度 → 成功后 window.location.reload()
+      await restoreFromUpload(selectedFile, (percent) => setUploadProgress(percent))
+      // 成功路径由 store 触发页面刷新，以下不会执行到
       setUploadRestoreDialogOpen(false)
       setSelectedFile(null)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '未知错误'
       toast.error(`恢复失败：${message}`)
+    } finally {
+      setUploadProgress(null)
     }
   }
 
@@ -427,6 +433,7 @@ const WebDAVSettings = () => {
                     <FormControl>
                       <Input
                         {...field}
+                        autoComplete="url"
                         placeholder="https://dav.jianguoyun.com/dav/"
                       />
                     </FormControl>
@@ -451,6 +458,7 @@ const WebDAVSettings = () => {
                     <FormControl>
                       <Input
                         {...field}
+                        autoComplete="username"
                         placeholder="输入 WebDAV 用户名"
                       />
                     </FormControl>
@@ -468,28 +476,28 @@ const WebDAVSettings = () => {
                   <FormLabel className="text-sm font-medium text-foreground sm:text-right">
                     密码
                   </FormLabel>
-                  <div className="sm:col-span-3">
+                  <div className="relative sm:col-span-3">
                     <FormControl>
-                      <div className="relative">
-                        <Input
-                          {...field}
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="输入 WebDAV 密码"
-                          className="pr-10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
+                      <Input
+                        {...field}
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        placeholder="输入 WebDAV 密码"
+                        className="pr-10"
+                      />
                     </FormControl>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
                     <FormMessage />
                   </div>
                 </FormItem>
@@ -508,6 +516,7 @@ const WebDAVSettings = () => {
                     <FormControl>
                       <Input
                         {...field}
+                        autoComplete="off"
                         placeholder="/videoNote/backups"
                       />
                     </FormControl>
@@ -931,6 +940,36 @@ const WebDAVSettings = () => {
                 </p>
               )}
             </div>
+
+            {isRestoring && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-foreground">
+                  <span>
+                    {uploadProgress !== null && uploadProgress < 100
+                      ? '上传中…'
+                      : backupStatus?.message || '恢复中…'}
+                  </span>
+                  <span>
+                    {uploadProgress !== null && uploadProgress < 100
+                      ? uploadProgress
+                      : backupStatus?.progress || 0}
+                    %
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{
+                      width: `${
+                        uploadProgress !== null && uploadProgress < 100
+                          ? uploadProgress
+                          : backupStatus?.progress || 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             <Alert className="border-yellow-200 bg-yellow-50">
               <Info className="h-4 w-4 text-yellow-600" />

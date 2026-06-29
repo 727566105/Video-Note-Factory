@@ -180,6 +180,15 @@ def _run_backup_async(backup_type: str, target: str):
         logger.error(f"后台备份失败: {e}")
 
 
+def _run_restore_async(zip_path: Path):
+    """后台线程执行整机包恢复，捕获异常避免线程静默退出。
+    zip 文件清理由 restore_from_local_file 的 finally（rmtree 整个 restore_temp_dir）完成。"""
+    try:
+        restore_from_local_file(zip_path)
+    except Exception as e:
+        logger.error(f"后台恢复失败: {e}")
+
+
 @router.post("/backup")
 def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual", current_user=Depends(get_current_user)) -> dict:
     """手动触发备份（异步，上传到 WebDAV）"""
@@ -308,44 +317,48 @@ def delete_backup(backup_name: str, current_user=Depends(get_current_user)) -> d
 
 @router.post("/restore/upload")
 def restore_from_upload(file: UploadFile = UploadFile(...), current_user=Depends(get_current_user)) -> dict:
-    """从上传的备份文件恢复数据"""
+    """从上传的备份文件恢复数据（异步：上传落盘+校验后起后台线程，立即返回，避免大整机包超时）"""
+    local_zip_path = None
     try:
         # 检查文件类型
         if not file.filename.endswith('.zip'):
             return R.error(msg="只支持 .zip 格式的备份文件")
 
-        # 检查是否已有恢复任务在执行
+        # 检查是否已有备份/恢复任务在执行
         status = get_backup_status()
         if status["is_busy"]:
-            return R.error(msg=f"恢复操作正在执行中: {status['message']}")
+            return R.error(msg=f"操作正在执行中: {status['message']}")
 
-        # 创建临时目录
+        # 创建临时目录并保存上传的文件（必须在请求内消费 UploadFile 流）
         from app.services.webdav_backup import BACKUP_TEMP_DIR
         restore_temp_dir = BACKUP_TEMP_DIR / "restore"
         restore_temp_dir.mkdir(parents=True, exist_ok=True)
         local_zip_path = restore_temp_dir / file.filename
 
-        # 保存上传的文件
         import shutil
         with open(local_zip_path, 'wb') as f:
             shutil.copyfileobj(file.file, f)
 
-        # 验证备份文件
+        # 验证备份文件格式
         import zipfile
         if not zipfile.is_zipfile(local_zip_path):
+            if local_zip_path.exists():
+                local_zip_path.unlink()
             return R.error(msg="备份文件已损坏或格式不正确")
 
-        # 执行恢复
-        result = restore_from_local_file(local_zip_path)
-        return R.success(data=result, msg="恢复成功")
+        # 异步执行恢复（大整机包解压 + 替换媒体耗时较长，同步处理会触发前端超时）
+        threading.Thread(target=_run_restore_async, args=(local_zip_path,), daemon=True).start()
+        # 线程已接管 zip 文件，置空以跳过异常分支清理
+        # （restore_from_local_file 的 finally 会 rmtree 整个 restore_temp_dir，含此 zip）
+        local_zip_path = None
+        return R.success(data={"started": True}, msg="恢复已开始，请查看进度")
 
     except Exception as e:
         logger.error(f"从上传文件恢复失败: {e}")
-        return R.error(msg=f"恢复失败: {str(e)}")
-    finally:
-        # 清理临时文件
-        if 'local_zip_path' in locals() and local_zip_path.exists():
+        # 异常时清理已落盘的临时文件
+        if local_zip_path and local_zip_path.exists():
             local_zip_path.unlink()
+        return R.error(msg=f"恢复失败: {str(e)}")
 
 
 @router.post("/restore/{backup_name}")

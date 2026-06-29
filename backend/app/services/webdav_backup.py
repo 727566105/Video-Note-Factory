@@ -550,6 +550,16 @@ def get_backup_status() -> dict:
     }
 
 
+def _set_restore_progress(progress: int, message: str, callback: Callable = None):
+    """更新恢复全局进度状态（供 /backup/status 轮询），并转发给可选的 callback"""
+    global _current_progress, _current_message
+    _current_progress = progress
+    _current_message = message
+    logger.info(f"Restore progress: {progress}% - {message}")
+    if callback:
+        callback(progress, message)
+
+
 def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) -> dict:
     """
     从本地 ZIP 文件恢复数据
@@ -579,15 +589,13 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         # 1. 验证并解压备份文件
         progress = BackupProgress()
 
-        if progress_callback:
-            progress_callback(10, "正在验证备份文件...")
+        _set_restore_progress(10, "正在验证备份文件...", progress_callback)
 
         if not zipfile.is_zipfile(zip_path):
             raise Exception("备份文件已损坏")
 
         # 解压到临时目录
-        if progress_callback:
-            progress_callback(20, "正在解压备份文件...")
+        _set_restore_progress(20, "正在解压备份文件...", progress_callback)
 
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(restore_temp_dir)
@@ -598,8 +606,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
             raise Exception("备份文件中缺少数据库文件或数据库配置不支持恢复")
 
         # 3. 备份当前数据
-        if progress_callback:
-            progress_callback(40, "正在备份当前数据...")
+        _set_restore_progress(40, "正在备份当前数据...", progress_callback)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         pre_restore_backup_dir = BACKUP_TEMP_DIR / f"pre_restore_{timestamp}"
@@ -619,8 +626,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
             shutil.copytree(NOTE_OUTPUT_DIR, pre_restore_backup_dir / "note_results")
 
         # 4. 恢复数据库
-        if progress_callback:
-            progress_callback(60, "正在恢复数据库...")
+        _set_restore_progress(60, "正在恢复数据库...", progress_callback)
 
         # 释放连接池，确保 SQLite 文件可被替换
         # （SessionLocal 是 sessionmaker，无 remove()；用 engine.dispose() 释放池连接）
@@ -631,8 +637,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         shutil.copy2(extracted_db, DB_FILE)
 
         # 5. 恢复笔记文件
-        if progress_callback:
-            progress_callback(80, "正在恢复笔记文件...")
+        _set_restore_progress(80, "正在恢复笔记文件...", progress_callback)
 
         # 恢复媒体文件（video/ 优先，note_results/ 兼容旧包）
         extracted_video = restore_temp_dir / "video"
@@ -646,15 +651,13 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
                 WebDAVBackup._replace_dir(extracted_notes, NOTE_OUTPUT_DIR)
 
         # 6. 恢复配置文件（如果存在）
-        if progress_callback:
-            progress_callback(90, "正在恢复配置...")
+        _set_restore_progress(90, "正在恢复配置...", progress_callback)
 
         extracted_config = restore_temp_dir / "configs.json"
         if extracted_config.exists():
             _restore_configs_from_backup(extracted_config)
 
-        if progress_callback:
-            progress_callback(100, "恢复完成")
+        _set_restore_progress(100, "恢复完成", progress_callback)
 
         _current_message = "恢复成功"
         _current_progress = 100

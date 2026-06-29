@@ -74,7 +74,7 @@ interface WebDAVStore {
 
   // 操作 - 恢复
   restoreBackup: (backupName: string) => Promise<void>
-  restoreFromUpload: (file: File) => Promise<void>
+  restoreFromUpload: (file: File, onUploadProgress?: (percent: number) => void) => Promise<void>
 
   // 操作 - 本地整机包导出
   exportLocal: () => Promise<string | null>
@@ -281,12 +281,33 @@ export const useWebDAVStore = create<WebDAVStore>()(
         }
       },
 
-      // 从上传文件恢复
-      restoreFromUpload: async (file) => {
+      // 从上传文件恢复（异步任务化：上传+触发 → 轮询恢复进度 → 完成刷新）
+      restoreFromUpload: async (file, onUploadProgress) => {
+        const state = get()
+        if (state.isRestoring) {
+          return
+        }
         set({ isRestoring: true })
         try {
-          await restoreFromUpload(file)
-          // 重新加载数据
+          // 上传 + 触发后端后台恢复（后端立即返回 {started:true}）
+          await restoreFromUpload(file, onUploadProgress)
+          // 轮询直到后端恢复完成（30 分钟上限）
+          const deadline = Date.now() + 30 * 60 * 1000
+          let lastMessage = ''
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1500))
+            const data = await getBackupStatus()
+            set({ backupStatus: data || get().backupStatus })
+            if (data) {
+              lastMessage = data.message || ''
+              if (!data.is_busy) break
+            }
+          }
+          // 据最终 message 判断成败（后端 restore_from_local_file 完成后保留 message）
+          if (lastMessage.includes('失败')) {
+            throw new Error(lastMessage)
+          }
+          // 恢复成功，重新加载数据
           window.location.reload()
         } catch (error) {
           throw error
