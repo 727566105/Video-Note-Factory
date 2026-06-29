@@ -30,11 +30,17 @@ CONFIG_VERSION = "1.0"
 SENSITIVE_PLACEHOLDER = "********"
 
 # 占位符集合：导出源端常存的假值，原样导入无意义
-_SENSITIVE_PLACEHOLDERS = {SENSITIVE_PLACEHOLDER, "sk-test"}
+# 注意：只有导出时主动脱敏产生的 "********" 才视为占位符；
+# "sk-test" 等是系统内置 provider 的默认 key，属于用户的真实状态，
+# 应忠实还原，不再当作假值跳过。
+_SENSITIVE_PLACEHOLDERS = {SENSITIVE_PLACEHOLDER}
 
 
 def _is_placeholder(value: str | None) -> bool:
-    """判断敏感信息值是否为空或占位符（应跳过导入）"""
+    """判断敏感信息值是否为空或占位符（应跳过导入）
+
+    仅当值为 None/空串，或等于导出脱敏占位符 "********" 时才跳过。
+    """
     if not value:
         return True
     return value in _SENSITIVE_PLACEHOLDERS

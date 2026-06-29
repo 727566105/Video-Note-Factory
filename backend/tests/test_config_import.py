@@ -50,8 +50,10 @@ class TestImportProviders(unittest.TestCase):
         self.assertEqual(results["failed"], [])
 
     @patch("app.services.config_export.get_all_providers")
-    def test_providers_skip_when_builtin_is_placeholder(self, _mock_get_all):
-        """无 credentials 且文件 api_key 是占位符(sk-test)时归 skipped"""
+    @patch("app.services.config_export.insert_provider")
+    @patch("app.db.provider_dao.get_provider_by_id", return_value=None)
+    def test_providers_import_sk_test_default_key(self, _mock_get_by_id, _mock_insert, _mock_get_all):
+        """sk-test 是系统内置 provider 默认 key，应忠实导入而非跳过"""
         config_data = _config_data(providers=[
             {"id": "openai", "name": "OpenAI", "base_url": "https://api.openai.com",
              "logo": "", "type": "openai", "enabled": 1, "api_key": "sk-test"}
@@ -60,10 +62,12 @@ class TestImportProviders(unittest.TestCase):
             config_data=config_data,
             selected_items=["providers"],
         )
-        self.assertEqual(results["success"], [])
-        self.assertEqual(results["failed"], [])  # 占位符归 skipped 不是 failed
-        skipped_ids = [s.get("id") for s in results["skipped"]]
-        self.assertIn("openai", skipped_ids)
+        success_types = [s["type"] for s in results["success"]]
+        self.assertIn("providers", success_types)
+        self.assertEqual(results["failed"], [])
+        # 验证写入了 sk-test（忠实还原）
+        _mock_insert.assert_called_once()
+        self.assertEqual(_mock_insert.call_args.kwargs["api_key"], "sk-test")
 
     @patch("app.services.config_export.get_all_providers")
     @patch("app.services.config_export.insert_provider")
@@ -198,9 +202,10 @@ class TestIsPlaceholder(unittest.TestCase):
         from app.services.config_export import _is_placeholder
         self.assertTrue(_is_placeholder("********"))
 
-    def test_sk_test_is_placeholder(self):
+    def test_sk_test_is_not_placeholder(self):
+        """sk-test 是系统内置默认 key，不再视为占位符（忠实还原）"""
         from app.services.config_export import _is_placeholder
-        self.assertTrue(_is_placeholder("sk-test"))
+        self.assertFalse(_is_placeholder("sk-test"))
 
     def test_real_value_is_not_placeholder(self):
         from app.services.config_export import _is_placeholder
