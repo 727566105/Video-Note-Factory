@@ -419,7 +419,7 @@ class WebDAVBackup:
         Returns:
             dict: 恢复结果
         """
-        global _restore_in_progress, _current_operation, _current_progress, _current_message
+        global _restore_in_progress, _current_operation, _current_progress, _current_message, _current_skipped_files
 
         if _restore_in_progress:
             raise Exception("恢复操作正在执行中")
@@ -428,6 +428,7 @@ class WebDAVBackup:
         _current_operation = "restore"
         _current_progress = 0
         _current_message = "开始恢复..."
+        _current_skipped_files = []
 
         progress = BackupProgress()
 
@@ -463,9 +464,11 @@ class WebDAVBackup:
             if progress:
                 progress.update(40, "正在解压备份文件...")
 
-            # 3. 解压备份
-            with zipfile.ZipFile(local_zip_path, 'r') as zipf:
-                zipf.extractall(restore_temp_dir)
+            # 3. 解压备份（容错：跳过文件名超长等条目）
+            skipped = _safe_extract_all(local_zip_path, restore_temp_dir)
+            if skipped:
+                _current_skipped_files = skipped
+                logger.warning(f"恢复时跳过 {len(skipped)} 个文件（文件名过长等）: {skipped}")
 
             if progress:
                 progress.update(60, "正在恢复数据库...")
@@ -499,13 +502,21 @@ class WebDAVBackup:
             if progress:
                 progress.update(100, "恢复完成")
 
+            skipped_count = len(_current_skipped_files)
+            if skipped_count > 0:
+                message = f"恢复成功（跳过 {skipped_count} 个文件名超长的文件）"
+            else:
+                message = "恢复成功"
+
             result = {
                 "success": True,
-                "message": "恢复成功",
-                "backup_name": backup_name
+                "message": message,
+                "backup_name": backup_name,
+                "skipped_count": skipped_count,
+                "skipped_files": _format_skipped_files(_current_skipped_files),
             }
 
-            _current_message = "恢复成功"
+            _current_message = message
             _current_progress = 100
 
             return result
@@ -513,6 +524,7 @@ class WebDAVBackup:
         except Exception as e:
             logger.error(f"Restore failed: {e}")
             _current_message = f"恢复失败: {str(e)}"
+            _current_skipped_files = []
             raise
         finally:
             _restore_in_progress = False
