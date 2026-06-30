@@ -529,9 +529,9 @@ class WebDAVBackup:
         finally:
             _restore_in_progress = False
             _current_operation = None
-            # 清理临时目录
-            if BACKUP_TEMP_DIR.exists():
-                shutil.rmtree(BACKUP_TEMP_DIR, ignore_errors=True)
+            # 清理临时解压目录（与 restore_from_local_file 一致，不清 pre_restore 快照）
+            if restore_temp_dir.exists():
+                shutil.rmtree(restore_temp_dir, ignore_errors=True)
 
     def delete_backup(self, backup_name: str) -> bool:
         """删除备份文件"""
@@ -563,6 +563,24 @@ def get_backup_status() -> dict:
         "message": _current_message,
         "skipped_files": list(_current_skipped_files),
     }
+
+
+def reset_stale_backup_state():
+    """启动时自愈重置：清除上次进程被 kill 中断残留的全局状态。
+
+    若上一次备份/恢复操作因进程崩溃未走到 finally，_restore_in_progress 会卡在 True，
+    导致后续操作永久报「恢复操作正在执行中」。应用启动时强制重置。
+    """
+    global _backup_in_progress, _restore_in_progress
+    global _current_operation, _current_progress, _current_message, _current_skipped_files
+    if _backup_in_progress or _restore_in_progress:
+        logger.warning("检测到上次备份/恢复状态残留（进程可能异常退出），已重置")
+    _backup_in_progress = False
+    _restore_in_progress = False
+    _current_operation = None
+    _current_progress = 0
+    _current_message = ""
+    _current_skipped_files = []
 
 
 def _safe_extract_all(zip_path: Path, dest: Path) -> list[str]:
@@ -707,6 +725,9 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
             shutil.copytree(VIDEO_DIR, pre_restore_backup_dir / "video")
         if NOTE_OUTPUT_DIR.exists():
             shutil.copytree(NOTE_OUTPUT_DIR, pre_restore_backup_dir / "note_results")
+
+        # 只保留最新 pre_restore 快照，清理旧的（避免磁盘无限累积）
+        _cleanup_old_pre_restore_snapshots(keep=pre_restore_backup_dir)
 
         # 4. 恢复数据库
         _set_restore_progress(60, "正在恢复数据库...", progress_callback)
@@ -881,6 +902,24 @@ def _restore_configs_from_backup(config_path: Path):
 
     except Exception as e:
         logger.error(f"恢复配置失败: {e}")
+
+
+def _cleanup_old_pre_restore_snapshots(keep: Path):
+    """只保留最新的 pre_restore 快照，清理其余旧的。
+
+    每次成功导入都留一个完整数据快照（DB+video+notes），不清理会导致磁盘无限累积。
+    Args:
+        keep: 本次新建的快照目录，保留它；其余 pre_restore_* 删除。
+    """
+    try:
+        if not BACKUP_TEMP_DIR.exists():
+            return
+        for d in BACKUP_TEMP_DIR.glob("pre_restore_*"):
+            if d.is_dir() and d != keep:
+                shutil.rmtree(d, ignore_errors=True)
+                logger.info(f"已清理旧 pre_restore 快照: {d.name}")
+    except Exception as e:
+        logger.warning(f"清理旧 pre_restore 快照失败（不影响恢复）: {e}")
 
 
 def _rollback_restore(backup_dir: Path):

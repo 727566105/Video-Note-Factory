@@ -53,6 +53,10 @@ async def lifespan(app: FastAPI):
     init_db()
     seed_default_providers()
 
+    # 自愈重置：清除上次备份/恢复因进程崩溃残留的全局状态
+    from app.services.webdav_backup import reset_stale_backup_state
+    reset_stale_backup_state()
+
     # 自动迁移旧数据到四级目录
     from app.utils.path_helper import migrate_to_platform_structure, cleanup_stale_pending
     migrate_to_platform_structure()
