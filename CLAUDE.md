@@ -41,9 +41,7 @@ python3 main.py              # 启动后端 (默认端口 8483)
 ```bash
 cd backend
 python3 -m pytest tests/              # 运行所有测试
-python3 -m pytest tests/test_export.py -v          # 运行单个测试文件
-python3 -m pytest tests/test_export.py::test_export_markdown -v  # 运行单个测试函数
-python3 -m app.routers.test_export    # 单独测试导出功能
+python3 -m pytest tests/test_export.py -v          # 运行单个测试文件（须在 backend/ 目录下运行，无 pytest.ini）
 ```
 
 ### 前端测试
@@ -64,7 +62,7 @@ pnpm test:e2e:ui                      # 运行 E2E 测试（带 UI）
 ```bash
 cd videoNote_frontend
 pnpm install                # 安装依赖
-pnpm dev                    # 启动开发服务器 (端口动态分配，默认 3015)
+pnpm dev                    # 启动开发服务器 (端口由 VITE_FRONTEND_PORT 控制，默认 3015)
 pnpm build                  # 构建生产版本
 pnpm lint                   # ESLint 检查
 pnpm preview                # 预览构建结果
@@ -99,7 +97,7 @@ videoNote/
 
 1. **下载器** (`app/downloaders/`)
    - 平台特定下载器继承自 `Downloader` 基类
-   - 支持: Bilibili, YouTube, 抖音, 快手, 小红书, 本地视频
+   - 支持: Bilibili, YouTube, 抖音, 快手, 小红书, CCTV, 本地视频
    - `SUPPORT_PLATFORM_MAP` 定义平台与下载器的映射关系
 
 2. **转写器** (`app/transcriber/`)
@@ -119,8 +117,8 @@ videoNote/
    - 前端 `AILogo` 组件根据 `name` + `type` + `logoUrl` 决定显示哪个图标
 
 5. **任务状态管理**
-   - 状态文件: `{task_id}.status.json` (实时更新)
-   - 结果文件: `{task_id}.json` (最终笔记)
+   - 状态文件: 四级目录内 `status.json` (实时更新；无 author_id 时为 `data/video/_pending/{task_id}/status.json`)
+   - 结果文件: `note.json` (最终笔记；多用户为 `note_{user_id}.json`)
    - 支持缓存机制: 音频/转写/Markdown 都会缓存
 
 6. **媒体类型架构**
@@ -150,14 +148,16 @@ videoNote/
    |-------|------|---------|--------|
    | `authStore` | 用户认证状态 | 是 | — |
    | `taskStore` | 笔记任务管理 | 是 | App.tsx 全局加载 |
-   | `modelStore` | AI 模型配置列表 | 是 | — |
-   | `providerStore` | 模型供应商配置 | 否 | AuthenticatedApp 加载 |
+   | `modelStore` | AI 模型配置列表 | 否 | App.tsx 由云端偏好 loadFromServer |
+   | `providerStore` | 模型供应商配置 | 否 | 按需懒加载（SettingPage/ModelSelectDialog/NoteForm/CollectionDetail） |
    | `configStore` | 应用全局配置 | 是 | — |
    | `subscriptionStore` | 订阅频道管理 | 否 | AuthenticatedApp 加载 |
-   | `summarySettingsStore` | 总结设置 | 是 | — |
+   | `summarySettingsStore` | 总结设置 | 否（云偏好 userPreferences 持久化） | — |
    | `siyuanStore` | 思源笔记集成 | 是 | — |
    | `webdavStore` | WebDAV 备份配置 | 是 | — |
-   | `themeStore` | 主题切换 | 是 | — |
+   | `collectionStore` | 合集/资料库管理 | 否 | 页面内按需加载 |
+
+   > 主题切换**不在 store**：由 `src/components/ThemeProvider.tsx`（React Context）+ `ThemeModeSelector.tsx` 管理，持久化到 localStorage，`ThemeProvider` 在 App 根注入。
 
 2. **路由结构** (`src/App.tsx`)
    - `ProtectedRoute`: 需要登录认证
@@ -172,7 +172,10 @@ videoNote/
    /channel/:platform/:id      → 频道详情
    /authors                    → 博主列表
    /authors/:id                → 博主详情
-   /settings                   → 设置页（桌面端重定向到 /settings/about）
+   /library                    → 合集/资料库列表
+   /library/:id                → 合集详情
+   /settings                   → 设置页（桌面端显示分组列表）
+     /settings/profile         → 个人资料
      /settings/model           → 模型供应商 [AdminRoute]
      /settings/download        → 下载器配置 [AdminRoute]
      /settings/taskqueue       → 任务队列 [AdminRoute]
@@ -187,10 +190,11 @@ videoNote/
    - 桌面端: `SidebarProvider` + `AppSidebar` 侧边栏布局
    - 移动端: `SiteHeader` + `MobileBottomNav` 底部导航 + `SwipeBackHandler` 滑动返回
 
-4. **设置页架构** — 无侧边栏，设置项在用户下拉菜单中
-   - 设置子项（AI 模型设置、任务队列、下载配置、订阅设置、用户管理、思源笔记、WebDAV 备份、关于）全部位于 `nav-user.tsx`（桌面端）和 `site-header.tsx`（移动端）的下拉菜单中
-   - 管理员专属项通过 `isAdmin()` 判断显示
-   - 桌面端访问 `/settings` 自动重定向到 `/settings/about`
+4. **设置页架构** — 设置子项集中在 `src/layouts/SettingLayout.tsx` 的 `groups` 配置
+   - 子项（profile/siyuan/webdav/model/download/subscription/users/taskqueue/about）由 `SettingsHome`（根列表）与 `SettingsNavigation`（桌面左侧栏）渲染
+   - `nav-user.tsx`（桌面端）/ `site-header.tsx`（移动端）的下拉菜单**只提供**「个人资料」「设置中心」入口，不含具体设置子项
+   - 管理员专属项通过 `getVisibleGroups()` 按 `adminOnly` 过滤显示
+   - 桌面端访问根 `/settings` 显示分组列表（`SettingsHome`），点入子项后左侧出现 `SettingsNavigation` 导航；移动端 `/settings` 显示设置列表，子页面直接显示内容
    - 移动端 `/settings` 显示设置列表，子页面直接显示内容
 
 5. **笔记详情页** — 左右分栏结构
@@ -261,7 +265,7 @@ Chrome 插件 "VideoNote Helper"，功能：
 ### 添加新 GPT 提供商
 
 1. 在 `app/gpt/` 创建新的 GPT 类，继承 `GPT` 基类
-2. 在 `app/gpt/gpt_factory.py` 的 `GPTFactory.from_config()` 添加分支
+2. 所有供应商统一走 `UniversalGPT`（`GPTFactory.from_config()` 无分支），新增类型只需 `providers` 表支持该 type
 3. 确保数据库 `providers` 表支持该提供商类型
 
 ## 关键文件位置
@@ -320,7 +324,7 @@ data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
 └── status.json             # 任务实时状态
 ```
 
-**平台目录映射**（`constant.py` 的 `PLATFORM_DIR_MAP`）：bilibili, youtube, douyin (含 tiktok), kuaishou, xiaohongshu, local (含 local_audio), `_other`（未知平台兜底）
+**平台目录映射**（`constant.py` 的 `PLATFORM_DIR_MAP`）：bilibili, youtube, cctv, douyin (含 tiktok), kuaishou, xiaohongshu, local (含 local_audio), `_other`（未知平台兜底）
 
 **API 路由**：
 - 封面图: `GET /api/video_cover/{platform}/{author_id}/{video_id}`
@@ -331,7 +335,7 @@ data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
 
 **路径管理核心文件**：`app/utils/path_helper.py`
 - `get_video_folder()`: 生成四级目录路径 `video/{platform}/{author}/{video}/`
-- `get_note_file_path_v2()`: 新旧路径桥接（有 author_id 走四级，否则回退 `data/notes/`）
+- `get_note_file_path_v2()`: 新旧路径桥接（有 author_id 走四级，否则走 `data/video/_pending/{task_id}/`，不回退 `data/notes/`）
 - `find_note_file()`: 兼容查找，优先四级路径 → 三级路径 → 扁平路径（不创建目录）
 - `get_note_folder()` / `get_note_file_path()`: 旧版路径（`data/notes/`），不自动创建目录
 - `move_note_files_to_video_folder()`: 旧路径迁移到四级目录
@@ -341,9 +345,21 @@ data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
 
 ## 数据库
 
-使用 SQLite + SQLAlchemy，数据库文件位于项目根目录的 `data/video_note.db`。后端启动时自动初始化（`init_db`）并种子默认供应商（`seed_default_providers`）。
+使用 SQLite + SQLAlchemy，数据库文件位于后端目录下的 `data/video_note.db`（`engine.py` 的 PROJECT_ROOT 解析为 `backend/`）。Engine 配置在 `app/db/engine.py`（默认 `data/video_note.db`，可由 `DATABASE_URL` 环境变量覆盖；兼容旧版根目录 `video_note.db`，启动时自动迁移）。后端启动时自动初始化（`init_db`）并种子默认供应商（`seed_default_providers`）。
 
 **数据库迁移**: `app/db/init_db.py` 中通过 `migrate_video_tasks_table()` 和 `migrate_feed_items_table()` 函数检查并添加新列。新增字段必须同时更新模型文件和迁移函数。
+
+## 配置导入导出系统
+
+整机配置（供应商/模型/下载器等）的导出/导入，用于跨实例迁移。后端路由 `app/routers/config_backup.py`（前缀 `/configs`），核心服务 `app/services/config_export.py`。
+
+- `GET /configs/export` — 导出配置 JSON（走 `request` 拦截器，resolve 裸 data）
+- `GET /configs/export/file` — 导出为文件下载，**`require_admin` 保护 + 前端用原生 `fetch`**（不走 `request` 拦截器，因为要拿文件流 + 手动带 `Authorization: Bearer` header，见 `services/configBackup.ts`）
+- `POST /configs/import/preview` — 上传文件预览（FormData）
+- `POST /configs/import/preview/json` — 直接传 JSON 预览
+- `POST /configs/import/execute` — 执行导入
+
+**占位符陷阱**：导出时对脱敏字段（如密码 `********`）做占位符替换，导入还原时需识别并还原原值。`sk-test` 这类测试值**不能被误判为占位符**（曾导致配置导入丢失，见 `396fadb`）。
 
 ## 合集与资料库系统
 
@@ -357,7 +373,7 @@ JWT Bearer Token 认证，通过 `app/auth/` 模块实现：
 - 登录返回 JWT token，前端存储在 localStorage `auth-storage` 中
 - 路由通过 `get_current_user` 依赖注入验证
 - 管理员接口使用 `require_admin` 依赖
-- 默认用户：admin（密码 123456）
+- 默认用户：admin，密码 `change_me_on_first_login`（可用 `DEFAULT_ADMIN_PASSWORD` 环境变量覆盖；CI 设为 123456）
 
 ## 订阅与频道系统
 
@@ -387,7 +403,7 @@ DEFAULT_ADMIN_PASSWORD=123456
 - **pnpm 版本**：`package.json` 的 `packageManager: pnpm@11.8.0`（corepack 锁定），要求 Node ≥22.13；CI 与 Dockerfile 均用 Node 22 对齐
 - **Dockerfile**：前端阶段 `node:22` + `pnpm install --frozen-lockfile`，依赖 `videoNote_frontend/pnpm-lock.yaml`（**已入库，勿再忽略**）
 - **子目录 `.gitignore` 陷阱**：`videoNote_frontend/.gitignore` 的规则会覆盖根 `.gitignore` 的 `!` 放行；排查「文件被忽略」用 `git check-ignore -v --no-index <path>`
-- **Docker 镜像发布**：`Docker Build and Push` workflow 是 `workflow_dispatch`（手动触发，push 不自动触发）
+- **Docker 镜像发布**：`Docker Build and Push` workflow 是 `workflow_dispatch`（手动触发，可指定分支/版本/changelog）；同时 push 到 `main` 也会自动触发构建
   ```bash
   gh workflow run "Docker Build and Push" --ref dev3.0   # 触发发布
   gh run watch <run-id>                                    # 监控构建（约 5 分钟）
