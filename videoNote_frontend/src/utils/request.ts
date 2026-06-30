@@ -32,7 +32,11 @@ request.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// 响应拦截器
+// 响应拦截器（剥壳契约）
+// 成功（code === 0）：return res.data —— 剥掉 {code,msg,data} 外壳，调用方拿到的就是裸 data。
+// 失败：Promise.reject 并自动 toast。
+// ⚠️ 组件层不要判 response.code：request.xxx() 成功 resolve 出的就是裸 data，直接用；
+//    误写 if (response.code === 200) 会永远走失败分支（曾导致「导入配置 → 文件解析失败」bug）。
 request.interceptors.response.use(
   (response: AxiosResponse<IResponse>) => {
     const res = response.data;

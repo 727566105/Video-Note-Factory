@@ -1,6 +1,12 @@
 """
 路径管理工具模块
 统一管理项目中所有数据存储路径，确保路径一致性
+
+读写约定（核心，勿违反）：
+- 读取场景用 find_note_file()：只查找不创建目录（兼容四级→三级→_pending→扁平多级回退）。
+- 写入场景用 get_note_file_path_v2()：写入前必须 parent.mkdir(parents=True, exist_ok=True)。
+- 有 author_id 走四级目录 video/{platform}/{author}/{video}/；无 author_id 走 data/video/_pending/{task_id}/，
+  不再回退旧版 data/notes/（旧数据由 migrate_to_platform_structure 启动时迁移）。
 """
 import json
 import os
