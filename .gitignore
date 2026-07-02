@@ -371,3 +371,6 @@ videoNote_frontend/*.txt
 *.network-response
 open_chrome.mjs
 video-note-toolbar.txt
+
+# 运行时数据备份（勿提交）
+data.dev.bak/
