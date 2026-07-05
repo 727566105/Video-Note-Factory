@@ -2,17 +2,9 @@
 
 echo "Starting VideoNote..."
 
-# 创建必要的目录
-mkdir -p /app/data /app/backend/config /app/note_results /app/static/screenshots /app/uploads/icons /app/logs
-
-# 复制预构建的 whisper 模型到 data 目录
-echo "Checking whisper models..."
-if [ -d "/app/backend/models/whisper" ]; then
-    mkdir -p /app/data/models/whisper
-    # 复制所有 whisper 模型（保留已存在的）
-    cp -rn /app/backend/models/whisper/* /app/data/models/whisper/ 2>/dev/null || true
-    echo "Whisper models copied to /app/data/models/whisper/"
-fi
+# 创建必要的目录（含模型缓存目录，首次使用 whisper 转写时会自动下载到此）
+mkdir -p /app/data /app/data/models/whisper /app/backend/config /app/note_results /app/static/screenshots /app/uploads/icons /app/logs
+echo "Model cache dir: /app/data/models/whisper (models download on-demand)"
 
 # 使用环境变量替换 nginx 配置中的端口
 if [ -z "$BACKEND_PORT" ]; then

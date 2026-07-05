@@ -6,13 +6,19 @@ ARG NPM_REGISTRY=https://registry.npmjs.org
 
 # 固定 pnpm 主版本：与 pnpm-lock.yaml 生成版本对齐，
 # 避免 pnpm 11.x 在无 TTY 环境下重建 node_modules 触发 ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY
-RUN npm install -g pnpm@10
+# env -u 清除注入的代理（内网代理对 npm registry 不通）
+RUN env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    npm install -g pnpm@10
 
 WORKDIR /app/frontend
 COPY ./videoNote_frontend/package.json ./videoNote_frontend/pnpm-workspace.yaml ./videoNote_frontend/pnpm-lock.yaml ./
 # CI=true：禁止 pnpm 交互式询问（无 TTY 时会 abort），双保险
 ENV CI=true
-RUN pnpm config set registry ${NPM_REGISTRY} && pnpm install --frozen-lockfile
+# 清除注入的代理（内网代理对 npm registry 不通）
+RUN env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    pnpm config set registry ${NPM_REGISTRY} && \
+    env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    pnpm install --frozen-lockfile
 COPY ./videoNote_frontend .
 ENV VITE_API_BASE_URL=/api
 ENV VITE_SCREENSHOT_BASE_URL=/static/screenshots
@@ -33,36 +39,39 @@ FROM python:3.11-slim AS backend-builder
 # 可配置镜像源
 ARG PIP_INDEX_URL=https://pypi.org/simple
 
-# 换清华 debian 源 + 清除可能坏掉的代理（构建机代理对 debian 源 502）
-RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' \
-        /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-    || sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' \
-        /etc/apt/sources.list 2>/dev/null \
-    || true
-
-RUN apt-get update && \
+# 清除可能从 Docker daemon 注入的代理（内网代理对外网源不通）
+# 注意：ENV 设空值对 apt 无效，必须在 RUN 里用 env -u 实际清除
+RUN env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    apt-get update && \
+    env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
     apt-get install -y --no-install-recommends ffmpeg curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
 COPY ./backend/requirements.txt .
-RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt
+# 安装依赖（env -u 清除注入的代理，内网代理对 pypi 不通）
+# 安装后清理：hf_xet(214M 可选加速后端,modelscope 用自有下载通道)、
+# __pycache__、.pyc、pip 本身（运行时不需要）
+# 注意：用 set -e 保证任一步失败立即终止，不用 && true 吞错误
+RUN set -e; \
+    env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt; \
+    env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    pip install --no-cache-dir -i ${PIP_INDEX_URL} bcrypt==4.0.1; \
+    pip uninstall -y hf-xet 2>/dev/null || true; \
+    find /usr/local/lib/python3.11 -depth -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true; \
+    find /usr/local/lib/python3.11 -name "*.pyc" -delete 2>/dev/null || true; \
+    rm -rf /root/.cache /usr/local/lib/python3.11/site-packages/pip
 
-RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} bcrypt==4.0.1
-
-RUN mkdir -p /app/backend/models/whisper
+# 模型不再预置进镜像，改为运行时按需下载到 /app/data/models/（data 为持久化卷）
 
 # === 阶段3：最终镜像 ===
 FROM python:3.11-slim
 
-# 换清华 debian 源
-RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' \
-        /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-    || sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' \
-        /etc/apt/sources.list 2>/dev/null \
-    || true
-
-RUN apt-get update && \
+# 清除注入的代理（内网代理对外网源不通）
+RUN env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+    apt-get update && \
+    env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
     apt-get install -y --no-install-recommends ffmpeg curl nginx supervisor gettext-base && \
     rm -rf /var/lib/apt/lists/*
 
@@ -71,8 +80,6 @@ WORKDIR /app
 COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=backend-builder /usr/local/bin /usr/local/bin
 COPY ./backend /app/backend
-
-COPY --from=backend-builder /app/backend/models /app/backend/models
 
 COPY --from=frontend-builder /app/frontend/dist /var/www/html
 
