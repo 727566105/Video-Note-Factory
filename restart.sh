@@ -4,7 +4,8 @@
 
 set -e
 
-PROJECT_ROOT="/Users/dickies/Documents/workspaces/VideoNote-v3"
+# 获取脚本所在目录（项目根目录），避免写死本地路径
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_PORT=8483
 FRONTEND_PORT=3015
 

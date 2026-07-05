@@ -9,7 +9,7 @@
   场景4: 旧用法回归(传 selected_items+credentials 仍兼容)
   场景5: 空配置项跳过(siyuan/webdav 为 null 时正确处理)
 
-运行: cd /home/yangzai/桌面/docker/Video-Note && .venv/bin/python tests/e2e_config_import.py
+运行: cd <项目根目录> && .venv/bin/python tests/e2e_config_import.py
 """
 import json
 import urllib.request

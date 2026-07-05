@@ -320,6 +320,10 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# AI 助手本地配置（含个人 IDE 路径，不入库）
+.claude/
+*/.claude/
+
 # PyPI configuration file
 .pypirc
 /backend/data/*
