@@ -14,6 +14,7 @@ const ProviderForm = lazy(() => import('@/components/Form/modelForm/Form.tsx'))
 const AboutPage = lazy(() => import('@/pages/SettingPage/about.tsx'))
 const ProfilePage = lazy(() => import('@/pages/SettingPage/Profile.tsx'))
 const SiyuanSettings = lazy(() => import('@/pages/SettingPage/Siyuan.tsx'))
+const ObsidianSettings = lazy(() => import('@/pages/SettingPage/Obsidian.tsx'))
 const WebDAVSettings = lazy(() => import('@/pages/SettingPage/WebDAV.tsx'))
 const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
 const DownloaderForm = lazy(() => import('@/components/Form/DownloaderForm/Form.tsx'))
@@ -156,6 +157,7 @@ function App() {
               </Route>
               <Route path="taskqueue" element={<AdminRoute><Suspense fallback={<PageLoader />}><TaskQueueSettings /></Suspense></AdminRoute>} />
               <Route path="siyuan" element={<Suspense fallback={<PageLoader />}><SiyuanSettings /></Suspense>} />
+              <Route path="obsidian" element={<Suspense fallback={<PageLoader />}><ObsidianSettings /></Suspense>} />
               <Route path="webdav" element={<Suspense fallback={<PageLoader />}><WebDAVSettings /></Suspense>} />
               <Route path="about" element={<Suspense fallback={<PageLoader />}><AboutPage /></Suspense>} />
               <Route path="profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />

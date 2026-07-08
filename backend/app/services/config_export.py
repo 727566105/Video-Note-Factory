@@ -5,6 +5,7 @@
 - AI 模型设置
 - 下载器配置
 - 思源笔记配置
+- Obsidian 配置
 - WebDAV 备份配置
 
 敏感信息（API Key、密码、Token）在导出时使用占位符替代，
@@ -19,6 +20,7 @@ from app.utils.logger import get_logger
 from app.db.provider_dao import get_all_providers, insert_provider, update_provider
 from app.db.webdav_config_dao import get_config, upsert_config as upsert_webdav_config
 from app.db.siyuan_config_dao import get_config as get_siyuan_config, upsert_config as upsert_siyuan_config
+from app.db.obsidian_config_dao import get_config as get_obsidian_config, upsert_config as upsert_obsidian_config
 from app.services.constant import SUPPORT_PLATFORM_MAP
 
 logger = get_logger(__name__)
@@ -137,6 +139,26 @@ class ConfigExporter:
         except Exception as e:
             logger.error(f"Failed to export WebDAV config: {e}")
             configs["webdav_config"] = None
+
+        # 导出 Obsidian 配置
+        try:
+            obsidian_config = get_obsidian_config()
+            if obsidian_config:
+                configs["obsidian_config"] = {
+                    "export_mode": obsidian_config.export_mode,
+                    "vault_path": obsidian_config.vault_path,
+                    "folder_path": obsidian_config.folder_path,
+                    "attachments_folder": obsidian_config.attachments_folder,
+                    "api_url": obsidian_config.api_url,
+                    "api_key": obsidian_config.api_key if include_sensitive else SENSITIVE_PLACEHOLDER,
+                    "enabled": obsidian_config.enabled,
+                }
+                logger.info("Exported Obsidian config")
+            else:
+                configs["obsidian_config"] = None
+        except Exception as e:
+            logger.error(f"Failed to export Obsidian config: {e}")
+            configs["obsidian_config"] = None
 
         return {
             "version": CONFIG_VERSION,
@@ -262,6 +284,15 @@ class ConfigImporter:
                 "needs_credentials": True
             })
 
+        # 检查 Obsidian 配置
+        if configs.get("obsidian_config"):
+            preview["available_items"].append({
+                "type": "obsidian_config",
+                "name": "Obsidian 配置",
+                "count": 1,
+                "needs_credentials": True
+            })
+
         # 检查是否包含敏感数据
         preview["has_sensitive_data"] = any(
             item.get("needs_credentials", False) for item in preview["available_items"]
@@ -307,6 +338,8 @@ class ConfigImporter:
                 selected_items.append("siyuan_config")
             if configs.get("webdav_config"):
                 selected_items.append("webdav_config")
+            if configs.get("obsidian_config"):
+                selected_items.append("obsidian_config")
             # downloader_config 不自动加入（硬编码，必 skipped）
 
         # 导入 AI 模型设置
@@ -462,6 +495,49 @@ class ConfigImporter:
                 logger.error(f"Failed to import WebDAV config: {e}")
                 results["failed"].append({
                     "type": "webdav_config",
+                    "error": str(e)
+                })
+
+        # 导入 Obsidian 配置
+        if "obsidian_config" in selected_items:
+            try:
+                obsidian_config = configs.get("obsidian_config")
+                if not obsidian_config:
+                    results["skipped"].append({
+                        "type": "obsidian_config",
+                        "reason": "配置为空"
+                    })
+                else:
+                    # 获取 API Key：优先用 credentials，其次用文件自带值
+                    obsidian_creds = credentials.get("obsidian_config", {})
+                    api_key = obsidian_creds.get("api_key", "") or obsidian_config.get("api_key", "")
+
+                    # local 模式不需要 api_key，api 模式需要
+                    export_mode = obsidian_config.get("export_mode", "local")
+                    if export_mode == "api" and _is_placeholder(api_key):
+                        results["skipped"].append({
+                            "type": "obsidian_config",
+                            "reason": "API Key 为空或占位符"
+                        })
+                    else:
+                        upsert_obsidian_config(
+                            export_mode=export_mode,
+                            vault_path=obsidian_config.get("vault_path", ""),
+                            folder_path=obsidian_config.get("folder_path", "videoNote/"),
+                            attachments_folder=obsidian_config.get("attachments_folder", "attachments/"),
+                            api_url=obsidian_config.get("api_url", ""),
+                            api_key=api_key if export_mode == "api" else "",
+                            enabled=obsidian_config.get("enabled", 1)
+                        )
+                        results["success"].append({
+                            "type": "obsidian_config",
+                            "count": 1
+                        })
+                        logger.info("Imported Obsidian config")
+            except Exception as e:
+                logger.error(f"Failed to import Obsidian config: {e}")
+                results["failed"].append({
+                    "type": "obsidian_config",
                     "error": str(e)
                 })
 

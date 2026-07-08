@@ -3,6 +3,7 @@ import React from 'react'
 import {
   Bell,
   BookOpen,
+  Box,
   ChevronRight,
   Download,
   HardDrive,
@@ -53,6 +54,12 @@ const settingGroups: SettingGroup[] = [
         label: '思源笔记',
         description: '同步笔记到思源工作区',
         icon: <BookOpen className="size-4" />,
+      },
+      {
+        path: '/settings/obsidian',
+        label: 'Obsidian',
+        description: '同步笔记到 Obsidian 知识库',
+        icon: <Box className="size-4" />,
       },
       {
         path: '/settings/webdav',

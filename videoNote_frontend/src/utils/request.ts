@@ -70,15 +70,26 @@ request.interceptors.response.use(
     const silent = error.config?.headers?.['X-Silent']
     const res = error?.response?.data as IResponse | undefined;
     if (!silent) {
+      // detail 可能是数组（Pydantic 校验错误），需提取成字符串
+      let detailMsg: string | undefined
+      if (res?.detail) {
+        if (typeof res.detail === 'string') {
+          detailMsg = res.detail
+        } else if (Array.isArray(res.detail)) {
+          detailMsg = res.detail.map((d: any) => d?.msg).filter(Boolean).join('; ') || '请求参数有误'
+        } else if (typeof res.detail === 'object' && res.detail !== null) {
+          detailMsg = (res.detail as any).msg || JSON.stringify(res.detail)
+        }
+      }
       if (res) {
-        toast.error(res.msg || res.detail || '服务器错误，请稍后再试');
+        toast.error(res.msg || detailMsg || '服务器错误，请稍后再试');
       } else {
         toast.error( '请求失败，请检查网络连接或稍后再试')
       }
     }
     return Promise.reject({
       code: error.response?.status || -1,
-      msg: res?.msg || res?.detail || '请求失败，请检查网络连接',
+      msg: res?.msg || (typeof res?.detail === 'string' ? res.detail : '请求失败，请检查网络连接'),
       data: null
     } as IResponse);
   }

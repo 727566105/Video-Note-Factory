@@ -378,3 +378,6 @@ video-note-toolbar.txt
 
 # 运行时数据备份（勿提交）
 data.dev.bak/
+
+# 本地工具目录（勿提交）
+.zcode/

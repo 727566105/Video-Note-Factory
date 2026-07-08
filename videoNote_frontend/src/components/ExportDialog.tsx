@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Package, FileText, Type, Highlighter, List, ChevronDown, Check, Minus, Copy, Download, FileTextIcon, FolderArchive, BookOpen, Paperclip, Image, Sparkles, Mail, Cloud, SquarePen, Box } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Package, FileText, Type, Highlighter, List, ChevronDown, Check, Minus, Copy, Download, FileTextIcon, FolderArchive, BookOpen, Paperclip, Image, Sparkles, Mail, Cloud, SquarePen, Box, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useAuthStore } from '@/store/authStore'
+import { useObsidianStore } from '@/store/obsidianStore'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
 
@@ -460,7 +462,31 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent, collec
                         </span>
                       </button>
                       <button
-                        onClick={() => toast.info('Obsidian 集成即将上线')}
+                        onClick={async () => {
+                          if (!task?.id) return
+                          const { isConfigured, exportNote } = useObsidianStore.getState()
+                          if (!isConfigured) {
+                            toast.error('请先在设置中配置 Obsidian')
+                            return
+                          }
+                          try {
+                            // 收集当前勾选的内容选项
+                            const sections: Record<string, any> = {}
+                            contentSections.forEach(section => {
+                              section.items.forEach(item => {
+                                sections[item.id] = item.checked
+                              })
+                            })
+                            const result = await exportNote(task.id, sections)
+                            toast.success('已保存到 Obsidian')
+                            // 如果后端返回了配置提示（图片附件目录配置），额外提示
+                            if (result?.config_hint) {
+                              toast.info(result.config_hint, { duration: 8000 })
+                            }
+                          } catch (error) {
+                            toast.error(error instanceof Error ? error.message : '保存失败，请检查 Obsidian 配置')
+                          }
+                        }}
                         className="flex min-w-44 cursor-pointer flex-col items-start justify-start rounded-lg border bg-card p-2 text-sm shadow-xs hover:bg-accent transition-colors h-auto"
                       >
                         <span className="flex items-center gap-1 w-full">
@@ -469,7 +495,11 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent, collec
                           </svg>
                           <span>保存到 Obsidian</span>
                         </span>
-                        <span className="mt-0.5 w-full truncate text-left text-xs text-muted-foreground">videoNote/</span>
+                        <span className="mt-0.5 w-full truncate text-left text-xs text-muted-foreground">
+                          {useObsidianStore.getState().isConfigured
+                            ? (useObsidianStore.getState().config?.folder_path || 'videoNote/')
+                            : '未配置'}
+                        </span>
                       </button>
                       <button
                         onClick={() => {
@@ -519,10 +549,14 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent, collec
                     <h4 className="mb-1.5 font-semibold text-muted-foreground">可配置的 API 集成</h4>
                     <Separator className="mb-2" />
                     <div className="flex flex-col gap-y-1">
-                      <a href="/settings/siyuan" className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors">
+                      <Link to="/settings/siyuan" className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors">
                         <BookOpen className="mr-2 size-4" />
                         配置思源笔记
-                      </a>
+                      </Link>
+                      <Link to="/settings/obsidian" className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors">
+                        <Box className="mr-2 size-4" />
+                        配置 Obsidian
+                      </Link>
                       <button
                         onClick={() => toast.info('Wolai 集成即将上线')}
                         className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors text-left"
