@@ -20,7 +20,11 @@ from app.utils.logger import get_logger
 from app.db.provider_dao import get_all_providers, insert_provider, update_provider
 from app.db.webdav_config_dao import get_config, upsert_config as upsert_webdav_config
 from app.db.siyuan_config_dao import get_config as get_siyuan_config, upsert_config as upsert_siyuan_config
-from app.db.obsidian_config_dao import get_config as get_obsidian_config, upsert_config as upsert_obsidian_config
+from app.db.obsidian_config_dao import (
+    get_config as get_obsidian_config,
+    upsert_config as upsert_obsidian_config,
+    get_decrypted_key as get_obsidian_decrypted_key,
+)
 from app.services.constant import SUPPORT_PLATFORM_MAP
 
 logger = get_logger(__name__)
@@ -150,7 +154,7 @@ class ConfigExporter:
                     "folder_path": obsidian_config.folder_path,
                     "attachments_folder": obsidian_config.attachments_folder,
                     "api_url": obsidian_config.api_url,
-                    "api_key": obsidian_config.api_key if include_sensitive else SENSITIVE_PLACEHOLDER,
+                    "api_key": get_obsidian_decrypted_key() if include_sensitive else SENSITIVE_PLACEHOLDER,
                     "enabled": obsidian_config.enabled,
                 }
                 logger.info("Exported Obsidian config")
@@ -526,7 +530,7 @@ class ConfigImporter:
                             folder_path=obsidian_config.get("folder_path", "videoNote/"),
                             attachments_folder=obsidian_config.get("attachments_folder", "attachments/"),
                             api_url=obsidian_config.get("api_url", ""),
-                            api_key=api_key if export_mode == "api" else "",
+                            api_key=api_key if export_mode == "api" else None,
                             enabled=obsidian_config.get("enabled", 1)
                         )
                         results["success"].append({

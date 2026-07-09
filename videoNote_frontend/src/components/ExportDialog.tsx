@@ -36,6 +36,10 @@ interface ContentSection {
 export function ExportDialog({ open, onOpenChange, task, selectedContent, collectionId, collectionTitle }: ExportDialogProps) {
   const [activeTab, setActiveTab] = useState('download')
 
+  // Obsidian 状态（hook 方式，确保 UI 响应式更新）
+  const obsidianConfigured = useObsidianStore(s => s.isConfigured)
+  const obsidianConfig = useObsidianStore(s => s.config)
+
   // 内容选择状态
   const [contentSections, setContentSections] = useState<ContentSection[]>([
     {
@@ -483,8 +487,9 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent, collec
                             if (result?.config_hint) {
                               toast.info(result.config_hint, { duration: 8000 })
                             }
-                          } catch (error) {
-                            toast.error(error instanceof Error ? error.message : '保存失败，请检查 Obsidian 配置')
+                          } catch (error: any) {
+                            const msg = error?.msg || error?.message || '保存失败，请检查 Obsidian 配置'
+                            toast.error(typeof msg === 'string' ? msg : '保存失败，请检查 Obsidian 配置')
                           }
                         }}
                         className="flex min-w-44 cursor-pointer flex-col items-start justify-start rounded-lg border bg-card p-2 text-sm shadow-xs hover:bg-accent transition-colors h-auto"
@@ -496,8 +501,8 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent, collec
                           <span>保存到 Obsidian</span>
                         </span>
                         <span className="mt-0.5 w-full truncate text-left text-xs text-muted-foreground">
-                          {useObsidianStore.getState().isConfigured
-                            ? (useObsidianStore.getState().config?.folder_path || 'videoNote/')
+                          {obsidianConfigured
+                            ? (obsidianConfig?.folder_path || 'videoNote/')
                             : '未配置'}
                         </span>
                       </button>

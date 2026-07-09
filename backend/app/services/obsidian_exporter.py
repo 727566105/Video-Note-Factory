@@ -23,8 +23,14 @@ class ObsidianExporter:
                     传入时直接使用 config.api_key（视为明文）。
         """
         if config is None:
-            self.config = get_decrypted_config() or get_config()
-            self._api_key = getattr(self.config, '_decrypted_key', None) or (self.config.api_key if self.config else None)
+            self.config = get_decrypted_config()
+            if self.config is None:
+                # 无配置或解密失败，仅 local 模式可能可用（后续 export_note 会校验）
+                self.config = get_config()
+            # 优先使用解密后的 key，回退到 get_decrypted_key() 单独获取
+            self._api_key = getattr(self.config, '_decrypted_key', None) if self.config else None
+            if self._api_key is None and self.config:
+                self._api_key = get_decrypted_key()
         else:
             self.config = config
             self._api_key = config.api_key
@@ -65,6 +71,8 @@ class ObsidianExporter:
             final_content = frontmatter + "\n" + adapted_content
 
             # 根据 export_mode 执行导出
+            if self.config is None:
+                raise ValueError("Obsidian 未配置，请先在设置中配置 Obsidian")
             export_mode = self.config.export_mode or "local"
             if export_mode == "local":
                 result = self._export_local(final_content, doc_title, task_id, task)
@@ -84,17 +92,17 @@ class ObsidianExporter:
 
         except FileNotFoundError as e:
             logger.error(f"笔记文件不存在: {e}")
-            add_export_record(task_id=task_id, export_mode=self.config.export_mode or "local",
+            add_export_record(task_id=task_id, export_mode=self._safe_export_mode(),
                               status="failed", error_message=str(e))
             raise
         except ValueError as e:
             logger.error(f"笔记内容无效: {e}")
-            add_export_record(task_id=task_id, export_mode=self.config.export_mode or "local",
+            add_export_record(task_id=task_id, export_mode=self._safe_export_mode(),
                               status="failed", error_message=str(e))
             raise
         except Exception as e:
             logger.error(f"导出笔记到 Obsidian 失败: task_id={task_id}, error: {e}")
-            add_export_record(task_id=task_id, export_mode=self.config.export_mode or "local",
+            add_export_record(task_id=task_id, export_mode=self._safe_export_mode(),
                               status="failed", error_message=str(e))
             raise
 
@@ -161,10 +169,11 @@ class ObsidianExporter:
             except Exception:
                 pass
 
-        # 读取 note.json 获取 model/provider/style 信息
+        # 读取 note.json 获取 model/provider/style/content_type 信息（合并为一次读取）
         model_name = ""
         provider_name = ""
         style = ""
+        content_type = "video"
         note_json_file = find_note_file(
             getattr(task, 'task_id', ''),
             author_id=getattr(task, 'author_id', None),
@@ -181,23 +190,15 @@ class ObsidianExporter:
                 model_name = note_data.get("used_model_name", "") or note_data.get("model_name", "")
                 provider_name = note_data.get("used_provider_name", "")
                 style = note_data.get("style", "") or getattr(task, 'note_style', '') or ""
+                content_type = note_data.get("content_type", "video")
             except Exception:
                 pass
 
         # 构建 source URL
         source = getattr(task, 'video_url', '') or ''
 
-        # duration
+        # duration（防御非数值类型）
         duration = getattr(task, 'duration', None)
-
-        # content_type
-        content_type = "video"
-        if note_json_file and note_json_file.exists():
-            try:
-                note_data = json.loads(note_json_file.read_text(encoding="utf-8"))
-                content_type = note_data.get("content_type", "video")
-            except Exception:
-                pass
 
         # 组装 frontmatter
         lines = ["---"]
@@ -210,7 +211,10 @@ class ObsidianExporter:
         if video_id:
             lines.append(f'video_id: "{video_id}"')
         if duration is not None:
-            lines.append(f'duration: {int(duration)}')
+            try:
+                lines.append(f'duration: {int(duration)}')
+            except (ValueError, TypeError):
+                pass
         lines.append(f'content_type: "{content_type}"')
         if tags_str:
             lines.append("tags:")
@@ -239,12 +243,20 @@ class ObsidianExporter:
         if not vault_path.is_dir():
             raise ValueError(f"Vault 路径不是目录: {vault_path}")
 
-        # 确保目标目录存在
-        target_dir = vault_path / folder_path
+        # 确保目标目录存在，并校验路径遍历风险
+        target_dir = (vault_path / folder_path).resolve()
+        try:
+            target_dir.relative_to(vault_path)
+        except ValueError:
+            raise ValueError(f"目标文件夹路径超出 Vault 范围: {folder_path}")
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        # 处理图片：复制到附件目录 + 替换为 Wikilink
-        attachments_dir = target_dir / attachments_folder
+        # 附件目录同样校验
+        attachments_dir = (target_dir / attachments_folder).resolve()
+        try:
+            attachments_dir.relative_to(vault_path)
+        except ValueError:
+            raise ValueError(f"附件目录路径超出 Vault 范围: {attachments_folder}")
         attachments_dir.mkdir(parents=True, exist_ok=True)
         markdown = self._process_images(markdown, task_id, task, attachments_dir)
 

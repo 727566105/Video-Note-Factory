@@ -31,7 +31,7 @@ def add_export_record(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to add export record: {e}")
-        raise
+        # 不 re-raise：避免记录历史失败掩盖原始导出错误
     finally:
         db.close()
 

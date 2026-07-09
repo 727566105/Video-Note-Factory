@@ -9,6 +9,7 @@ from app.db.obsidian_config_dao import (
     get_config as dao_get_config,
     upsert_config,
     get_decrypted_config,
+    get_decrypted_key as dao_get_decrypted_key,
     test_vault_access as dao_test_vault,
     test_api_connection as dao_test_api,
     delete_config as dao_delete_config,
@@ -84,13 +85,18 @@ def get_config(current_user=Depends(get_current_user)) -> dict:
 def save_config(data: ObsidianConfigRequest, current_user=Depends(get_current_user)) -> dict:
     """保存 Obsidian 配置"""
     try:
+        # 如果 api_key 是脱敏占位符，拒绝保存（防止误用前端缓存的脱敏值覆盖真实密钥）
+        api_key = data.api_key
+        if api_key and _is_masked_token(api_key):
+            return R.error(msg="API Key 不能为脱敏占位符，请输入真实密钥")
+
         config_id = upsert_config(
             export_mode=data.export_mode,
             vault_path=data.vault_path,
             folder_path=data.folder_path,
             attachments_folder=data.attachments_folder,
             api_url=str(data.api_url) if data.api_url else None,
-            api_key=data.api_key,
+            api_key=api_key,
             enabled=data.enabled if data.enabled is not None else 1,
         )
         return R.success(data={"id": config_id}, msg="Obsidian 配置保存成功")
@@ -141,6 +147,8 @@ def delete_config(current_user=Depends(get_current_user)) -> dict:
 def toggle_enabled(enabled: int = 1, current_user=Depends(get_current_user)) -> dict:
     """启用/禁用 Obsidian 集成"""
     try:
+        if enabled not in (0, 1):
+            return R.error(msg="enabled 参数只能为 0 或 1")
         dao_update_enabled(enabled)
         return R.success(msg=f"Obsidian 已{'启用' if enabled else '禁用'}")
     except Exception as e:
@@ -170,7 +178,7 @@ def test_connection(data: TestConnectionRequest, current_user=Depends(get_curren
 
 
 @router.post("/export/obsidian/{task_id}")
-def export_to_obsidian(task_id: str, data: ExportRequest = None, current_user=Depends(get_current_user)) -> dict:
+def export_to_obsidian(task_id: str, data: Optional[ExportRequest] = None, current_user=Depends(get_current_user)) -> dict:
     """导出笔记到 Obsidian"""
     try:
         # 读取笔记标题（如果未提供）

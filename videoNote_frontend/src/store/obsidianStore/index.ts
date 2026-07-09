@@ -48,10 +48,10 @@ interface ObsidianStore {
   clearConfig: () => void
 }
 
-// 判断是否为脱敏占位符（后端返回 ******** 或 xxx... 格式）
+// 判断是否为脱敏占位符（后端返回 ******** 或含 ... 的截断格式）
 const isMaskedKey = (key: string | undefined | null): boolean => {
   if (!key) return false
-  return key === '********' || key.endsWith('...')
+  return key === '********' || key.includes('...')
 }
 
 export const useObsidianStore = create<ObsidianStore>()(
@@ -96,9 +96,9 @@ export const useObsidianStore = create<ObsidianStore>()(
       // 保存配置
       saveConfig: async (config) => {
         try {
-          await saveConfig(config)
-          // 保存成功后，使用用户输入的完整配置（保留完整 api_key）
-          set({ config: { ...config }, isConfigured: true })
+          const result = await saveConfig(config)
+          // 保存成功后，使用用户输入的完整配置 + 后端返回的 id
+          set({ config: { ...config, id: result?.id ?? config.id }, isConfigured: true })
         } catch (error) {
           throw error
         }
