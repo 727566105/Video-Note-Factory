@@ -36,7 +36,7 @@ export function AuthorsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto">
+    <div className="h-full overflow-auto p-4 md:p-6 max-w-4xl mx-auto">
       {/* 桌面端显示标题 */}
       {!isMobile && (
         <h1 className="text-xl md:text-2xl font-bold mb-6">博主列表</h1>
