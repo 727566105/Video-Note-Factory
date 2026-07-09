@@ -471,7 +471,8 @@ class DouyinDownloader(Downloader):
 
         if music_url:
             from app.utils.download_helper import DownloadHelper
-            if not DownloadHelper.is_safe_url(music_url):
+            _safe, _err = DownloadHelper.is_safe_url(music_url)
+            if not _safe:
                 raise ValueError(f"音频下载链接无效: {music_url[:50]}")
             audio_data = requests.get(music_url, timeout=30)
             with open(output_path, 'wb') as f:
@@ -679,7 +680,8 @@ class DouyinDownloader(Downloader):
                 raise ValueError("无法获取视频下载链接")
 
             from app.utils.download_helper import DownloadHelper
-            if not DownloadHelper.is_safe_url(url):
+            _safe, _err = DownloadHelper.is_safe_url(url)
+            if not _safe:
                 raise ValueError(f"视频下载链接无效: {url[:50]}")
 
             logger.info(f"视频下载 URL（前100字符）: {url[:100]}")

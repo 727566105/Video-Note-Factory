@@ -333,7 +333,12 @@ def restore_from_upload(file: UploadFile = UploadFile(...), current_user=Depends
         from app.services.webdav_backup import BACKUP_TEMP_DIR
         restore_temp_dir = BACKUP_TEMP_DIR / "restore"
         restore_temp_dir.mkdir(parents=True, exist_ok=True)
-        local_zip_path = restore_temp_dir / file.filename
+        # 净化文件名：只取 basename，防止路径遍历
+        import os
+        safe_filename = os.path.basename(file.filename or "restore.zip")
+        if not safe_filename or safe_filename in (".", ".."):
+            safe_filename = "restore.zip"
+        local_zip_path = restore_temp_dir / safe_filename
 
         import shutil
         with open(local_zip_path, 'wb') as f:

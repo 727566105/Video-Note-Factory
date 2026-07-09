@@ -106,7 +106,8 @@ class KuaiShouDownloader(Downloader, ABC):
             raise ValueError("无法获取快手视频下载链接")
 
         from app.utils.download_helper import DownloadHelper
-        if not DownloadHelper.is_safe_url(photo_url):
+        _safe, _err = DownloadHelper.is_safe_url(photo_url)
+        if not _safe:
             raise ValueError("视频 URL 不安全或无效")
 
         resp = requests.get(photo_url, stream=True, timeout=30)

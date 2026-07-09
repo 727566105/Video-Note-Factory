@@ -43,47 +43,49 @@ class DownloadHelper:
     }
 
     @staticmethod
-    def is_safe_url(url: str) -> bool:
+    def is_safe_url(url: str) -> tuple[bool, str]:
         """
         URL 安全检查，防止 SSRF 攻击。
-        只检查协议和内网 IP，已知的 CDN 域名跳过 IP 检查。
+        只允许 http/https，阻止内网/回环/链路本地 IP。
+        已知 CDN 域名使用前导点匹配，仍检查私网 IP。
 
         Args:
             url: 待检查的 URL
 
         Returns:
-            bool: URL 是否安全
+            (is_safe, error_message)
         """
         try:
             parsed = urlparse(url)
             # 只允许 http/https
             if parsed.scheme not in ("http", "https"):
                 logger.warning(f"URL 协议不安全: {parsed.scheme}")
-                return False
+                return False, f"不支持的协议: {parsed.scheme}"
             hostname = parsed.hostname
             if not hostname:
-                return False
-            # 已知 CDN 域名跳过 IP 检查
-            if any(hostname.lower().endswith(suffix) for suffix in DownloadHelper.TRUSTED_CDN_SUFFIXES):
-                return True
+                return False, "URL 缺少主机名"
+
+            hostname_lower = hostname.lower()
+
             # 禁止本地域名
-            blocked = ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
-            if hostname.lower() in blocked:
-                logger.warning(f"URL 域名被禁止: {hostname}")
-                return False
-            # 检查是否为内网 IP
+            blocked = ["localhost", "127.0.0.1", "0.0.0.0", "::1", "ip6-localhost"]
+            if hostname_lower in blocked or hostname_lower.endswith(".local"):
+                return False, f"禁止访问本地域名: {hostname}"
+
+            # 检查是否为内网 IP（对所有域名统一检查，不跳过 CDN）
             try:
                 ip = socket.gethostbyname(hostname)
                 ip_obj = ipaddress.ip_address(ip)
                 if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
                     logger.warning(f"URL 解析为内网 IP: {hostname} -> {ip}")
-                    return False
+                    return False, f"禁止访问内网地址: {ip}"
             except socket.gaierror:
-                pass
-            return True
+                return False, f"无法解析域名: {hostname}"
+
+            return True, ""
         except Exception as e:
             logger.warning(f"URL 安全检查异常: {e}")
-            return False
+            return False, f"URL 解析失败: {e}"
 
     @staticmethod
     def download_file(
@@ -110,8 +112,9 @@ class DownloadHelper:
         Returns:
             str: 本地文件路径，失败返回空字符串
         """
-        if not DownloadHelper.is_safe_url(url):
-            logger.warning(f"跳过不安全的 URL: {url[:80]}...")
+        is_safe, err = DownloadHelper.is_safe_url(url)
+        if not is_safe:
+            logger.warning(f"跳过不安全的 URL: {url[:80]}... 原因: {err}")
             return ""
 
         if not os.path.exists(output_path):

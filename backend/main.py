@@ -82,7 +82,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"应用关闭，转写器预热状态: {status}")
 
 app = create_app(lifespan=lifespan)
-origins = [
+
+dev_origins = [
     "http://localhost",
     "http://127.0.0.1",
     "http://localhost:3000",
@@ -101,31 +102,46 @@ origins = [
     "http://127.0.0.1:5173",
 ]
 
-extra_origins = os.getenv("ALLOWED_ORIGINS", "")
-if extra_origins:
-    origins.extend([o.strip() for o in extra_origins.split(",") if o.strip()])
-
 env_mode = os.getenv("ENV", "development")
-logger.info(f"CORS origins: {origins}")
-logger.info(f"ENV mode: {env_mode}")
+
+# CORS 允许的方法和头（收紧到实际需要的范围）
+cors_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+cors_headers = [
+    "Authorization",
+    "Content-Type",
+    "Accept",
+    "X-Requested-With",
+]
+
 if env_mode == "production":
     allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
     if allowed_origins:
         origins = [o.strip() for o in allowed_origins.split(",") if o.strip()]
+        logger.info(f"CORS origins (production): {origins}")
+    else:
+        # 生产环境未配置 ALLOWED_ORIGINS -> fail-closed，不允许任何跨域
+        origins = []
+        logger.warning("生产环境未设置 ALLOWED_ORIGINS，CORS 已禁用跨域请求")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=cors_methods,
+        allow_headers=cors_headers,
     )
 else:
+    origins = list(dev_origins)
+    extra_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if extra_origins:
+        origins.extend([o.strip() for o in extra_origins.split(",") if o.strip()])
+    logger.info(f"CORS origins (dev): {origins}")
+    logger.info(f"ENV mode: {env_mode}")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=cors_methods,
+        allow_headers=cors_headers,
     )
 register_exception_handlers(app)
 app.mount(static_path, StaticFiles(directory=static_dir), name="static")
@@ -134,6 +150,7 @@ app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 if __name__ == "__main__":
     port = int(os.getenv("BACKEND_PORT", 8483))
-    host = os.getenv("BACKEND_HOST", "0.0.0.0")
+    # Docker 容器内 nginx 反代到 127.0.0.1，不直接暴露后端端口
+    host = os.getenv("BACKEND_HOST", "127.0.0.1")
     logger.info(f"Starting server on {host}:{port}")
     uvicorn.run(app, host=host, port=port, reload=False)

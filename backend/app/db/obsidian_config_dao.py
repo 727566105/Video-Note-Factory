@@ -145,6 +145,13 @@ def test_vault_access(vault_path: str) -> tuple[bool, str]:
 def test_api_connection(api_url: str, api_key: str) -> tuple[bool, str]:
     """测试 Obsidian Local REST API 连接"""
     try:
+        from app.utils.ssrf import validate_safe_url
+
+        # SSRF 安全校验
+        is_safe, err = validate_safe_url(api_url)
+        if not is_safe:
+            return False, f"Obsidian API 地址不安全: {err}"
+
         api_url = api_url.rstrip('/')
 
         headers = {

@@ -89,6 +89,13 @@ def get_decrypted_config():
 def test_connection(api_url: str, api_token: str) -> tuple[bool, str]:
     """测试思源笔记连接"""
     try:
+        from app.utils.ssrf import validate_safe_url
+
+        # SSRF 安全校验
+        is_safe, err = validate_safe_url(api_url)
+        if not is_safe:
+            return False, f"思源 API 地址不安全: {err}"
+
         # 确保 API URL 格式正确
         api_url = api_url.rstrip('/')
         
@@ -100,13 +107,8 @@ def test_connection(api_url: str, api_token: str) -> tuple[bool, str]:
         url = f"{api_url}/api/notebook/lsNotebooks"
         
         logger.info(f"Testing Siyuan connection: {url}")
-        logger.info(f"Using token: {api_token[:8]}...")
-        
+
         response = requests.post(url, headers=headers, json={}, timeout=20)
-        
-        logger.info(f"Response status: {response.status_code}")
-        logger.info(f"Response headers: {dict(response.headers)}")
-        logger.info(f"Response body: {response.text[:500]}")  # 记录前500字符
         
         # 检查响应是否为空
         if not response.text or response.text.strip() == "":

@@ -140,6 +140,12 @@ def test_connection(url: str, username: str, password: str) -> tuple[bool, str]:
     """测试 WebDAV 连接"""
     try:
         from webdav3.client import Client
+        from app.utils.ssrf import validate_safe_url
+
+        # SSRF 安全校验
+        is_safe, err = validate_safe_url(url)
+        if not is_safe:
+            return False, f"WebDAV 地址不安全: {err}"
 
         # 确保 URL 格式正确
         url = url.rstrip('/')

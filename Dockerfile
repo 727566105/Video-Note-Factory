@@ -106,6 +106,6 @@ ENV DATABASE_URL=sqlite:////app/data/video_note.db
 ENV HF_ENDPOINT=https://hf-mirror.com
 ENV WEBDAV_ENCRYPTION_KEY=
 
-EXPOSE 80 8483
+EXPOSE 80
 
 CMD ["/app/start.sh"]

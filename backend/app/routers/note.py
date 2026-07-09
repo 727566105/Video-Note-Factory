@@ -727,8 +727,6 @@ ALLOWED_DOMAINS = [
     "xiaohongshu.com",
     "xhscdn.com",
     "ci.xiaohongshu.com",
-    # 通用 CDN
-    "cdn.com",
 ]
 
 
@@ -904,7 +902,7 @@ def get_image_headers(url: str, request: Request) -> dict:
 
 
 @router.get("/image_proxy")
-async def image_proxy(request: Request, url: str) -> dict:
+async def image_proxy(request: Request, url: str, current_user=Depends(get_current_user)) -> dict:
     """图片代理接口，支持本地缓存"""
     # 0. 本地封面 API 路径直接重定向
     if url.startswith("/api/video_cover/"):
@@ -956,7 +954,7 @@ async def image_proxy(request: Request, url: str) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers, follow_redirects=True)
+            resp = await client.get(url, headers=headers, follow_redirects=False)
 
             if resp.status_code != 200:
                 logger.warning(f"图片获取失败: {url[:50]}... 状态码: {resp.status_code}")
@@ -1401,8 +1399,14 @@ async def check_remote_status(url: str, current_user=Depends(get_current_user)):
     if not url:
         return {"code": 0, "data": {"exists": False, "reason": "URL 为空"}}
 
+    # SSRF 安全校验
+    is_safe, error_msg = is_safe_url(url)
+    if not is_safe:
+        logger.warning(f"check_remote_status SSRF 拦截: {url[:50]}... 原因: {error_msg}")
+        raise HTTPException(status_code=400, detail=f"不安全的 URL: {error_msg}")
+
     try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
             resp = await client.head(url, headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             })
