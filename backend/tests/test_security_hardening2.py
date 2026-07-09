@@ -56,17 +56,23 @@ def test_cdn_com_not_in_whitelist():
 
 
 def test_trusted_cdn_suffix_uses_leading_dot():
-    """DownloadHelper 的 CDN 后缀匹配应使用前导点"""
+    """DownloadHelper 不再对 CDN 域名跳过 IP 检查，所有域名统一校验"""
     from app.utils.download_helper import DownloadHelper
     dh = DownloadHelper()
 
-    # evilcdn.com 不应被信任（DNS 解析为内网则拒绝）
-    is_safe, _ = dh.is_safe_url("https://evilcdn.com/video.mp4")
-    assert not is_safe
+    # 即使域名看起来像 CDN 后缀，仍需通过 IP 检查
+    # 模拟 DNS 解析到内网 IP，验证 CDN 域名不会被跳过
+    with patch("app.utils.download_helper.socket.gethostbyname", return_value="10.0.0.1"):
+        is_safe, _ = dh.is_safe_url("https://evilcdn.com/video.mp4")
+        assert not is_safe
 
-    # notcdn.com 不应被信任
-    is_safe, _ = dh.is_safe_url("https://notcdn.com/video.mp4")
-    assert not is_safe
+        is_safe, _ = dh.is_safe_url("https://notcdn.com/video.mp4")
+        assert not is_safe
+
+    # 真实 CDN 域名解析到公网 IP 也应通过
+    with patch("app.utils.download_helper.socket.gethostbyname", return_value="1.2.3.4"):
+        is_safe, _ = dh.is_safe_url("https://i0.hdslb.com/bfs/test.jpg")
+        assert is_safe
 
 
 # ==================== SSRF URL 校验工具 ====================
