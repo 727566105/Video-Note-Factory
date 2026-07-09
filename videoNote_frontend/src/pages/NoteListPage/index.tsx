@@ -623,32 +623,28 @@ export const NoteListPage: FC = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-transparent">
-      <div className="shrink-0 border-b border-border/70 bg-card/80 p-4 backdrop-blur md:p-6">
-        <div className="flex flex-col gap-3 md:gap-4">
-          {/* 标题行 - 仅桌面端显示 */}
+      <div className="shrink-0 border-b border-border/70 bg-card/80 p-4 backdrop-blur md:px-6 md:py-3">
+        <div className="flex flex-col gap-2">
+          {/* 标题行 - 桌面端：标题 + 视图切换 + 刷新 */}
           {!isMobile && (
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">笔记列表</h1>
-                <p className="mt-1 text-sm text-muted-foreground">管理、筛选和回看已生成的音视频笔记</p>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">笔记列表</h1>
+              <div className="flex items-center gap-2">
+                <Select value={localStorageViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry' | 'compact')}>
+                  <SelectTrigger className="w-[150px] hover:bg-accent">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
+                    <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
+                    <SelectItem value="compact"><span className="flex items-center gap-2"><Rows4 className="size-4" />紧凑</span></SelectItem>
+                    <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchNotes}>
+                  <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
+                </Button>
               </div>
-            </div>
-          )}
-
-          {/* 标签行 - 移动端隐藏视图切换 */}
-          {!isMobile && (
-            <div className="flex items-center justify-between">
-              <Select value={localStorageViewMode} onValueChange={(v) => setNoteViewMode(v as 'table' | 'card' | 'masonry' | 'compact')}>
-                <SelectTrigger className="w-[150px] hover:bg-accent">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="table"><span className="flex items-center gap-2"><LayoutList className="size-4" />表格</span></SelectItem>
-                  <SelectItem value="card"><span className="flex items-center gap-2"><LayoutGrid className="size-4" />卡片</span></SelectItem>
-                  <SelectItem value="compact"><span className="flex items-center gap-2"><Rows4 className="size-4" />紧凑</span></SelectItem>
-                  <SelectItem value="masonry"><span className="flex items-center gap-2"><Columns3 className="size-4" />瀑布流</span></SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           )}
 
@@ -719,10 +715,7 @@ export const NoteListPage: FC = () => {
             </Button>
           </div>
 
-          {/* 刷新按钮 */}
-          <Button variant="outline" size="icon" className="h-8 w-8 hidden md:flex" onClick={fetchNotes}>
-            <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
-          </Button>
+          {/* 刷新按钮 - 仅移动端（桌面端已移到标题行） */}
           <Button variant="outline" size="icon" className="h-8 w-8 md:hidden" onClick={fetchNotes}>
             <RotateCw className={cn("w-4 h-4", loading && "animate-spin")} />
           </Button>
