@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from app.db.models.users import User
 from app.db.engine import get_db
 from app.utils.logger import get_logger
@@ -7,6 +8,15 @@ from passlib.context import CryptContext
 logger = get_logger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+INSECURE_DEFAULT_ADMIN_PASSWORDS = {"", "123456", "admin", "password", "change_me_on_first_login"}
+
+
+def is_insecure_default_admin_password(password: str | None) -> bool:
+    return (password or "").strip() in INSECURE_DEFAULT_ADMIN_PASSWORDS
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def hash_password(password: str) -> str:
@@ -27,6 +37,7 @@ def create_user(username: str, password: str, role: str = "user") -> User:
             username=username,
             password_hash=hash_password(password),
             role=role,
+            password_changed_at=_now_utc(),
         )
         db.add(user)
         db.commit()
@@ -87,6 +98,7 @@ def update_user(user_id: int, username: str = None, password: str = None, role: 
             user.username = username
         if password:
             user.password_hash = hash_password(password)
+            user.password_changed_at = _now_utc()
         if role:
             user.role = role
         db.commit()
@@ -126,19 +138,31 @@ def seed_default_user():
     db = next(get_db())
     try:
         existing = db.query(User).filter_by(username="admin").first()
-        if not existing:
-            default_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "change_me_on_first_login")
-            user = User(
-                username="admin",
-                password_hash=hash_password(default_password),
-                role="admin",
-            )
-            db.add(user)
-            db.commit()
-            logger.info(f"默认管理员账号已创建: admin/{default_password}")
-            logger.warning("请立即修改默认管理员密码！")
+        if existing:
+            return
+
+        default_password = os.getenv("DEFAULT_ADMIN_PASSWORD")
+        env = os.getenv("ENV", "development").lower()
+
+        if env == "production" and is_insecure_default_admin_password(default_password):
+            raise RuntimeError("生产环境必须设置安全的 DEFAULT_ADMIN_PASSWORD，且不能使用默认弱口令")
+
+        if not default_password:
+            default_password = "dev_admin_change_me"
+
+        user = User(
+            username="admin",
+            password_hash=hash_password(default_password),
+            role="admin",
+            password_changed_at=_now_utc(),
+        )
+        db.add(user)
+        db.commit()
+        logger.info("默认管理员账号已创建: admin")
+        logger.warning("请立即修改默认管理员密码！")
     except Exception as e:
         db.rollback()
         logger.error(f"种子默认用户失败: {e}")
+        raise
     finally:
         db.close()

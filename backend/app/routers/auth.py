@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 from app.auth.jwt_handler import create_access_token
 from app.auth.dependencies import get_current_user, require_admin
+from app.auth.rate_limiter import login_rate_limiter
 from app.db.user_dao import (
     verify_password,
     get_user_by_username,
@@ -39,10 +40,17 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/login")
-def login(req: LoginRequest) -> dict:
+def login(req: LoginRequest, request: Request) -> dict:
+    client_ip = request.client.host if request.client else "unknown"
+    if not login_rate_limiter.is_allowed(req.username, client_ip):
+        raise HTTPException(status_code=429, detail="登录失败次数过多，请稍后再试")
+
     user = get_user_by_username(req.username)
     if not user or not verify_password(req.password, user.password_hash):
+        login_rate_limiter.record_failure(req.username, client_ip)
         raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    login_rate_limiter.record_success(req.username, client_ip)
     token = create_access_token(
         {"user_id": user.id, "username": user.username, "role": user.role}
     )

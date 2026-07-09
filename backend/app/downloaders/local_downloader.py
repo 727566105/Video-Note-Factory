@@ -10,6 +10,7 @@ import os
 import subprocess
 
 from app.utils.video_helper import save_cover_to_static
+from app.utils.upload_path import resolve_uploaded_file_path
 
 
 class LocalDownloader(Downloader, ABC):
@@ -20,15 +21,8 @@ class LocalDownloader(Downloader, ABC):
 
     def get_video_info(self, video_url: str) -> VideoInfoResult:
         """只获取视频元数据，不下载文件"""
-        # 处理本地文件路径
-        file_path = video_url
-        if video_url.startswith('/uploads'):
-            project_root = os.getcwd()
-            file_path = os.path.join(project_root, video_url.lstrip('/'))
-            file_path = os.path.normpath(file_path)
-
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"本地文件不存在: {file_path}")
+        # 处理本地文件路径，仅允许上传目录内文件
+        file_path = str(resolve_uploaded_file_path(video_url))
 
         file_name = os.path.basename(file_path)
         title, _ = os.path.splitext(file_name)
@@ -127,14 +121,7 @@ class LocalDownloader(Downloader, ABC):
         """
         处理本地文件路径，返回视频文件路径
         """
-        if video_url.startswith('/uploads'):
-            project_root = os.getcwd()
-            video_url = os.path.join(project_root, video_url.lstrip('/'))
-            video_url = os.path.normpath(video_url)
-
-        if not os.path.exists(video_url):
-            raise FileNotFoundError()
-        return video_url
+        return str(resolve_uploaded_file_path(video_url))
     def download(
             self,
             video_url: str,
@@ -147,13 +134,7 @@ class LocalDownloader(Downloader, ABC):
         """
         处理本地文件路径，返回音频元信息
         """
-        if video_url.startswith('/uploads'):
-            project_root = os.getcwd()
-            video_url = os.path.join(project_root, video_url.lstrip('/'))
-            video_url = os.path.normpath(video_url)
-
-        if not os.path.exists(video_url):
-            raise FileNotFoundError(f"本地文件不存在: {video_url}")
+        video_url = str(resolve_uploaded_file_path(video_url))
 
         file_name = os.path.basename(video_url)
         title, _ = os.path.splitext(file_name)

@@ -225,6 +225,24 @@ def migrate_video_tasks_multiuser_columns():
         db.close()
 
 
+def migrate_users_security_columns():
+    """迁移：users 添加安全相关字段"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(users)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "password_changed_at" not in columns:
+            logger.info("users: password_changed_at 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE users ADD COLUMN password_changed_at DATETIME"))
+            db.commit()
+            logger.info("users: password_changed_at 列添加成功")
+    except Exception as e:
+        logger.error(f"users 安全字段迁移失败: {e}")
+    finally:
+        db.close()
+
+
+
 def init_db():
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
@@ -236,6 +254,7 @@ def init_db():
     migrate_video_tasks_tags_column()
     migrate_subscriptions_fetch_time()
     migrate_video_tasks_multiuser_columns()
+    migrate_users_security_columns()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户

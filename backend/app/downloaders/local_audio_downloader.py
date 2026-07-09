@@ -6,6 +6,7 @@ from app.downloaders.base import Downloader
 from app.enmus.note_enums import DownloadQuality
 from app.models.audio_model import VideoInfoResult
 from app.models.notes_model import AudioDownloadResult
+from app.utils.upload_path import resolve_uploaded_file_path
 
 
 # 支持的音频扩展名
@@ -36,14 +37,8 @@ class LocalAudioDownloader(Downloader, ABC):
         """
         处理本地音频文件，直接使用（跳过视频转音频步骤）
         """
-        # 处理上传路径
-        if video_url.startswith('/uploads'):
-            project_root = os.getcwd()
-            video_url = os.path.join(project_root, video_url.lstrip('/'))
-            video_url = os.path.normpath(video_url)
-
-        if not os.path.exists(video_url):
-            raise FileNotFoundError(f"本地音频文件不存在: {video_url}")
+        # 处理上传路径，仅允许上传目录内文件
+        video_url = str(resolve_uploaded_file_path(video_url))
 
         # 验证是音频文件
         _, ext = os.path.splitext(video_url)

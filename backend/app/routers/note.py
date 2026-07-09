@@ -28,6 +28,7 @@ from app.services.task_queue import task_queue
 from app.services.cache_cleaner import clean_expired_cache, get_cache_stats, CACHE_TTL_DAYS
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
+from app.utils.upload_path import resolve_uploaded_file_path
 from app.validators.video_url_validator import is_supported_video_url
 from app.auth.dependencies import get_current_user, require_admin
 from app.enmus.task_status_enums import TaskStatus
@@ -404,28 +405,35 @@ async def upload(file: UploadFile = File(...), current_user=Depends(get_current_
                 detail=f"不支持的文件类型: .{ext}，仅支持图片、视频、音频文件"
             )
 
-    # 2. 读取文件内容并验证大小
-    content = await file.read()
-    file_size = len(content)
-
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"文件过大: {file_size / 1024 / 1024 / 1024:.2f}GB，最大允许 2GB"
-        )
-
-    if file_size == 0:
-        raise HTTPException(status_code=400, detail="文件内容为空")
-
-    # 3. 安全处理文件名
+    # 2. 流式保存并验证大小
     safe_filename = sanitize_filename(file.filename or "upload")
-
-    # 4. 保存文件
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     file_location = os.path.join(UPLOAD_DIR, safe_filename)
+    file_size = 0
+    chunk_size = 1024 * 1024
 
-    with open(file_location, "wb") as f:
-        f.write(content)
+    try:
+        with open(file_location, "wb") as f:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                file_size += len(chunk)
+                if file_size > MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"文件过大: {file_size / 1024 / 1024 / 1024:.2f}GB，最大允许 2GB"
+                    )
+                f.write(chunk)
+    except Exception:
+        if os.path.exists(file_location):
+            os.remove(file_location)
+        raise
+
+    if file_size == 0:
+        if os.path.exists(file_location):
+            os.remove(file_location)
+        raise HTTPException(status_code=400, detail="文件内容为空")
 
     logger.info(f"文件上传成功: {safe_filename}, 大小: {file_size / 1024:.2f}KB")
 
@@ -450,6 +458,9 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
     from app.services.note import NoteGenerator
 
     try:
+        if data.platform in ("local", "local_audio"):
+            resolve_uploaded_file_path(data.video_url, UPLOAD_DIR)
+
         video_id = extract_video_id(data.video_url, data.platform)
 
         # 本地文件特殊处理：从上传路径提取 video_id
