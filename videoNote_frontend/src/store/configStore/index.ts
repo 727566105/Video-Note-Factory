@@ -18,6 +18,9 @@ interface SystemState {
 
   noteViewMode: 'table' | 'card' | 'masonry' | 'compact'
   setNoteViewMode: (mode: 'table' | 'card' | 'masonry' | 'compact') => void
+
+  feedViewMode: 'grid' | 'list'
+  setFeedViewMode: (mode: 'grid' | 'list') => void
 }
 export const useSystemStore = create<SystemState>()(
   persist(

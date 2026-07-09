@@ -21,6 +21,7 @@ import {
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { useTaskStore } from '@/store/taskStore'
 import { useSummarySettingsStore } from '@/store/summarySettingsStore'
+import { useSystemStore } from '@/store/configStore'
 import { generateNote } from '@/services/note'
 import { toast } from 'sonner'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
@@ -60,7 +61,9 @@ export default function FeedPage() {
   const { feedItems, loading, fetchFeed, unreadCount } = useSubscriptionStore()
   const addPendingTask = useTaskStore(state => state.addPendingTask)
   const { style, selectedFormats, outputLanguage } = useSummarySettingsStore()
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const feedViewMode = useSystemStore(state => state.feedViewMode)
+  const setFeedViewMode = useSystemStore(state => state.setFeedViewMode)
+  const viewMode: ViewMode = isMobile ? 'grid' : (feedViewMode || 'grid')
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set())
 
@@ -154,7 +157,7 @@ export default function FeedPage() {
                 <SelectItem value="asc">最早</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+            <Select value={viewMode} onValueChange={(v) => setFeedViewMode(v as ViewMode)}>
               <SelectTrigger className="w-[120px] h-8">
                 <SelectValue />
               </SelectTrigger>
@@ -176,7 +179,7 @@ export default function FeedPage() {
                 <SelectItem value="asc">最早</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+            <Select value={viewMode} onValueChange={(v) => setFeedViewMode(v as ViewMode)}>
               <SelectTrigger className="w-[40px] h-8 px-2">
                 {viewMode === 'grid' ? <LayoutGrid className="size-4" /> : <List className="size-4" />}
               </SelectTrigger>
