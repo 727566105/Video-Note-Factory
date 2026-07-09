@@ -93,6 +93,24 @@ const ObsidianSettings = () => {
 
   const exportMode = form.watch('export_mode')
 
+  // 模式切换时清理无关字段，避免残留数据误传
+  useEffect(() => {
+    if (!isInitialized) return
+    const current = form.getValues()
+    if (exportMode === 'local') {
+      // 切到 local：清空 api 模式字段
+      if (current.api_url || current.api_key) {
+        form.setValue('api_url', '')
+        form.setValue('api_key', '')
+      }
+    } else if (exportMode === 'api') {
+      // 切到 api：清空 local 模式字段
+      if (current.vault_path) {
+        form.setValue('vault_path', '')
+      }
+    }
+  }, [exportMode, isInitialized]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // 只在组件挂载时加载一次配置和历史
   useEffect(() => {
     loadConfig()
@@ -131,8 +149,13 @@ const ObsidianSettings = () => {
         return
       }
     } else {
-      if (!values.api_url || !values.api_key) {
-        toast.error('请先填写 API 地址和密钥')
+      // api 模式：url 必填；key 在已有配置时可为空（store 会用本地保存的完整 key）
+      if (!values.api_url) {
+        toast.error('请先填写 API 地址')
+        return
+      }
+      if (!values.api_key && !isConfigured) {
+        toast.error('请先填写 API 密钥')
         return
       }
     }
@@ -182,8 +205,9 @@ const ObsidianSettings = () => {
         toast.success('保存配置成功')
       }
       form.reset(values, { keepDirty: false })
-    } catch (error) {
-      toast.error(isConfigured ? '更新配置失败' : '保存配置失败')
+    } catch (error: any) {
+      const msg = error?.msg || (isConfigured ? '更新配置失败' : '保存配置失败')
+      toast.error(typeof msg === 'string' ? msg : (isConfigured ? '更新配置失败' : '保存配置失败'))
     }
   }
 

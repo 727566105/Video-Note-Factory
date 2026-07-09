@@ -43,15 +43,21 @@ interface ObsidianStore {
   saveConfig: (config: ObsidianConfig) => Promise<void>
   updateConfig: (config: ObsidianConfig) => Promise<void>
   testConnection: (config: ObsidianConfig) => Promise<{ success: boolean; message: string }>
-  exportNote: (taskId: string, contentSections?: Record<string, any>) => Promise<void>
+  exportNote: (taskId: string, contentSections?: Record<string, any>) => Promise<any>
   loadExportHistory: () => Promise<void>
   clearConfig: () => void
+}
+
+// 判断是否为脱敏占位符（后端返回 ******** 或 xxx... 格式）
+const isMaskedKey = (key: string | undefined | null): boolean => {
+  if (!key) return false
+  return key === '********' || key.endsWith('...')
 }
 
 export const useObsidianStore = create<ObsidianStore>()(
   persist(
     (set, get) => ({
-      // 初始状态
+      // 状态
       config: null,
       exportHistory: [],
       isConfigured: false,
@@ -61,45 +67,29 @@ export const useObsidianStore = create<ObsidianStore>()(
       // 加载配置
       loadConfig: async () => {
         try {
-          const state = get()
-          const hasFullKey = state.config?.api_key && !state.config.api_key.includes('...') && state.config.api_key !== '********'
-
-          // 如果 localStorage 中已有完整配置（Key 不包含...），直接使用
-          if (hasFullKey) {
-            return
-          }
-
-          // 从后端加载配置，检查是否已配置
           const data = await getConfig()
           if (data) {
-            // 如果有完整 Key，保留完整 Key，只更新其他字段
-            if (hasFullKey) {
-              set({
-                config: {
-                  ...data,
-                  api_key: state.config!.api_key
-                },
-                isConfigured: true
-              })
-            } else {
-              // 没有完整 Key，使用后端返回的脱敏配置
-              // 注意：不要覆盖 localStorage 中可能存在的其他配置
-              set({
-                config: {
-                  ...state.config,  // 保留 localStorage 中的配置
-                  ...data,          // 用后端数据更新
-                  api_key: data.api_key  // 使用后端的脱敏 Key
-                },
-                isConfigured: true
-              })
-            }
+            // 后端返回的 api_key 是脱敏的（********）
+            // 优先保留 localStorage 中已有的完整 key
+            const state = get()
+            const existingKey = state.config?.api_key
+            const finalKey = isMaskedKey(data.api_key) && existingKey && !isMaskedKey(existingKey)
+              ? existingKey  // 用本地完整 key
+              : data.api_key  // 用后端返回值
+
+            set({
+              config: {
+                ...data,
+                api_key: finalKey,
+              },
+              isConfigured: true,
+            })
           } else {
-            // 后端没有配置
-            if (!state.config) {
-              set({ config: null, isConfigured: false })
-            }
+            // 后端无配置
+            set({ config: null, isConfigured: false })
           }
         } catch (error) {
+          // 静默失败，不打扰用户
         }
       },
 
@@ -107,8 +97,8 @@ export const useObsidianStore = create<ObsidianStore>()(
       saveConfig: async (config) => {
         try {
           await saveConfig(config)
-          // 保存成功后，使用用户输入的完整配置（不使用后端返回的脱敏配置）
-          set({ config: config, isConfigured: true })
+          // 保存成功后，使用用户输入的完整配置（保留完整 api_key）
+          set({ config: { ...config }, isConfigured: true })
         } catch (error) {
           throw error
         }
@@ -117,9 +107,19 @@ export const useObsidianStore = create<ObsidianStore>()(
       // 更新配置
       updateConfig: async (config) => {
         try {
-          await updateConfig(config)
-          // 更新成功后，使用用户输入的完整配置（不使用后端返回的脱敏配置）
-          set({ config: config, isConfigured: true })
+          // 关键：如果表单中 api_key 是脱敏占位符或空字符串，
+          // 说明用户没重新输入 key，应保留本地存储的完整 key 传给后端
+          const state = get()
+          let payload = { ...config }
+          if (isMaskedKey(config.api_key) || !config.api_key) {
+            // 用户未重新输入 key，用本地保存的完整 key
+            if (state.config?.api_key && !isMaskedKey(state.config.api_key)) {
+              payload.api_key = state.config.api_key
+            }
+          }
+          await updateConfig(payload)
+          // 更新成功后，使用包含完整 key 的配置
+          set({ config: { ...payload }, isConfigured: true })
         } catch (error) {
           throw error
         }
@@ -129,21 +129,30 @@ export const useObsidianStore = create<ObsidianStore>()(
       testConnection: async (config) => {
         set({ isTesting: true })
         try {
+          // 测试连接时，如果 api_key 是脱敏的，尝试用本地完整 key
+          let testConfig = { ...config }
+          if (isMaskedKey(config.api_key) || !config.api_key) {
+            const state = get()
+            if (state.config?.api_key && !isMaskedKey(state.config.api_key)) {
+              testConfig.api_key = state.config.api_key
+            }
+          }
           const data = await testConnection({
-            export_mode: config.export_mode,
-            vault_path: config.vault_path,
-            api_url: config.api_url,
-            api_key: config.api_key,
+            export_mode: testConfig.export_mode,
+            vault_path: testConfig.vault_path,
+            api_url: testConfig.api_url,
+            api_key: testConfig.api_key,
           })
           set({ isTesting: false })
-          // 处理 data 可能为 null 的情况
           if (!data) {
             return { success: false, message: '服务器返回空响应' }
           }
           return { success: data.success || false, message: data.message || '连接失败' }
         } catch (error: any) {
           set({ isTesting: false })
-          return { success: false, message: error?.message || '连接失败' }
+          // request 拦截器 reject 的是 {code, msg, data} 结构
+          const msg = error?.msg || error?.message || '连接失败'
+          return { success: false, message: typeof msg === 'string' ? msg : '连接失败' }
         }
       },
 
@@ -165,14 +174,22 @@ export const useObsidianStore = create<ObsidianStore>()(
       loadExportHistory: async () => {
         try {
           const data = await getExportHistory()
-          set({ exportHistory: data || [] })
+          // 后端返回 {history: [...], total: N}，需要提取 history 数组
+          if (Array.isArray(data)) {
+            set({ exportHistory: data })
+          } else if (data && Array.isArray(data.history)) {
+            set({ exportHistory: data.history })
+          } else {
+            set({ exportHistory: [] })
+          }
         } catch (error) {
+          // 静默失败，避免历史加载失败影响主流程
         }
       },
 
       // 清除配置
       clearConfig: () => {
-        set({ config: null, isConfigured: false })
+        set({ config: null, isConfigured: false, exportHistory: [] })
       },
     }),
     {

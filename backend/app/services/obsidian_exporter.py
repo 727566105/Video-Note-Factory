@@ -229,9 +229,15 @@ class ObsidianExporter:
 
     def _export_local(self, markdown: str, title: str, task_id: str, task) -> dict:
         """直接写入 Vault 文件系统"""
-        vault_path = Path(self.config.vault_path)
+        vault_path = Path(self.config.vault_path).expanduser().resolve()
         folder_path = self.config.folder_path or "videoNote/"
         attachments_folder = self.config.attachments_folder or "attachments/"
+
+        # 安全校验：确保 vault_path 是合法目录且可写
+        if not vault_path.exists():
+            raise FileNotFoundError(f"Vault 路径不存在: {vault_path}")
+        if not vault_path.is_dir():
+            raise ValueError(f"Vault 路径不是目录: {vault_path}")
 
         # 确保目标目录存在
         target_dir = vault_path / folder_path
@@ -239,6 +245,7 @@ class ObsidianExporter:
 
         # 处理图片：复制到附件目录 + 替换为 Wikilink
         attachments_dir = target_dir / attachments_folder
+        attachments_dir.mkdir(parents=True, exist_ok=True)
         markdown = self._process_images(markdown, task_id, task, attachments_dir)
 
         # 处理视频：复制到附件目录 + 在末尾嵌入 <video> 标签
@@ -599,24 +606,54 @@ class ObsidianExporter:
         """
         from app.utils.path_helper import VIDEO_DIR, _get_platform_dir
 
+        def _safe_basename(filename: str) -> str | None:
+            """净化文件名，防止路径遍历（拒绝 .. 和路径分隔符）"""
+            if not filename:
+                return None
+            # URL 解码
+            from urllib.parse import unquote
+            filename = unquote(filename)
+            # 只取 basename（去掉任何路径分隔符）
+            filename = filename.replace('\\', '/').split('/')[-1]
+            # 拒绝 . 和 ..
+            if filename in ('.', '..') or not filename.strip():
+                return None
+            return filename
+
         # 截图: /api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}
         m = re.match(r'/api/video_screenshots/([^/]+)/([^/]+)/([^/]+)/(.+)', url)
         if m:
-            platform_dir, author_id, video_id, filename = m.groups()
-            # 在 VIDEO_DIR 中查找对应视频目录
+            platform_dir, author_id, video_id, raw_filename = m.groups()
+            filename = _safe_basename(raw_filename)
+            if not filename:
+                return None
             video_folder = self._find_video_folder(author_id, video_id, task)
             if video_folder:
                 screenshot_path = video_folder / "screenshots" / filename
+                # 安全校验：确保最终路径仍在 video_folder 内
+                try:
+                    screenshot_path.resolve().relative_to(video_folder.resolve())
+                except ValueError:
+                    logger.warning(f"路径遍历风险，已拒绝: {url}")
+                    return None
                 if screenshot_path.exists():
                     return screenshot_path
 
         # 媒体文件: /api/note_media_file/{platform}/{author_id}/{video_id}/{filename}
         m = re.match(r'/api/note_media_file/([^/]+)/([^/]+)/([^/]+)/(.+)', url)
         if m:
-            platform_dir, author_id, video_id, filename = m.groups()
+            platform_dir, author_id, video_id, raw_filename = m.groups()
+            filename = _safe_basename(raw_filename)
+            if not filename:
+                return None
             video_folder = self._find_video_folder(author_id, video_id, task)
             if video_folder:
                 media_path = video_folder / filename
+                try:
+                    media_path.resolve().relative_to(video_folder.resolve())
+                except ValueError:
+                    logger.warning(f"路径遍历风险，已拒绝: {url}")
+                    return None
                 if media_path.exists():
                     return media_path
 

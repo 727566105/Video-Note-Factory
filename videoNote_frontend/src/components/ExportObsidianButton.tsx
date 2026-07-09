@@ -10,6 +10,8 @@ interface ExportObsidianButtonProps {
   variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive'
   size?: 'default' | 'sm' | 'lg' | 'icon'
   className?: string
+  /** 导出时传递的内容勾选项，未传则导出全部内容 */
+  contentSections?: Record<string, any>
 }
 
 /**
@@ -22,6 +24,7 @@ export const ExportObsidianButton = forwardRef<HTMLButtonElement, ExportObsidian
   variant = 'outline',
   size = 'sm',
   className = '',
+  contentSections,
 }, ref) => {
   const { isConfigured, isExporting, exportNote } = useObsidianStore()
   const [loading, setLoading] = useState(false)
@@ -35,12 +38,12 @@ export const ExportObsidianButton = forwardRef<HTMLButtonElement, ExportObsidian
 
     setLoading(true)
     try {
-      await exportNote(taskId)
+      await exportNote(taskId, contentSections)
       toast.success('导出成功！笔记已保存到 Obsidian')
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '导出失败，请检查配置'
-      toast.error(errorMessage)
+    } catch (error: any) {
+      // request 拦截器 reject 的是 {code, msg, data}，优先用 msg
+      const errorMessage = error?.msg || (error instanceof Error ? error.message : '导出失败，请检查配置')
+      toast.error(typeof errorMessage === 'string' ? errorMessage : '导出失败，请检查配置')
     } finally {
       setLoading(false)
     }
