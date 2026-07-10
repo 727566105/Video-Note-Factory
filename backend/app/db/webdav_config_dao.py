@@ -150,8 +150,7 @@ def test_connection(url: str, username: str, password: str) -> tuple[bool, str]:
         # 确保 URL 格式正确
         url = url.rstrip('/')
 
-        logger.info(f"Testing WebDAV connection: {url}")
-        logger.info(f"Using username: {username}")
+        logger.info("Testing WebDAV connection")
 
         # 直接使用完整 URL
         client = Client({

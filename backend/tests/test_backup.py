@@ -100,13 +100,16 @@ def test_local_backup_endpoint_starts_async(tmp_path, monkeypatch):
 
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
+    from types import SimpleNamespace
     from app.routers import webdav as webdav_router
     app = FastAPI()
     app.include_router(webdav_router.router, prefix="/api/webdav")
     client = TestClient(app)
 
-    from app.auth.dependencies import get_current_user
-    app.dependency_overrides[get_current_user] = lambda: {"id": 1, "username": "admin"}
+    _fake_admin = SimpleNamespace(id=1, username="admin", role="admin")
+    from app.auth.dependencies import get_current_user, require_admin
+    app.dependency_overrides[get_current_user] = lambda: _fake_admin
+    app.dependency_overrides[require_admin] = lambda: _fake_admin
 
     resp = client.post("/api/webdav/backup/local")
     assert resp.status_code == 200

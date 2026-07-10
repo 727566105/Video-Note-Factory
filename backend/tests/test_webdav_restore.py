@@ -9,6 +9,7 @@
 import io
 import time
 import zipfile
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -17,11 +18,11 @@ from fastapi.testclient import TestClient
 
 from app.routers import webdav
 from app.services import webdav_backup
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
 
 
 def _fake_user():
-    return {"id": 1, "username": "admin", "role": "admin"}
+    return SimpleNamespace(id=1, username="admin", role="admin")
 
 
 @pytest.fixture
@@ -35,6 +36,7 @@ def client(tmp_path, monkeypatch):
     _app = FastAPI()
     _app.include_router(webdav.router, prefix="/api/webdav")
     _app.dependency_overrides[get_current_user] = _fake_user
+    _app.dependency_overrides[require_admin] = _fake_user
     return TestClient(_app)
 
 

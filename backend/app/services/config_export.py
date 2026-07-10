@@ -174,7 +174,7 @@ class ConfigExporter:
     @staticmethod
     def save_configs_file(include_sensitive: bool = True) -> str:
         """
-        保存配置到临时目录的 configs.json 文件
+        保存配置到临时文件（安全：mkstemp 生成唯一文件名 + 0600 权限，避免并发覆盖和信息泄露）
 
         Args:
             include_sensitive: 是否包含敏感信息（默认 True）
@@ -184,16 +184,17 @@ class ConfigExporter:
         """
         config_data = ConfigExporter.export_config(include_sensitive=include_sensitive)
 
-        # 创建临时文件
-        temp_dir = tempfile.gettempdir()
-        config_file_path = os.path.join(temp_dir, "configs.json")
-
+        # 使用 mkstemp 生成唯一临时文件，避免固定文件名的并发覆盖和安全风险
+        fd, config_file_path = tempfile.mkstemp(suffix='.json', prefix='videonote_configs_')
         try:
-            with open(config_file_path, 'w', encoding='utf-8') as f:
+            # 设置 0600 权限（仅文件所有者可读写），防止其他用户读取明文凭据
+            os.chmod(config_file_path, 0o600)
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(config_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved configs to: {config_file_path} (include_sensitive={include_sensitive})")
+            logger.info(f"Saved configs to temp file (include_sensitive={include_sensitive})")
             return config_file_path
         except Exception as e:
+            os.close(fd) if not locals().get('fd_closed') else None
             logger.error(f"Failed to save configs file: {e}")
             raise
 

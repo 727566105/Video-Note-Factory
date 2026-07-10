@@ -37,6 +37,7 @@ def _point(monkeypatch, root: Path):
     monkeypatch.setattr(webdav_backup, "LOCAL_BACKUP_DIR", root / "backups")
     monkeypatch.setattr(webdav_backup, "DB_FILE", root / "video_note.db")
     monkeypatch.setattr(webdav_backup, "DB_FILENAME", "video_note.db")
+    monkeypatch.setattr(webdav_backup, "COOKIE_CONFIG_FILE", root / "config" / "downloader.json")
 
 
 def _seed_db(path: Path, rows):
@@ -199,6 +200,116 @@ def test_configs_with_placeholder_secrets_skipped(tmp_path, monkeypatch):
 
 # ==================== ② 整体替换语义 + gap ====================
 
+def test_roundtrip_cookie_file_restored(tmp_path, monkeypatch):
+    """平台 Cookie 文件（config/downloader.json）经 export→import 完整还原"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    # 源端写一个 Cookie 文件
+    webdav_backup.COOKIE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    cookie_data = {"douyin": {"cookie": "sid=abc; token=xyz"}, "bilibili": {"cookie": "SESSDATA=123"}}
+    webdav_backup.COOKIE_CONFIG_FILE.write_text(json.dumps(cookie_data, ensure_ascii=False), encoding="utf-8")
+    (webdav_backup.VIDEO_DIR / "x").mkdir()
+    (webdav_backup.VIDEO_DIR / "x" / "note.md").write_text("# t")
+    _seed_db(webdav_backup.DB_FILE, [(1, "t1")])
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    # 切到空目标
+    _point(monkeypatch, tgt)
+    restore_from_local_file(zip_path)
+
+    # Cookie 文件应完整还原
+    assert webdav_backup.COOKIE_CONFIG_FILE.exists(), "Cookie 配置文件应被恢复"
+    restored = json.loads(webdav_backup.COOKIE_CONFIG_FILE.read_text(encoding="utf-8"))
+    assert restored == cookie_data, "Cookie 内容应字节级一致"
+
+
+def test_roundtrip_cookie_absent_no_error(tmp_path, monkeypatch):
+    """源端没有 Cookie 文件时，导出的包不含 Cookie，导入也不报错"""
+    src, tgt = tmp_path / "src", tmp_path / "tgt"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "x").mkdir()
+    (webdav_backup.VIDEO_DIR / "x" / "note.md").write_text("# t")
+    _seed_db(webdav_backup.DB_FILE, [(1, "t1")])
+    _stub_export(monkeypatch)
+    zip_path = _export_local()
+
+    _point(monkeypatch, tgt)
+    restore_from_local_file(zip_path)
+    # 没有 Cookie 文件是正常的（旧包兼容）
+    assert not webdav_backup.COOKIE_CONFIG_FILE.exists()
+
+
+def test_configs_restore_obsidian(tmp_path, monkeypatch):
+    """configs.json 中的 obsidian_config 被对应 DAO 写回（真实 api_key）"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    calls = {"obsidian": []}
+    monkeypatch.setattr("app.db.obsidian_config_dao.upsert_config",
+                        lambda **kw: calls["obsidian"].append(kw))
+
+    cfg = {"version": "1.0", "exported_at": "2026-06-26T00:00:00", "configs": {
+        "obsidian_config": {
+            "export_mode": "api", "vault_path": "/vault", "folder_path": "vn/",
+            "attachments_folder": "att/", "api_url": "http://o:8080",
+            "api_key": "realkey", "enabled": 1,
+        },
+    }}
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "x")])
+    zip_path = _zip_with_db(tgt / "pkg.zip", db, {"configs.json": json.dumps(cfg, ensure_ascii=False)})
+    restore_from_local_file(zip_path)
+
+    assert len(calls["obsidian"]) == 1
+    c = calls["obsidian"][0]
+    assert c["api_key"] == "realkey"
+    assert c["export_mode"] == "api"
+
+
+def test_configs_obsidian_local_mode_no_key(tmp_path, monkeypatch):
+    """Obsidian local 模式不需要 api_key，应正常恢复"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    calls = {"obsidian": []}
+    monkeypatch.setattr("app.db.obsidian_config_dao.upsert_config",
+                        lambda **kw: calls["obsidian"].append(kw))
+
+    cfg = {"version": "1.0", "exported_at": "2026-06-26T00:00:00", "configs": {
+        "obsidian_config": {
+            "export_mode": "local", "vault_path": "/vault", "folder_path": "vn/",
+            "attachments_folder": "att/", "api_url": "", "api_key": "", "enabled": 1,
+        },
+    }}
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "x")])
+    zip_path = _zip_with_db(tgt / "pkg.zip", db, {"configs.json": json.dumps(cfg, ensure_ascii=False)})
+    restore_from_local_file(zip_path)
+
+    assert len(calls["obsidian"]) == 1, "local 模式应恢复（无需 api_key）"
+
+
+def test_configs_obsidian_api_placeholder_skipped(tmp_path, monkeypatch):
+    """Obsidian api 模式但 api_key 为占位符时跳过"""
+    tgt = tmp_path / "tgt"
+    _point(monkeypatch, tgt)
+    calls = {"obsidian": []}
+    monkeypatch.setattr("app.db.obsidian_config_dao.upsert_config",
+                        lambda **kw: calls["obsidian"].append(kw))
+
+    cfg = {"version": "1.0", "exported_at": "2026-06-26T00:00:00", "configs": {
+        "obsidian_config": {
+            "export_mode": "api", "vault_path": "", "folder_path": "",
+            "attachments_folder": "", "api_url": "", "api_key": "********", "enabled": 1,
+        },
+    }}
+    db = tgt / "_src" / "video_note.db"
+    _seed_db(db, [(1, "x")])
+    zip_path = _zip_with_db(tgt / "pkg.zip", db, {"configs.json": json.dumps(cfg, ensure_ascii=False)})
+    restore_from_local_file(zip_path)
+
+    assert len(calls["obsidian"]) == 0, "api 模式 + 占位符应跳过"
+
+
 def test_import_replaces_video_dir_whole(tmp_path, monkeypatch):
     """目标 video 里的'孤儿文件'应被整体替换清掉（_replace_dir 删除重建）"""
     src, tgt = tmp_path / "src", tmp_path / "tgt"
@@ -260,11 +371,16 @@ def test_gap_configs_do_not_delete_absent_providers(tmp_path, monkeypatch):
     assert 1 in existing, "目标原有的 id=1 既未被查询也未被删除 → 残留（gap）"
 
 
-def test_gap_rollback_does_not_restore_configs():
-    """【已知 gap】_rollback_restore 不含任何 configs 还原逻辑（静态契约）"""
+def test_gap_rollback_does_not_restore_db_configs():
+    """【已知 gap】_rollback_restore 不含 DB 配置还原逻辑（静态契约）
+
+    回滚会还原 DB 文件 + video + note_results + Cookie 文件，
+    但不会还原 DB 里的 configs（providers/siyuan/webdav/obsidian）--那些靠
+    DB 文件级覆盖已经回滚了，不需要单独的 _restore_configs 调用。
+    """
     src = inspect.getsource(webdav_backup._rollback_restore).lower()
-    assert "configs" not in src, "回滚当前不还原 configs（已知 gap，建议后续补）"
-    assert "_restore_configs" not in src
+    assert "_restore_configs" not in src, "回滚不应调用 _restore_configs"
+    assert "downloader.json" in src, "回滚应包含 Cookie 文件还原"
 
 
 # ==================== ③ 回滚 / 失败注入 ====================
@@ -437,14 +553,17 @@ def test_restore_upload_route_not_shadowed(tmp_path, monkeypatch):
     历史 bug：path 参数路由先注册，把 /restore/upload 吃成 backup_name='upload'，
     导致上传导入端点不可达、永远返回 '请先配置 WebDAV 连接'。
     """
+    from types import SimpleNamespace
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from app.routers import webdav as webdav_router
-    from app.auth.dependencies import get_current_user
+    from app.auth.dependencies import get_current_user, require_admin
 
+    _fake_admin = SimpleNamespace(id=1, username="admin", role="admin")
     app = FastAPI()
     app.include_router(webdav_router.router, prefix="/api/webdav")
-    app.dependency_overrides[get_current_user] = lambda: {"id": 1, "username": "admin", "role": "admin"}
+    app.dependency_overrides[get_current_user] = lambda: _fake_admin
+    app.dependency_overrides[require_admin] = lambda: _fake_admin
     client = TestClient(app)
 
     # 上传一个非 zip 文件：restore_from_upload 应返回'只支持 .zip'，而非 WebDAV 守卫文案
