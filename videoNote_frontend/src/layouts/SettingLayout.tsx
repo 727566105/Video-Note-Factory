@@ -5,6 +5,7 @@ import {
   BookOpen,
   Box,
   ChevronRight,
+  DatabaseBackup,
   Download,
   HardDrive,
   Info,
@@ -40,7 +41,7 @@ const settingGroups: SettingGroup[] = [
   {
     id: 'workspace',
     title: '账号与工作区',
-    description: '个人信息、导出目标和数据备份',
+    description: '个人信息、身份与成员管理',
     accent: 'from-sky-500/14 to-emerald-400/12',
     items: [
       {
@@ -49,6 +50,21 @@ const settingGroups: SettingGroup[] = [
         description: '账号信息、密码和身份',
         icon: <User className="size-4" />,
       },
+      {
+        path: '/settings/users',
+        label: '用户管理',
+        description: '成员、角色和权限',
+        icon: <UserCog className="size-4" />,
+        adminOnly: true,
+      },
+    ],
+  },
+  {
+    id: 'data',
+    title: '基础数据设置',
+    description: '笔记同步、数据备份、整机迁移与配置管理',
+    accent: 'from-amber-500/14 to-orange-400/10',
+    items: [
       {
         path: '/settings/siyuan',
         label: '思源笔记',
@@ -66,6 +82,12 @@ const settingGroups: SettingGroup[] = [
         label: 'WebDAV 备份',
         description: '备份配置与恢复数据',
         icon: <HardDrive className="size-4" />,
+      },
+      {
+        path: '/settings/data',
+        label: '基础数据设置',
+        description: '整机迁移与配置管理',
+        icon: <DatabaseBackup className="size-4" />,
       },
     ],
   },
@@ -101,16 +123,9 @@ const settingGroups: SettingGroup[] = [
   {
     id: 'system',
     title: '系统管理',
-    description: '成员、权限、后台任务和产品信息',
+    description: '后台任务和产品信息',
     accent: 'from-slate-500/12 to-cyan-400/10',
     items: [
-      {
-        path: '/settings/users',
-        label: '用户管理',
-        description: '成员、角色和权限',
-        icon: <UserCog className="size-4" />,
-        adminOnly: true,
-      },
       {
         path: '/settings/taskqueue',
         label: '任务队列',
