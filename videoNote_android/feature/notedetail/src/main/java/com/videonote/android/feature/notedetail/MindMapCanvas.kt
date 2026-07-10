@@ -15,6 +15,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,7 +27,7 @@ import androidx.compose.material3.MaterialTheme
 data class MindMapNode(
     val text: String,
     val level: Int,
-    val children: List<MindMapNode> = emptyList(),
+    val children: MutableList<MindMapNode> = mutableListOf(),
     var x: Float = 0f,
     var y: Float = 0f,
     var width: Float = 0f,
@@ -163,10 +164,8 @@ private fun DrawScope.drawTree(
         style = TextStyle(color = textColor, fontSize = 12.sp)
     )
     drawText(
-        textMeasurer,
-        node.text.take(10),
-        topLeft = Offset(rect.left + 8f, rect.top + 8f),
-        style = TextStyle(color = textColor, fontSize = 12.sp)
+        measuredText,
+        topLeft = Offset(rect.left + 8f, rect.top + 8f)
     )
 }
 

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.videonote.android.feature.home
 
 import androidx.compose.foundation.layout.*
@@ -114,10 +116,13 @@ fun HomeScreen(
 
             // 任务状态实时显示
             uiState.taskStatus?.let { status ->
+                val currentTaskId = uiState.currentTaskId
                 TaskStatusCard(
                     status = status,
                     onCancel = viewModel::cancelCurrentTask,
-                    onViewNote = { onNavigateToNoteDetail(uiState.currentTaskId ?: return@let) }
+                    onViewNote = {
+                        currentTaskId?.let { onNavigateToNoteDetail(it) }
+                    }
                 )
             }
 

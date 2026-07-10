@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.videonote.android.feature.feed
 
 import androidx.compose.foundation.clickable
@@ -95,8 +97,9 @@ fun FeedScreen(
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (item.note_available && item.available_task_id != null) {
-                        Button(onClick = { onNavigateToNoteDetail(item.available_task_id) }) { Text("查看笔记") }
+                    val taskId = item.available_task_id
+                    if (item.note_available && taskId != null) {
+                        Button(onClick = { onNavigateToNoteDetail(taskId) }) { Text("查看笔记") }
                     } else {
                         Button(onClick = { viewModel.generateNoteFromFeed(item.id) }) { Text("生成笔记") }
                     }

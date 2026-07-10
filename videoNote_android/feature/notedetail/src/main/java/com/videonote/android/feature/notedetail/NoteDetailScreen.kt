@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.videonote.android.feature.notedetail
 
 import android.webkit.WebView
@@ -127,6 +129,7 @@ fun NoteDetailScreen(
 @Composable
 private fun NoteMediaSection(note: QuickViewResponse, imageProxyHelper: ImageProxyHelper) {
     var playerVisible by remember { mutableStateOf(false) }
+    val videoUrl = note.video_url
     Box(modifier = Modifier.fillMaxWidth().height(200.dp)) {
         // 封面图（通过代理加载）
         AsyncImage(
@@ -135,7 +138,7 @@ private fun NoteMediaSection(note: QuickViewResponse, imageProxyHelper: ImagePro
             modifier = Modifier.fillMaxSize()
         )
         // 播放按钮覆盖层（懒加载：点击后才初始化播放器）
-        if (!playerVisible && note.video_url != null) {
+        if (!playerVisible && videoUrl != null) {
             FloatingActionButton(
                 onClick = { playerVisible = true },
                 modifier = Modifier.align(Alignment.Center)
@@ -144,14 +147,14 @@ private fun NoteMediaSection(note: QuickViewResponse, imageProxyHelper: ImagePro
             }
         }
         // 播放器（用户点击后懒加载）
-        if (playerVisible && note.video_url != null) {
+        if (playerVisible && videoUrl != null) {
             when (note.platform) {
                 "local", "local_audio" -> {
                     // 本地文件用 ExoPlayer
                     AndroidView(factory = { ctx ->
                         androidx.media3.ui.PlayerView(ctx).apply {
                             player = androidx.media3.exoplayer.ExoPlayer.Builder(ctx).build().apply {
-                                setMediaItem(androidx.media3.common.MediaItem.fromUri(note.video_url))
+                                setMediaItem(androidx.media3.common.MediaItem.fromUri(videoUrl))
                                 prepare()
                                 playWhenReady = true
                             }
@@ -166,7 +169,7 @@ private fun NoteMediaSection(note: QuickViewResponse, imageProxyHelper: ImagePro
                             settings.domStorageEnabled = true
                             // 设置合理的 User-Agent（移动端）
                             settings.userAgentString = "Mozilla/5.0 (Linux; Android 12) Mobile"
-                            loadUrl(note.video_url)
+                            loadUrl(videoUrl)
                         }
                     }, modifier = Modifier.fillMaxSize())
                 }

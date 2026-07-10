@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.videonote.android.feature.notedetail
 
 import androidx.compose.foundation.clickable

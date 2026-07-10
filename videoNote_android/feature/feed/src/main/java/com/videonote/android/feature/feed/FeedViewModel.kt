@@ -2,6 +2,7 @@ package com.videonote.android.feature.feed
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.videonote.android.core.network.dto.CreateSubscriptionRequest
 import com.videonote.android.core.network.dto.FeedItem
 import com.videonote.android.core.network.dto.SubscriptionDto
 import dagger.hilt.android.lifecycle.HiltViewModel
