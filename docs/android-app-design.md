@@ -56,7 +56,7 @@ videoNote_android/
 | Room | 本地缓存 |
 | Coil | 图片加载 |
 | DataStore (Encrypted) | Token/偏好存储 |
-| Markmap 或类似 | 思维导图渲染 |
+| 思维导图（Kotlin Canvas） | 原生树形图渲染 |
 | ExoPlayer | 本地视频播放 |
 
 ### 构建配置
@@ -71,12 +71,12 @@ videoNote_android/
 ### 场景 1：首次使用（未登录）
 
 ```
-App 启动 → 无 token → 登录页 → 输入用户名/密码 → POST /api/auth/login
-→ 成功 → 保存 token 到 EncryptedDataStore → 跳转快速添加页
+App 启动 → 无 token → 登录页 → 输入服务器地址 + 用户名 + 密码 → POST /api/auth/login
+→ 成功 → 保存 token + 服务器地址到 EncryptedDataStore → 跳转快速添加页
 → 失败 → 显示错误，留在登录页
 ```
 
-登录页极简：Logo + 用户名 + 密码 + 登录按钮，无注册入口（用户由 Admin 创建）。
+登录页布局：Logo + 服务器地址输入框 + 用户名 + 密码 + 登录按钮，无注册入口（用户由 Admin 创建）。服务器地址示例：`http://192.168.1.100:8483`，保存后可在设置页修改。
 
 ### 场景 2：已登录用户再次打开
 
@@ -142,7 +142,7 @@ fun QuickAddScreen() {
 ### 3.3 笔记详情页（垂直滚动布局）
 
 - 顶栏：返回 + 更多操作
-- 封面图/视频播放区（YouTube 用 YouTube Player API / B站用 WebView 嵌入 / 本地文件用 ExoPlayer）
+- 封面图/视频播放区（YouTube 用 YouTube Player API / B站用 WebView 加载移动端页面 / 本地文件用 ExoPlayer）
 - 视频信息：标题 + 作者 + 订阅按钮 + 平台/时长/时间
 - 4 Tab：摘要（Markdown 渲染）| 字幕（带时间轴）| 导图 | 原文（分段+截图）
 - 底部操作栏：复制 | 导出 | 重做
@@ -198,6 +198,7 @@ fun ExportSheet(noteId: String) {
 
 ### 3.7 设置页（极简版）
 
+- 服务器地址（可修改，修改后需重新登录）
 - 用户信息卡片
 - 修改密码
 - 深色模式（开关）
@@ -413,3 +414,27 @@ Web 端 `SummarySettings` 包含：style、output_language、video_understanding
 - **风格**：简洁 / 详细 / 要点（对应 `style`：minimal / detailed / bullet）
 - **模型**：智能选择 / 手动选择（对应 `smart_mode`）
 - 其余参数使用后端默认值，不在移动端暴露
+
+### 服务器地址配置
+
+- 登录页同时包含服务器地址输入框 + 用户名 + 密码
+- 服务器地址示例：`http://192.168.1.100:8483`
+- 登录成功后，服务器地址与 token 一起保存到 EncryptedDataStore
+- 设置页提供"修改服务器地址"入口，修改后需重新登录
+- Retrofit `baseUrl` 在运行时动态设置（非编译期硬编码），通过 OkHttp Interceptor 或自定义 `BaseUrlInterceptor` 实现
+
+### 思维导图渲染
+
+- 使用纯 Kotlin Canvas 自定义绘制树形图，不依赖 WebView + JS 库
+- 实现策略：解析 Markdown 标题层级结构（`#`/`##`/`###`）生成树节点，Canvas 递归布局 + 绘制
+- 支持手势：双指缩放 + 拖拽平移（`Modifier.pointerInput` + `transformable`）
+- 节点样式：圆角矩形 + 文字，层级用颜色区分，连线用贝塞尔曲线
+- 第一版只支持标题层级解析，后续可扩展 checkbox、列表等节点类型
+
+### 视频播放
+
+- B站/抖音等平台视频：使用 WebView 加载对应平台移动端页面播放
+- YouTube 视频：使用 YouTube Player API（官方 Android 库）
+- 本地视频/音频：使用 ExoPlayer 播放
+- WebView 配置：启用 JavaScript + DOM Storage，设置合理的 User-Agent
+- 封面图始终显示，WebView/播放器在用户点击后懒加载
