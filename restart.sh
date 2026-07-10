@@ -68,9 +68,9 @@ start_backend() {
         echo "[WARN] 数据库不存在，将在启动时自动创建"
     fi
 
-    echo "[INFO] 启动后端服务..."
+    echo "[INFO] 启动后端服务（热重载模式）..."
     cd "$PROJECT_ROOT/backend"
-    nohup "$PROJECT_ROOT/.venv/bin/python" main.py > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
+    nohup env BACKEND_RELOAD=true "$PROJECT_ROOT/.venv/bin/python" main.py > "$PROJECT_ROOT/logs/backend.log" 2>&1 &
     BACKEND_PID=$!
     cd "$PROJECT_ROOT"
 

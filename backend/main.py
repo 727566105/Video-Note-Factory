@@ -152,5 +152,13 @@ if __name__ == "__main__":
     port = int(os.getenv("BACKEND_PORT", 8483))
     # Docker 容器内 nginx 反代到 127.0.0.1，不直接暴露后端端口
     host = os.getenv("BACKEND_HOST", "127.0.0.1")
-    logger.info(f"Starting server on {host}:{port}")
-    uvicorn.run(app, host=host, port=port, reload=False)
+    # 本地开发热重载：设 BACKEND_RELOAD=true 自动监听文件变更重启
+    reload = os.getenv("BACKEND_RELOAD", "false").lower() == "true"
+    logger.info(f"Starting server on {host}:{port} (reload={reload})")
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        reload_dirs=["app"] if reload else None,
+    )
