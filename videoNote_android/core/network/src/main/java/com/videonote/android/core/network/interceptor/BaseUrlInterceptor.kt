@@ -18,12 +18,14 @@ class BaseUrlInterceptor @Inject constructor(
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
-        val serverUrl = sessionManager.serverUrl ?: return chain.proceed(originalRequest)
+        val serverUrl = sessionManager.serverUrl.value ?: return chain.proceed(originalRequest)
 
+        // 解析一次服务器地址，提取 scheme/host/port
+        val parsed = serverUrl.toHttpUrl()
         val newUrl = originalRequest.url.newBuilder()
-            .scheme(serverUrl.toHttpUrl().scheme)
-            .host(serverUrl.toHttpUrl().host)
-            .port(serverUrl.toHttpUrl().port)
+            .scheme(parsed.scheme)
+            .host(parsed.host)
+            .port(parsed.port)
             .build()
 
         val newRequest = originalRequest.newBuilder()
