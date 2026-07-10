@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from .routers import note, provider, model, config, export, siyuan, webdav, config_backup, health, auth, user, subscription, feed, channels, authors, screenshot, collection, obsidian
+from .routers import note, provider, model, config, export, siyuan, webdav, config_backup, health, auth, user, subscription, feed, channels, authors, screenshot, collection, obsidian, note_share
 
 
 def create_app(lifespan) -> FastAPI:
@@ -26,5 +26,6 @@ def create_app(lifespan) -> FastAPI:
     app.include_router(screenshot.media_router)
     app.include_router(collection.router)
     app.include_router(obsidian.router, prefix="/api/obsidian")
+    app.include_router(note_share.router, prefix="/api/notes/share", tags=["笔记分享"])
 
     return app
