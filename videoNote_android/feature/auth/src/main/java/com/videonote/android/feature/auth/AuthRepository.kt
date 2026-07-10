@@ -18,7 +18,7 @@ class AuthRepository @Inject constructor(
         return try {
             sessionManager.setServerUrl(serverUrl.trimEnd('/'))
             val response = safeApiCall { authApi.login(LoginRequest(username, password)) }
-            val token = response.access_token
+            val token = response.token
             sessionManager.setToken(token)
             dataStore.setServerUrl(serverUrl.trimEnd('/'))
             dataStore.setToken(token)

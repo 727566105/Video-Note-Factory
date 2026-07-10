@@ -16,8 +16,8 @@ class HomeRepository @Inject constructor(
         platform: String,
         smartMode: Boolean,
         style: String,
-        modelName: String? = null,
-        providerId: Int? = null,
+        modelName: String = "auto",
+        providerId: String = "0",
         filePath: String? = null
     ): GenerateNoteResponse {
         return safeApiCall {
@@ -26,11 +26,12 @@ class HomeRepository @Inject constructor(
                     video_url = videoUrl,
                     platform = platform,
                     smart_mode = smartMode,
-                    model_name = if (!smartMode) modelName else null,
-                    provider_id = if (!smartMode) providerId else null,
+                    model_name = if (!smartMode) modelName else "auto",
+                    provider_id = if (!smartMode) providerId else "0",
                     style = style,
+                    quality = "medium",
                     output_language = "zh",
-                    format = "screenshot",
+                    format = emptyList(),
                     screenshot = true,
                     link = false,
                     file_path = filePath

@@ -10,8 +10,7 @@ data class LoginRequest(
 
 @Serializable
 data class LoginResponse(
-    val access_token: String,
-    val token_type: String = "bearer",
+    val token: String,
     val user: UserDto? = null
 )
 

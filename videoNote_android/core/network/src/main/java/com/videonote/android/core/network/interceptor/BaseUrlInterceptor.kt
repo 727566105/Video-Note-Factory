@@ -20,8 +20,15 @@ class BaseUrlInterceptor @Inject constructor(
         val originalRequest = chain.request()
         val serverUrl = sessionManager.serverUrl.value ?: return chain.proceed(originalRequest)
 
-        // 解析一次服务器地址，提取 scheme/host/port
-        val parsed = serverUrl.toHttpUrl()
+        // 解析服务器地址，提取 scheme/host/port
+        // 加 try-catch 防止无效 URL 导致整个 OkHttp 线程崩溃
+        val parsed = try {
+            serverUrl.toHttpUrl()
+        } catch (e: Exception) {
+            // URL 无效，用原始请求继续（会因 placeholder URL 失败，但不至于崩溃）
+            return chain.proceed(originalRequest)
+        }
+
         val newUrl = originalRequest.url.newBuilder()
             .scheme(parsed.scheme)
             .host(parsed.host)

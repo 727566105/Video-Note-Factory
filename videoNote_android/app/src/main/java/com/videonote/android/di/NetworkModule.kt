@@ -36,6 +36,7 @@ object NetworkModule {
         ignoreUnknownKeys = true
         coerceInputValues = true
         explicitNulls = false
+        encodeDefaults = true  // 序列化时包含有默认值的字段（后端需要 platform/quality 等必填字段）
     }
 
     @Provides
