@@ -129,7 +129,7 @@ fun QuickAddScreen() {
 - 笔记风格快速选择
 - AI 模型选择
 - "生成笔记"主 CTA 按钮
-- 底部：最近任务状态实时显示（3 秒轮询 `/task_status`）
+- 底部：最近任务状态实时显示（3 秒轮询 `GET /api/task_status/{task_id}`）
 - 任务成功后显示"查看笔记"按钮
 
 ### 3.2 笔记列表页
@@ -142,7 +142,7 @@ fun QuickAddScreen() {
 ### 3.3 笔记详情页（垂直滚动布局）
 
 - 顶栏：返回 + 更多操作
-- 封面图/视频播放区（B站/YouTube iframe / ExoPlayer 本地播放）
+- 封面图/视频播放区（YouTube 用 YouTube Player API / B站用 WebView 嵌入 / 本地文件用 ExoPlayer）
 - 视频信息：标题 + 作者 + 订阅按钮 + 平台/时长/时间
 - 4 Tab：摘要（Markdown 渲染）| 字幕（带时间轴）| 导图 | 原文（分段+截图）
 - 底部操作栏：复制 | 导出 | 重做
@@ -172,8 +172,9 @@ fun ExportSheet(noteId: String) {
     ExportOption("复制 Markdown", always = true)
     ExportOption("导出 PDF", always = true)
     ExportOption("导出图片", always = true)
-    if (siyuanConfig?.enabled == true) ExportOption("导出到思源笔记")
-    if (obsidianConfig?.enabled == true) ExportOption("导出到 Obsidian")
+    // 注意：后端 enabled 字段为 Int (0/1)，非 Boolean
+    if (siyuanConfig?.enabled == 1) ExportOption("导出到思源笔记")
+    if (obsidianConfig?.enabled == 1) ExportOption("导出到 Obsidian")
 }
 ```
 
@@ -247,37 +248,51 @@ fun ExportSheet(noteId: String) {
 | 当前用户 | `GET /api/auth/me` |
 | 修改密码 | `PUT /api/auth/change-password` |
 | 生成笔记 | `POST /api/generate_note` |
-| 任务状态 | `GET /api/task_status/{id}` |
+| 检查笔记是否已存在 | `POST /api/check_note_availability` |
+| 文件上传 | `POST /api/upload` |
+| 任务状态 | `GET /api/task_status/{task_id}` |
 | 任务列表 | `GET /api/tasks` |
 | 删除任务 | `POST /api/delete_task` |
 | 取消任务 | `POST /api/cancel_task` |
-| 笔记详情 | `GET /api/quick_view/{id}` |
-| 笔记标签 | `PUT /api/notes/{id}/tags` |
+| 笔记详情 | `GET /api/quick_view/{task_id}` |
+| 笔记标签 | `PUT /api/notes/{task_id}/tags` |
 | 动态列表 | `GET /api/feed` |
-| 标记已读 | `PUT /api/feed/{id}/read` |
+| 标记已读 | `PUT /api/feed/{item_id}/read` |
 | 全部已读 | `PUT /api/feed/read-all` |
 | 刷新动态 | `POST /api/feed/refresh` |
 | 未读计数 | `GET /api/feed/unread-count` |
-| 动态生成笔记 | `POST /api/feed/{id}/generate-note` |
+| 动态生成笔记 | `POST /api/feed/{item_id}/generate-note` |
 | 订阅列表 | `GET /api/subscriptions` |
 | 添加订阅 | `POST /api/subscriptions` |
 | 删除订阅 | `DELETE /api/subscriptions/{id}` |
 | 切换订阅 | `PUT /api/subscriptions/{id}/toggle` |
+| 单订阅刷新 | `POST /api/subscriptions/{id}/refresh` |
+| 刷新进度 | `GET /api/subscriptions/progress/{progress_id}` |
+| 解析频道 URL | `POST /api/channels/parse-url` |
+| 频道视频列表 | `GET /api/channels/{platform}/{platformId}/videos` |
 | 收藏夹列表 | `GET /api/collections` |
 | 创建收藏夹 | `POST /api/collections` |
 | 收藏夹详情 | `GET /api/collections/{id}` |
+| 更新收藏夹 | `PUT /api/collections/{id}` |
+| 删除收藏夹 | `DELETE /api/collections/{id}` |
 | 添加到收藏夹 | `POST /api/collections/{id}/items` |
 | 移出收藏夹 | `DELETE /api/collections/{id}/items/{task_id}` |
 | 生成摘要 | `POST /api/collections/{id}/generate_summary` |
 | 收藏夹摘要 | `GET /api/collections/{id}/summary` |
-| 导出 PDF | `GET /api/pdf/{id}` |
-| 导出图片 | `GET /api/image/{id}` |
-| 思源导出 | `POST /api/siyuan/export/siyuan/{id}` |
-| Obsidian 导出 | `POST /api/obsidian/export/obsidian/{id}` |
+| 收藏夹任务映射 | `GET /api/collections/task_map` |
+| 导出 PDF | `GET /api/export/pdf/{task_id}` |
+| 导出图片 | `GET /api/export/image/{task_id}` |
+| 导出 HTML | `GET /api/export/html/{task_id}` |
+| 导出 Word | `GET /api/export/docx/{task_id}` |
+| 导出 EPUB | `GET /api/export/epub/{task_id}` |
+| 思源导出 | `POST /api/siyuan/export/siyuan/{task_id}` |
+| Obsidian 导出 | `POST /api/obsidian/export/obsidian/{task_id}` |
 | 思源配置 | `GET /api/siyuan/config` |
 | Obsidian 配置 | `GET /api/obsidian/config` |
 | 模型列表 | `GET /api/model_list` |
+| 按提供商模型列表 | `GET /api/model_list/{provider_id}` |
 | 用户偏好 | `GET/PUT /api/user/preferences` |
+| 图片代理 | `GET /api/image_proxy?url=...` |
 | 系统健康 | `GET /api/health` |
 
 ---
@@ -290,29 +305,30 @@ fun ExportSheet(noteId: String) {
 PENDING → QUEUED → PARSING → DOWNLOADING → TRANSCRIBING → SUMMARIZING → SAVING → SUCCESS
 ```
 
-任何阶段都可能进入 `FAILED` 状态。
+任何阶段都可能进入 `FAILED` 或 `CANCELLED` 状态（用户主动取消时）。
 
 移动端轮询策略：
-- 生成笔记后立即开始轮询 `GET /api/task_status/{id}`
+- 生成笔记后立即开始轮询 `GET /api/task_status/{task_id}`
 - 轮询间隔：3 秒
-- 终止条件：状态为 `SUCCESS` 或 `FAILED`
+- 终止条件：状态为 `SUCCESS`、`FAILED` 或 `CANCELLED`
 - 成功后显示"查看笔记"按钮
 - 失败后显示错误信息 + "重试"按钮
+- 取消后停止轮询，不显示额外操作
 
 ---
 
 ## 7. 支持平台
 
-| 平台 | 标识 | URL 模式 |
-|------|------|----------|
-| Bilibili | bilibili | bilibili.com/video/BV* |
-| YouTube | youtube | youtube.com/watch* / youtu.be/* |
-| 抖音 | douyin | douyin.com/video/* |
-| 小红书 | xiaohongshu | xiaohongshu.com/* |
-| 快手 | kuaishou | kuaishou.com/* |
-| 央视频 | cctv | cctv.com/* |
-| 本地视频 | local | 文件上传 |
-| 本地音频 | local_audio | 文件上传 |
+| 平台 | 标识 | URL 模式 | 短链/分享文本模式 |
+|------|------|----------|-------------------|
+| Bilibili | bilibili | bilibili.com/video/BV* | b23.tv/* |
+| YouTube | youtube | youtube.com/watch* / youtu.be/* | — |
+| 抖音 | douyin | douyin.com/video/* | v.douyin.com/* / 分享文本含"复制打开抖音"或"抖音" |
+| 小红书 | xiaohongshu | xiaohongshu.com/* | xhslink.com/* |
+| 快手 | kuaishou | kuaishou.com/* | v.kuaishou.com/* |
+| 央视频 | cctv | cctv.com/* | — |
+| 本地视频 | local | 文件上传 | — |
+| 本地音频 | local_audio | 文件上传 | — |
 
 ---
 
@@ -328,3 +344,72 @@ PENDING → QUEUED → PARSING → DOWNLOADING → TRANSCRIBING → SUMMARIZING 
 8. **feature/feed**：动态列表 + 频道管理 + 添加订阅
 9. **feature/settings**：设置页（极简版）
 10. **集成测试 + 优化**：端到端测试、性能优化、深色模式适配
+
+---
+
+## 9. 实现注意事项
+
+### 剪贴板隐私（Android 12+）
+
+- Android 12 (API 31)：`ClipboardManager.getText()` 仍可正常调用
+- Android 13+ (API 33)：系统会在 App 读取剪贴板时自动显示 Toast 提示用户，无需额外处理
+- 使用 `ClipboardManager.OnPrimaryClipChangedListener` 监听变化比主动轮询更友好
+- `clipboardConsumed` 标记确保只自动填入一次，避免重复读取
+
+### API 双重错误格式
+
+后端返回两种错误格式，移动端需同时处理：
+
+1. **业务错误**：HTTP 200 + `{code: 非0, msg: "错误信息", data: null}` → Toast 显示 `msg`
+2. **HTTP 错误**：HTTP 4xx/5xx + `{detail: "错误信息"}` → Toast 显示 `detail`
+
+网络层 Interceptor 应统一处理这两种格式。
+
+### `generate_note` 请求体关键字段
+
+```json
+{
+  "video_url": "https://...",
+  "platform": "bilibili",
+  "smart_mode": true,
+  "model_name": "gpt-4o-mini",
+  "provider_id": 1,
+  "style": "detailed",
+  "output_language": "zh",
+  "format": "screenshot",
+  "screenshot": true,
+  "link": false
+}
+```
+
+- `smart_mode: true` 时后端自动选择模型和提供商，移动端可省略 `model_name` / `provider_id`
+- `smart_mode: false` 时必须指定 `model_name` 和 `provider_id`
+- 移动端默认 `smart_mode: true`，用户手动选模型时切换为 `false`
+
+### Obsidian 导出 `content_sections` 参数
+
+Obsidian 导出 API 接受 `content_sections` 字段，允许用户选择导出笔记的哪些部分：
+
+```json
+{
+  "content_sections": ["summary", "raw_article", "subtitles"]
+}
+```
+
+可选值：`summary`、`raw_article`、`subtitles`、`outline`、`screenshots`。移动端默认全选，后续可加自定义选项。
+
+### 图片加载与 Referer 限制
+
+B站、抖音等平台的封面图有 Referer 校验，直接加载会 403。解决方案：
+
+1. **优先**：通过后端图片代理 `GET /api/image_proxy?url=...` 加载（推荐，后端处理 Referer）
+2. **备选**：Coil 配置 OkHttp 时添加对应平台 Referer header
+
+### 笔记风格快速选择（移动端精简版）
+
+Web 端 `SummarySettings` 包含：style、output_language、video_understanding、video_interval、grid_size、format、extras。
+
+移动端精简为：
+- **风格**：简洁 / 详细 / 要点（对应 `style`：minimal / detailed / bullet）
+- **模型**：智能选择 / 手动选择（对应 `smart_mode`）
+- 其余参数使用后端默认值，不在移动端暴露
