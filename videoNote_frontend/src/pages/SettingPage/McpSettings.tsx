@@ -553,7 +553,7 @@ export default function McpSettings() {
                       QwenPaw
                     </a>{' '}
                     后，在 Web 控制台进入{' '}
-                    <strong>智能体 -> MCP -> 创建</strong>，粘贴以下 JSON 配置：
+                    <strong>智能体 {'->'} MCP {'->'} 创建</strong>，粘贴以下 JSON 配置：
                   </p>
                 </div>
                 <ConfigBlock
