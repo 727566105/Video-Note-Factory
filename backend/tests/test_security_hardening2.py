@@ -18,16 +18,21 @@ from fastapi.testclient import TestClient
 
 # ==================== image_proxy 鉴权 ====================
 
-def test_image_proxy_requires_auth():
-    """image_proxy 必须鉴权，未携带 token 返回 401"""
+def test_image_proxy_no_auth_ssrf_still_enforced():
+    """image_proxy 公开访问（<img> 标签兼容），但 SSRF 防护仍有效"""
     from app.routers import note
 
     app = FastAPI()
     app.include_router(note.router, prefix="/api")
     client = TestClient(app)
 
+    # 不带 token 不应返回 401（<img> 标签无法携带 header）
     resp = client.get("/api/image_proxy", params={"url": "https://example.com/img.png"})
-    assert resp.status_code == 401
+    assert resp.status_code != 401, "image_proxy 不应需要认证（<img> 标签兼容）"
+
+    # SSRF 防护仍有效：内网地址应拒绝
+    resp = client.get("/api/image_proxy", params={"url": "http://127.0.0.1:8483/api/health"})
+    assert resp.status_code == 400
 
 
 # ==================== check_remote_status SSRF ====================

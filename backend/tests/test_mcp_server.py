@@ -242,10 +242,25 @@ class TestContextvarsIsolation:
 
 
 # ──────────────────────────────────────────────
-# 第五层：端到端 MCP 工具调用
+# 第五层：端到端 MCP 工具调用（需要后端运行，CI 自动跳过）
 # ──────────────────────────────────────────────
 
+def _backend_running():
+    """检查后端是否在运行"""
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", 8483), timeout=1):
+            return True
+    except (ConnectionError, OSError):
+        return False
+
+_requires_backend = pytest.mark.skipif(
+    not _backend_running(), reason="后端未运行（CI 环境跳过端到端测试）"
+)
+
+
 @_db_required
+@_requires_backend
 class TestMCPEndToEnd:
     """端到端 MCP 工具调用测试（需要后端运行）"""
 
