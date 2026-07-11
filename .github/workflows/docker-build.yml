@@ -29,6 +29,8 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 创建 GitHub Release 所需权限
 
     steps:
       - name: Checkout code
