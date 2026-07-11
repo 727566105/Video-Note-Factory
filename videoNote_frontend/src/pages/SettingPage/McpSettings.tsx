@@ -553,7 +553,7 @@ export default function McpSettings() {
                       QwenPaw
                     </a>{' '}
                     后，在 Web 控制台进入{' '}
-                    <strong>智能体 → MCP → 创建</strong>，粘贴以下 JSON 配置：
+                    <strong>智能体 -> MCP -> 创建</strong>，粘贴以下 JSON 配置：
                   </p>
                 </div>
                 <ConfigBlock
@@ -576,12 +576,27 @@ export default function McpSettings() {
                     保存后在智能体对话中即可使用 VideoNote 的工具
                   </p>
                 </div>
-                <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-                  💡 QwenPaw 会根据配置自动识别 transport 类型（有{' '}
-                  <code className="rounded bg-background px-1">url</code> 即 HTTP/SSE），显式写{' '}
-                  <code className="rounded bg-background px-1">"transport": "streamable_http"</code>{' '}
-                  可避免歧义。配置也支持省略外层{' '}
-                  <code className="rounded bg-background px-1">mcpServers</code> 直接粘贴内层对象。
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+                  <div className="space-y-1">
+                    <p className="font-medium text-amber-700">注意事项</p>
+                    <p>
+                      • VideoNote 使用静态 Bearer Token 鉴权，<strong>不需要 OAuth</strong>。如果
+                      QwenPaw 提示"授权"或"OAuth"，<strong>不要点授权按钮</strong>，直接开始对话即可。
+                    </p>
+                    <p>
+                      • 如果出现"Could not discover OAuth authorization server"报错，说明 Token 未被正确
+                      接收。请确认 headers 里填的是{' '}
+                      <code className="rounded bg-background px-1">Authorization: Bearer vn_xxx</code>{' '}
+                      完整格式（含 Bearer 前缀）。
+                    </p>
+                    <p>
+                      • QwenPaw 会根据配置自动识别 transport 类型（有{' '}
+                      <code className="rounded bg-background px-1">url</code> 即 HTTP/SSE），显式写{' '}
+                      <code className="rounded bg-background px-1">"transport": "streamable_http"</code>{' '}
+                      可避免歧义。
+                    </p>
+                  </div>
                 </div>
               </TabsContent>
 

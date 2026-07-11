@@ -74,6 +74,18 @@ async def mcp_auth_middleware(scope: Scope, receive: Receive, send: Send):
         await mcp_app(scope, receive, send)
         return
 
+    # OAuth 发现探测（RFC 9728）：QwenPaw 等客户端会先 GET /.well-known/oauth-protected-resource
+    # 静态 Bearer Token 鉴权不需要 OAuth，这里直接返回 404 告诉客户端"无 OAuth metadata"。
+    # 注意：不能返回 401，否则客户端会误以为需要走 OAuth 授权流程导致报错。
+    path = scope.get("path", "")
+    if path.startswith("/.well-known/"):
+        resp = JSONResponse(
+            status_code=404,
+            content={"error": "本服务使用静态 Bearer Token 鉴权，不支持 OAuth"},
+        )
+        await resp(scope, receive, send)
+        return
+
     # 请求体大小限制
     headers = dict(scope.get("headers", []))
     content_length = headers.get(b"content-length", b"").decode()
@@ -91,9 +103,13 @@ async def mcp_auth_middleware(scope: Scope, receive: Receive, send: Send):
 
     user = get_user_by_api_key(token)
     if not user:
+        # 返回标准 WWW-Authenticate: Bearer（不带 resource_metadata 参数），
+        # 明确告知客户端本服务使用静态 Bearer Token 鉴权，不走 OAuth。
+        # 这样 QwenPaw 等客户端不会尝试 RFC 9728 OAuth 自动发现。
         resp = JSONResponse(
             status_code=401,
             content={"error": "无效或缺失的 API Key，请在 VideoNote 设置页生成 API Key"},
+            headers={"WWW-Authenticate": "Bearer"},
         )
         await resp(scope, receive, send)
         return
