@@ -30,6 +30,7 @@ import {
   Rss,
   Layers,
   ShieldCheck,
+  PawPrint,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import request from '@/utils/request'
@@ -208,7 +209,7 @@ export default function McpSettings() {
           <div>
             <h1 className="text-xl font-semibold">MCP 接入指南</h1>
             <p className="text-sm text-muted-foreground">
-              让 AI 客户端（Claude / Cursor / 小龙虾等）连接 VideoNote，通过对话导入视频、生成笔记
+              让 AI 客户端（QwenPaw / Claude / Cursor / 小龙虾等）连接 VideoNote，通过对话导入视频、生成笔记
             </p>
           </div>
         </div>
@@ -350,6 +351,9 @@ export default function McpSettings() {
                 </TabsTrigger>
                 <TabsTrigger value="vscode" className="gap-1.5">
                   <FileCode className="size-3.5" /> VS Code
+                </TabsTrigger>
+                <TabsTrigger value="qwenpaw" className="gap-1.5">
+                  <PawPrint className="size-3.5" /> QwenPaw
                 </TabsTrigger>
                 <TabsTrigger value="generic" className="gap-1.5">
                   <Plug className="size-3.5" /> 其他平台
@@ -531,6 +535,53 @@ export default function McpSettings() {
                 <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
                   💡 <strong>Cline</strong> 用户：在 Cline 设置 → MCP Servers → Add Server，选择
                   "Streamable HTTP"，填入 Server URL 和 Authorization Header
+                </div>
+              </TabsContent>
+
+              {/* ─── QwenPaw（通义个人智能体工作台）─── */}
+              <TabsContent value="qwenpaw" className="space-y-3 pt-2">
+                <div className="flex gap-2 text-sm">
+                  <StepNum n={1} />
+                  <p className="pt-0.5 text-muted-foreground">
+                    启动{' '}
+                    <a
+                      href="https://qwenpaw.agentscope.io/docs/quickstart/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    >
+                      QwenPaw
+                    </a>{' '}
+                    后，在 Web 控制台进入{' '}
+                    <strong>智能体 → MCP → 创建</strong>，粘贴以下 JSON 配置：
+                  </p>
+                </div>
+                <ConfigBlock
+                  text={`{
+  "mcpServers": {
+    "videonote": {
+      "transport": "streamable_http",
+      "url": "${mcpUrl}",
+      "headers": {
+        "Authorization": "Bearer ${bearerKey}"
+      }
+    }
+  }
+}`}
+                  onCopy={handleCopy}
+                />
+                <div className="flex gap-2 text-sm">
+                  <StepNum n={2} />
+                  <p className="pt-0.5 text-muted-foreground">
+                    保存后在智能体对话中即可使用 VideoNote 的工具
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  💡 QwenPaw 会根据配置自动识别 transport 类型（有{' '}
+                  <code className="rounded bg-background px-1">url</code> 即 HTTP/SSE），显式写{' '}
+                  <code className="rounded bg-background px-1">"transport": "streamable_http"</code>{' '}
+                  可避免歧义。配置也支持省略外层{' '}
+                  <code className="rounded bg-background px-1">mcpServers</code> 直接粘贴内层对象。
                 </div>
               </TabsContent>
 
