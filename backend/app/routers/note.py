@@ -30,7 +30,7 @@ from app.utils.response import ResponseWrapper as R
 from app.utils.url_parser import extract_video_id
 from app.utils.upload_path import resolve_uploaded_file_path
 from app.validators.video_url_validator import is_supported_video_url
-from app.auth.dependencies import get_current_user, require_admin
+from app.auth.dependencies import get_current_user, get_current_user_flexible, require_admin
 from app.enmus.task_status_enums import TaskStatus
 
 # 使用统一的路径管理工具
@@ -902,8 +902,10 @@ def get_image_headers(url: str, request: Request) -> dict:
 
 
 @router.get("/image_proxy")
-async def image_proxy(request: Request, url: str, current_user=Depends(get_current_user)) -> dict:
-    """图片代理接口，支持本地缓存"""
+async def image_proxy(request: Request, url: str) -> dict:
+    """图片代理接口，支持本地缓存。
+    公开访问（不需要认证），与 video_cover/screenshot 路由一致，
+    因为 <img> 标签无法携带 Authorization header。SSRF 防护仍在。"""
     # 0. 本地封面 API 路径直接重定向
     if url.startswith("/api/video_cover/"):
         # 解析路径: /api/video_cover/{platform}/{author_id}/{video_id}
