@@ -68,7 +68,7 @@ interface WebDAVStore {
   testConnection: (config: WebDAVConfig) => Promise<{ success: boolean; message: string }>
 
   // 操作 - 备份
-  createBackup: () => Promise<void>
+  createBackup: (backupMode?: string) => Promise<void>
   loadBackupStatus: () => Promise<void>
   loadBackups: () => Promise<void>
   deleteBackup: (backupName: string) => Promise<void>
@@ -190,7 +190,7 @@ export const useWebDAVStore = create<WebDAVStore>()(
       },
 
       // 创建备份
-      createBackup: async () => {
+      createBackup: async (backupMode?: string) => {
         // 防止重复调用
         const state = get()
         if (state.isBackingUp) {
@@ -199,7 +199,7 @@ export const useWebDAVStore = create<WebDAVStore>()(
 
         set({ isBackingUp: true })
         try {
-          await createBackup('manual')
+          await createBackup('manual', backupMode)
           await get().loadSchedule()
         } catch (error) {
           throw error

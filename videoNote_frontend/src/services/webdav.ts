@@ -15,6 +15,7 @@ export const saveConfig = async (data: {
   username: string
   password: string
   path?: string
+  default_backup_mode?: string
   auto_backup_enabled?: number
   auto_backup_schedule?: string
 }) => {
@@ -27,6 +28,7 @@ export const updateConfig = async (data: {
   username: string
   password: string
   path?: string
+  default_backup_mode?: string
   auto_backup_enabled?: number
   auto_backup_schedule?: string
 }) => {
@@ -49,10 +51,10 @@ export const testConnection = async (data: {
 
 // ==================== 备份操作 ====================
 
-// 手动触发备份
-export const createBackup = async (backupType: string = 'manual') => {
+// 手动触发备份（backupMode: full=全部含媒体 / quick=仅配置）
+export const createBackup = async (backupType: string = 'manual', backupMode?: string) => {
   return await request.post('/webdav/backup', null, {
-    params: { backup_type: backupType }
+    params: { backup_type: backupType, ...(backupMode ? { backup_mode: backupMode } : {}) }
   })
 }
 

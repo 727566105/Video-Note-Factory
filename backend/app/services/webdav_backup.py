@@ -171,15 +171,20 @@ class WebDAVBackup:
             else:
                 shutil.copy2(item, target)
 
-    def _collect_backup_files(self, progress: BackupProgress = None) -> list[Path]:
-        """收集需要备份的文件"""
+    def _collect_backup_files(self, progress: BackupProgress = None, backup_mode: str = "full") -> list[Path]:
+        """收集需要备份的文件
+
+        Args:
+            backup_mode: "full" 收集全部（含 video/ 媒体）；"quick" 只收集 DB（跳过大媒体文件）
+        """
         files = []
 
         if progress:
             progress.update(10, "正在收集备份文件...")
 
-        # 收集 data/video 目录（笔记正文、封面、截图、音视频）
-        if VIDEO_DIR.exists():
+        # full 模式：收集 data/video 目录（笔记正文、封面、截图、音视频）
+        # quick 模式：跳过 video/（只备份数据库 + configs + Cookie，秒级完成）
+        if backup_mode != "quick" and VIDEO_DIR.exists():
             for file_path in VIDEO_DIR.rglob("*"):
                 if not file_path.is_file():
                     continue
@@ -193,18 +198,24 @@ class WebDAVBackup:
             files.append(DB_FILE)
 
         if progress:
-            progress.update(30, f"已收集 {len(files)} 个文件")
+            label = "配置" if backup_mode == "quick" else "文件"
+            progress.update(30, f"已收集 {len(files)} 个{label}")
 
         return files
 
-    def _create_zip_archive(self, files: list[Path], progress: BackupProgress = None) -> Path:
-        """创建 ZIP 压缩包"""
+    def _create_zip_archive(self, files: list[Path], progress: BackupProgress = None, backup_mode: str = "full") -> Path:
+        """创建 ZIP 压缩包
+
+        Args:
+            backup_mode: "full" -> 文件名前缀 videonote_backup_；"quick" -> 前缀 videonote_quick_
+        """
         # 确保临时目录存在
         BACKUP_TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-        # 生成文件名
+        # 生成文件名（full/quick 前缀区分）
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_filename = f"videonote_backup_{timestamp}.zip"
+        prefix = "videonote_quick_" if backup_mode == "quick" else "videonote_backup_"
+        zip_filename = f"{prefix}{timestamp}.zip"
         zip_path = BACKUP_TEMP_DIR / zip_filename
 
         if progress:
@@ -296,12 +307,14 @@ class WebDAVBackup:
 
         return remote_path
 
-    def create_backup(self, backup_type: str = "manual", target: str = "webdav", progress_callback: Callable = None) -> dict:
+    def create_backup(self, backup_type: str = "manual", target: str = "webdav", progress_callback: Callable = None, backup_mode: str = "full") -> dict:
         """
         创建备份
 
         Args:
             backup_type: 备份类型 (manual/auto)
+            target: 备份目标 (webdav/local)
+            backup_mode: 备份模式 (full=全部含媒体 / quick=仅配置不含媒体)
             progress_callback: 进度回调函数
 
         Returns:
@@ -315,18 +328,19 @@ class WebDAVBackup:
         _backup_in_progress = True
         _current_operation = "backup"
         _current_progress = 0
-        _current_message = "开始备份..."
+        mode_label = "快速备份" if backup_mode == "quick" else "全部备份"
+        _current_message = f"开始{mode_label}..."
 
         progress = BackupProgress()
 
         try:
             # 1. 收集文件
-            files = self._collect_backup_files(progress)
+            files = self._collect_backup_files(progress, backup_mode=backup_mode)
             if not files:
                 raise Exception("没有找到需要备份的文件")
 
             # 2. 创建压缩包
-            zip_path = self._create_zip_archive(files, progress)
+            zip_path = self._create_zip_archive(files, progress, backup_mode=backup_mode)
 
             # 3. 获取文件信息（在移动/删除前计算）
             file_size = zip_path.stat().st_size
@@ -430,7 +444,8 @@ class WebDAVBackup:
                     backups.append({
                         "name": item,
                         "path": file_path,
-                        "size": file_size
+                        "size": file_size,
+                        "mode": "quick" if item.startswith("videonote_quick_") else "full"
                     })
 
             # 按名称倒序排列（时间戳）

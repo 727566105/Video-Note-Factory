@@ -91,7 +91,7 @@ def test_local_backup_endpoint_starts_async(tmp_path, monkeypatch):
     import time
     called = {"target": None}
 
-    def _fake_create(self, backup_type="manual", target="webdav", progress_callback=None):
+    def _fake_create(self, backup_type="manual", target="webdav", progress_callback=None, **kwargs):
         called["target"] = target
         return {"success": True, "filename": "x.zip"}
 

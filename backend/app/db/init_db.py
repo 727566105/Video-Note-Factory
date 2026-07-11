@@ -242,6 +242,23 @@ def migrate_users_security_columns():
         db.close()
 
 
+def migrate_webdav_default_backup_mode():
+    """迁移：webdav_configs 添加 default_backup_mode 字段"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(webdav_configs)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "default_backup_mode" not in columns:
+            logger.info("webdav_configs: default_backup_mode 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE webdav_configs ADD COLUMN default_backup_mode VARCHAR DEFAULT 'full'"))
+            db.commit()
+            logger.info("webdav_configs: default_backup_mode 列添加成功")
+    except Exception as e:
+        logger.error(f"webdav_configs default_backup_mode 迁移失败: {e}")
+    finally:
+        db.close()
+
+
 
 def init_db():
     engine = get_engine()
@@ -255,6 +272,7 @@ def init_db():
     migrate_subscriptions_fetch_time()
     migrate_video_tasks_multiuser_columns()
     migrate_users_security_columns()
+    migrate_webdav_default_backup_mode()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户

@@ -73,8 +73,16 @@ class WebDAVConfigRequest(BaseModel):
     username: str
     password: str
     path: Optional[str] = "/"
+    default_backup_mode: Optional[str] = "full"
     auto_backup_enabled: Optional[int] = 0
     auto_backup_schedule: Optional[str] = "0 2 * * *"
+
+    @field_validator("default_backup_mode")
+    @classmethod
+    def validate_backup_mode(cls, v):
+        if v not in ("full", "quick"):
+            raise ValueError("备份方式必须为 full 或 quick")
+        return v
 
     @field_validator("path")
     @classmethod
@@ -139,6 +147,7 @@ def get_config(current_user=Depends(get_current_user)) -> dict:
             "username": config.username,
             "password": "********",
             "path": config.path,
+            "default_backup_mode": config.default_backup_mode or "full",
             "auto_backup_enabled": config.auto_backup_enabled == 1,
             "auto_backup_schedule": config.auto_backup_schedule,
             "last_backup_at": config.last_backup_at.isoformat() if config.last_backup_at else None,
@@ -159,6 +168,7 @@ def save_config(data: WebDAVConfigRequest, current_user=Depends(require_admin)) 
             username=data.username,
             password=data.password,
             path=data.path,
+            default_backup_mode=data.default_backup_mode,
             auto_backup_enabled=data.auto_backup_enabled,
             auto_backup_schedule=data.auto_backup_schedule
         )
@@ -186,6 +196,7 @@ def update_config(data: WebDAVConfigRequest, current_user=Depends(require_admin)
             username=data.username,
             password=actual_password,
             path=data.path,
+            default_backup_mode=data.default_backup_mode,
             auto_backup_enabled=data.auto_backup_enabled,
             auto_backup_schedule=data.auto_backup_schedule
         )
@@ -227,7 +238,7 @@ def test_connection(data: TestConnectionRequest, current_user=Depends(get_curren
 
 # ==================== 备份操作 ====================
 
-def _run_backup_async(backup_type: str, target: str):
+def _run_backup_async(backup_type: str, target: str, backup_mode: str = "full"):
     """后台线程执行备份，捕获异常避免线程静默退出"""
     try:
         if target == "local":
@@ -236,7 +247,7 @@ def _run_backup_async(backup_type: str, target: str):
             svc.client = None
         else:
             svc = WebDAVBackup()
-        svc.create_backup(backup_type=backup_type, target=target)
+        svc.create_backup(backup_type=backup_type, target=target, backup_mode=backup_mode)
     except Exception as e:
         logger.error(f"后台备份失败: {e}")
     finally:
@@ -255,8 +266,12 @@ def _run_restore_async(zip_path: Path):
 
 
 @router.post("/backup")
-def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual", current_user=Depends(require_admin)) -> dict:
-    """手动触发备份（异步，上传到 WebDAV）"""
+def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual", backup_mode: str = "full", current_user=Depends(require_admin)) -> dict:
+    """手动触发备份（异步，上传到 WebDAV）
+
+    Args:
+        backup_mode: full=全部备份(含媒体) / quick=快速备份(仅配置)
+    """
     try:
         if not acquire_backup_lock():
             status = get_backup_status()
@@ -265,7 +280,10 @@ def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual"
         if not config:
             release_backup_lock()
             return R.error(msg="请先配置 WebDAV 连接")
-        threading.Thread(target=_run_backup_async, args=(backup_type, "webdav"), daemon=True).start()
+        # backup_mode 未指定时使用配置的默认值
+        if backup_mode == "full" and config.default_backup_mode:
+            backup_mode = config.default_backup_mode
+        threading.Thread(target=_run_backup_async, args=(backup_type, "webdav", backup_mode), daemon=True).start()
         return R.success(data={"started": True}, msg="备份已开始，请查看进度")
     except Exception as e:
         logger.error(f"启动备份失败: {e}")
@@ -274,13 +292,21 @@ def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual"
 
 
 @router.post("/backup/local")
-def create_local_backup(background_tasks: BackgroundTasks, current_user=Depends(require_admin)) -> dict:
-    """导出整机包到本地（异步，不依赖 WebDAV）"""
+def create_local_backup(background_tasks: BackgroundTasks, backup_mode: str = "full", current_user=Depends(require_admin)) -> dict:
+    """导出整机包到本地（异步，不依赖 WebDAV）
+
+    Args:
+        backup_mode: full=全部备份(含媒体) / quick=快速备份(仅配置)
+    """
     try:
         if not acquire_backup_lock():
             status = get_backup_status()
             return R.error(msg=f"操作正在执行中: {status['message']}")
-        threading.Thread(target=_run_backup_async, args=("manual", "local"), daemon=True).start()
+        # 读配置的默认备份方式
+        config = dao_get_config()
+        if backup_mode == "full" and config and config.default_backup_mode:
+            backup_mode = config.default_backup_mode
+        threading.Thread(target=_run_backup_async, args=("manual", "local", backup_mode), daemon=True).start()
         return R.success(data={"started": True}, msg="导出已开始，请查看进度")
     except Exception as e:
         logger.error(f"启动本地导出失败: {e}")

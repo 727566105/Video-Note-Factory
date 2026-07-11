@@ -23,7 +23,7 @@ import { useWebDAVStore } from '@/store/webdavStore'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Info, CheckCircle2, XCircle, Eye, EyeOff, Upload, Download, Clock, Trash2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Info, CheckCircle2, XCircle, Eye, EyeOff, Upload, Download, Clock, Trash2, RefreshCw, ChevronDown, ChevronUp, Package, Zap } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,7 @@ const WebDAVConfigSchema = z.object({
   username: z.string().min(1, '用户名不能为空'),
   password: z.string().min(1, '密码不能为空'),
   path: z.string().default('/'),
+  default_backup_mode: z.enum(['full', 'quick']).default('full'),
   auto_backup_enabled: z.boolean().default(false),
   auto_backup_schedule: z.string().default('0 2 * * *'),
 })
@@ -49,6 +50,10 @@ type WebDAVConfigFormValues = z.infer<typeof WebDAVConfigSchema>
 
 // Cron 预设选项
 const CRON_PRESETS = [
+  { label: '每小时', value: '0 * * * *' },
+  { label: '每 2 小时', value: '0 */2 * * *' },
+  { label: '每 6 小时', value: '0 */6 * * *' },
+  { label: '每 12 小时', value: '0 */12 * * *' },
   { label: '每天凌晨 2 点', value: '0 2 * * *' },
   { label: '每天凌晨 3 点', value: '0 3 * * *' },
   { label: '每天凌晨 4 点', value: '0 4 * * *' },
@@ -91,6 +96,9 @@ const WebDAVSettings = () => {
 
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showDetailedInfo, setShowDetailedInfo] = useState(false)
+  // 备份方式选择弹窗
+  const [backupModeDialogOpen, setBackupModeDialogOpen] = useState(false)
+  const [selectedBackupMode, setSelectedBackupMode] = useState<'full' | 'quick'>('full')
 
   // 删除确认弹窗
   const [deleteConfigDialogOpen, setDeleteConfigDialogOpen] = useState(false)
@@ -104,6 +112,7 @@ const WebDAVSettings = () => {
       username: '',
       password: '',
       path: '/',
+      default_backup_mode: 'full',
       auto_backup_enabled: false,
       auto_backup_schedule: '0 2 * * *',
     },
@@ -158,6 +167,7 @@ const WebDAVSettings = () => {
         username: config.username || '',
         password: isMaskedPassword ? '' : (config.password || ''),
         path: config.path || '/',
+        default_backup_mode: (config as Record<string, unknown>).default_backup_mode as string || 'full',
         auto_backup_enabled: config.auto_backup_enabled === 1,
         auto_backup_schedule: config.auto_backup_schedule || '0 2 * * *',
       })
@@ -257,6 +267,7 @@ const WebDAVSettings = () => {
         username: '',
         password: '',
         path: '/',
+        default_backup_mode: 'full',
         auto_backup_enabled: false,
         auto_backup_schedule: '0 2 * * *',
       })
@@ -265,11 +276,20 @@ const WebDAVSettings = () => {
     }
   }
 
-  // 手动备份
-  const handleBackup = async () => {
+  // 手动备份 - 打开方式选择弹窗
+  const handleBackup = () => {
+    // 默认选中配置设的值
+    const configuredMode = form.getValues('default_backup_mode') as 'full' | 'quick'
+    setSelectedBackupMode(configuredMode || 'full')
+    setBackupModeDialogOpen(true)
+  }
+
+  // 确认备份
+  const handleConfirmBackup = async () => {
+    setBackupModeDialogOpen(false)
     try {
-      await createBackup()
-      toast.success('备份成功')
+      await createBackup(selectedBackupMode)
+      toast.success(selectedBackupMode === 'quick' ? '快速备份成功' : '全部备份成功')
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '未知错误'
       toast.error(`备份失败：${message}`)
@@ -482,6 +502,38 @@ const WebDAVSettings = () => {
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="default_backup_mode"
+              render={({ field }) => (
+                <FormItem className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+                  <FormLabel className="text-sm font-medium text-foreground sm:text-right">
+                    默认备份方式
+                  </FormLabel>
+                  <div className="sm:col-span-3">
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="选择备份方式" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="full">全部备份（含笔记/媒体）</SelectItem>
+                        <SelectItem value="quick">快速备份（仅配置）</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription className="text-xs">
+                      全部备份包含完整数据；快速备份仅含配置（AI/Cookie/WebDAV等），体积小、秒级完成
+                    </FormDescription>
+                    <FormMessage />
+                  </div>
+                </FormItem>
+              )}
+            />
+
             {/* 测试结果 */}
             {testingResult && (
               <Alert
@@ -672,6 +724,7 @@ const WebDAVSettings = () => {
                 <thead className="bg-muted text-xs uppercase text-foreground">
                   <tr>
                     <th className="px-4 py-3">文件名</th>
+                    <th className="px-4 py-3">类型</th>
                     <th className="px-4 py-3">大小</th>
                     <th className="px-4 py-3 text-right">操作</th>
                   </tr>
@@ -684,6 +737,15 @@ const WebDAVSettings = () => {
                     >
                       <td className="px-4 py-3 font-mono text-xs">
                         {backup.name}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${
+                          (backup as Record<string, unknown>).mode === 'quick'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {(backup as Record<string, unknown>).mode === 'quick' ? '快速' : '全部'}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {formatFileSize(backup.size)}
@@ -788,6 +850,67 @@ const WebDAVSettings = () => {
         variant="destructive"
         onConfirm={() => pendingDeleteBackupName && handleDeleteBackup(pendingDeleteBackupName)}
       />
+
+      {/* 备份方式选择弹窗 */}
+      <Dialog open={backupModeDialogOpen} onOpenChange={setBackupModeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>选择备份方式</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <button
+              type="button"
+              onClick={() => setSelectedBackupMode('full')}
+              className={`w-full rounded-lg border-2 p-4 text-left transition-colors ${
+                selectedBackupMode === 'full'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/40'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package className="size-5 text-primary" />
+                  <span className="font-medium">全部备份</span>
+                </div>
+                {selectedBackupMode === 'full' && <CheckCircle2 className="size-5 text-primary" />}
+              </div>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                完整数据含笔记正文、封面、截图、音视频
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedBackupMode('quick')}
+              className={`w-full rounded-lg border-2 p-4 text-left transition-colors ${
+                selectedBackupMode === 'quick'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/40'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap className="size-5 text-amber-500" />
+                  <span className="font-medium">快速备份</span>
+                </div>
+                {selectedBackupMode === 'quick' && <CheckCircle2 className="size-5 text-primary" />}
+              </div>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                仅配置不含笔记媒体，秒级完成
+              </p>
+            </button>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setBackupModeDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleConfirmBackup}>
+              <Upload className="mr-2 h-4 w-4" />
+              开始备份
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

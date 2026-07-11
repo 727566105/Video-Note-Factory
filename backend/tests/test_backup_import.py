@@ -9,6 +9,7 @@ import json
 import sqlite3
 import zipfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -575,3 +576,101 @@ def test_restore_upload_route_not_shadowed(tmp_path, monkeypatch):
     assert body["code"] != 0, "应被拒绝"
     assert ".zip" in body["msg"], f"应命中 restore_from_upload（.zip 校验），实际: {body['msg']}"
     assert "WebDAV" not in body["msg"], "不应被 /restore/{{backup_name}} shadow 到 WebDAV 守卫"
+
+
+# ==================== ⑤ 快速备份 vs 全部备份 ====================
+
+def test_quick_backup_excludes_video_files(tmp_path, monkeypatch):
+    """快速备份 zip 内无 video/ 条目"""
+    src = tmp_path / "src"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "bilibili" / "a" / "v").mkdir(parents=True)
+    (webdav_backup.VIDEO_DIR / "bilibili" / "a" / "v" / "note.md").write_text("# t")
+    (webdav_backup.VIDEO_DIR / "bilibili" / "a" / "v" / "audio.mp3").write_bytes(b"audio")
+    _seed_db(webdav_backup.DB_FILE, [(1, "t1")])
+    _stub_export(monkeypatch)
+    # Cookie 文件存在但快速模式也不应影响（Cookie 仍打包）
+    webdav_backup.COOKIE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    webdav_backup.COOKIE_CONFIG_FILE.write_text('{"douyin":{"cookie":"x"}}', encoding="utf-8")
+
+    res = _make_service().create_backup(backup_type="manual", target="local", backup_mode="quick")
+    zip_path = webdav_backup.LOCAL_BACKUP_DIR / res["filename"]
+
+    with zipfile.ZipFile(zip_path) as zf:
+        names = zf.namelist()
+    # 快速备份不含 video/ 条目
+    assert not any(n.startswith("video/") for n in names), f"快速备份不应包含 video/ 文件: {names}"
+    # 但含 DB
+    assert "video_note.db" in names
+
+
+def test_quick_backup_includes_db_and_configs(tmp_path, monkeypatch):
+    """快速备份包含 DB + configs.json + Cookie"""
+    src = tmp_path / "src"
+    _point(monkeypatch, src)
+    _seed_db(webdav_backup.DB_FILE, [(1, "t1")])
+    # 不 stub configs，让它生成真实 configs.json
+    monkeypatch.setattr("app.services.webdav_backup.add_backup_record", lambda **kw: None)
+    webdav_backup.COOKIE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    webdav_backup.COOKIE_CONFIG_FILE.write_text('{"douyin":{"cookie":"x"}}', encoding="utf-8")
+
+    res = _make_service().create_backup(backup_type="manual", target="local", backup_mode="quick")
+    zip_path = webdav_backup.LOCAL_BACKUP_DIR / res["filename"]
+
+    with zipfile.ZipFile(zip_path) as zf:
+        names = zf.namelist()
+    assert "video_note.db" in names, "快速备份应含数据库"
+    assert "configs.json" in names, "快速备份应含 configs.json"
+    assert webdav_backup.COOKIE_ARCNAME in names, f"快速备份应含 Cookie 文件: {webdav_backup.COOKIE_ARCNAME}"
+
+
+def test_quick_backup_filename_prefix(tmp_path, monkeypatch):
+    """快速备份文件名为 videonote_quick_*.zip"""
+    src = tmp_path / "src"
+    _point(monkeypatch, src)
+    _seed_db(webdav_backup.DB_FILE, [(1, "t1")])
+    _stub_export(monkeypatch)
+
+    res = _make_service().create_backup(backup_type="manual", target="local", backup_mode="quick")
+    assert res["filename"].startswith("videonote_quick_"), f"文件名前缀错误: {res['filename']}"
+    assert res["filename"].endswith(".zip")
+
+
+def test_full_backup_includes_video_files(tmp_path, monkeypatch):
+    """全部备份仍包含 video/ 条目（回归）"""
+    src = tmp_path / "src"
+    _point(monkeypatch, src)
+    (webdav_backup.VIDEO_DIR / "bilibili" / "a" / "v").mkdir(parents=True)
+    (webdav_backup.VIDEO_DIR / "bilibili" / "a" / "v" / "note.md").write_text("# t")
+    _seed_db(webdav_backup.DB_FILE, [(1, "t1")])
+    _stub_export(monkeypatch)
+
+    res = _make_service().create_backup(backup_type="manual", target="local", backup_mode="full")
+    zip_path = webdav_backup.LOCAL_BACKUP_DIR / res["filename"]
+
+    with zipfile.ZipFile(zip_path) as zf:
+        names = zf.namelist()
+    assert any(n.startswith("video/") for n in names), "全部备份应包含 video/ 文件"
+    assert res["filename"].startswith("videonote_backup_"), "全部备份文件名前缀应为 videonote_backup_"
+
+
+def test_list_backups_returns_mode_field(tmp_path, monkeypatch):
+    """备份列表返回 mode 字段（从文件名前缀解析）"""
+    from app.services.webdav_backup import WebDAVBackup
+
+    svc = WebDAVBackup.__new__(WebDAVBackup)
+    svc.config = MagicMock()
+    svc.config.path = "/"
+    svc.client = MagicMock()
+
+    # mock list 返回两种文件名
+    svc.client.list.return_value = [
+        "videonote_backup_20260711_000000.zip",
+        "videonote_quick_20260711_000001.zip",
+    ]
+    svc.client.info.return_value = {"size": "1024"}
+
+    backups = svc.list_backups()
+    modes = {b["name"]: b["mode"] for b in backups}
+    assert modes["videonote_backup_20260711_000000.zip"] == "full"
+    assert modes["videonote_quick_20260711_000001.zip"] == "quick"

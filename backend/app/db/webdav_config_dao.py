@@ -46,7 +46,8 @@ def get_config() -> WebDAVConfig | None:
 
 
 def upsert_config(url: str, username: str, password: str, path: str = '/',
-                 auto_backup_enabled: int = 0, auto_backup_schedule: str = '0 2 * * *') -> int:
+                 auto_backup_enabled: int = 0, auto_backup_schedule: str = '0 2 * * *',
+                 default_backup_mode: str = 'full') -> int:
     """保存或更新 WebDAV 配置"""
     _check_key_available()  # 检查密钥是否可用
     db = next(get_db())
@@ -64,6 +65,7 @@ def upsert_config(url: str, username: str, password: str, path: str = '/',
             config.path = path
             config.auto_backup_enabled = auto_backup_enabled
             config.auto_backup_schedule = auto_backup_schedule
+            config.default_backup_mode = default_backup_mode
             db.commit()
             logger.info(f"Updated WebDAV config: {config.id}")
         else:
@@ -74,7 +76,8 @@ def upsert_config(url: str, username: str, password: str, path: str = '/',
                 password=encrypted_password,
                 path=path,
                 auto_backup_enabled=auto_backup_enabled,
-                auto_backup_schedule=auto_backup_schedule
+                auto_backup_schedule=auto_backup_schedule,
+                default_backup_mode=default_backup_mode
             )
             db.add(config)
             db.commit()

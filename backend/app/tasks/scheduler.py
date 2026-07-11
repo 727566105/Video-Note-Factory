@@ -38,9 +38,12 @@ def backup_job():
             logger.info("Auto backup is disabled, skipping")
             return
 
+        # 使用配置的默认备份方式（full/quick）
+        backup_mode = config.default_backup_mode or "full"
+
         # 执行备份
         backup_service = WebDAVBackup(config)
-        result = backup_service.create_backup(backup_type="auto")
+        result = backup_service.create_backup(backup_type="auto", backup_mode=backup_mode)
 
         logger.info(f"Scheduled backup completed: {result}")
 
