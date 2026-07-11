@@ -24,7 +24,7 @@ export function ConfigHealthBanner() {
   return (
     <Alert
       variant={status === "error" ? "destructive" : "warning"}
-      className="mb-4 max-w-2xl w-full"
+      className="absolute left-1/2 top-4 z-20 max-w-2xl w-full -translate-x-1/2"
     >
       <AlertDescription className="flex flex-col gap-3">
         <div className="font-medium text-base">
