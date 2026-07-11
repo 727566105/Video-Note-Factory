@@ -170,13 +170,42 @@ export default function McpSettings() {
   }
 
   const handleCopy = async (text: string) => {
+    // 优先用 Clipboard API（需 HTTPS 或 localhost），不可用时降级到 execCommand
+    const fallbackCopy = (str: string): boolean => {
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = str
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        ta.style.pointerEvents = 'none'
+        document.body.appendChild(ta)
+        ta.select()
+        const ok = document.execCommand('copy')
+        document.body.removeChild(ta)
+        return ok
+      } catch {
+        return false
+      }
+    }
+
+    let ok = false
     try {
-      await navigator.clipboard.writeText(text)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text)
+        ok = true
+      } else {
+        ok = fallbackCopy(text)
+      }
+    } catch {
+      ok = fallbackCopy(text)
+    }
+
+    if (ok) {
       setCopied(true)
       toast.success('已复制到剪贴板')
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      toast.error('复制失败')
+    } else {
+      toast.error('复制失败，请手动选择文本复制')
     }
   }
 
