@@ -17,7 +17,6 @@ const SiyuanSettings = lazy(() => import('@/pages/SettingPage/Siyuan.tsx'))
 const ObsidianSettings = lazy(() => import('@/pages/SettingPage/Obsidian.tsx'))
 const WebDAVSettings = lazy(() => import('@/pages/SettingPage/WebDAV.tsx'))
 const DataSettings = lazy(() => import('@/pages/SettingPage/DataSettings.tsx'))
-const NoteSharePage = lazy(() => import('@/pages/SettingPage/NoteShare.tsx'))
 const McpSettings = lazy(() => import('@/pages/SettingPage/McpSettings.tsx'))
 const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
 const DownloaderForm = lazy(() => import('@/components/Form/DownloaderForm/Form.tsx'))
@@ -164,7 +163,6 @@ function App() {
               <Route path="webdav" element={<Suspense fallback={<PageLoader />}><WebDAVSettings /></Suspense>} />
               <Route path="data" element={<Suspense fallback={<PageLoader />}><DataSettings /></Suspense>} />
               <Route path="mcp" element={<Suspense fallback={<PageLoader />}><McpSettings /></Suspense>} />
-              <Route path="share" element={<Suspense fallback={<PageLoader />}><NoteSharePage /></Suspense>} />
               <Route path="about" element={<Suspense fallback={<PageLoader />}><AboutPage /></Suspense>} />
               <Route path="profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />
               <Route path="subscription" element={<AdminRoute><Suspense fallback={<PageLoader />}><SubscriptionSettings /></Suspense></AdminRoute>} />
