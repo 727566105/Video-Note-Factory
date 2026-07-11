@@ -4,23 +4,20 @@ import {
   Bell,
   BookOpen,
   Box,
-  ChevronRight,
   DatabaseBackup,
   Download,
   HardDrive,
   Info,
   ListTodo,
+  Plug,
   Settings,
   Share2,
-  ShieldCheck,
   Sparkles,
   User,
   UserCog,
-  WandSparkles,
 } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useAuthStore } from '@/store/authStore'
-import { ThemeModeSelector } from '@/components/ThemeModeSelector'
 
 type SettingItem = {
   path: string
@@ -141,6 +138,12 @@ const settingGroups: SettingGroup[] = [
         adminOnly: true,
       },
       {
+        path: '/settings/mcp',
+        label: 'MCP 设置',
+        description: 'AI 客户端接入与 API Key 管理',
+        icon: <Plug className="size-4" />,
+      },
+      {
         path: '/settings/about',
         label: '关于',
         description: '版本、项目和支持信息',
@@ -163,109 +166,6 @@ function isActivePath(pathname: string, itemPath: string) {
   return pathname === itemPath || pathname.startsWith(`${itemPath}/`)
 }
 
-function SettingsHome({
-  groups,
-  isAdmin,
-}: {
-  groups: SettingGroup[]
-  isAdmin: boolean
-}) {
-  const navigate = useNavigate()
-  const totalItems = groups.reduce((count, group) => count + group.items.length, 0)
-
-  return (
-    <div className="h-full overflow-auto bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted)/0.46)_100%)]">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 md:p-6 lg:p-8">
-        <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
-          <div
-            className="absolute inset-0 bg-cover bg-center opacity-80"
-            style={{ backgroundImage: "url('/settings-background.svg')" }}
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--background))_0%,hsl(var(--background)/0.88)_43%,hsl(var(--background)/0.38)_100%)]" />
-          <div className="relative flex min-h-[190px] flex-col justify-end gap-4 p-5 md:p-7">
-            <div className="flex w-fit items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
-              <Settings className="size-3.5 text-primary" />
-              设置中心
-            </div>
-            <div className="max-w-2xl">
-              <h1 className="text-2xl font-semibold tracking-normal text-foreground md:text-3xl">
-                把账号、AI、同步和系统管理收在一个清晰入口
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground md:text-base">
-                当前可配置 {totalItems} 个模块，按使用频率和职责边界重新分组。
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-5">
-            {groups.map(group => (
-              <section key={group.id} className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">{group.title}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
-                  </div>
-                  <div className={`h-10 w-16 rounded-full bg-gradient-to-br ${group.accent}`} />
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {group.items.map(item => (
-                    <button
-                      key={item.path}
-                      onClick={() => navigate(item.path)}
-                      className="group flex min-h-[118px] flex-col justify-between rounded-xl border border-border/70 bg-background p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="flex items-center justify-between gap-3">
-                        <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                          {item.icon}
-                        </span>
-                        <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                      </span>
-                      <span>
-                        <span className="block text-sm font-semibold text-foreground">{item.label}</span>
-                        <span className="mt-1 block text-sm leading-5 text-muted-foreground">{item.description}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-
-          <aside className="space-y-4">
-            <section className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
-              <ThemeModeSelector />
-            </section>
-            <section className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-600">
-                  <ShieldCheck className="size-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">当前权限</h2>
-                  <p className="text-sm text-muted-foreground">{isAdmin ? '管理员工作台' : '个人工作区'}</p>
-                </div>
-              </div>
-            </section>
-            <section className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <WandSparkles className="size-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">建议顺序</h2>
-                  <p className="text-sm leading-5 text-muted-foreground">先完成模型和下载配置，再接入同步与备份。</p>
-                </div>
-              </div>
-            </section>
-          </aside>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function SettingsNavigation({
   groups,
   pathname,
@@ -279,7 +179,7 @@ function SettingsNavigation({
     <aside className="hidden w-[284px] shrink-0 border-r border-border/70 bg-muted/25 lg:flex lg:flex-col">
       <div className="border-b border-border/70 p-5">
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/settings/profile')}
           className="group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-background"
         >
           <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
@@ -332,63 +232,7 @@ function SettingsNavigation({
           </div>
         ))}
       </nav>
-      <div className="border-t border-border/70 p-4">
-        <div className="rounded-2xl border border-border/70 bg-background/70 p-3 shadow-sm">
-          <ThemeModeSelector compact />
-        </div>
-      </div>
     </aside>
-  )
-}
-
-function MobileSettingsHome({ groups }: { groups: SettingGroup[] }) {
-  const navigate = useNavigate()
-
-  return (
-    <div className="h-full overflow-auto bg-background p-4">
-      <div className="mb-5 rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Settings className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">设置中心</h1>
-            <p className="text-sm text-muted-foreground">按场景整理配置入口</p>
-          </div>
-        </div>
-      </div>
-      <div className="mb-5 rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
-        <ThemeModeSelector compact />
-      </div>
-      <div className="space-y-5">
-        {groups.map(group => (
-          <section key={group.id}>
-            <div className="mb-2 px-1">
-              <h2 className="text-sm font-semibold text-foreground">{group.title}</h2>
-              <p className="text-xs text-muted-foreground">{group.description}</p>
-            </div>
-            <div className="space-y-2">
-              {group.items.map(item => (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card px-3 py-3 text-left shadow-sm transition-colors active:bg-muted"
-                >
-                  <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    {item.icon}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-foreground">{item.label}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{item.description}</span>
-                  </span>
-                  <ChevronRight className="size-4 text-muted-foreground" />
-                </button>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
   )
 }
 
@@ -398,7 +242,6 @@ const SettingLayout = () => {
   const location = useLocation()
   const isAdmin = useAuthStore(state => state.isAdmin())
   const groups = React.useMemo(() => getVisibleGroups(isAdmin), [isAdmin])
-  const isSettingsRoot = location.pathname === '/settings'
 
   React.useEffect(() => {
     setMounted(true)
@@ -409,14 +252,6 @@ const SettingLayout = () => {
       <div className="flex h-full items-center justify-center bg-background">
         <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
-    )
-  }
-
-  if (isSettingsRoot) {
-    return isMobile ? (
-      <MobileSettingsHome groups={groups} />
-    ) : (
-      <SettingsHome groups={groups} isAdmin={isAdmin} />
     )
   }
 

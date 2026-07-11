@@ -71,7 +71,11 @@ async def lifespan(app: FastAPI):
     logger.info(f"应用启动中，转写器类型: {transcriber_type}")
     asyncio.create_task(warm_up_transcriber_async(transcriber_type))
 
-    yield
+    # 启动 MCP Server session manager
+    from app.mcp_server import mcp
+    mcp_app = mcp.streamable_http_app()
+    async with mcp.session_manager.run():
+        yield
 
     # 关闭定时任务调度器
     from app.tasks.scheduler import shutdown_scheduler

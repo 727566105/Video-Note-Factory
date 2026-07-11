@@ -11,6 +11,9 @@ from app.db.user_dao import (
     get_all_users,
     update_user,
     delete_user,
+    generate_api_key,
+    get_api_key_info,
+    clear_api_key,
 )
 from app.utils.response import ResponseWrapper as R
 
@@ -123,3 +126,30 @@ def change_password(req: ChangePasswordRequest, current_user=Depends(get_current
         raise HTTPException(status_code=400, detail="新密码长度不能少于6位")
     update_user(current_user.id, password=req.new_password)
     return R.success(msg="密码修改成功")
+
+
+@router.post("/api-key/generate")
+def generate_user_api_key(current_user=Depends(get_current_user)) -> dict:
+    """生成或重置当前用户的 API Key（用于 MCP 鉴权）。
+    明文仅返回这一次，后续只能查看脱敏。"""
+    try:
+        api_key = generate_api_key(current_user.id)
+        return R.success(data={"api_key": api_key}, msg="API Key 已生成，请立即保存")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/api-key")
+def get_user_api_key(current_user=Depends(get_current_user)) -> dict:
+    """获取当前用户的 API Key 信息（脱敏显示，不返回明文）"""
+    info = get_api_key_info(current_user.id)
+    return R.success(data=info)
+
+
+@router.delete("/api-key")
+def revoke_user_api_key(current_user=Depends(get_current_user)) -> dict:
+    """撤销当前用户的 API Key"""
+    ok = clear_api_key(current_user.id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="清除失败")
+    return R.success(msg="API Key 已撤销")

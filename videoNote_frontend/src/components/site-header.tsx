@@ -159,7 +159,7 @@ export function SiteHeader() {
     } else if (pathname.startsWith('/library/')) {
       navigate('/library')
     } else if (pathname.startsWith('/settings/')) {
-      navigate('/settings')
+      navigate('/')
     } else {
       navigate(-1)
     }
@@ -220,7 +220,7 @@ export function SiteHeader() {
             </DropdownMenuItem>
             <DropdownMenuItem
               className="cursor-pointer"
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate('/settings/profile')}
             >
               <Settings className="mr-2 h-4 w-4" />
               设置中心

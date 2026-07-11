@@ -69,6 +69,12 @@ export default defineConfig(() => {
           changeOrigin: true,
           rewrite: path => path.replace(/^\/api/, '/api'),
         },
+        '/mcp': {
+          target: apiBaseUrl,
+          changeOrigin: true,
+          // MCP Streamable HTTP 需要 WebSocket/SSE 支持，不重写路径
+          ws: false,
+        },
         '/static': {
           target: apiBaseUrl,
           changeOrigin: true,

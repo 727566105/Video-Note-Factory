@@ -605,11 +605,11 @@ export function ExportDialog({ open, onOpenChange, task, selectedContent, collec
                     <h4 className="mb-1.5 font-semibold text-muted-foreground">高级设置</h4>
                     <Separator className="mb-2" />
                     <div className="flex flex-col gap-y-1">
-                      <a href="/settings" className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors">
+                      <a href="/settings/profile" className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors">
                         <Cloud className="mr-2 size-4" />
                         管理 API 集成
                       </a>
-                      <a href="/settings" className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors">
+                      <a href="/settings/profile" className="flex w-full items-center justify-start rounded-lg border bg-card p-1.5 text-sm shadow-xs hover:bg-accent transition-colors">
                         <SquarePen className="mr-2 size-4" />
                         笔记导出设置
                       </a>

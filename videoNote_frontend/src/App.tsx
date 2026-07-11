@@ -18,6 +18,7 @@ const ObsidianSettings = lazy(() => import('@/pages/SettingPage/Obsidian.tsx'))
 const WebDAVSettings = lazy(() => import('@/pages/SettingPage/WebDAV.tsx'))
 const DataSettings = lazy(() => import('@/pages/SettingPage/DataSettings.tsx'))
 const NoteSharePage = lazy(() => import('@/pages/SettingPage/NoteShare.tsx'))
+const McpSettings = lazy(() => import('@/pages/SettingPage/McpSettings.tsx'))
 const Downloader = lazy(() => import('@/pages/SettingPage/Downloader.tsx'))
 const DownloaderForm = lazy(() => import('@/components/Form/DownloaderForm/Form.tsx'))
 const TaskQueueSettings = lazy(() => import('@/pages/SettingPage/TaskQueue.tsx'))
@@ -149,7 +150,7 @@ function App() {
             <Route path="library" element={<Suspense fallback={<PageLoader />}><LibraryPage /></Suspense>} />
             <Route path="library/:id" element={<Suspense fallback={<PageLoader />}><CollectionDetail /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingPage /></Suspense>}>
-              {/* 移动端由 SettingLayout 显示设置列表，桌面端重定向由 SettingLayout 内部处理 */}
+              <Route index element={<Navigate to="/settings/profile" replace />} />
               <Route path="model" element={<AdminRoute><Suspense fallback={<PageLoader />}><Model /></Suspense></AdminRoute>}>
                 <Route path="new" element={<Suspense fallback={<PageLoader />}><ProviderForm isCreate /></Suspense>} />
                 <Route path=":id" element={<Suspense fallback={<PageLoader />}><ProviderForm /></Suspense>} />
@@ -162,6 +163,7 @@ function App() {
               <Route path="obsidian" element={<Suspense fallback={<PageLoader />}><ObsidianSettings /></Suspense>} />
               <Route path="webdav" element={<Suspense fallback={<PageLoader />}><WebDAVSettings /></Suspense>} />
               <Route path="data" element={<Suspense fallback={<PageLoader />}><DataSettings /></Suspense>} />
+              <Route path="mcp" element={<Suspense fallback={<PageLoader />}><McpSettings /></Suspense>} />
               <Route path="share" element={<Suspense fallback={<PageLoader />}><NoteSharePage /></Suspense>} />
               <Route path="about" element={<Suspense fallback={<PageLoader />}><AboutPage /></Suspense>} />
               <Route path="profile" element={<Suspense fallback={<PageLoader />}><ProfilePage /></Suspense>} />

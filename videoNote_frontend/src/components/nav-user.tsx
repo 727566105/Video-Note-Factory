@@ -135,7 +135,7 @@ export function NavUser({
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer"
-                onClick={() => navigate('/settings')}
+                onClick={() => navigate('/settings/profile')}
               >
                 <Settings className="mr-2 h-4 w-4" />
                 设置中心

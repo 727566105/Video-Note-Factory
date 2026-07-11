@@ -28,4 +28,8 @@ def create_app(lifespan) -> FastAPI:
     app.include_router(obsidian.router, prefix="/api/obsidian")
     app.include_router(note_share.router, prefix="/api/notes/share", tags=["笔记分享"])
 
+    # 挂载 MCP Server（Streamable HTTP，内部路由 /mcp）
+    from app.mcp_server import mcp_auth_middleware
+    app.mount("/", mcp_auth_middleware)
+
     return app

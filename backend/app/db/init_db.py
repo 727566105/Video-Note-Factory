@@ -259,6 +259,38 @@ def migrate_webdav_default_backup_mode():
         db.close()
 
 
+def migrate_users_api_key():
+    """迁移：users 添加 api_key 列（MCP 鉴权用）"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(users)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "api_key" not in columns:
+            logger.info("users: api_key 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE users ADD COLUMN api_key VARCHAR"))
+            db.commit()
+            logger.info("users: api_key 列添加成功")
+        if "api_key_hash" not in columns:
+            logger.info("users: api_key_hash 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE users ADD COLUMN api_key_hash VARCHAR"))
+            db.commit()
+            logger.info("users: api_key_hash 列添加成功")
+
+        # 回填：已有 api_key 明文的计算 hash
+        from app.db.models.users import User
+        import hashlib
+        users_with_plain = db.query(User).filter(User.api_key.isnot(None), User.api_key_hash.is_(None)).all()
+        for u in users_with_plain:
+            u.api_key_hash = hashlib.sha256(u.api_key.encode()).hexdigest()
+        if users_with_plain:
+            db.commit()
+            logger.info(f"users: 已为 {len(users_with_plain)} 个用户回填 api_key_hash")
+    except Exception as e:
+        logger.error(f"users api_key 迁移失败: {e}")
+    finally:
+        db.close()
+
+
 
 def init_db():
     engine = get_engine()
@@ -273,6 +305,7 @@ def init_db():
     migrate_video_tasks_multiuser_columns()
     migrate_users_security_columns()
     migrate_webdav_default_backup_mode()
+    migrate_users_api_key()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户

@@ -1,4 +1,7 @@
 import os
+import secrets
+import hashlib
+import re
 from datetime import datetime, timezone
 from app.db.models.users import User
 from app.db.engine import get_db
@@ -164,5 +167,78 @@ def seed_default_user():
         db.rollback()
         logger.error(f"种子默认用户失败: {e}")
         raise
+    finally:
+        db.close()
+
+
+def generate_api_key(user_id: int) -> str:
+    """生成并保存 API Key（格式：vn_ + 32位随机hex），用于 MCP 鉴权。
+    数据库存哈希值，明文仅返回一次。"""
+    db = next(get_db())
+    try:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user:
+            raise ValueError("用户不存在")
+        api_key = f"vn_{secrets.token_hex(16)}"
+        user.api_key = api_key  # 保留明文用于前端展示脱敏（仅前8后4）
+        user.api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+        db.commit()
+        logger.info(f"用户 {user.username} 的 API Key 已生成/重置")
+        return api_key
+    except Exception as e:
+        db.rollback()
+        logger.error(f"生成 API Key 失败: {e}")
+        raise
+    finally:
+        db.close()
+
+
+# API Key 格式：vn_ + 32 位 hex（共 35 字符）
+_API_KEY_PATTERN = re.compile(r"^vn_[a-f0-9]{32}$")
+
+
+def get_user_by_api_key(api_key: str):
+    """通过 API Key 查用户（MCP 鉴权用）。
+    先格式校验，再哈希后按 hash 查询，避免明文比对和注入风险。"""
+    if not api_key or not _API_KEY_PATTERN.match(api_key):
+        return None
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    db = next(get_db())
+    try:
+        return db.query(User).filter_by(api_key_hash=key_hash).first()
+    finally:
+        db.close()
+
+
+def clear_api_key(user_id: int) -> bool:
+    """清除用户的 API Key"""
+    db = next(get_db())
+    try:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user:
+            return False
+        user.api_key = None
+        user.api_key_hash = None
+        db.commit()
+        logger.info(f"用户 {user.username} 的 API Key 已清除")
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"清除 API Key 失败: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def get_api_key_info(user_id: int) -> dict:
+    """获取用户的 API Key 信息（脱敏，不返回明文）"""
+    db = next(get_db())
+    try:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user or not user.api_key:
+            return {"exists": False, "masked": None}
+        key = user.api_key
+        masked = key[:8] + "*" * (len(key) - 12) + key[-4:] if len(key) > 12 else "****"
+        return {"exists": True, "masked": masked}
     finally:
         db.close()
