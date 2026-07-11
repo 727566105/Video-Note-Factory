@@ -27,6 +27,7 @@ from starlette.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.transport_security import TransportSecuritySettings
 
 from app.db.user_dao import get_user_by_api_key
 from app.utils.logger import get_logger
@@ -48,7 +49,16 @@ async def mcp_lifespan(server):
     yield {}
 
 
-mcp = FastMCP("VideoNote", lifespan=mcp_lifespan)
+mcp = FastMCP(
+    "VideoNote",
+    lifespan=mcp_lifespan,
+    # 禁用 DNS rebinding 保护（默认只允许 127.0.0.1/localhost），
+    # 否则局域网 IP 或域名访问时 POST /mcp 返回 421 "Invalid Host header"。
+    # VideoNote 已有 ASGI 中间件做 API Key 鉴权，不需要 SDK 层的 Host 白名单。
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+    ),
+)
 
 # 缓存 streamable_http_app，避免每次请求重建
 _mcp_starlette_app = None
