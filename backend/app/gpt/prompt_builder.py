@@ -161,6 +161,10 @@ def get_summary_format():
 
 import re
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def extract_ai_tags(markdown: str) -> list[str]:
     """从 Markdown 中提取 AI 生成的标签"""
@@ -187,6 +191,8 @@ def extract_ai_tags(markdown: str) -> list[str]:
             tag = t[0] if t[0] else t[1]
             if tag.strip():
                 result.append(tag.strip())
+        if not result:
+            logger.warning(f"AI_TAGS 标记存在但解析失败，原始内容: {tags_str[:100]}")
         return result
     return []
 

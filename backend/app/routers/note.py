@@ -1128,8 +1128,32 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
         return R.error(msg=str(e))
 
 
+class UpdateTagsRequest(BaseModel):
+    """标签更新请求，带校验"""
+    platform_tags: list[str] = []
+    ai_tags: list[str] = []
+    manual_tags: list[str] = []
+
+
+def _sanitize_tags(tags: list, max_len: int = 30, max_count: int = 50) -> list[str]:
+    """清洗标签列表：去除 HTML 标签、控制字符，限制长度和数量"""
+    import re
+    result = []
+    for tag in tags:
+        if not isinstance(tag, str):
+            continue
+        # 去除 HTML 标签和控制字符
+        clean = re.sub(r'<[^>]+>', '', tag).strip()
+        clean = ''.join(c for c in clean if c.isprintable() or c in (' ', '-'))
+        if clean and len(clean) <= max_len:
+            result.append(clean)
+        if len(result) >= max_count:
+            break
+    return result
+
+
 @router.put("/notes/{task_id}/tags")
-def update_note_tags(task_id: str, body: dict, current_user=Depends(get_current_user)) -> dict:
+def update_note_tags(task_id: str, req: UpdateTagsRequest, current_user=Depends(get_current_user)) -> dict:
     """更新笔记标签"""
     import json as json_mod
     from app.db.video_task_dao import update_task_metadata, get_task_by_task_id
@@ -1138,15 +1162,16 @@ def update_note_tags(task_id: str, body: dict, current_user=Depends(get_current_
     if not db_task or db_task.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权修改该任务")
     try:
-        platform_tags = body.get("platform_tags", [])
-        ai_tags = body.get("ai_tags", [])
-        manual_tags = body.get("manual_tags", [])
+        # 清洗标签内容
+        platform_tags = _sanitize_tags(req.platform_tags)
+        ai_tags = _sanitize_tags(req.ai_tags)
+        manual_tags = _sanitize_tags(req.manual_tags)
         tags_json = json_mod.dumps({
             "platform_tags": platform_tags,
             "ai_tags": ai_tags,
             "manual_tags": manual_tags,
-        })
-        update_task_metadata(task_id=task_id, tags=tags_json)
+        }, ensure_ascii=False)
+        update_task_metadata(task_id=task_id, tags=tags_json, user_id=current_user.id)
         return R.success(msg="标签更新成功")
     except Exception as e:
         logger.error(f"Failed to update tags: {e}")

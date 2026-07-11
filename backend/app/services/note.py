@@ -296,9 +296,13 @@ class NoteGenerator:
                         from app.db.video_task_dao import update_task_metadata
                         platform_tags = video_info.tags if hasattr(video_info, 'tags') and video_info.tags else []
                         existing_task = get_task_by_task_id(task_id)
-                        existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
-                        existing_manual = existing_tags.get("manual_tags", [])
-                        existing_ai = existing_tags.get("ai_tags", [])
+                        try:
+                            existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"task {task_id} 的 tags 字段损坏，已重置")
+                            existing_tags = {}
+                        existing_manual = existing_tags.get("manual_tags", []) if isinstance(existing_tags, dict) else []
+                        existing_ai = existing_tags.get("ai_tags", []) if isinstance(existing_tags, dict) else []
 
                         final_ai_tags = ai_tags or existing_ai or []
 
@@ -1598,9 +1602,13 @@ class NoteGenerator:
             # 构建标签 JSON（保留已有 manual_tags 和 ai_tags）
             platform_tags = audio_meta.tags if hasattr(audio_meta, 'tags') and audio_meta.tags else []
             existing_task = get_task_by_task_id(task_id)
-            existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
-            existing_manual = existing_tags.get("manual_tags", [])
-            existing_ai = existing_tags.get("ai_tags", [])
+            try:
+                existing_tags = json.loads(existing_task.tags) if existing_task and existing_task.tags else {}
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"task {task_id} 的 tags 字段损坏，已重置: {existing_task.tags if existing_task else 'N/A'}")
+                existing_tags = {}
+            existing_manual = existing_tags.get("manual_tags", []) if isinstance(existing_tags, dict) else []
+            existing_ai = existing_tags.get("ai_tags", []) if isinstance(existing_tags, dict) else []
 
             # 直接使用新生成的 AI 标签，或保留已有标签
             final_ai_tags = ai_tags or existing_ai or []

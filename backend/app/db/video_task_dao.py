@@ -119,11 +119,15 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
 def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
                          duration: float = None, author: str = None, description: str = None,
                          author_id: str = None, author_name: str = None, tags: str = None,
-                         video_id: str = None):
-    """更新任务的元数据（标题、封面、时长、作者、描述、标签）"""
+                         video_id: str = None, user_id: int = None):
+    """更新任务的元数据（标题、封面、时长、作者、描述、标签）。
+    可选传 user_id 做用户过滤，防止多用户共享 task_id 时串台。"""
     db = next(get_db())
     try:
-        task = db.query(VideoTask).filter_by(task_id=task_id).first()
+        query = db.query(VideoTask).filter_by(task_id=task_id)
+        if user_id is not None:
+            query = query.filter_by(user_id=user_id)
+        task = query.first()
         if task:
             if title is not None:
                 task.title = title
