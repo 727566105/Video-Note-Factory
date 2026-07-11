@@ -70,11 +70,13 @@ class ConfigExporter:
 
         configs: dict[str, Any] = {}
 
-        # 导出 AI 模型设置
+        # 导出 AI 模型设置（含每个供应商下的模型列表）
         try:
+            from app.db.model_dao import get_models_by_provider
             providers = get_all_providers()
-            configs["providers"] = [
-                {
+            configs["providers"] = []
+            for p in providers:
+                provider_data = {
                     "id": p.id,
                     "name": p.name,
                     "logo": p.logo,
@@ -83,22 +85,36 @@ class ConfigExporter:
                     "enabled": p.enabled,
                     "api_key": p.api_key if include_sensitive else SENSITIVE_PLACEHOLDER,
                 }
-                for p in providers
-            ]
-            logger.info(f"Exported {len(providers)} providers")
+                # 附加该供应商下的模型列表
+                try:
+                    models = get_models_by_provider(p.id)
+                    provider_data["models"] = [m["model_name"] for m in models] if models else []
+                except Exception as e:
+                    logger.warning(f"导出 provider {p.id} 的模型列表失败: {e}")
+                    provider_data["models"] = []
+                configs["providers"].append(provider_data)
+            logger.info(f"Exported {len(providers)} providers (with models)")
         except Exception as e:
             logger.error(f"Failed to export providers: {e}")
             configs["providers"] = []
 
-        # 导出下载器配置
+        # 导出下载器配置（各平台 Cookie）
         try:
+            from app.services.cookie_manager import CookieConfigManager
+            cookie_mgr = CookieConfigManager()
+            downloader_cookies = {}
+            for platform in SUPPORT_PLATFORM_MAP.keys():
+                cookie = cookie_mgr.get(platform)
+                if cookie:
+                    downloader_cookies[platform] = cookie
             configs["downloader_config"] = {
-                "enabled_platforms": list(SUPPORT_PLATFORM_MAP.keys())
+                "enabled_platforms": list(SUPPORT_PLATFORM_MAP.keys()),
+                "cookies": downloader_cookies if include_sensitive else {},
             }
-            logger.info(f"Exported downloader config: {configs['downloader_config']}")
+            logger.info(f"Exported downloader config: {len(downloader_cookies)} platforms with cookies")
         except Exception as e:
             logger.error(f"Failed to export downloader config: {e}")
-            configs["downloader_config"] = {"enabled_platforms": []}
+            configs["downloader_config"] = {"enabled_platforms": [], "cookies": {}}
 
         # 导出思源笔记配置
         try:
@@ -345,7 +361,8 @@ class ConfigImporter:
                 selected_items.append("webdav_config")
             if configs.get("obsidian_config"):
                 selected_items.append("obsidian_config")
-            # downloader_config 不自动加入（硬编码，必 skipped）
+            if configs.get("downloader_config"):
+                selected_items.append("downloader_config")
 
         # 导入 AI 模型设置
         if "providers" in selected_items:
@@ -400,6 +417,19 @@ class ConfigImporter:
                             type_=provider_data.get("type"),
                             enabled=provider_data.get("enabled", 1)
                         )
+
+                    # 导入该供应商下的模型列表
+                    model_names = provider_data.get("models", [])
+                    if model_names:
+                        from app.db.model_dao import get_model_by_provider_and_name, insert_model
+                        for model_name in model_names:
+                            if not isinstance(model_name, str) or not model_name.strip():
+                                continue
+                            existing_model = get_model_by_provider_and_name(provider_id, model_name.strip())
+                            if not existing_model:
+                                insert_model(provider_id, model_name.strip())
+                        logger.info(f"Provider {provider_id}: 导入 {len(model_names)} 个模型")
+
                     imported_count += 1
 
                 # 仅当至少有 1 个 provider 成功写入时才计入 success；
@@ -419,12 +449,36 @@ class ConfigImporter:
                     "error": str(e)
                 })
 
-        # 导入下载器配置（目前是硬编码的，跳过）
+        # 导入下载器配置（Cookie）
         if "downloader_config" in selected_items:
-            results["skipped"].append({
-                "type": "downloader_config",
-                "reason": "下载器配置为硬编码，不支持导入"
-            })
+            try:
+                dl_config = configs.get("downloader_config", {})
+                cookies = dl_config.get("cookies", {})
+                if cookies:
+                    from app.services.cookie_manager import CookieConfigManager
+                    cookie_mgr = CookieConfigManager()
+                    imported_cookies = 0
+                    for platform, cookie in cookies.items():
+                        if platform in SUPPORT_PLATFORM_MAP and cookie:
+                            cookie_mgr.set(platform, cookie)
+                            imported_cookies += 1
+                    results["success"].append({
+                        "type": "downloader_config",
+                        "count": imported_cookies,
+                        "detail": f"导入 {imported_cookies} 个平台 Cookie"
+                    })
+                    logger.info(f"Imported {imported_cookies} platform cookies")
+                else:
+                    results["skipped"].append({
+                        "type": "downloader_config",
+                        "reason": "配置中无 Cookie 数据"
+                    })
+            except Exception as e:
+                logger.error(f"Failed to import downloader config: {e}")
+                results["failed"].append({
+                    "type": "downloader_config",
+                    "error": str(e)
+                })
 
         # 导入思源笔记配置
         if "siyuan_config" in selected_items:
