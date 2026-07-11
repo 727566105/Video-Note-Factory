@@ -77,17 +77,22 @@ _MAX_REQUEST_BODY = 10 * 1024 * 1024
 
 
 async def mcp_auth_middleware(scope: Scope, receive: Receive, send: Send):
-    """ASGI 中间件：拦截 /mcp 请求，验证 API Key 并注入 user 到 contextvars"""
+    """ASGI 中间件：拦截 /mcp 请求，验证 API Key 并注入 user 到 contextvars
+
+    注意：本中间件挂载在 / (catch-all)，但鉴权和请求体限制只对 /mcp 和
+    /.well-known/ 路径生效，不影响 /api 等业务路由（整机包上传等大文件走 /api）。
+    """
     mcp_app = _get_mcp_app()
 
     if scope["type"] != "http":
         await mcp_app(scope, receive, send)
         return
 
+    path = scope.get("path", "")
+
     # OAuth 发现探测（RFC 9728）：QwenPaw 等客户端会先 GET /.well-known/oauth-protected-resource
     # 静态 Bearer Token 鉴权不需要 OAuth，这里直接返回 404 告诉客户端"无 OAuth metadata"。
     # 注意：不能返回 401，否则客户端会误以为需要走 OAuth 授权流程导致报错。
-    path = scope.get("path", "")
     if path.startswith("/.well-known/"):
         resp = JSONResponse(
             status_code=404,
@@ -96,7 +101,14 @@ async def mcp_auth_middleware(scope: Scope, receive: Receive, send: Send):
         await resp(scope, receive, send)
         return
 
-    # 请求体大小限制
+    # 非 /mcp 路径（如 /api/...）直接透传，不做 MCP 鉴权和请求体限制
+    if not path.startswith("/mcp"):
+        await mcp_app(scope, receive, send)
+        return
+
+    # 以下逻辑仅对 /mcp 请求生效
+
+    # 请求体大小限制（MCP 请求通常很小，整机包等大文件走 /api 不受此限）
     headers = dict(scope.get("headers", []))
     content_length = headers.get(b"content-length", b"").decode()
     if content_length and int(content_length) > _MAX_REQUEST_BODY:
