@@ -225,27 +225,31 @@ class TestAPIKeyTracking:
             assert mock_user.api_key_last_used_at is None, "生成时 last_used 应为空"
 
     def test_get_user_by_api_key_updates_last_used(self):
-        """认证成功后更新 last_used_at"""
+        """认证成功后更新 last_used_at（通过 db.query.update）"""
         from app.db.user_dao import get_user_by_api_key
         from datetime import datetime
 
         mock_user = SimpleNamespace(
             id=1, username="admin", role="admin",
             api_key="vn_" + "a" * 32,
-            api_key_hash=None,  # 会被设置
+            api_key_hash=None,
             api_key_created_at=datetime.now(),
             api_key_last_used_at=None,
         )
 
         with patch("app.db.user_dao.get_db") as mock_get_db:
             mock_db = MagicMock()
+            # query().filter_by().first() → 返回 mock_user
+            # query().filter_by().update() → 更新 last_used_at
             mock_db.query.return_value.filter_by.return_value.first.return_value = mock_user
             mock_get_db.return_value = iter([mock_db])
 
             user = get_user_by_api_key("vn_" + "a" * 32)
 
             assert user is not None
-            assert mock_user.api_key_last_used_at is not None, "应更新 last_used_at"
+            assert user.id == 1
+            # 验证 update 被调用过（认证成功后更新 last_used_at）
+            mock_db.query.return_value.filter_by.return_value.update.assert_called_once()
 
     def test_get_api_key_info_returns_timestamps(self):
         """get_api_key_info 返回 created_at 和 last_used_at"""

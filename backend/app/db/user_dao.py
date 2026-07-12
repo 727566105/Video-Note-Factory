@@ -214,7 +214,11 @@ def get_user_by_api_key(api_key: str):
             # 非阻塞更新最后使用时间（失败不影响鉴权）
             try:
                 from datetime import datetime
-                user.api_key_last_used_at = datetime.now()
+                # 先 expunge 让对象脱离 session（变为 detached），再直接 UPDATE 避免 expire 问题
+                db.expunge(user)
+                db.query(User).filter_by(id=user.id).update(
+                    {"api_key_last_used_at": datetime.now()}
+                )
                 db.commit()
             except Exception:
                 db.rollback()
