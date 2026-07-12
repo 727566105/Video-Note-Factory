@@ -275,6 +275,16 @@ def migrate_users_api_key():
             db.execute(text("ALTER TABLE users ADD COLUMN api_key_hash VARCHAR"))
             db.commit()
             logger.info("users: api_key_hash 列添加成功")
+        if "api_key_created_at" not in columns:
+            logger.info("users: api_key_created_at 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE users ADD COLUMN api_key_created_at DATETIME"))
+            db.commit()
+            logger.info("users: api_key_created_at 列添加成功")
+        if "api_key_last_used_at" not in columns:
+            logger.info("users: api_key_last_used_at 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE users ADD COLUMN api_key_last_used_at DATETIME"))
+            db.commit()
+            logger.info("users: api_key_last_used_at 列添加成功")
 
         # 回填：已有 api_key 明文的计算 hash
         from app.db.models.users import User

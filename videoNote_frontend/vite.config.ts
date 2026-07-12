@@ -63,6 +63,11 @@ export default defineConfig(() => {
       fs: {
         strict: false,
       },
+      // inotify watch 数不足时用轮询模式（ENOSPC fix）
+      watch: {
+        usePolling: true,
+        interval: 1000,
+      },
       proxy: {
         '/api': {
           target: apiBaseUrl,

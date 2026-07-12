@@ -174,6 +174,7 @@ def seed_default_user():
 def generate_api_key(user_id: int) -> str:
     """生成并保存 API Key（格式：vn_ + 32位随机hex），用于 MCP 鉴权。
     数据库存哈希值，明文仅返回一次。"""
+    from datetime import datetime
     db = next(get_db())
     try:
         user = db.query(User).filter_by(id=user_id).first()
@@ -182,6 +183,8 @@ def generate_api_key(user_id: int) -> str:
         api_key = f"vn_{secrets.token_hex(16)}"
         user.api_key = api_key  # 保留明文用于前端展示脱敏（仅前8后4）
         user.api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+        user.api_key_created_at = datetime.now()
+        user.api_key_last_used_at = None
         db.commit()
         logger.info(f"用户 {user.username} 的 API Key 已生成/重置")
         return api_key
@@ -199,13 +202,23 @@ _API_KEY_PATTERN = re.compile(r"^vn_[a-f0-9]{32}$")
 
 def get_user_by_api_key(api_key: str):
     """通过 API Key 查用户（MCP 鉴权用）。
-    先格式校验，再哈希后按 hash 查询，避免明文比对和注入风险。"""
+    先格式校验，再哈希后按 hash 查询，避免明文比对和注入风险。
+    认证成功后异步更新 last_used_at（失败静默忽略，不影响请求）。"""
     if not api_key or not _API_KEY_PATTERN.match(api_key):
         return None
     key_hash = hashlib.sha256(api_key.encode()).hexdigest()
     db = next(get_db())
     try:
-        return db.query(User).filter_by(api_key_hash=key_hash).first()
+        user = db.query(User).filter_by(api_key_hash=key_hash).first()
+        if user:
+            # 非阻塞更新最后使用时间（失败不影响鉴权）
+            try:
+                from datetime import datetime
+                user.api_key_last_used_at = datetime.now()
+                db.commit()
+            except Exception:
+                db.rollback()
+        return user
     finally:
         db.close()
 
@@ -219,6 +232,8 @@ def clear_api_key(user_id: int) -> bool:
             return False
         user.api_key = None
         user.api_key_hash = None
+        user.api_key_created_at = None
+        user.api_key_last_used_at = None
         db.commit()
         logger.info(f"用户 {user.username} 的 API Key 已清除")
         return True
@@ -239,6 +254,11 @@ def get_api_key_info(user_id: int) -> dict:
             return {"exists": False, "masked": None}
         key = user.api_key
         masked = key[:8] + "*" * (len(key) - 12) + key[-4:] if len(key) > 12 else "****"
-        return {"exists": True, "masked": masked}
+        return {
+            "exists": True,
+            "masked": masked,
+            "created_at": user.api_key_created_at.isoformat() if user.api_key_created_at else None,
+            "last_used_at": user.api_key_last_used_at.isoformat() if user.api_key_last_used_at else None,
+        }
     finally:
         db.close()

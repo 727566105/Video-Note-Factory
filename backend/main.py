@@ -81,6 +81,10 @@ async def lifespan(app: FastAPI):
     from app.tasks.scheduler import shutdown_scheduler
     shutdown_scheduler()
 
+    # 关闭 MCP 后台线程池
+    from app.mcp_server import shutdown_background_executor
+    shutdown_background_executor()
+
     # 输出预热最终状态
     status = get_warm_up_status()
     logger.info(f"应用关闭，转写器预热状态: {status}")

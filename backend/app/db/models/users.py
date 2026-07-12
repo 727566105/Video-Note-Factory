@@ -12,4 +12,6 @@ class User(Base):
     password_changed_at = Column(DateTime)
     api_key = Column(String, unique=True, nullable=True)
     api_key_hash = Column(String, nullable=True)
+    api_key_created_at = Column(DateTime, nullable=True)    # API Key 创建时间
+    api_key_last_used_at = Column(DateTime, nullable=True)  # API Key 最后使用时间
     created_at = Column(DateTime, server_default=func.now())

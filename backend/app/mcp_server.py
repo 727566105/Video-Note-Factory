@@ -21,8 +21,10 @@ import hashlib
 import contextvars
 import threading
 import functools
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
+import anyio
 from starlette.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
@@ -145,11 +147,21 @@ async def mcp_auth_middleware(scope: Scope, receive: Receive, send: Send):
         _mcp_user.reset(cv_token)
 
 
-def _get_user(ctx: Context) -> dict:
-    """从 contextvars 获取当前鉴权用户"""
+def _get_user(ctx: Context = None) -> dict:
+    """从 contextvars 获取当前鉴权用户，并自动按调用者函数名检查限流"""
     user = _mcp_user.get()
     if not user:
         raise ValueError("未授权：请在 MCP 客户端配置有效的 API Key")
+
+    # 限流检查：从调用栈获取 tool 函数名作为限流标识
+    import sys as _sys
+    tool_name = _sys._getframe(1).f_code.co_name
+    from app.mcp_rate_limiter import check_rate_limit, cleanup_stale_entries
+    cleanup_stale_entries()  # 惰性清理过期条目
+    allowed, retry_after = check_rate_limit(user["user_id"], tool_name)
+    if not allowed:
+        raise ValueError(f"请求过于频繁，请 {retry_after} 秒后重试")
+
     return user
 
 
@@ -160,6 +172,14 @@ def _get_user(ctx: Context) -> dict:
 def _json(data) -> str:
     """统一 JSON 序列化，确保 MCP 传输正确"""
     return json.dumps(data, ensure_ascii=False, default=str)
+
+
+async def _run_sync(func, *args, **kwargs):
+    """将同步 DAO 调用包装到线程池执行，避免阻塞 asyncio event loop。
+
+    用法: tasks = await _run_sync(get_all_tasks, user_id=1, limit=20)
+    """
+    return await anyio.to_thread.run_sync(functools.partial(func, *args, **kwargs))
 
 
 def _read_note_file(task_id: str, task, file_type: str, user_id: int = None):
@@ -242,17 +262,28 @@ def _clamp_limit(limit: int, default: int = 20, max_val: int = 200) -> int:
     return min(limit, max_val)
 
 
+# ──────────────────────────────────────────────
+# 后台任务：全局线程池（限制并发数，防止多用户同时导入视频创建大量线程）
+# ──────────────────────────────────────────────
+
+_background_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="vn-bg")
+
+
+def shutdown_background_executor():
+    """应用关闭时优雅关闭线程池（在 main.py lifespan shutdown 调用）"""
+    _background_executor.shutdown(wait=True, cancel_futures=False)
+    logger.info("MCP 后台线程池已关闭")
+
+
 def _safe_run_in_thread(target, *args):
-    """在守护线程中执行后台任务，捕获所有异常"""
+    """在线程池中执行后台任务，捕获所有异常。线程池限制并发上限，防止资源耗尽。"""
     def _wrapper():
         try:
             target(*args)
         except Exception as e:
             logger.error(f"MCP 后台任务失败: {e}", exc_info=True)
 
-    thread = threading.Thread(target=_wrapper, daemon=True)
-    thread.start()
-    return thread
+    _background_executor.submit(_wrapper)
 
 
 # ──────────────────────────────────────────────
@@ -307,7 +338,7 @@ async def import_video(
 
     # 检查当前用户是否已有笔记
     if video_id:
-        existing = get_user_task_for_video(video_id, platform, user["user_id"])
+        existing = await _run_sync(get_user_task_for_video, video_id, platform, user["user_id"])
         if existing:
             return _json({
                 "task_id": existing.task_id,
@@ -318,7 +349,8 @@ async def import_video(
     task_id = str(uuid.uuid4())
     effective_video_id = video_id or task_id
 
-    insert_video_task(
+    await _run_sync(
+        insert_video_task,
         video_id=effective_video_id,
         platform=platform,
         task_id=task_id,
@@ -367,7 +399,7 @@ async def get_task_status(task_id: str, ctx: Context = None) -> str:
 
     from app.db.video_task_dao import get_task_by_task_id_and_user
 
-    task = get_task_by_task_id_and_user(task_id, user["user_id"])
+    task = await _run_sync(get_task_by_task_id_and_user, task_id, user["user_id"])
     if not task:
         return _json({"error": "无权访问该任务或任务不存在"})
 
@@ -408,7 +440,7 @@ async def list_notes(limit: int = 20, ctx: Context = None) -> str:
 
     from app.db.video_task_dao import get_all_tasks
 
-    db_tasks = get_all_tasks(user_id=user["user_id"], role=user["role"], limit=limit)
+    db_tasks = await _run_sync(get_all_tasks, user_id=user["user_id"], role=user["role"], limit=limit)
     result = []
     for task in db_tasks:
         try:
@@ -449,11 +481,11 @@ async def view_note(task_id: str, ctx: Context = None) -> str:
 
     from app.db.video_task_dao import get_task_by_task_id_and_user
 
-    task = get_task_by_task_id_and_user(task_id, user["user_id"])
+    task = await _run_sync(get_task_by_task_id_and_user, task_id, user["user_id"])
     if not task:
         return _json({"error": "无权访问该任务或任务不存在"})
 
-    note_data = _read_note_file(task_id, task, "note", user_id=user["user_id"])
+    note_data = await _run_sync(_read_note_file, task_id, task, "note", user_id=user["user_id"])
     if not note_data:
         return _json({"error": "笔记文件不存在，可能尚未生成完成"})
 
@@ -484,7 +516,7 @@ async def cancel_task(task_id: str, ctx: Context = None) -> str:
     from app.services.note import NoteGenerator
     from app.enmus.task_status_enums import TaskStatus
 
-    task = get_task_by_task_id(task_id)
+    task = await _run_sync(get_task_by_task_id, task_id)
     if not task or task.user_id != user["user_id"]:
         return _json({"error": "无权操作该任务或任务不存在"})
 
@@ -508,7 +540,7 @@ async def delete_task(task_id: str, ctx: Context = None) -> str:
     from app.db.video_task_dao import soft_delete_task
     from app.services.task_queue import task_queue
 
-    ok = soft_delete_task(task_id, user["user_id"])
+    ok = await _run_sync(soft_delete_task, task_id, user["user_id"])
     if not ok:
         return _json({"error": "笔记不存在或无权删除"})
     task_queue.remove(task_id)
@@ -538,7 +570,7 @@ async def export_note(task_id: str, format: str = "pdf", ctx: Context = None) ->
 
     from app.db.video_task_dao import get_task_by_task_id_and_user
 
-    task = get_task_by_task_id_and_user(task_id, user["user_id"])
+    task = await _run_sync(get_task_by_task_id_and_user, task_id, user["user_id"])
     if not task:
         return _json({"error": "笔记不存在或无权访问"})
 
@@ -567,7 +599,7 @@ async def list_subscriptions(ctx: Context = None) -> str:
     user = _get_user(ctx)
     from app.db import subscription_dao
 
-    subs = subscription_dao.get_user_subscriptions(user["user_id"])
+    subs = await _run_sync(subscription_dao.get_user_subscriptions, user["user_id"])
     return _json([
         {
             "id": s.id,
@@ -603,7 +635,7 @@ async def add_subscription(channel_url: str, ctx: Context = None) -> str:
     if not info:
         return _json({"error": "无法识别平台或频道，请检查 URL"})
 
-    existing = subscription_dao.get_subscription_by_url(user["user_id"], info["channel_url"])
+    existing = await _run_sync(subscription_dao.get_subscription_by_url, user["user_id"], info["channel_url"])
     if existing:
         return _json({"error": "已订阅该频道", "id": existing.id})
 
@@ -655,7 +687,7 @@ async def refresh_subscription(subscription_id: int, ctx: Context = None) -> str
     from app.services.channel_fetcher import fetch_all_for_subscription
     from app.services.fetch_progress import create_progress, update_progress, complete_progress
 
-    subs = subscription_dao.get_user_subscriptions(user["user_id"])
+    subs = await _run_sync(subscription_dao.get_user_subscriptions, user["user_id"])
     sub = next((s for s in subs if s.id == subscription_id), None)
     if not sub:
         return _json({"error": "订阅不存在"})
@@ -702,7 +734,7 @@ async def get_feed(limit: int = 20, ctx: Context = None) -> str:
     from app.db import subscription_dao
     from app.db.video_task_dao import get_task_by_video
 
-    items = subscription_dao.get_feed_items(user["user_id"], limit, 0, None, "desc")
+    items = await _run_sync(subscription_dao.get_feed_items, user["user_id"], limit, 0, None, "desc")
     result = []
     for f in items:
         available_task_id = f.task_id
@@ -732,7 +764,7 @@ async def refresh_feed(ctx: Context = None) -> str:
     from app.db import subscription_dao
     from app.services.channel_fetcher import fetch_all_for_subscription
 
-    subs = subscription_dao.get_user_subscriptions(user["user_id"])
+    subs = await _run_sync(subscription_dao.get_user_subscriptions, user["user_id"])
     total_added = 0
     errors = []
 
@@ -774,7 +806,7 @@ async def generate_from_feed(feed_item_id: int, ctx: Context = None) -> str:
     from app.db import subscription_dao
     from app.services.note import NoteGenerator
 
-    item = subscription_dao.get_feed_item_by_id(feed_item_id, user["user_id"])
+    item = await _run_sync(subscription_dao.get_feed_item_by_id, feed_item_id, user["user_id"])
     if not item:
         return _json({"error": "动态不存在"})
     if item.content_type != "article":
@@ -826,7 +858,7 @@ async def list_channel_videos(
     from app.services.constant import CHANNEL_URL_MAP
 
     channel_url = CHANNEL_URL_MAP.get(platform, "").format(platform_id=platform_id)
-    sub = subscription_dao.get_subscription_by_url(user["user_id"], channel_url) if channel_url else None
+    sub = await _run_sync(subscription_dao.get_subscription_by_url, user["user_id"], channel_url) if channel_url else None
 
     if sub:
         items = subscription_dao.get_feed_items_by_subscription(sub.id, limit, 0)
@@ -880,7 +912,7 @@ async def list_author_videos(author_id: str, limit: int = 50, ctx: Context = Non
 
     from app.db.video_task_dao import get_all_tasks
 
-    db_tasks = get_all_tasks(user_id=user["user_id"], role=user["role"], limit=500)
+    db_tasks = await _run_sync(get_all_tasks, user_id=user["user_id"], role=user["role"], limit=500)
     result = []
     for task in db_tasks:
         if task.author_id != author_id:
