@@ -23,11 +23,16 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{default_db_path}")
 # SQLite 需要特定连接参数，其他数据库不需要
 engine_args = {}
 if DATABASE_URL.startswith("sqlite"):
-    engine_args["connect_args"] = {"check_same_thread": False}
+    # check_same_thread=False: 允许多线程共享连接（FastAPI + 后台线程）
+    # timeout=30: 写锁等待超时从默认 5 秒提高到 30 秒，减少高并发下 "database is locked" 错误
+    engine_args["connect_args"] = {"check_same_thread": False, "timeout": 30}
 
 engine = create_engine(
     DATABASE_URL,
     echo=os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true",
+    # pool_pre_ping: 连接使用前先 ping 一下，避免拿到已断开的连接
+    # pool_recycle: 连接回收周期（秒），防止长时间运行的连接被数据库端关闭
+    pool_pre_ping=True,
     **engine_args
 )
 

@@ -66,10 +66,16 @@ async def lifespan(app: FastAPI):
     from app.tasks.scheduler import start_scheduler
     start_scheduler()
 
-    # 异步预热转写器（不阻塞应用启动）
+    # 阻塞式预热转写器：确保模型加载完成后才接受用户请求，
+    # 防止多用户在预热未完成时并发提交任务导致重复加载模型（OOM 风险）。
     transcriber_type = os.getenv("TRANSCRIBER_TYPE", "fast-whisper")
-    logger.info(f"应用启动中，转写器类型: {transcriber_type}")
-    asyncio.create_task(warm_up_transcriber_async(transcriber_type))
+    logger.info(f"应用启动中，开始预热转写器: {transcriber_type}")
+    try:
+        await warm_up_transcriber_async(transcriber_type)
+    except Exception as e:
+        # 预热失败不阻塞服务启动，首次任务会懒加载（已有 _transcriber_lock 保护）
+        logger.warning(f"转写器预热失败（服务仍可启动，首次任务将懒加载）: {e}")
+    logger.info("转写器预热流程结束，开始接受请求")
 
     # 启动 MCP Server session manager
     from app.mcp_server import mcp

@@ -866,9 +866,15 @@ class NoteGenerator:
         return instance
 
     def _check_cancelled(self, task_id: Optional[str]):
-        """检查任务是否已被取消，如果已取消则抛出 TaskCancelledError"""
-        if task_id and task_queue.is_cancelled(task_id):
-            raise TaskCancelledError(f"任务 {task_id} 已被用户取消")
+        """检查任务是否已被取消，如果已取消则抛出 TaskCancelledError。
+
+        同时更新心跳时间，让看门狗知道任务仍在活跃执行。
+        """
+        if task_id:
+            # 更新心跳（每个阶段切换点都会调用，天然成为心跳上报点）
+            task_queue.update_heartbeat(task_id)
+            if task_queue.is_cancelled(task_id):
+                raise TaskCancelledError(f"任务 {task_id} 已被用户取消")
 
     def _update_status(self, task_id: Optional[str], status: Union[str, TaskStatus],
                        message: Optional[str] = None, title: Optional[str] = None,

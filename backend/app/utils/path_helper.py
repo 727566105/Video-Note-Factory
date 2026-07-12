@@ -956,15 +956,44 @@ def _migrate_covers(logger):
 
 
 def cleanup_stale_pending(max_age_hours: int = 2):
-    """清理 _pending 目录中超过指定时间的残留任务目录"""
+    """清理 _pending 目录中超过指定时间的残留任务目录。
+
+    线程安全：会检查 task_queue 的运行状态，跳过正在活跃执行的任务
+    （避免误删慢任务如长视频转写的中间产物，交给看门狗处理）。
+    """
     pending_dir = VIDEO_DIR / "_pending"
     if not pending_dir.exists():
         return
+
+    # 延迟导入避免循环依赖
+    try:
+        from app.services.task_queue import task_queue
+    except ImportError:
+        task_queue = None
+
     now = time.time()
     cleaned = 0
     for task_dir in pending_dir.iterdir():
         if not task_dir.is_dir():
             continue
+
+        task_id = task_dir.name
+
+        # 如果任务正在队列中运行且心跳活跃，跳过（交给看门狗处理卡死情况）
+        if task_queue is not None:
+            try:
+                status = task_queue.get_status()
+                if task_id in status.get("running_tasks", []):
+                    # 正在运行，检查心跳是否超时
+                    stale = task_queue.get_stale_tasks(
+                        timeout_seconds=int(os.getenv("WATCHDOG_TASK_TIMEOUT_SECONDS", "900"))
+                    )
+                    if task_id not in stale:
+                        logger.debug(f"跳过活跃任务 _pending 目录: {task_id}")
+                        continue
+            except Exception:
+                pass  # 检查失败时保守处理：继续走原有清理逻辑
+
         # 检查时间阈值
         if (now - task_dir.stat().st_mtime) <= max_age_hours * 3600:
             # 未超时但检查 status.json：非终态且超过 30 分钟也清理
@@ -972,8 +1001,8 @@ def cleanup_stale_pending(max_age_hours: int = 2):
             if status_file.exists():
                 try:
                     data = json.loads(status_file.read_text(encoding="utf-8"))
-                    status = data.get("status", "")
-                    if status in ("SUCCESS", "FAILED"):
+                    status_val = data.get("status", "")
+                    if status_val in ("SUCCESS", "FAILED"):
                         # 已终态，直接清理
                         pass
                     elif (now - task_dir.stat().st_mtime) > 0.5 * 3600:

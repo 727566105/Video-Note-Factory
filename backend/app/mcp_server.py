@@ -814,7 +814,10 @@ async def generate_from_feed(feed_item_id: int, ctx: Context = None) -> str:
 
     images = json.loads(item.images) if item.images else []
     generator = NoteGenerator()
-    markdown, smart_info = generator.generate_article_note(
+    # generate_article_note 内部调用 LLM，耗时几十秒。
+    # 用 _run_sync 放到线程池执行，避免阻塞 asyncio 事件循环（影响其他用户的 MCP 请求）。
+    markdown, smart_info = await _run_sync(
+        generator.generate_article_note,
         title=item.title,
         author=item.author,
         description=item.description,

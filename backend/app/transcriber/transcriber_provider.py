@@ -1,6 +1,7 @@
 import os
 import platform
 import asyncio
+import threading
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 
@@ -12,13 +13,17 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 预热状态
+# 预热状态（线程安全：所有读写都在 _warm_up_lock 内）
 _warm_up_status = {
     "in_progress": False,
     "completed": False,
     "error": None,
     "transcriber_type": None,
 }
+_warm_up_lock = threading.Lock()
+
+# 转写器单例缓存锁（防止多线程并发首次调用时重复加载 whisper 模型导致 OOM）
+_transcriber_lock = threading.Lock()
 
 class TranscriberType(str, Enum):
     FAST_WHISPER = "fast-whisper"
@@ -48,17 +53,18 @@ _transcribers = {
     TranscriberType.GROQ: None,
 }
 
-# 公共实例初始化函数
+# 公共实例初始化函数（线程安全：加锁防止并发重复加载模型）
 def _init_transcriber(key: TranscriberType, cls, *args, **kwargs):
-    if _transcribers[key] is None:
-        logger.info(f'创建 {cls.__name__} 实例: {key}')
-        try:
-            _transcribers[key] = cls(*args, **kwargs)
-            logger.info(f'{cls.__name__} 创建成功')
-        except Exception as e:
-            logger.error(f"{cls.__name__} 创建失败: {e}")
-            raise
-    return _transcribers[key]
+    with _transcriber_lock:
+        if _transcribers[key] is None:
+            logger.info(f'创建 {cls.__name__} 实例: {key}')
+            try:
+                _transcribers[key] = cls(*args, **kwargs)
+                logger.info(f'{cls.__name__} 创建成功')
+            except Exception as e:
+                logger.error(f"{cls.__name__} 创建失败: {e}")
+                raise
+        return _transcribers[key]
 
 # 各类型获取方法
 def get_groq_transcriber():
@@ -128,12 +134,14 @@ def get_transcriber(transcriber_type="fast-whisper", model_size="base", device="
 def _do_warm_up(transcriber_type: str, model_size: str = "base", device: str = "cuda"):
     """在后台线程中执行预热"""
     global _warm_up_status
-    try:
+    with _warm_up_lock:
         _warm_up_status["in_progress"] = True
         _warm_up_status["transcriber_type"] = transcriber_type
-        logger.info(f"[预热] 开始预热转写器: {transcriber_type}")
+        _warm_up_status["error"] = None
+    logger.info(f"[预热] 开始预热转写器: {transcriber_type}")
 
-        # 获取转写器实例（这会触发模型加载）
+    try:
+        # 获取转写器实例（这会触发模型加载，_init_transcriber 内部有自己的锁）
         transcriber = get_transcriber(transcriber_type, model_size=model_size, device=device)
 
         # 对于 Whisper 类型，可以尝试转写一个空的或小的测试音频来完全预热模型
@@ -141,16 +149,19 @@ def _do_warm_up(transcriber_type: str, model_size: str = "base", device: str = "
         if transcriber_type in [TranscriberType.FAST_WHISPER.value, TranscriberType.MLX_WHISPER.value]:
             logger.info(f"[预热] 模型 {model_size} 已加载完成")
 
-        _warm_up_status["completed"] = True
-        _warm_up_status["error"] = None
+        with _warm_up_lock:
+            _warm_up_status["completed"] = True
+            _warm_up_status["error"] = None
         logger.info(f"[预热] 转写器预热完成: {transcriber_type}")
 
     except Exception as e:
-        _warm_up_status["completed"] = False
-        _warm_up_status["error"] = str(e)
+        with _warm_up_lock:
+            _warm_up_status["completed"] = False
+            _warm_up_status["error"] = str(e)
         logger.error(f"[预热] 转写器预热失败: {e}")
     finally:
-        _warm_up_status["in_progress"] = False
+        with _warm_up_lock:
+            _warm_up_status["in_progress"] = False
 
 
 async def warm_up_transcriber_async(
@@ -184,8 +195,9 @@ async def warm_up_transcriber_async(
 
     if transcriber_type in api_based_transcribers:
         logger.info(f"[预热] {transcriber_type} 是 API 类型转写器，无需预热模型")
-        _warm_up_status["completed"] = True
-        _warm_up_status["transcriber_type"] = transcriber_type
+        with _warm_up_lock:
+            _warm_up_status["completed"] = True
+            _warm_up_status["transcriber_type"] = transcriber_type
         return
 
     # MLX Whisper 预热检查
@@ -213,19 +225,23 @@ async def warm_up_transcriber_async(
 
 def get_warm_up_status() -> dict:
     """获取预热状态"""
-    return _warm_up_status.copy()
+    with _warm_up_lock:
+        return _warm_up_status.copy()
 
 
 def is_transcriber_ready() -> bool:
     """检查转写器是否已准备好"""
-    if _warm_up_status["completed"]:
-        return True
+    with _warm_up_lock:
+        if _warm_up_status["completed"]:
+            return True
 
     # 尝试获取当前配置的转写器类型
     transcriber_type_str = os.getenv("TRANSCRIBER_TYPE", "fast-whisper")
     try:
         transcriber_enum = TranscriberType(transcriber_type_str)
-        return _transcribers.get(transcriber_enum) is not None
+        with _transcriber_lock:
+            return _transcribers.get(transcriber_enum) is not None
     except ValueError:
         # 如果环境变量值无效，检查默认的 fast-whisper
-        return _transcribers.get(TranscriberType.FAST_WHISPER) is not None
+        with _transcriber_lock:
+            return _transcribers.get(TranscriberType.FAST_WHISPER) is not None
