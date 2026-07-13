@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Copy,
   Download,
@@ -85,12 +85,14 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
   const removeTask = useTaskStore(state => state.removeTask)
   const retryTask = useTaskStore(state => state.retryTask)
   const setCurrentTask = useTaskStore(state => state.setCurrentTask)
+  const loadTasksFromBackend = useTaskStore(state => state.loadTasksFromBackend)
   const modelList = useModelStore(state => state.modelList)
   const providers = useProviderStore(state => state.provider)
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // 设置 currentTaskId，让 TranscriptViewer 等组件能读取当前任务
   useEffect(() => {
@@ -195,10 +197,42 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
     try {
       await retryTask(task.id, payload)
       toast.success('重新生成任务已提交')
+
+      // 轮询任务状态，完成后自动刷新页面数据
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = setInterval(async () => {
+        try {
+          await loadTasksFromBackend()
+          const current = useTaskStore.getState().tasks.find(t => t.id === task.id)
+          if (current && (current.status === 'SUCCESS' || current.status === 'FAILED')) {
+            if (pollRef.current) {
+              clearInterval(pollRef.current)
+              pollRef.current = null
+            }
+            if (current.status === 'SUCCESS') {
+              toast.success('笔记生成完成')
+            } else {
+              toast.error('笔记生成失败')
+            }
+          }
+        } catch {
+          // 轮询失败不中断，继续下次轮询
+        }
+      }, 3000)
     } catch {
       // retryTask 内部已 toast
     }
   }
+
+  // 组件卸载时清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+    }
+  }, [])
 
   const formatDate = (date: string | undefined) => {
     if (!date) return ''
@@ -350,7 +384,7 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <ActionBtn icon={<Share2 className="w-3.5 h-3.5" />} label="分享" onClick={() => setShareDialogOpen(true)} disabled={!selectedContent} />
-            <ActionBtn icon={<RefreshCw className="w-3.5 h-3.5" />} label="重新生成" onClick={handleRegenerate} dataGuide="regenerate-btn" />
+            <ActionBtn icon={<RefreshCw className={cn('w-3.5 h-3.5', isProcessing && 'animate-spin')} />} label="重新生成" onClick={handleRegenerate} disabled={isProcessing} dataGuide="regenerate-btn" />
             <ActionBtn icon={<Edit className="w-3.5 h-3.5" />} label="编辑" />
           </div>
         </div>

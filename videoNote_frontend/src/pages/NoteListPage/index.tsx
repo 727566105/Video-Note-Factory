@@ -122,8 +122,9 @@ const STATUS_OPTIONS: FilterOption[] = [
 
 const getProxiedCoverUrl = (coverUrl: string, platform: string) => {
   if (!coverUrl) return ''
+  // 本地平台或已经是本地 API 路径，直接用，不走 image_proxy 中间跳板
   const isLocal = platform === 'local' || platform === 'local_audio'
-  if (isLocal) return coverUrl
+  if (isLocal || coverUrl.startsWith('/api/')) return coverUrl
   return `/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
 }
 
@@ -559,6 +560,13 @@ export const NoteListPage: FC = () => {
   const handleRegenerate = async (item: NoteItem) => {
     if (!item.video_url) {
       toast.error('无法获取视频链接')
+      return
+    }
+    // 防抖：检查 taskStore 中该任务是否正在生成
+    const storeTask = useTaskStore.getState().tasks.find(t => t.id === item.task_id)
+    const activeStatuses = ['PENDING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'QUEUED']
+    if (storeTask && activeStatuses.includes(storeTask.status)) {
+      toast.warning('任务正在处理中，请稍候')
       return
     }
     try {

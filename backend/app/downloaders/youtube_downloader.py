@@ -46,8 +46,60 @@ class YoutubeDownloader(Downloader, ABC):
         if cookiefile and os.path.exists(cookiefile):
             try:
                 os.remove(cookiefile)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"清理临时 cookie 文件失败: {e}")
+
+    def _is_community_post_url(self, video_url: str) -> bool:
+        """检测是否为 YouTube 社区帖子链接"""
+        return '/post/' in video_url or '/community' in video_url or 'lb=' in video_url
+
+    def _get_community_post_info(self, video_url: str) -> VideoInfoResult:
+        """获取 YouTube 社区帖子元数据（图文内容）
+
+        YouTube 社区帖子需要 InnerTube API 获取，
+        目前返回基本信息让上游走图文流程，正文内容由用户在笔记中编辑。
+        """
+        # 提取 post_id
+        import re
+        match = re.search(r'/post/(.+?)(?:\?|$)', video_url)
+        post_id = match.group(1) if match else video_url[-20:]
+
+        return VideoInfoResult(
+            title=f"YouTube 帖子 {post_id[:12]}",
+            duration=0,
+            cover_url=None,
+            platform="youtube",
+            video_id=f"post_{post_id}",
+            author_id=None,
+            author_name="YouTube",
+            description="YouTube 社区帖子内容（需要手动编辑或后续支持 InnerTube API）",
+            content_type="article",
+            raw_info={"post_id": post_id, "url": video_url},
+        )
+
+    def _download_community_post(self, video_url: str, output_dir: str) -> AudioDownloadResult:
+        """下载 YouTube 社区帖子（图文）
+
+        YouTube 社区帖子不提供直接的图片下载 API，
+        返回 article 类型让上游走图文笔记流程，用户可在笔记中手动补充。
+        """
+        import re
+        match = re.search(r'/post/(.+?)(?:\?|$)', video_url)
+        post_id = match.group(1) if match else video_url[-20:]
+
+        return AudioDownloadResult(
+            file_path=None,
+            title=f"YouTube 帖子 {post_id[:12]}",
+            duration=0,
+            cover_url=None,
+            platform="youtube",
+            video_id=f"post_{post_id}",
+            description="YouTube 社区帖子内容（需要手动编辑）",
+            content_type="article",
+            images=[],
+            tags=[],
+            raw_info={"post_id": post_id, "url": video_url},
+        )
 
     def download(
         self,
@@ -59,6 +111,10 @@ class YoutubeDownloader(Downloader, ABC):
         if output_dir is None:
             raise ValueError("output_dir 不能为空，必须传入三级目录路径")
         os.makedirs(output_dir, exist_ok=True)
+
+        # 社区帖子走图文分支
+        if self._is_community_post_url(video_url):
+            return self._download_community_post(video_url, output_dir)
 
         output_path = os.path.join(output_dir, "%(id)s.%(ext)s")
 
@@ -82,7 +138,6 @@ class YoutubeDownloader(Downloader, ABC):
                 cover_url = info.get("thumbnail")
                 ext = info.get("ext", "m4a")
                 audio_path = os.path.join(output_dir, f"{video_id}.{ext}")
-            print('os.path.join(output_dir, f"{video_id}.{ext}")',os.path.join(output_dir, f"{video_id}.{ext}"))
 
             author_id = info.get("channel_id") or ""
             if cover_url and output_dir:
@@ -98,8 +153,13 @@ class YoutubeDownloader(Downloader, ABC):
                             temp_cover, output_dir, "youtube", author_id, video_id
                         )
                         os.remove(temp_cover)
+                    else:
+                        # 下载失败：不保留远程 URL，避免依赖外部 CDN
+                        logger.warning(f"YouTube 封面下载失败，丢弃远程 URL: {cover_url[:80]}")
+                        cover_url = None
                 except Exception as e:
-                    logger.warning(f"封面下载失败: {e}")
+                    logger.warning(f"YouTube 封面下载异常: {e}")
+                    cover_url = None
 
             return AudioDownloadResult(
                 file_path=audio_path,
@@ -110,20 +170,26 @@ class YoutubeDownloader(Downloader, ABC):
                 video_id=video_id,
                 raw_info={'tags':info.get('tags'), 'uploader': info.get('uploader') or info.get('channel', '')},
                 video_path=None,
+                description=info.get("description") or "",
+                content_type="video",
                 author_id=info.get("channel_id"),
                 author_name=info.get("uploader") or info.get("channel") or None,
+                tags=info.get("tags") or [],
             )
         except Exception as e:
             error_msg = str(e)
             if "Sign in to confirm you're not a bot" in error_msg or "cookies" in error_msg.lower():
                 logger.error(YOUTUBE_COOKIE_ERROR_MSG)
-                raise Exception(YOUTUBE_COOKIE_ERROR_MSG) from e
+                raise ValueError(YOUTUBE_COOKIE_ERROR_MSG) from e
             raise
         finally:
             self._cleanup_cookiefile(cookiefile)
 
     def get_video_info(self, video_url: str) -> VideoInfoResult:
         """只获取视频元数据，不下载文件"""
+        # 社区帖子走图文分支
+        if self._is_community_post_url(video_url):
+            return self._get_community_post_info(video_url)
         cookiefile = self._write_cookiefile()
         try:
             ydl_opts = {
@@ -150,12 +216,13 @@ class YoutubeDownloader(Downloader, ABC):
                     'tags': info.get('tags'),
                     'uploader': author_name,
                 },
+                content_type="video",
             )
         except Exception as e:
             error_msg = str(e)
             if "Sign in to confirm you're not a bot" in error_msg or "cookies" in error_msg.lower():
                 logger.error(YOUTUBE_COOKIE_ERROR_MSG)
-                raise Exception(YOUTUBE_COOKIE_ERROR_MSG) from e
+                raise ValueError(YOUTUBE_COOKIE_ERROR_MSG) from e
             raise
         finally:
             self._cleanup_cookiefile(cookiefile)
@@ -203,7 +270,7 @@ class YoutubeDownloader(Downloader, ABC):
             error_msg = str(e)
             if "Sign in to confirm you're not a bot" in error_msg or "cookies" in error_msg.lower():
                 logger.error(YOUTUBE_COOKIE_ERROR_MSG)
-                raise Exception(YOUTUBE_COOKIE_ERROR_MSG) from e
+                raise ValueError(YOUTUBE_COOKIE_ERROR_MSG) from e
             raise
         finally:
             self._cleanup_cookiefile(cookiefile)

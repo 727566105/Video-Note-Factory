@@ -190,8 +190,8 @@ def save_note_to_file(task_id: str, note):
         created_at=datetime.now().isoformat()
     )
 
-    # 合并版本（新版本在前）
-    all_versions = [asdict(new_version)] + existing_versions
+    # 合并版本（新版本在前），保留最近 20 个防止无限增长
+    all_versions = ([asdict(new_version)] + existing_versions)[:20]
 
     # 构建保存数据 - 使用现有的 transcript 和 audio_meta（如果存在）
     save_data = {
@@ -539,6 +539,12 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
         # 全流程或重试
         if data.task_id:
             task_id = data.task_id
+            # 去重：如果任务正在运行或排队中，拒绝重复提交
+            if task_queue.is_active(task_id):
+                logger.warning(f"任务 {task_id} 正在处理中，拒绝重复提交")
+                return R.error("任务正在处理中，请稍候")
+            # 清理旧任务的取消标记（防止上次取消后残留状态干扰）
+            task_queue.clear_cancelled(task_id)
             NoteGenerator()._update_status(task_id, TaskStatus.PENDING)
             logger.info(f"重试模式，复用已有 task_id={task_id}")
         else:
@@ -587,6 +593,7 @@ def run_half_flow_task(
 ):
     """后台任务：基于已有 transcript 半流程生成"""
     from app.services.note import NoteGenerator
+    task_succeeded = False
     try:
         note = NoteGenerator().generate_from_transcript(
             source_task_id=source_task_id,
@@ -605,13 +612,18 @@ def run_half_flow_task(
         )
         if note and note.markdown:
             save_note_to_file(task_id, note)
+            task_succeeded = True
             logger.info(f"半流程生成完成: task_id={task_id}")
         else:
             logger.warning(f"半流程生成失败: task_id={task_id}")
     except Exception as e:
         logger.error(f"半流程任务执行失败: {e}")
     finally:
-        task_queue.release(task_id)
+        _cleanup_pending(task_id, keep_status=not task_succeeded)
+        # 释放槽位并拉起下一个排队任务（与 run_note_task 对齐，防止队列卡死）
+        next_task_id = task_queue.release(task_id)
+        if next_task_id:
+            _start_queued_task(next_task_id)
 
 
 @router.get("/task_status/{task_id}")

@@ -72,15 +72,30 @@ class DownloadHelper:
             if hostname_lower in blocked or hostname_lower.endswith(".local"):
                 return False, f"禁止访问本地域名: {hostname}"
 
-            # 检查是否为内网 IP（对所有域名统一检查，不跳过 CDN）
-            try:
-                ip = socket.gethostbyname(hostname)
-                ip_obj = ipaddress.ip_address(ip)
-                if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
-                    logger.warning(f"URL 解析为内网 IP: {hostname} -> {ip}")
-                    return False, f"禁止访问内网地址: {ip}"
-            except socket.gaierror:
-                return False, f"无法解析域名: {hostname}"
+            # 已知平台 CDN 域名白名单：这些域名的真实 IP 不可能是内网，
+            # 但在 fake-ip 模式（Clash/Surge）下 DNS 可能解析到 198.18.x.x。
+            # 对白名单域名跳过内网 IP 检查，避免误拦截。
+            trusted_cdn_domains = [
+                ".douyinpic.com", ".douyin.com", ".douyinvod.com",  # 抖音
+                ".snssdk.com", ".byteimg.com", ".bytecdn.cn",       # 字节系
+                ".xhscdn.com", ".xiaohongshu.com",                   # 小红书
+                ".kwaicdn.com", ".kuaishou.com",                     # 快手
+                ".hdslb.com", ".bilivideo.com", ".bilibili.com",     # B站
+                ".ytimg.com", ".googlevideo.com",                    # YouTube
+                ".cctv.com", ".cntv.cn",                             # CCTV
+            ]
+            is_trusted_cdn = any(hostname_lower.endswith(d) for d in trusted_cdn_domains)
+
+            # 检查是否为内网 IP（对非白名单域名检查，防止 SSRF）
+            if not is_trusted_cdn:
+                try:
+                    ip = socket.gethostbyname(hostname)
+                    ip_obj = ipaddress.ip_address(ip)
+                    if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+                        logger.warning(f"URL 解析为内网 IP: {hostname} -> {ip}")
+                        return False, f"禁止访问内网地址: {ip}"
+                except socket.gaierror:
+                    return False, f"无法解析域名: {hostname}"
 
             return True, ""
         except Exception as e:

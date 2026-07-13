@@ -212,21 +212,39 @@ class NoteGenerator:
                                     author_id=author_id, author_name=author_name,
                                     video_id=video_id, title=_title, platform=platform)
 
-                # 下载图片到输出目录（使用统一下载工具）
-                image_urls = video_info.raw_info.get('images', [])
+                # 下载图片到输出目录
+                # 注意：不同下载器存入 raw_info['images'] 的内容不同：
+                #   - 抖音 _download_image_note：已下载的本地文件路径
+                #   - 小红书 _download_image_note：远程图片 URL
+                # 因此需要先判断是本地路径还是远程 URL，本地文件直接复用
+                image_sources = video_info.raw_info.get('images', [])
                 local_images = []
                 cover_api_url = None
                 referer = DownloadHelper.get_referer(platform)
 
-                if output_path and image_urls:
+                if output_path and image_sources:
                     os.makedirs(output_path, exist_ok=True)
-                    for i, img_url in enumerate(image_urls):
-                        img_path = DownloadHelper.download_file(
-                            img_url, output_path, f"image_{i+1}.jpg",
-                            referer=referer, timeout=15
-                        )
-                        if img_path:
-                            local_images.append(img_path)
+                    for i, src in enumerate(image_sources):
+                        target_file = os.path.join(output_path, f"image_{i+1}.jpg")
+
+                        # 情况1：已经是本地文件路径（抖音下载器已下载图片）
+                        if os.path.isfile(src):
+                            # 如果已经在目标目录，直接引用；否则复制过来
+                            if os.path.abspath(src) != os.path.abspath(target_file):
+                                shutil.copy2(src, target_file)
+                            local_images.append(target_file)
+                            logger.info(f"复用已下载图片: {src} -> {target_file}")
+
+                        # 情况2：远程 URL，需要下载（小红书图文笔记）
+                        elif src and src.startswith(('http://', 'https://')):
+                            img_path = DownloadHelper.download_file(
+                                src, output_path, f"image_{i+1}.jpg",
+                                referer=referer, timeout=15
+                            )
+                            if img_path:
+                                local_images.append(img_path)
+                        else:
+                            logger.warning(f"跳过无效图片源: {str(src)[:80]}")
 
                     # 保存第一张图作为封面
                     if local_images:
@@ -264,7 +282,7 @@ class NoteGenerator:
                     title=_title or "",
                     author=author_name or "",
                     description=video_info.description or "",
-                    images=[url for url in image_urls],
+                    images=[url for url in image_sources],
                     live_photo_videos=live_photo_video_urls if live_photo_video_urls else None,
                     model_name=model_name,
                     provider_id=provider_id,

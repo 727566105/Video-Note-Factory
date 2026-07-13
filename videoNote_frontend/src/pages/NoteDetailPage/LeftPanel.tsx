@@ -197,7 +197,12 @@ export default function LeftPanel({ task, localSettings, onSettingsChange }: Lef
 
   const rawCoverUrl = task.audioMeta?.cover_url || ''
   const isLocal = task.platform === 'local' || task.platform === 'local_audio'
-  const coverUrl = isLocal || !rawCoverUrl ? rawCoverUrl : `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}`
+  // 本地平台或本地 API 路径直接用，不走 image_proxy
+  const coverUrl = isLocal || !rawCoverUrl
+    ? rawCoverUrl
+    : rawCoverUrl.startsWith('/api/')
+      ? `${getBaseURL()}${rawCoverUrl}`
+      : `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}`
   const title = task.audioMeta?.title || '未命名笔记'
   const description = task.audioMeta?.description || ''
   const videoId = task.audioMeta?.video_id || ''

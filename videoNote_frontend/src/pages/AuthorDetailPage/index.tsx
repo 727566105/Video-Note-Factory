@@ -84,7 +84,7 @@ export default function AuthorDetailPage() {
             <div className="w-20 md:w-24 h-14 md:h-16 rounded-md overflow-hidden bg-muted shrink-0">
               {video.cover_url ? (
                 <img
-                  src={`${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(video.cover_url)}`}
+                  src={video.cover_url.startsWith('/api/') ? `${getBaseURL()}${video.cover_url}` : `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(video.cover_url)}`}
                   alt={video.title || ''}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"

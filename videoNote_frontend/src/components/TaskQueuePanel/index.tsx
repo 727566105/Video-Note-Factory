@@ -156,7 +156,7 @@ const TaskQueueItem: FC<{
   const thumbnailSrc = isLocal
     ? (task.platform === 'local_audio' ? '/local-audio-cover.svg' : '/local-video-cover.svg')
     : rawCoverUrl
-      ? `${baseURL}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}`
+      ? (rawCoverUrl.startsWith('/api/') ? `${baseURL}${rawCoverUrl}` : `${baseURL}/api/image_proxy?url=${encodeURIComponent(rawCoverUrl)}`)
       : '/placeholder.png'
 
   return (

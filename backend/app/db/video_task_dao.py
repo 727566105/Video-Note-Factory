@@ -14,6 +14,15 @@ def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str
     try:
         existing = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id).first()
         if existing:
+            # 软删除复活：如果任务之前被软删除（deleted_at 非空），清空 deleted_at 使其重新可见
+            if existing.deleted_at is not None:
+                existing.deleted_at = None
+                if video_url:
+                    existing.video_url = video_url
+                if note_style:
+                    existing.note_style = note_style
+                db.commit()
+                logger.info(f"任务 {task_id} 软删除已复活（deleted_at 清空）")
             return
         task = VideoTask(
             video_id=video_id,

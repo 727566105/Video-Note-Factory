@@ -184,6 +184,13 @@ export const useTaskStore = create<TaskStore>()(
         const task = get().tasks.find(task => task.id === id)
         if (!task) return
 
+        // 防抖：如果任务正在生成中，拒绝重复提交
+        const activeStatuses = ['PENDING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'QUEUED']
+        if (activeStatuses.includes(task.status)) {
+          toast.warning('任务正在处理中，请稍候')
+          return
+        }
+
         const newFormData = payload || task.formData
         await generateNote({
           ...newFormData,

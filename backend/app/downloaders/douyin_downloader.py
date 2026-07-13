@@ -134,7 +134,9 @@ class DouyinDownloader(Downloader):
             else:
                 logger.info("抖音 cookie 验证成功")
         
-        self.headers_config["Cookie"] = cookie_str
+        # cookie 为空时不设 Cookie header（避免传字面 "None" 给 requests）
+        if cookie_str:
+            self.headers_config["Cookie"] = cookie_str
         logger.debug(f"抖音下载器初始化完成，Cookie 长度: {len(cookie_str) if cookie_str else 0}")
         
         self.proxies_config = DouyinConfig.PROXIES.copy()
@@ -246,9 +248,23 @@ class DouyinDownloader(Downloader):
             logger.debug(f"请求 URL: {full_url[:200]}...")
             logger.debug(f"请求头 Cookie 长度: {len(kwargs.get('Cookie', ''))}")
             
-            # 发送请求
-            response = requests.get(full_url, headers=kwargs, timeout=30)
-            
+            # 发送请求（含 2 次重试，应对反爬偶发抖动）
+            response = None
+            for attempt in range(3):
+                try:
+                    response = requests.get(full_url, headers=kwargs, timeout=30)
+                    if response.status_code == 200 and response.content:
+                        break
+                    logger.warning(f"抖音 API 请求失败 (尝试 {attempt+1}/3)，状态码: {response.status_code}")
+                except Exception as e:
+                    logger.warning(f"抖音 API 请求异常 (尝试 {attempt+1}/3): {e}")
+                if attempt < 2:
+                    import time as _time
+                    _time.sleep(2)
+
+            if response is None:
+                raise ValueError("抖音 API 请求失败（3 次重试均失败），可能是网络问题或 Cookie 失效")
+
             logger.info(f"API 响应状态码: {response.status_code}")
             logger.debug(f"响应头: {dict(response.headers)}")
             
@@ -392,7 +408,7 @@ class DouyinDownloader(Downloader):
             need_video: Optional[bool] = False
     ) -> AudioDownloadResult:
         try:
-            print(
+            logger.info(
                 f"正在下载内容: {video_url}，保存路径: {output_dir}，质量: {quality}"
             )
             if output_dir is None:
@@ -412,8 +428,8 @@ class DouyinDownloader(Downloader):
                 return self._download_image_note(aweme, output_dir, aweme_type)
             else:
                 return self._download_video_note(aweme, output_dir, video_data)
-        except Exception as e:
-            raise e
+        except Exception:
+            raise
 
     def _download_image_note(self, aweme: dict, output_dir: str, aweme_type: int) -> AudioDownloadResult:
         """图集/实况笔记：下载图片 + 每张实况照片视频"""
@@ -537,8 +553,13 @@ class DouyinDownloader(Downloader):
                         temp_cover, output_dir, "douyin", common["author_id"], video_id
                     )
                     os.remove(temp_cover)
-            except Exception:
-                pass
+                else:
+                    # 下载失败：不保留远程签名 URL（会过期导致永久丢封面）
+                    logger.warning(f"抖音封面下载失败，丢弃远程 URL: {cover_url[:80]}")
+                    cover_url = None
+            except Exception as e:
+                logger.warning(f"抖音封面下载异常: {e}")
+                cover_url = None
 
         return AudioDownloadResult(
             file_path=output_path,
@@ -547,6 +568,8 @@ class DouyinDownloader(Downloader):
             cover_url=cover_url,
             platform="douyin",
             video_id=video_id,
+            description=common.get("description") or aweme.get('desc', ''),
+            content_type="video",
             raw_info={
                 'tags': aweme.get('caption', '') + ''.join(tags),
                 'owner': {

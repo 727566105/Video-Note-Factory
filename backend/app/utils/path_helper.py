@@ -524,8 +524,8 @@ def move_note_files_to_video_folder(
     temp_folder_with_title = NOTE_OUTPUT_DIR / f"{task_id[:8]}_{sanitize_folder_name(title)}" if title else None
     pending_folder = VIDEO_DIR / "_pending" / task_id
 
-    # 迁移文件
-    file_types = ["audio.json", "transcript.json", "note.md", "status.json", "note.json", "metadata.json"]
+    # 迁移文件（含封面 cover.jpg）
+    file_types = ["audio.json", "transcript.json", "note.md", "status.json", "note.json", "metadata.json", "cover.jpg"]
 
     for filename in file_types:
         # 从纯 task_id 目录迁移
@@ -549,6 +549,23 @@ def move_note_files_to_video_folder(
             dst = target_folder / filename
             if not dst.exists():
                 shutil.move(str(src), str(dst))
+
+    # 迁移图文笔记的图片文件（image_1.jpg, image_2.jpg, ...）
+    for source_folder in [temp_folder, temp_folder_with_title, pending_folder]:
+        if source_folder and source_folder.exists():
+            for img_file in source_folder.glob("image_*.jpg"):
+                dst = target_folder / img_file.name
+                if not dst.exists():
+                    shutil.move(str(img_file), str(dst))
+
+    # 迁移截图目录（screenshots/）
+    for source_folder in [temp_folder, temp_folder_with_title, pending_folder]:
+        if source_folder and source_folder.exists():
+            src_shots = source_folder / "screenshots"
+            if src_shots.exists():
+                dst_shots = target_folder / "screenshots"
+                if not dst_shots.exists():
+                    shutil.move(str(src_shots), str(dst_shots))
 
     # 迁移关联的媒体文件（音频/视频）并更新 audio.json 中的路径
     audio_json_path = target_folder / "audio.json"

@@ -1,13 +1,14 @@
 import os
 import subprocess
+import logging
 from abc import ABC
 from typing import Optional
 
 from app.downloaders.base import Downloader
 from app.enmus.note_enums import DownloadQuality
 from app.models.audio_model import AudioDownloadResult, VideoInfoResult
-import os
-import subprocess
+
+logger = logging.getLogger(__name__)
 
 from app.utils.video_helper import save_cover_to_static
 from app.utils.upload_path import resolve_uploaded_file_path
@@ -138,23 +139,38 @@ class LocalDownloader(Downloader, ABC):
 
         file_name = os.path.basename(video_url)
         title, _ = os.path.splitext(file_name)
-        print(title, file_name,video_url)
+        logger.info(f"本地文件下载: {file_name}")
         file_path=self.convert_to_mp3(video_url)
-        cover_path = self.extract_cover(video_url)
-        if cover_path and output_dir:
-            from app.utils.video_helper import save_cover_to_video_dir
-            cover_url = save_cover_to_video_dir(
-                cover_path, output_dir, "local", author_id or "local", title
-            )
-            os.remove(cover_path)
-        else:
+
+        # 封面提取失败时降级为 None，不中断整个下载
+        cover_url = None
+        try:
+            cover_path = self.extract_cover(video_url)
+            if cover_path and output_dir:
+                from app.utils.video_helper import save_cover_to_video_dir
+                cover_url = save_cover_to_video_dir(
+                    cover_path, output_dir, "local", author_id or "local", title
+                )
+                os.remove(cover_path)
+        except Exception as e:
+            logger.warning(f"本地视频封面提取失败（降级为无封面）: {e}")
             cover_url = None
 
-        print('file——path',file_path)
+        # 读取视频时长
+        duration = 0
+        try:
+            result = subprocess.run([
+                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', video_url
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            duration = float(result.stdout.decode().strip() or 0)
+        except (subprocess.CalledProcessError, ValueError):
+            duration = 0
+
         return AudioDownloadResult(
             file_path=file_path,
             title=title,
-            duration=0,  # 可选：后续加上读取时长
+            duration=duration,
             cover_url=cover_url,  # 暂无封面
             platform="local",
             video_id=title,

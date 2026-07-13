@@ -95,6 +95,8 @@ class CCTVDownloader(Downloader, ABC):
                     cover_url=cover_url,
                     platform="cctv",
                     video_id=video_id,
+                    description=api_data.get("brief") or api_data.get("title", ""),
+                    content_type="video",
                     raw_info=api_data,
                     video_path=mp4_path if need_video else None,
                     author_id="cctv",
@@ -273,23 +275,31 @@ class CCTVDownloader(Downloader, ABC):
             raise ValueError(f"音频提取失败: {e}")
 
     def _download_cover(self, api_data: dict, output_dir: str, video_id: str) -> Optional[str]:
-        """下载封面图"""
+        """下载封面图（与其他平台一致：走 save_cover_to_video_dir 统一命名）"""
         cover_url = api_data.get("cover_url") or api_data.get("f_cover") or api_data.get("image")
         if not cover_url:
             return None
 
         try:
             from app.utils.download_helper import DownloadHelper
-            cover_path = DownloadHelper.download_file(
-                cover_url, output_dir, "cover.jpg",
+            from app.utils.video_helper import save_cover_to_video_dir
+            temp_cover = DownloadHelper.download_file(
+                cover_url, output_dir, "_temp_cover.jpg",
                 referer="https://www.cctv.com/", timeout=10
             )
-            if cover_path:
-                return f"/api/video_cover/cctv/cctv/{video_id}"
+            if temp_cover:
+                api_path = save_cover_to_video_dir(
+                    temp_cover, output_dir, "cctv", "cctv", video_id
+                )
+                os.remove(temp_cover)
+                return api_path
+            else:
+                # 下载失败：不保留远程 URL（会过期导致永久丢封面）
+                logger.warning(f"CCTV 封面下载失败，丢弃远程 URL: {cover_url[:80]}")
+                return None
         except Exception as e:
-            logger.warning(f"封面下载失败: {e}")
-
-        return cover_url
+            logger.warning(f"CCTV 封面下载异常: {e}")
+            return None
 
     def _get_info_from_api(self, guid: str, video_url: str) -> VideoInfoResult:
         """通过API获取视频信息"""
@@ -303,7 +313,8 @@ class CCTVDownloader(Downloader, ABC):
             video_id=guid,
             author_id="cctv",
             author_name="央视网",
-            description=None,
+            description=api_data.get("brief") or api_data.get("title", ""),
+            content_type="video",
             raw_info=api_data,
         )
 
@@ -326,6 +337,7 @@ class CCTVDownloader(Downloader, ABC):
             author_id="cctv",
             author_name="央视网",
             description=info.get("description"),
+            content_type="video",
             raw_info=info,
         )
 
@@ -357,6 +369,8 @@ class CCTVDownloader(Downloader, ABC):
                 cover_url=info.get("thumbnail"),
                 platform="cctv",
                 video_id=video_id,
+                description=info.get("description") or info.get("title", ""),
+                content_type="video",
                 raw_info=info,
                 video_path=downloaded_path if need_video else None,
                 author_id="cctv",

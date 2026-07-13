@@ -436,7 +436,9 @@ function getAuthor(task: Task) {
 function getCoverUrl(task: Task) {
   const cover = task.audioMeta?.cover_url
   if (!cover) return ''
+  // 本地平台或本地 API 路径直接用，不走 image_proxy
   if (task.platform === 'local' || task.platform === 'local_audio') return cover
+  if (cover.startsWith('/api/')) return `${getBaseURL()}${cover}`
   return `${getBaseURL()}/api/image_proxy?url=${encodeURIComponent(cover)}`
 }
 

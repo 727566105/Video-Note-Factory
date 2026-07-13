@@ -50,8 +50,22 @@ class TaskQueueManager:
         logger.info(f"TaskQueueManager 初始化，最大并发数: {self.max_concurrent}")
 
     def acquire(self, task_id: str) -> bool:
-        """尝试获取执行槽位。成功返回 True，失败则入队返回 False。"""
+        """尝试获取执行槽位。成功返回 True，失败则入队返回 False。
+
+        去重设计：如果 task_id 已在 running 或 queued 中，不会重复入队，
+        而是返回当前状态（running 返回 True，queued 返回 False），
+        防止双击"重新生成"导致同一任务并发执行。
+        """
         with self._lock:
+            # 去重：已在运行中，幂等返回 True（不重复启动）
+            if task_id in self.running_tasks:
+                logger.info(f"任务 {task_id} 已在运行中，跳过重复 acquire")
+                return True
+            # 去重：已在排队中，不重复入队
+            if task_id in self.queued_tasks:
+                logger.info(f"任务 {task_id} 已在排队中，跳过重复入队")
+                return False
+
             if len(self.running_tasks) < self.max_concurrent:
                 self.running_tasks.add(task_id)
                 now = time.time()
@@ -67,6 +81,11 @@ class TaskQueueManager:
         self._write_queued_status(task_id, position)
         logger.info(f"任务 {task_id} 进入排队 ({position} 位)")
         return False
+
+    def is_active(self, task_id: str) -> bool:
+        """检查任务是否正在运行或排队中（用于防止重复提交）。"""
+        with self._lock:
+            return task_id in self.running_tasks or task_id in self.queued_tasks
 
     def release(self, task_id: str):
         """释放执行槽位，自动从队列取下一个执行。返回下一个 task_id 或 None。

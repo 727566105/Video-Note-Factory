@@ -465,8 +465,13 @@ class XiaohongshuDownloader(Downloader):
                         parsed["author_id"], note_id
                     )
                     os.remove(temp_cover)
-            except Exception:
-                pass
+                else:
+                    # 下载失败：不保留远程 URL（小红书 CDN URL 会过期）
+                    logger.warning(f"小红书封面下载失败，丢弃远程 URL: {cover_url[:80]}")
+                    cover_url = None
+            except Exception as e:
+                logger.warning(f"小红书封面下载异常: {e}")
+                cover_url = None
 
         duration = video_info.get("duration", 0) // 1000 if video_info.get("duration") else 0
 

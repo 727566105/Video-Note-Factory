@@ -25,10 +25,13 @@ AI 视频笔记工具：导入音视频链接/文件，自动转写、总结、�
 
 - `backend/` — FastAPI + SQLAlchemy + SQLite，入口 `main.py`（uvicorn，端口 `BACKEND_PORT`，默认 8483）
   - `app/routers/` — API 路由层（REST，挂在 `/api` 下）
-  - `app/services/` — 业务逻辑（`config_export.py` 配置导入导出、`webdav_backup.py` 备份/恢复、`note_share.py` 笔记跨用户分享）
+  - `app/services/` — 业务逻辑（`task_queue.py` 任务队列、`config_export.py` 配置导入导出、`webdav_backup.py` 备份/恢复、`note_share.py` 笔记跨用户分享）
   - `app/db/` — 数据访问层（`engine.py` 引擎，`*_dao.py` 各 DAO）+ SQLAlchemy 模型 `app/models/`
   - `app/utils/path_helper.py` — **三级/四级目录命名 + 笔记文件查找（核心，见下方 gotcha）**
-  - `app/transcriber/` — 转写提供器（fast-whisper/bcut/mlx 等）
+  - `app/transcriber/` — 转写提供器（fast-whisper/bcut/mlx 等），单例缓存 + 锁保护
+  - `app/downloaders/` — 各平台下载器（douyin/xiaohongshu/bilibili/youtube/kuaishou/cctv/local）
+  - `app/mcp_server.py` — MCP Server（Streamable HTTP，路径 `/mcp`，静态 Bearer Token 鉴权）
+  - `app/tasks/scheduler.py` — APScheduler 定时任务（备份/缓存清理/_pending 清理/心跳看门狗）
   - `tests/` — pytest（含 `conftest.py`）
 - `videoNote_frontend/` — React 19 + Vite + TypeScript + **Tailwind CSS v4 + shadcn/ui (Radix) + Zustand**（antd 仍有残留引用，新组件统一用 shadcn/ui），端口 `VITE_FRONTEND_PORT`（默认 3015）
   - `src/layouts/SettingLayout.tsx` — 设置页侧边栏分组配置（`settingGroups` 数组），4 个分组：账号与工作区 / 基础数据设置 / AI 与处理 / 系统管理
@@ -43,9 +46,9 @@ AI 视频笔记工具：导入音视频链接/文件，自动转写、总结、�
 
 ```bash
 # 后端（从 backend/ 运行）
-.venv/bin/python main.py                              # 启动（venv 在仓库根 .venv/）
-.venv/bin/python -m pytest tests/                     # 全量测试（从 backend/ 跑）
-.venv/bin/python -m pytest tests/test_xxx.py -v -s    # 单文件 + 打印
+../.venv/bin/python main.py                         # 启动（venv 在仓库根 .venv/）
+../.venv/bin/python -m pytest tests/                # 全量测试
+../.venv/bin/python -m pytest tests/test_xxx.py -v -s  # 单文件 + 打印
 
 # 前端（从 videoNote_frontend/ 运行）
 pnpm dev                          # 开发服务器（HMR，读源码，端口 3015）
@@ -53,6 +56,7 @@ pnpm build                        # 构建
 pnpm lint                         # eslint
 pnpm test                         # vitest 单测
 pnpm test:e2e                     # playwright e2e
+npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必跑）
 
 # Docker 部署（生产模式，nginx 静态文件，无 HMR）
 ./deploy.sh                       # 拉镜像 + 启动容器
@@ -87,3 +91,21 @@ pnpm test:e2e                     # playwright e2e
 - 改 `SettingLayout.tsx` 分组结构 → 需同步检查 `App.tsx` 路由是否存在
 - `openspec/` — 架构/重大变更走 OpenSpec 提案流程（见文件顶部 managed block）
 - 根 `CLAUDE.md` / `videoNote_frontend/CLAUDE.md` — 更详细的项目约定
+
+## 并发与任务队列（关键架构）
+
+- **`TaskQueueManager`（`app/services/task_queue.py`）** 是全局单例，控制并发执行数（`MAX_CONCURRENT_TASKS` 默认 3）。所有方法用 `threading.RLock` 保护，`acquire` 有 task_id 去重（已在运行/排队的不重复入队），`release` 幂等（看门狗先释放后卡死线程不会重复拉起）。
+- **心跳看门狗**：`NoteGenerator._check_cancelled` 每个阶段切换点调 `task_queue.update_heartbeat`，`scheduler.py` 每 5 分钟检查 `get_stale_tasks(900)`（15 分钟无心跳视为卡死），自动释放槽位 + 写 FAILED + 拉起下一个排队任务。改笔记生成流程时保持心跳调用。
+- **重新生成防重**：`generate_note` 路由在 `acquire` 前检查 `task_queue.is_active(task_id)`，前端 `retryTask` 检查 task status 是否活跃态。
+- **文件迁移**：`move_note_files_to_video_folder` 迁移列表必须包含 `cover.jpg`、`image_*.jpg`、`screenshots/`（否则 `_pending` 目录的媒体会被 `rmtree` 删掉）。
+- **启动阻塞预热**：`main.py` 的 `await warm_up_transcriber_async(...)` 确保模型加载完后才接受请求（`_init_transcriber` 有锁防止并发重复加载模型）。
+
+## 下载器规范（6 平台 + 本地）
+
+- **封面统一走 `save_cover_to_video_dir`**：返回本地 API 路径 `/api/video_cover/{platform}/{author_id}/{video_id}`。下载失败时 `cover_url = None`，**绝不保留远程 CDN URL**（抖音/快手/小红书的签名 URL 会过期导致永久丢封面）。
+- **图文笔记图片处理**：`note.py` 的 article/live_photo 分支先判断 `raw_info['images']` 是本地文件还是远程 URL — 本地文件直接 `shutil.copy2` 复用，远程 URL 才调 `DownloadHelper.download_file`。各下载器存的 images 类型不一致（抖音存本地路径，小红书图文存远程 URL）。
+- **所有 `requests.get/post` 必须加 `timeout`**。无 timeout 的网络请求会永久阻塞后台线程，看门狗也救不回来。
+- **抛 `ValueError`**，不抛裸 `Exception`（调用方靠异常类型做降级）。
+- **生产代码禁止 `print()`**，用 `logger`（`from app.utils.logger import get_logger`）。
+- **cookie 为空时不设 Cookie header**（否则传字面 "None" 给 requests）。
+- **支持平台**：抖音(douyin)、小红书(xiaohongshu)、B站(bilibili, yt-dlp)、YouTube(yt-dlp)、快手(kuaishou)、CCTV、本地文件(local/local_audio)。每个平台在 `app/downloaders/` 下有独立下载器。

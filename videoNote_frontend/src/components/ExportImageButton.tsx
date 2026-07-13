@@ -59,8 +59,10 @@ export const ExportImageButton = forwardRef<HTMLButtonElement, ExportImageButton
   const getCoverUrl = () => {
     if (!currentTask?.audioMeta?.cover_url) return undefined
     const isLocal = currentTask.platform === 'local' || currentTask.platform === 'local_audio'
-    if (isLocal) return currentTask.audioMeta.cover_url
-    return `${baseURL}/api/image_proxy?url=${encodeURIComponent(currentTask.audioMeta.cover_url)}`
+    const coverUrl = currentTask.audioMeta.cover_url
+    // 本地平台或本地 API 路径直接用，不走 image_proxy
+    if (isLocal || coverUrl.startsWith('/api/')) return coverUrl.startsWith('/api/') ? `${baseURL}${coverUrl}` : coverUrl
+    return `${baseURL}/api/image_proxy?url=${encodeURIComponent(coverUrl)}`
   }
 
   const getModelName = () => {
