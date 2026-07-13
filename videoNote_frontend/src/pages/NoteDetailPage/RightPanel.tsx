@@ -393,11 +393,11 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
       {/* 内容区 */}
       <div className="m-4 min-h-0 flex-1 overflow-auto rounded-2xl border border-border bg-background/85 shadow-sm">
         {/* Sticky 工具栏 */}
-        <div data-guide="toolbar" className="sticky top-0 z-10 flex flex-col gap-2 border-b bg-background/95 px-4 py-3 backdrop-blur-sm">
-          <div className="flex min-w-0 flex-col gap-2">
+        <div data-guide="toolbar" className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-background/95 px-4 py-2 backdrop-blur-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {isMultiVersion && (
               <Select value={currentVerId} onValueChange={setCurrentVerId}>
-                <SelectTrigger data-guide="version-select" className="h-8 w-[150px] text-xs">
+                <SelectTrigger data-guide="version-select" className="h-7 w-[130px] text-xs">
                   <SelectValue>
                     {currentVerId ? `版本（${currentVerId.slice(-6)}）` : '选择版本'}
                   </SelectValue>
@@ -411,24 +411,22 @@ export default function RightPanel({ task, isProcessing, processingStatus, local
                 </SelectContent>
               </Select>
             )}
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {modelName && (
-                <Badge variant="secondary" className="inline-block max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap bg-pink-100 text-xs text-pink-700 hover:bg-pink-200 2xl:max-w-[240px]">
-                  {modelName}
-                </Badge>
-              )}
-              {styleName && (
-                <Badge variant="secondary" className="inline-block max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-cyan-100 text-xs text-cyan-700 hover:bg-cyan-200">
-                  {styleName}
-                </Badge>
-              )}
-              {createTime && (
-                <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(createTime)}</span>
-              )}
-            </div>
+            {modelName && (
+              <Badge variant="secondary" className="inline-block max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap bg-pink-100 text-xs text-pink-700 hover:bg-pink-200 2xl:max-w-[240px]">
+                {modelName}
+              </Badge>
+            )}
+            {styleName && (
+              <Badge variant="secondary" className="inline-block max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-cyan-100 text-xs text-cyan-700 hover:bg-cyan-200">
+                {styleName}
+              </Badge>
+            )}
+            {createTime && (
+              <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(createTime)}</span>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-1">
+          <div className="flex flex-wrap items-center gap-1 ml-auto">
             <ActionBtn icon={<Copy className="w-3.5 h-3.5" />} label="复制" onClick={handleCopy} />
             <ButtonGroup>
               <ActionBtn icon={<Download className="w-3.5 h-3.5" />} label="导出" onClick={() => setExportDialogOpen(true)} />

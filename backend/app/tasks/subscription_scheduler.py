@@ -60,16 +60,112 @@ class SubscriptionScheduler:
             logger.info(f"开始刷新订阅 {subscription_id} ({channel_name})")
             result = fetch_all_for_subscription(sub, limit=50)
 
+            new_items = []
             if result.items:
-                added = upsert_feed_items(result.items)
-                logger.info(f"订阅 {subscription_id} 新增 {added} 条动态")
+                new_items = upsert_feed_items(result.items)
+                logger.info(f"订阅 {subscription_id} 新增 {len(new_items)} 条动态")
 
             if result.error:
                 logger.warning(f"订阅 {subscription_id} 刷新失败: {result.error}")
 
             update_subscription_check(subscription_id)
+
+            # 自动生成笔记：订阅开启了 auto_generate 且有新内容
+            if new_items and getattr(sub, 'auto_generate', 0) == 1:
+                self._auto_generate_notes(sub, new_items)
+
         except Exception as e:
             logger.error(f"订阅 {subscription_id} 刷新异常: {e}")
+
+    def _auto_generate_notes(self, subscription, new_items: list):
+        """为新增的 feed items 自动生成笔记"""
+        import uuid
+        from app.services.task_queue import task_queue
+        from app.routers.note import run_note_task, _save_queued_task_params
+        from app.db.subscription_dao import update_feed_item_task
+
+        style = getattr(subscription, 'generate_style', None) or 'minimal'
+        generated = 0
+
+        for item in new_items:
+            # item 是 dict（从 upsert_feed_items 返回）
+            if item.get('task_id'):
+                continue
+            content_url = item.get('content_url')
+            content_id = item.get('content_id')
+            item_id = item.get('id')
+            if not content_url:
+                continue
+
+            # 去重：检查该用户是否已有该视频的笔记（未删除的），避免重复生成
+            from app.db.video_task_dao import get_user_task_for_video
+            existing = get_user_task_for_video(content_id, subscription.platform, subscription.user_id)
+            if existing and existing.deleted_at is None:
+                # 已有笔记，回写 task_id 到 feed item 并跳过
+                update_feed_item_task(item_id, existing.task_id)
+                logger.info(f"[自动生成] 订阅 {subscription.id} 内容 {content_id} 已有笔记，跳过")
+                continue
+
+            task_id = str(uuid.uuid4())
+            logger.info(f"[自动生成] 订阅 {subscription.id} 新内容 {content_id} -> task_id={task_id}")
+
+            try:
+                from app.db.video_task_dao import insert_video_task
+                from app.routers.note import VideoRequest
+
+                # 创建任务记录
+                insert_video_task(
+                    video_id=content_id,
+                    platform=subscription.platform,
+                    task_id=task_id,
+                    video_url=content_url,
+                    user_id=subscription.user_id,
+                    note_style=style,
+                )
+
+                # 抢占执行槽位
+                acquired = task_queue.acquire(task_id)
+                if acquired:
+                    # 直接在后台线程执行
+                    import threading
+                    thread = threading.Thread(
+                        target=run_note_task,
+                        args=(task_id,),
+                        kwargs={
+                            'video_url': content_url,
+                            'platform': subscription.platform,
+                            'quality': 'medium',
+                            'smart_mode': True,
+                            'style': style,
+                            'user_id': subscription.user_id,
+                        },
+                        daemon=True,
+                    )
+                    thread.start()
+                    generated += 1
+                else:
+                    # 排队，保存参数
+                    from app.enmus.note_enums import DownloadQuality
+                    queued_req = VideoRequest(
+                        video_url=content_url,
+                        platform=subscription.platform,
+                        quality=DownloadQuality('medium'),
+                        smart_mode=True,
+                        style=style,
+                        model_name='',  # smart_mode 不需要
+                        provider_id='',
+                    )
+                    _save_queued_task_params(task_id, queued_req, subscription.user_id)
+
+                # 回写 task_id 到 feed item
+                if item_id:
+                    update_feed_item_task(item_id, task_id)
+
+            except Exception as e:
+                logger.error(f"[自动生成] 订阅 {subscription.id} 内容 {content_id} 生成失败: {e}")
+
+        if generated:
+            logger.info(f"[自动生成] 订阅 {subscription.id} 共触发 {generated} 条笔记生成")
 
     def add_job(self, subscription: Subscription):
         """为订阅创建定时任务"""

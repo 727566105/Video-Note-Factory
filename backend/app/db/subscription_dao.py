@@ -84,6 +84,15 @@ def get_user_subscriptions(user_id: int) -> list[Subscription]:
         db.close()
 
 
+def get_subscription_by_id(sub_id: int) -> Optional[Subscription]:
+    """根据订阅 ID 获取订阅信息"""
+    db = next(get_db())
+    try:
+        return db.query(Subscription).filter_by(id=sub_id).first()
+    finally:
+        db.close()
+
+
 def get_subscription_by_url(user_id: int, channel_url: str) -> Optional[Subscription]:
     db = next(get_db())
     try:
@@ -175,10 +184,11 @@ def update_subscription_check(sub_id: int):
 
 # ── FeedItem CRUD ──
 
-def upsert_feed_items(items: list[dict]) -> int:
-    """批量插入动态，按 user_id+content_id+platform 去重，已存在则更新关联，返回新增数量"""
+def upsert_feed_items(items: list[dict]) -> list[FeedItem]:
+    """批量插入动态，按 user_id+content_id+platform 去重，已存在则更新关联。
+    返回新增的 FeedItem 对象列表（用于自动生成笔记等后续处理）。"""
     db = next(get_db())
-    added = 0
+    new_items = []
     try:
         for item in items:
             content_id = item.get("content_id")
@@ -199,13 +209,22 @@ def upsert_feed_items(items: list[dict]) -> int:
                 continue
             feed = FeedItem(**item)
             db.add(feed)
-            added += 1
+            db.flush()  # 获取 id
+            # 提前提取属性到 dict，防止 session 关闭后 DetachedInstanceError
+            new_items.append({
+                'id': feed.id,
+                'content_id': feed.content_id,
+                'content_url': feed.content_url,
+                'task_id': feed.task_id,
+                'content_type': feed.content_type,
+                'title': feed.title,
+            })
         db.commit()
-        return added
+        return new_items
     except Exception as e:
         db.rollback()
         logger.error(f"批量插入动态失败: {e}")
-        return 0
+        return []
     finally:
         db.close()
 
@@ -350,6 +369,24 @@ def update_feed_item_task(item_id: int, task_id: str):
     except Exception as e:
         db.rollback()
         logger.error(f"更新动态任务ID失败: {e}")
+    finally:
+        db.close()
+
+
+def update_feed_item_task_by_content(content_id: str, platform: str, user_id: int, task_id: str):
+    """按 content_id+platform+user_id 查找 feed_item 并回写 task_id（用于笔记生成完成后回写）"""
+    db = next(get_db())
+    try:
+        items = db.query(FeedItem).filter_by(
+            content_id=content_id, platform=platform, user_id=user_id
+        ).all()
+        for item in items:
+            if not item.task_id:
+                item.task_id = task_id
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"按内容回写 feed_item task_id 失败: {e}")
     finally:
         db.close()
 

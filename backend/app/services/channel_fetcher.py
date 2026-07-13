@@ -65,6 +65,10 @@ PLATFORM_PATTERNS = {
         r"xiaohongshu\.com",
         r"xhslink\.com",
     ],
+    "kuaishou": [
+        r"kuaishou\.com",
+        r"v\.kuaishou\.com",
+    ],
 }
 
 # 平台对应的 RSSHub 路径模板
@@ -153,6 +157,16 @@ def identify_platform(url: str) -> Optional[dict]:
             }
         # 笔记链接：尝试从页面提取 user_id
         return _resolve_xiaohongshu_from_note(url)
+
+    # 快手
+    if any(re.search(p, url) for p in PLATFORM_PATTERNS["kuaishou"]):
+        ks_uid = _extract_kuaishou_uid(url)
+        if ks_uid:
+            return {
+                "platform": "kuaishou",
+                "platform_id": ks_uid,
+                "channel_url": f"https://www.kuaishou.com/profile/{ks_uid}",
+            }
 
     return None
 
@@ -255,6 +269,15 @@ def _resolve_douyin_from_video(url: str) -> Optional[dict]:
             }
     except Exception as e:
         logger.error(f"从抖音视频URL解析频道失败: {e}")
+    return None
+
+
+def _extract_kuaishou_uid(url: str) -> Optional[str]:
+    """从快手 URL 提取用户 ID"""
+    # /profile/{userId} 格式
+    match = re.search(r'kuaishou\.com/profile/(\w+)', url)
+    if match:
+        return match.group(1)
     return None
 
 
@@ -465,6 +488,51 @@ def fetch_bilibili_all_videos(mid: str, max_pages: int = 50, page_size: int = 50
     return FetchResult(items=results, error=first_error)
 
 
+def _fetch_youtube_rss(channel_id: str, limit: int = 15) -> list[dict]:
+    """通过 YouTube RSS feed 获取频道最新视频（快速、无需 API key、稳定）
+
+    RSS feed 返回最新 15 条视频，包含 ID/title/发布时间/缩略图。
+    """
+    import xml.etree.ElementTree as ET
+
+    rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+    try:
+        resp = requests.get(rss_url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
+            logger.warning(f"YouTube RSS 请求失败: {resp.status_code}")
+            return []
+
+        root = ET.fromstring(resp.content)
+        ns = {'atom': 'http://www.w3.org/2005/Atom', 'yt': 'http://www.youtube.com/xml/schemas/2015', 'media': 'http://search.yahoo.com/mrss/'}
+
+        items = []
+        for entry in root.findall('atom:entry', ns)[:limit]:
+            video_id = entry.find('yt:videoId', ns)
+            title = entry.find('atom:title', ns)
+            published = entry.find('atom:published', ns)
+            thumbnail = entry.find('media:group/media:thumbnail', ns)
+
+            if video_id is None:
+                continue
+
+            vid = video_id.text
+            items.append({
+                'content_type': 'video',
+                'content_id': vid,
+                'content_url': f"https://www.youtube.com/watch?v={vid}",
+                'title': title.text if title is not None else '',
+                'cover_url': thumbnail.get('url') if thumbnail is not None else None,
+                'duration': 0,
+                'published_at': published.text if published is not None else None,
+            })
+
+        logger.info(f"YouTube RSS 获取到 {len(items)} 条视频")
+        return items
+    except Exception as e:
+        logger.error(f"YouTube RSS 获取异常: {e}")
+        return []
+
+
 def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
                   progress_callback=None, page_limit: int = None) -> FetchResult:
     """获取频道视频列表
@@ -520,7 +588,29 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
             result.items = result.items[:limit]
         return FetchResult(items=result.items, error=result.error)
 
-    # 其他平台（YouTube 等）：使用 yt-dlp
+    # 快手：使用 GraphQL API 获取用户作品
+    if platform == "kuaishou":
+        user_id = _extract_kuaishou_uid(channel_url)
+        if not user_id:
+            return FetchResult(error=f"无法从 URL 提取快手用户 ID: {channel_url}")
+        from app.services.kuaishou_api import fetch_kuaishou_user_videos
+        try:
+            items = fetch_kuaishou_user_videos(user_id, limit=limit or 30)
+            return FetchResult(items=items)
+        except Exception as e:
+            return FetchResult(error=f"快手作品列表获取失败: {e}")
+
+    # YouTube：优先用 RSS feed（快速稳定），失败回退 yt-dlp
+    if platform == "youtube":
+        channel_id = _extract_youtube_channel(channel_url)
+        if channel_id:
+            rss_items = _fetch_youtube_rss(channel_id, limit or 15)
+            if rss_items:
+                return FetchResult(items=rss_items)
+            # RSS 失败回退 yt-dlp
+            logger.warning("YouTube RSS 获取失败，回退 yt-dlp")
+
+    # 其他平台（YouTube yt-dlp 兜底等）：使用 yt-dlp
     try:
         import yt_dlp
         ydl_opts = {
@@ -638,6 +728,18 @@ def parse_channel_info(channel_url: str, platform: str) -> dict:
             info = fetch_xiaohongshu_user_info(user_id)
             if info:
                 return info
+
+    # 快手：使用快手 API 获取用户信息
+    if platform == "kuaishou":
+        user_id = _extract_kuaishou_uid(channel_url)
+        if user_id:
+            from app.services.kuaishou_api import fetch_kuaishou_user_info
+            info = fetch_kuaishou_user_info(user_id)
+            if info:
+                return {
+                    "channel_name": info.get("name", ""),
+                    "avatar_url": info.get("avatar", ""),
+                }
 
     # 其他平台：使用 yt-dlp
     try:

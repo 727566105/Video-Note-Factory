@@ -12,6 +12,8 @@ export interface Subscription {
   fetch_interval: number
   fetch_at_hour: number
   fetch_at_day: number | null
+  auto_generate: number
+  generate_style: string | null
   last_checked_at: string | null
   created_at: string | null
 }
@@ -188,6 +190,13 @@ export const updateFetchInterval = (id: number, data: FetchIntervalRequest) =>
     fetch_at_hour: number
     fetch_at_day: number | null
   }>(`/subscriptions/${id}/fetch-interval`, data)
+
+export const toggleAutoGenerate = (id: number, enabled: boolean, style?: string) =>
+  request.put<{
+    id: number
+    auto_generate: number
+    generate_style: string | null
+  }>(`/subscriptions/${id}/auto-generate`, { enabled, style })
 
 export const markChannelVideoSeen = (channelVideoId: number) =>
   request.post(`/channels/channel-videos/${channelVideoId}/seen`)

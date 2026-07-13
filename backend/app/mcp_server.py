@@ -701,7 +701,7 @@ async def refresh_subscription(subscription_id: int, ctx: Context = None) -> str
 
             limit = None if sub.platform == "bilibili" else 50
             result = fetch_all_for_subscription(sub, limit=limit, progress_callback=_cb)
-            added = subscription_dao.upsert_feed_items(result.items) if result.items else 0
+            added = len(subscription_dao.upsert_feed_items(result.items)) if result.items else 0
             subscription_dao.update_subscription_check(subscription_id)
             db_total = subscription_dao.count_feed_items_by_subscription(subscription_id)
             complete_progress(progress_id, added, db_total)
@@ -776,7 +776,7 @@ async def refresh_feed(ctx: Context = None) -> str:
             try:
                 result = fetch_all_for_subscription(sub, limit=20)
                 if result.items:
-                    total_added += subscription_dao.upsert_feed_items(result.items)
+                    total_added += len(subscription_dao.upsert_feed_items(result.items))
                 if result.error:
                     errors.append(f"{sub.channel_name}: {result.error}")
                 subscription_dao.update_subscription_check(sub.id)

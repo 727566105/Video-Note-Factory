@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Trash2, Power, PowerOff, Rss } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -15,7 +16,7 @@ import {
 } from '@/components/ui/empty'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { useAuthStore } from '@/store/authStore'
-import { fetchSummarizedChannels, parseChannelUrl, fetchIntervalOptions, updateFetchInterval, FetchIntervalGroups } from '@/services/subscription'
+import { fetchSummarizedChannels, parseChannelUrl, fetchIntervalOptions, updateFetchInterval, toggleAutoGenerate, FetchIntervalGroups } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -28,12 +29,13 @@ interface SummarizedChannel {
   last_summarized: string | null
 }
 
-const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', xiaohongshu: '小红书' }
+const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', xiaohongshu: '小红书', kuaishou: '快手' }
 const platformIcon: Record<string, React.ReactNode> = {
   bilibili: <BiliBiliLogo className="size-4" />,
   youtube: <YoutubeLogo className="size-4" />,
   douyin: <DouyinLogo className="size-4" />,
   xiaohongshu: <XiaohongshuLogo className="size-4" />,
+  kuaishou: <span className="text-xs font-bold">KS</span>,
 }
 
 export default function ChannelsPage() {
@@ -132,6 +134,7 @@ export default function ChannelsPage() {
                 <th className="px-4 py-2 text-left font-medium">平台</th>
                 <th className="px-4 py-2 text-left font-medium">状态</th>
                 {isAdmin && <th className="px-4 py-2 text-left font-medium">刷新间隔</th>}
+                <th className="px-4 py-2 text-left font-medium">自动生成</th>
                 <th className="px-4 py-2 text-left font-medium">上次检查</th>
                 <th className="px-4 py-2 text-right font-medium">操作</th>
               </tr></thead>
@@ -174,6 +177,20 @@ export default function ChannelsPage() {
                         </Select>
                       </td>
                     )}
+                    <td className="px-4 py-2">
+                      <Switch
+                        checked={sub.auto_generate === 1}
+                        onCheckedChange={async (checked) => {
+                          try {
+                            await toggleAutoGenerate(sub.id, checked)
+                            toast.success(checked ? '已开启自动生成' : '已关闭自动生成')
+                            fetchSubscriptions()
+                          } catch {
+                            toast.error('设置失败')
+                          }
+                        }}
+                      />
+                    </td>
                     <td className="px-4 py-2 text-muted-foreground text-xs">
                       {sub.last_checked_at ? new Date(sub.last_checked_at).toLocaleString() : '未检查'}
                     </td>
@@ -189,7 +206,7 @@ export default function ChannelsPage() {
                   </tr>
                 ))}
                 {filteredSubs.length === 0 && (
-                  <tr><td colSpan={isAdmin ? 6 : 5}>
+                  <tr><td colSpan={isAdmin ? 7 : 6}>
                     <Empty>
                       <EmptyHeader>
                         <EmptyMedia variant="icon"><Rss /></EmptyMedia>
@@ -268,6 +285,21 @@ export default function ChannelsPage() {
                       </span>
                     </div>
                   )}
+                  <div className="mt-2 pt-2 border-t flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">自动生成笔记</span>
+                    <Switch
+                      checked={sub.auto_generate === 1}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          await toggleAutoGenerate(sub.id, checked)
+                          toast.success(checked ? '已开启自动生成' : '已关闭自动生成')
+                          fetchSubscriptions()
+                        } catch {
+                          toast.error('设置失败')
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
               {filteredSubs.length === 0 && (

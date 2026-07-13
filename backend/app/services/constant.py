@@ -25,6 +25,7 @@ CHANNEL_URL_MAP = {
     "youtube": "https://www.youtube.com/channel/{platform_id}",
     "douyin": "https://www.douyin.com/user/{platform_id}",
     "xiaohongshu": "https://www.xiaohongshu.com/user/profile/{platform_id}",
+    "kuaishou": "https://www.kuaishou.com/profile/{platform_id}",
 }
 
 # 平台目录映射（四级目录结构 video/{platform}/{author}/{video})

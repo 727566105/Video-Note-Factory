@@ -249,7 +249,7 @@ export default function FeedPage() {
           /* 列表 */
           <div className="space-y-2">
             {feedItems.map(item => (
-              <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg border hover:bg-accent/50">
+              <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg border hover:bg-accent/50">
                 <div className="w-24 h-14 bg-muted rounded flex-shrink-0 overflow-hidden relative">
                   {item.cover_url && <img src={item.cover_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />}
                   {item.duration && (

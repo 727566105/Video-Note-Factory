@@ -39,6 +39,9 @@ export const useSystemStore = create<SystemState>()(
 
       noteViewMode: 'table',
       setNoteViewMode: mode => set({ noteViewMode: mode }),
+
+      feedViewMode: 'grid',
+      setFeedViewMode: mode => set({ feedViewMode: mode }),
     }),
     {
       name: 'system-store',

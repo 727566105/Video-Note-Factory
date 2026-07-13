@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/pagination'
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers, getFetchStatus, fetchMoreVideos, markChannelVideoSeen } from '@/services/subscription'
-import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
+import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo, KuaishouLogo, CCTVLogo } from '@/components/Icons/platform'
 import type { FeedItem, FetchStatus } from '@/services/subscription'
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useModelStore } from '@/store/modelStore'
@@ -32,12 +32,14 @@ import { toast } from 'sonner'
 import { usePlatformFeatures } from '@/hooks/usePlatformFeatures'
 import { useIsMobile } from '@/hooks/use-mobile'
 
-const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', xiaohongshu: '小红书' }
+const platformLabel: Record<string, string> = { bilibili: 'B站', youtube: 'YouTube', douyin: '抖音', xiaohongshu: '小红书', kuaishou: '快手', cctv: '央视网' }
 const platformIcon: Record<string, React.ReactNode> = {
   bilibili: <BiliBiliLogo className="size-5" />,
   youtube: <YoutubeLogo className="size-5" />,
   douyin: <DouyinLogo className="size-5" />,
   xiaohongshu: <XiaohongshuLogo className="size-5" />,
+  kuaishou: <KuaishouLogo className="size-5" />,
+  cctv: <CCTVLogo className="size-5" />,
 }
 
 const formatDuration = (s?: number | null) => {
@@ -50,7 +52,9 @@ const formatDuration = (s?: number | null) => {
 const timeAgo = (iso?: string | null) => {
   if (!iso) return ''
   const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 0) return '刚刚' // 未来时间或时钟偏移
   const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '刚刚'
   if (mins < 60) return `${mins}分钟前`
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours}小时前`
@@ -72,6 +76,10 @@ export default function ChannelDetailPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'summarized' | 'unsummarized' | 'fresh'>('all')
   const [generatingId, setGeneratingId] = useState<string | null>(null)
+
+  // 轮询安全：最大轮询次数（5 分钟 / 2 秒 = 150 次）
+  const pollCountRef = useRef(0)
+  const MAX_POLL_COUNT = 150
 
   // 新增：刷新后新增的条目 ID
   const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set())
@@ -103,7 +111,12 @@ export default function ChannelDetailPage() {
   const sub = subscriptions.find(s => s.platform === platform && s.platform_id === id)
   const features = usePlatformFeatures(platform || 'bilibili')
 
-  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // 分页越界保护：total 减少时自动回到最后一页
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -170,10 +183,27 @@ export default function ChannelDetailPage() {
       }
 
       // 开始轮询进度
+      pollCountRef.current = 0
       pollingRef.current = setInterval(async () => {
+        pollCountRef.current += 1
+        // 超时熔断：超过 MAX_POLL_COUNT 次自动停止
+        if (pollCountRef.current > MAX_POLL_COUNT) {
+          stopPolling()
+          setFetching(false)
+          toast.error('获取超时，请稍后重试')
+          return
+        }
         try {
           const p = await fetchRefreshProgress(progressId) as any
-          if (!p) return
+          if (!p) {
+            // 连续多次 null 也熔断
+            if (pollCountRef.current > 10) {
+              stopPolling()
+              setFetching(false)
+              toast.error('无法获取进度，请稍后重试')
+            }
+            return
+          }
 
           if (p.status === 'running') {
             const page = p.current_page || 0
@@ -463,7 +493,14 @@ export default function ChannelDetailPage() {
               <Button
                 variant={sub ? "outline" : "secondary"}
                 className={`flex-1 ${!sub ? 'hover:text-pink-400' : ''}`}
-                onClick={() => sub ? unsubscribe(sub.id) : (sub?.channel_url && subscribe(sub.channel_url))}
+                onClick={() => sub ? unsubscribe(sub.id) : subscribe(
+                  // 未订阅时用 platform+id 构造频道 URL
+                  platform === 'bilibili' ? `https://space.bilibili.com/${id}` :
+                  platform === 'youtube' ? `https://www.youtube.com/channel/${id}` :
+                  platform === 'douyin' ? `https://www.douyin.com/user/${id}` :
+                  platform === 'xiaohongshu' ? `https://www.xiaohongshu.com/user/profile/${id}` :
+                  platform === 'kuaishou' ? `https://www.kuaishou.com/profile/${id}` : id
+                )}
                 disabled={fetching}
               >
                 {sub ? <><UserCheck className="size-3" />已订阅</> : <><UserPlus className="size-3" />订阅更新</>}
@@ -582,7 +619,7 @@ export default function ChannelDetailPage() {
                     )}
                     <Button size="sm" variant="outline" className="h-7 px-2 text-xs flex-1"
                       onClick={() => handleGenerate(item)}
-                      disabled={generatingId === item.id}>
+                      disabled={!!generatingId}>
                       {generatingId === item.id && <LoaderCircle className="size-3 animate-spin mr-1" />}
                       {generatingId === item.id ? '生成中...' : item.task_id ? '重新生成' : '生成笔记'}
                     </Button>

@@ -312,6 +312,7 @@ def init_db():
     migrate_subscriptions_unique_id()
     migrate_video_tasks_tags_column()
     migrate_subscriptions_fetch_time()
+    migrate_subscriptions_auto_generate()
     migrate_video_tasks_multiuser_columns()
     migrate_users_security_columns()
     migrate_webdav_default_backup_mode()
@@ -358,5 +359,27 @@ def migrate_subscriptions_fetch_time():
             logger.info("subscriptions: fetch_at_day 列添加成功")
     except Exception as e:
         logger.error(f"subscriptions fetch_time 迁移失败: {e}")
+    finally:
+        db.close()
+
+
+def migrate_subscriptions_auto_generate():
+    """迁移：subscriptions 添加 auto_generate 和 generate_style 字段"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(subscriptions)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "auto_generate" not in columns:
+            logger.info("subscriptions: auto_generate 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE subscriptions ADD COLUMN auto_generate INTEGER DEFAULT 0"))
+            db.commit()
+            logger.info("subscriptions: auto_generate 列添加成功")
+        if "generate_style" not in columns:
+            logger.info("subscriptions: generate_style 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE subscriptions ADD COLUMN generate_style VARCHAR"))
+            db.commit()
+            logger.info("subscriptions: generate_style 列添加成功")
+    except Exception as e:
+        logger.error(f"subscriptions auto_generate 迁移失败: {e}")
     finally:
         db.close()

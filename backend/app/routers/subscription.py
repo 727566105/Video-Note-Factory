@@ -43,6 +43,8 @@ async def list_subscriptions(user=Depends(get_current_user)) -> dict:
         "fetch_interval": s.fetch_interval,
         "fetch_at_hour": s.fetch_at_hour,
         "fetch_at_day": s.fetch_at_day,
+        "auto_generate": s.auto_generate,
+        "generate_style": s.generate_style,
         "last_checked_at": s.last_checked_at.isoformat() if s.last_checked_at else None,
         "created_at": s.created_at.isoformat() if s.created_at else None,
     } for s in subs])
@@ -135,7 +137,7 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
 
         # 没有 platform_id，走旧逻辑兜底
         result = fetch_all_for_subscription(sub, limit=20)
-        added = upsert_feed_items(result.items) if result.items else 0
+        added = len(upsert_feed_items(result.items)) if result.items else 0
         response_data = {
             "id": sub.id,
             "channel_name": sub.channel_name,
@@ -212,7 +214,7 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
     result = fetch_all_for_subscription(sub, limit=20)
     added = 0
     if result.items:
-        added = upsert_feed_items(result.items)
+        added = len(upsert_feed_items(result.items))
     subscription_dao.update_subscription_check(sub.id)
 
     response_data = {
@@ -353,7 +355,7 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 update_progress(progress_id, current_page=page, fetched_count=fetched)
 
             result = fetch_all_for_subscription(sub, limit=limit, progress_callback=_progress_cb)
-            added = upsert_feed_items(result.items) if result.items else 0
+            added = len(upsert_feed_items(result.items)) if result.items else 0
             subscription_dao.update_subscription_check(sub_id)
 
             db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
@@ -421,6 +423,44 @@ async def update_fetch_interval(sub_id: int, req: FetchIntervalRequest, user=Dep
             "fetch_interval": sub.fetch_interval,
             "fetch_at_hour": sub.fetch_at_hour,
             "fetch_at_day": sub.fetch_at_day,
+        })
+    finally:
+        db.close()
+
+
+class AutoGenerateRequest(BaseModel):
+    enabled: bool
+    style: str | None = None
+
+
+@router.put("/{sub_id}/auto-generate")
+async def update_auto_generate(sub_id: int, req: AutoGenerateRequest, user=Depends(get_current_user)) -> dict:
+    """设置订阅是否自动生成笔记"""
+    from app.db.engine import get_db
+    from app.db.models.subscriptions import Subscription
+    from sqlalchemy import update
+
+    db = next(get_db())
+    try:
+        sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
+        if not sub:
+            raise HTTPException(status_code=404, detail="订阅不存在")
+        if sub.user_id != user.id and not getattr(user, 'is_admin', False):
+            raise HTTPException(status_code=403, detail="无权修改此订阅")
+
+        db.execute(
+            update(Subscription)
+            .where(Subscription.id == sub_id)
+            .values(
+                auto_generate=1 if req.enabled else 0,
+                generate_style=req.style,
+            )
+        )
+        db.commit()
+        return R.success({
+            "id": sub.id,
+            "auto_generate": 1 if req.enabled else 0,
+            "generate_style": req.style,
         })
     finally:
         db.close()

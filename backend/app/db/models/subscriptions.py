@@ -19,6 +19,8 @@ class Subscription(Base):
     fetch_interval = Column(Integer, default=60)
     fetch_at_hour = Column(Integer, default=3)
     fetch_at_day = Column(Integer, nullable=True)
+    auto_generate = Column(Integer, default=0)  # 是否自动生成笔记（0=关, 1=开）
+    generate_style = Column(String, nullable=True)  # 自动生成笔记的风格
     last_checked_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 

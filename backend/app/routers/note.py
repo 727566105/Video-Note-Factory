@@ -333,6 +333,17 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
             return
         save_note_to_file(task_id, note)
         task_succeeded = True
+
+        # 回写 task_id 到 feed_item（让频道详情页/动态页即时显示"查看笔记"）
+        if task_succeeded and video_id:
+            try:
+                from app.db.subscription_dao import update_feed_item_task_by_content
+                update_feed_item_task_by_content(
+                    content_id=video_id, platform=platform,
+                    user_id=user_id, task_id=task_id
+                )
+            except Exception as e:
+                logger.warning(f"回写 feed_item task_id 失败: {e}")
     finally:
         # 失败任务保留 status.json，成功任务完全清理
         _cleanup_pending(task_id, keep_status=not task_succeeded)
@@ -1031,12 +1042,17 @@ def check_note_availability(data: CheckAvailabilityRequest, current_user=Depends
 
 @router.get("/quick_view/{task_id}")
 def quick_view_note(task_id: str, current_user=Depends(get_current_user)) -> dict:
-    """快速预览笔记内容（不 clone）"""
-    # 带用户过滤查询
-    from app.db.video_task_dao import get_task_by_task_id_and_user
+    """快速预览笔记内容（不 clone）
+
+    跨用户复用：如果 task 不属于当前用户，尝试查任意用户的同名 task（频道页"可复用"场景）。
+    """
+    from app.db.video_task_dao import get_task_by_task_id_and_user, get_task_by_task_id
     task = get_task_by_task_id_and_user(task_id, current_user.id)
     if not task:
-        raise HTTPException(status_code=403, detail="无权访问该任务")
+        # 跨用户复用：查任意用户的 task（只读预览，不做修改）
+        task = get_task_by_task_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
 
     result_path = find_note_file(
         task_id, task.author_id if task else None, task.author_name if task else None,
@@ -1044,6 +1060,13 @@ def quick_view_note(task_id: str, current_user=Depends(get_current_user)) -> dic
         task.platform if task else "",
         user_id=current_user.id
     )
+    # 跨用户复用：本用户没找到时尝试不限 user_id 查找
+    if (not result_path or not result_path.exists()):
+        result_path = find_note_file(
+            task_id, task.author_id if task else None, task.author_name if task else None,
+            task.video_id if task else None, task.title if task else None, "note",
+            task.platform if task else "",
+        )
     if not result_path or not result_path.exists():
         raise HTTPException(status_code=404, detail="笔记文件不存在")
 

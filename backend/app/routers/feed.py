@@ -70,7 +70,7 @@ async def refresh_feed(user=Depends(get_current_user)) -> dict:
         try:
             result = fetch_all_for_subscription(sub, limit=20)
             if result.items:
-                total_added += upsert_feed_items(result.items)
+                total_added += len(upsert_feed_items(result.items))
             if result.error:
                 errors.append(f"{sub.channel_name}: {result.error}")
             subscription_dao.update_subscription_check(sub.id)
