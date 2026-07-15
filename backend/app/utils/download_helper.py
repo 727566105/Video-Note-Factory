@@ -77,7 +77,9 @@ class DownloadHelper:
             # 对白名单域名跳过内网 IP 检查，避免误拦截。
             trusted_cdn_domains = [
                 ".douyinpic.com", ".douyin.com", ".douyinvod.com",  # 抖音
+                ".douyinstatic.com", ".bytestatic.com", ".bytegoofy.com",  # 抖音音乐/字节 CDN
                 ".snssdk.com", ".byteimg.com", ".bytecdn.cn",       # 字节系
+                ".amemv.com", ".ixigua.com",                         # 字节西瓜
                 ".xhscdn.com", ".xiaohongshu.com",                   # 小红书
                 ".kwaicdn.com", ".kuaishou.com",                     # 快手
                 ".hdslb.com", ".bilivideo.com", ".bilibili.com",     # B站

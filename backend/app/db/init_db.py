@@ -317,6 +317,7 @@ def init_db():
     migrate_users_security_columns()
     migrate_webdav_default_backup_mode()
     migrate_users_api_key()
+    migrate_collection_share_and_summary_mode()
     # 从 JSON 文件回填元数据
     backfill_task_metadata()
     # 种子默认管理员用户
@@ -381,5 +382,33 @@ def migrate_subscriptions_auto_generate():
             logger.info("subscriptions: generate_style 列添加成功")
     except Exception as e:
         logger.error(f"subscriptions auto_generate 迁移失败: {e}")
+    finally:
+        db.close()
+
+
+def migrate_collection_share_and_summary_mode():
+    """迁移：collections 加 share_token/is_shared，collection_summaries 加 summary_mode"""
+    db = next(get_db())
+    try:
+        # collections 表加列
+        result = db.execute(text("PRAGMA table_info(collections)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "share_token" not in columns:
+            db.execute(text("ALTER TABLE collections ADD COLUMN share_token VARCHAR"))
+            logger.info("collections: share_token 列添加成功")
+        if "is_shared" not in columns:
+            db.execute(text("ALTER TABLE collections ADD COLUMN is_shared INTEGER DEFAULT 0"))
+            logger.info("collections: is_shared 列添加成功")
+        db.commit()
+
+        # collection_summaries 表加列
+        result = db.execute(text("PRAGMA table_info(collection_summaries)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "summary_mode" not in columns:
+            db.execute(text("ALTER TABLE collection_summaries ADD COLUMN summary_mode VARCHAR DEFAULT 'overview'"))
+            logger.info("collection_summaries: summary_mode 列添加成功")
+        db.commit()
+    except Exception as e:
+        logger.error(f"collection 迁移失败: {e}")
     finally:
         db.close()

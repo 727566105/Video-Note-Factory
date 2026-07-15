@@ -11,7 +11,7 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.db.models.collection import Collection, CollectionItem, CollectionSummary
+from app.db.models.collection import Collection, CollectionItem, CollectionSummary, SmartCollection, CollectionFavorite
 from app.db.models.video_tasks import VideoTask
 from app.gpt.gpt_factory import GPTFactory
 from app.gpt.prompt_builder import get_style_format
@@ -336,6 +336,7 @@ def generate_collection_summary(
     model_name: str = None,
     provider_id: str = None,
     extras: str = None,
+    mode: str = "overview",
 ) -> Optional[dict]:
     """
     生成收藏集总结
@@ -403,7 +404,7 @@ def generate_collection_summary(
 
     # 3. 拼接 markdown 并构建 prompt
     combined_text = "\n\n---\n\n".join(markdowns)
-    prompt = _build_collection_summary_prompt(combined_text, style, extras)
+    prompt = _build_collection_summary_prompt(combined_text, style, extras, mode=mode)
 
     # 4. 调用 GPT
     try:
@@ -436,6 +437,7 @@ def generate_collection_summary(
     if existing:
         existing.content = result_md
         existing.style = style
+        existing.summary_mode = mode
         existing.model_name = model_name
         existing.provider_id = provider_id
         existing.extras = extras
@@ -445,6 +447,7 @@ def generate_collection_summary(
             collection_id=collection_id,
             content=result_md,
             style=style,
+            summary_mode=mode,
             model_name=model_name,
             provider_id=provider_id,
             extras=extras,
@@ -514,17 +517,37 @@ def _get_gpt(model_name: str = None, provider_id: str = None):
     return GPTFactory().from_config(config)
 
 
-def _build_collection_summary_prompt(combined_text: str, style: str, extras: str = None) -> str:
-    """构建收藏集总结的 prompt"""
-    prompt = f"""你是一个专业的内容分析师。请根据以下多篇笔记内容，生成一份综合总结。
-
+def _build_collection_summary_prompt(combined_text: str, style: str, extras: str = None,
+                                     mode: str = "overview") -> str:
+    """构建收藏集总结的 prompt（支持多模式）"""
+    mode_prompts = {
+        "overview": """你是一个专业的内容分析师。请根据以下多篇笔记内容，生成一份综合总结。
 要求：
 1. 提炼所有笔记的核心主题和关键观点
 2. 发现笔记之间的关联和共同主题
 3. 生成一份结构清晰的综合总结
-4. 使用 Markdown 格式输出
-
-"""
+4. 使用 Markdown 格式输出""",
+        "comparison": """你是一个专业的对比分析师。请根据以下多篇笔记内容，生成一份对比分析报告。
+要求：
+1. 找出各篇笔记讨论的对象/方法/观点
+2. 用 Markdown 表格对比它们的异同（优缺点、适用场景、核心差异等）
+3. 表格后附一段综合分析说明
+4. 使用 Markdown 格式输出""",
+        "timeline": """你是一个专业的时间线分析师。请根据以下多篇笔记内容，按时间顺序生成一份时间线总结。
+要求：
+1. 按内容涉及的时间节点排列关键信息
+2. 每个时间节点标注：时间 -> 关键事件/观点 -> 来源笔记标题
+3. 最后附一段趋势分析
+4. 使用 Markdown 格式输出""",
+        "mindmap": """你是一个专业的知识架构师。请根据以下多篇笔记内容，生成一份思维导图（Markdown 树状结构）。
+要求：
+1. 以合集主题为根节点
+2. 一级分支为核心主题（3-6个）
+3. 二级分支为该主题下的关键点
+4. 用 Markdown 列表格式（- / -- / ---）表示层级
+5. 每个节点简洁明了（不超过15字）""",
+    }
+    prompt = mode_prompts.get(mode, mode_prompts["overview"])
     style_desc = get_style_format(style)
     if style_desc:
         prompt += f"\n风格要求：{style_desc}\n"
@@ -554,6 +577,8 @@ def _serialize_collection(c: Collection) -> dict:
         "cover_url": c.cover_url,
         "category": c.category,
         "sort_order": c.sort_order,
+        "share_token": c.share_token,
+        "is_shared": getattr(c, 'is_shared', 0),
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
@@ -566,9 +591,236 @@ def _serialize_summary(s: CollectionSummary) -> dict:
         "collection_id": s.collection_id,
         "content": s.content,
         "style": s.style,
+        "summary_mode": getattr(s, 'summary_mode', 'overview'),
         "model_name": s.model_name,
         "provider_id": s.provider_id,
         "extras": s.extras,
         "created_at": s.created_at.isoformat() if s.created_at else None,
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }
+
+
+# ── 分享 ──
+
+def share_collection(db: Session, collection_id: str, user_id: int) -> Optional[dict]:
+    """设置合集为公开，生成 share_token"""
+    c = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
+    if not c:
+        return None
+    if not c.share_token:
+        c.share_token = str(uuid.uuid4())
+    c.is_shared = 1
+    db.commit()
+    return {"share_token": c.share_token, "is_shared": 1}
+
+
+def unshare_collection(db: Session, collection_id: str, user_id: int) -> bool:
+    """取消合集公开"""
+    c = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
+    if not c:
+        return False
+    c.is_shared = 0
+    db.commit()
+    return True
+
+
+def get_shared_collection(db: Session, share_token: str) -> Optional[dict]:
+    """通过 share_token 获取公开合集内容（只读）"""
+    c = db.query(Collection).filter(
+        Collection.share_token == share_token, Collection.is_shared == 1
+    ).first()
+    if not c:
+        return None
+    result = _serialize_collection(c)
+    items = db.query(CollectionItem).filter(CollectionItem.collection_id == c.id).all()
+    task_ids = [item.task_id for item in items]
+    result["item_count"] = len(task_ids)
+    summary = db.query(CollectionSummary).filter(CollectionSummary.collection_id == c.id).first()
+    result["summary"] = _serialize_summary(summary) if summary else None
+    return result
+
+
+def edit_summary(db: Session, collection_id: str, user_id: int, content: str) -> Optional[dict]:
+    """编辑合集总结内容"""
+    c = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
+    if not c:
+        return None
+    summary = db.query(CollectionSummary).filter(CollectionSummary.collection_id == collection_id).first()
+    if summary:
+        summary.content = content
+    else:
+        summary = CollectionSummary(id=_uuid(), collection_id=collection_id, content=content)
+        db.add(summary)
+    db.commit()
+    db.refresh(summary)
+    return _serialize_summary(summary)
+
+
+# ── 广场 ──
+
+def get_plaza_collections(db: Session, page: int = 1, limit: int = 20) -> dict:
+    """获取公开合集广场"""
+    offset = (page - 1) * limit
+    query = db.query(Collection).filter(Collection.is_shared == 1)
+    total = query.count()
+    collections = query.order_by(Collection.updated_at.desc()).offset(offset).limit(limit).all()
+    items = []
+    for c in collections:
+        item = _serialize_collection(c)
+        item["item_count"] = db.query(CollectionItem).filter(CollectionItem.collection_id == c.id).count()
+        fav_count = db.query(CollectionFavorite).filter(CollectionFavorite.collection_id == c.id).count()
+        item["favorite_count"] = fav_count
+        from app.db.models.users import User
+        author = db.query(User).filter(User.id == c.user_id).first()
+        item["author_name"] = author.username if author else "未知"
+        items.append(item)
+    return {"items": items, "total": total}
+
+
+def toggle_favorite(db: Session, collection_id: str, user_id: int) -> dict:
+    """收藏/取消收藏合集"""
+    existing = db.query(CollectionFavorite).filter(
+        CollectionFavorite.collection_id == collection_id,
+        CollectionFavorite.user_id == user_id,
+    ).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return {"favorited": False}
+    fav = CollectionFavorite(id=_uuid(), collection_id=collection_id, user_id=user_id)
+    db.add(fav)
+    db.commit()
+    return {"favorited": True}
+
+
+def get_user_favorites(db: Session, user_id: int) -> list[dict]:
+    """获取用户收藏的合集列表"""
+    favs = db.query(CollectionFavorite).filter(CollectionFavorite.user_id == user_id).all()
+    result = []
+    for fav in favs:
+        c = db.query(Collection).filter(Collection.id == fav.collection_id).first()
+        if not c:
+            continue
+        item = _serialize_collection(c)
+        item["item_count"] = db.query(CollectionItem).filter(CollectionItem.collection_id == c.id).count()
+        result.append(item)
+    return result
+
+
+def clone_collection(db: Session, collection_id: str, user_id: int, new_name: str = None) -> Optional[dict]:
+    """克隆公开合集到自己的合集"""
+    source = db.query(Collection).filter(Collection.id == collection_id).first()
+    if not source:
+        return None
+    new = Collection(
+        id=_uuid(),
+        user_id=user_id,
+        name=new_name or f"{source.name}（副本）",
+        description=source.description,
+        cover_url=source.cover_url,
+        category=source.category,
+    )
+    db.add(new)
+    # 复制条目
+    items = db.query(CollectionItem).filter(CollectionItem.collection_id == collection_id).all()
+    for item in items:
+        new_item = CollectionItem(
+            id=_uuid(), collection_id=new.id, task_id=item.task_id, position=item.position
+        )
+        db.add(new_item)
+    db.commit()
+    db.refresh(new)
+    return _serialize_collection(new)
+
+
+# ── 智能合集 ──
+
+def create_smart_collection(
+    db: Session, user_id: int, name: str, rule_type: str, rule_value: str,
+    description: str = None,
+) -> dict:
+    """创建智能合集"""
+    sc = SmartCollection(
+        id=_uuid(),
+        user_id=user_id,
+        name=name,
+        description=description,
+        rule_type=rule_type,
+        rule_value=rule_value,
+    )
+    db.add(sc)
+    db.commit()
+    db.refresh(sc)
+    # 立即同步一次
+    match_count = sync_smart_collection(db, sc.id, user_id)
+    return {
+        "id": sc.id,
+        "name": sc.name,
+        "rule_type": sc.rule_type,
+        "rule_value": sc.rule_value,
+        "match_count": match_count,
+    }
+
+
+def get_user_smart_collections(db: Session, user_id: int) -> list[dict]:
+    """获取用户的智能合集列表"""
+    scs = db.query(SmartCollection).filter(SmartCollection.user_id == user_id).all()
+    result = []
+    for sc in scs:
+        result.append({
+            "id": sc.id,
+            "name": sc.name,
+            "description": sc.description,
+            "cover_url": sc.cover_url,
+            "rule_type": sc.rule_type,
+            "rule_value": sc.rule_value,
+            "match_count": sc.match_count,
+            "created_at": sc.created_at.isoformat() if sc.created_at else None,
+        })
+    return result
+
+
+def sync_smart_collection(db: Session, sc_id: str, user_id: int) -> int:
+    """同步智能合集：按规则匹配用户笔记"""
+    sc = db.query(SmartCollection).filter(
+        SmartCollection.id == sc_id, SmartCollection.user_id == user_id
+    ).first()
+    if not sc:
+        return 0
+
+    # 按规则类型查询匹配的 task
+    query = db.query(VideoTask).filter(
+        VideoTask.user_id == user_id, VideoTask.deleted_at.is_(None)
+    )
+    if sc.rule_type == "platform":
+        matched = query.filter(VideoTask.platform == sc.rule_value).all()
+    elif sc.rule_type == "tag":
+        # 搜索 tags 字段（JSON 格式）包含 rule_value 的
+        matched = query.filter(VideoTask.tags.contains(sc.rule_value)).all()
+    elif sc.rule_type == "channel":
+        matched = query.filter(VideoTask.author_id == sc.rule_value).all()
+    else:
+        matched = []
+
+    match_count = len(matched)
+    sc.match_count = match_count
+
+    # 如果有目标合集，把匹配的 task 加入
+    if sc.target_collection_id and matched:
+        task_ids = [t.task_id for t in matched]
+        add_items_to_collection(db, sc.target_collection_id, task_ids)
+
+    db.commit()
+    return match_count
+
+
+def delete_smart_collection(db: Session, sc_id: str, user_id: int) -> bool:
+    """删除智能合集"""
+    sc = db.query(SmartCollection).filter(
+        SmartCollection.id == sc_id, SmartCollection.user_id == user_id
+    ).first()
+    if not sc:
+        return False
+    db.delete(sc)
+    db.commit()
+    return True

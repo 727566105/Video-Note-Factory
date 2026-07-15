@@ -38,6 +38,22 @@ class GenerateSummaryRequest(BaseModel):
     model_name: Optional[str] = None
     provider_id: Optional[str] = None
     extras: Optional[str] = None
+    mode: str = "overview"
+
+
+class EditSummaryRequest(BaseModel):
+    content: str
+
+
+class SmartCollectionRequest(BaseModel):
+    name: str
+    rule_type: str  # tag / channel / platform
+    rule_value: str
+    description: Optional[str] = None
+
+
+class CloneRequest(BaseModel):
+    new_name: Optional[str] = None
 
 
 @router.get("")
@@ -164,6 +180,7 @@ async def generate_summary(collection_id: str, req: GenerateSummaryRequest, user
             db, collection_id, user.id,
             style=req.style, model_name=req.model_name,
             provider_id=req.provider_id, extras=req.extras,
+            mode=req.mode,
         )
         if not result:
             raise HTTPException(status_code=400, detail="生成总结失败，请检查合集是否有笔记内容")
@@ -172,5 +189,151 @@ async def generate_summary(collection_id: str, req: GenerateSummaryRequest, user
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+# ── 编辑总结 ──
+
+@router.put("/{collection_id}/summary")
+async def edit_collection_summary(collection_id: str, req: EditSummaryRequest, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.edit_summary(db, collection_id, user.id, req.content)
+        if not result:
+            raise HTTPException(status_code=404, detail="合集不存在")
+        return R.success(result)
+    finally:
+        db.close()
+
+
+# ── 分享 ──
+
+@router.post("/{collection_id}/share")
+async def share_collection(collection_id: str, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.share_collection(db, collection_id, user.id)
+        if not result:
+            raise HTTPException(status_code=404, detail="合集不存在")
+        return R.success(result)
+    finally:
+        db.close()
+
+
+@router.delete("/{collection_id}/share")
+async def unshare_collection(collection_id: str, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        ok = collection_svc.unshare_collection(db, collection_id, user.id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="合集不存在")
+        return R.success(None)
+    finally:
+        db.close()
+
+
+@router.get("/shared/{share_token}")
+async def get_shared_collection(share_token: str):
+    """公开访问分享的合集（无需登录）"""
+    db = next(get_db())
+    try:
+        result = collection_svc.get_shared_collection(db, share_token)
+        if not result:
+            raise HTTPException(status_code=404, detail="合集不存在或未公开")
+        return R.success(result)
+    finally:
+        db.close()
+
+
+# ── 广场 ──
+
+@router.get("/plaza/list")
+async def get_plaza(page: int = 1, limit: int = 20, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.get_plaza_collections(db, page, limit)
+        return R.success(result)
+    finally:
+        db.close()
+
+
+@router.post("/{collection_id}/favorite")
+async def toggle_favorite(collection_id: str, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.toggle_favorite(db, collection_id, user.id)
+        return R.success(result)
+    finally:
+        db.close()
+
+
+@router.get("/favorites/list")
+async def get_favorites(user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.get_user_favorites(db, user.id)
+        return R.success(result)
+    finally:
+        db.close()
+
+
+@router.post("/{collection_id}/clone")
+async def clone_collection(collection_id: str, req: CloneRequest, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.clone_collection(db, collection_id, user.id, req.new_name)
+        if not result:
+            raise HTTPException(status_code=404, detail="合集不存在")
+        return R.success(result)
+    finally:
+        db.close()
+
+
+# ── 智能合集 ──
+
+@router.get("/smart/list")
+async def list_smart_collections(user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.get_user_smart_collections(db, user.id)
+        return R.success(result)
+    finally:
+        db.close()
+
+
+@router.post("/smart")
+async def create_smart_collection(req: SmartCollectionRequest, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        result = collection_svc.create_smart_collection(
+            db, user.id, req.name, req.rule_type, req.rule_value, req.description
+        )
+        return R.success(result)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.post("/smart/{sc_id}/sync")
+async def sync_smart_collection(sc_id: str, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        count = collection_svc.sync_smart_collection(db, sc_id, user.id)
+        return R.success({"match_count": count})
+    finally:
+        db.close()
+
+
+@router.delete("/smart/{sc_id}")
+async def delete_smart_collection(sc_id: str, user=Depends(get_current_user)):
+    db = next(get_db())
+    try:
+        ok = collection_svc.delete_smart_collection(db, sc_id, user.id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="智能合集不存在")
+        return R.success(None)
     finally:
         db.close()

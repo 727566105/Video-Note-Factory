@@ -5,10 +5,12 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Search, Sparkles, X, Bot } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Search, Sparkles, Bot, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Empty,
@@ -61,56 +63,28 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="w-full sm:w-[375px] max-w-[calc(100%-2rem)] sm:max-w-[375px] p-0 gap-0 overflow-hidden rounded-lg border border-border bg-popover">
-        {/* 标题栏 */}
-        <div className="flex items-center justify-between h-[52px] sm:h-[56px] px-4">
-          <DialogTitle className="text-base sm:text-[17px] font-semibold text-popover-foreground">
-            选择模型
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            从列表中选择一个AI模型用于生成笔记
-          </DialogDescription>
-          <button
-            onClick={() => onOpenChange(false)}
-            className="flex items-center justify-center w-5 h-5 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <DialogContent className="w-full sm:w-[400px] max-w-[calc(100%-2rem)] sm:max-w-[400px]">
+        {/* 标准头部 */}
+        <DialogHeader>
+          <DialogTitle>选择模型</DialogTitle>
+          <DialogDescription>从列表中选择一个 AI 模型用于生成笔记</DialogDescription>
+        </DialogHeader>
 
-        {/* 标题分隔线 */}
-        <div className="h-px bg-border" />
-
-        {/* 搜索框 */}
-        <div className="flex items-center gap-2 h-[40px] sm:h-[44px] px-4">
-          <Search className="w-[16px] sm:w-[18px] h-[16px] sm:h-[18px] text-muted-foreground" />
-          <input
+        {/* 搜索框 — 使用标准 Input 组件 */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+          <Input
             type="text"
             placeholder="搜索模型..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 text-[14px] sm:text-[15px] bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
+            className="pl-9"
           />
         </div>
 
-        {/* 搜索分隔线 */}
-        <div className="h-px bg-border" />
-
-        {/* 智能优选 */}
-        <button
-          className={cn(
-            "flex items-center gap-[10px] w-full px-4 py-2.5 sm:py-3 transition-colors",
-            selectedModel === 'smart' ? "bg-accent" : "hover:bg-accent/50"
-          )}
-          onClick={() => handleSelectModel('smart')}
-        >
-          <Sparkles className="w-[16px] sm:w-[18px] h-[16px] sm:h-[18px] text-foreground" />
-          <span className="text-[14px] sm:text-[15px] font-medium text-foreground">智能优选</span>
-        </button>
-
         {/* 模型列表 */}
         {loading ? (
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
             加载中...
           </div>
         ) : modelList.length === 0 ? (
@@ -122,36 +96,78 @@ export function ModelSelectDialog({ open, onOpenChange }: ModelSelectDialogProps
             </EmptyHeader>
           </Empty>
         ) : (
-          <ScrollArea className="h-[240px] sm:h-[280px]">
-            {Object.entries(groupedModels).map(([provider, models]) => (
-              <div key={provider}>
-                {/* 分组标题 */}
-                <div className="px-4 pt-2 sm:pt-3 pb-1">
-                  <span className="text-[12px] sm:text-[13px] font-medium text-muted-foreground">{provider}</span>
+          <ScrollArea className="h-[320px] -mx-1 pr-1">
+            <div className="space-y-4 px-1">
+              {/* 智能优选 */}
+              <button
+                className={cn(
+                  "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors text-left",
+                  selectedModel === 'smart'
+                    ? "bg-primary/10 ring-1 ring-primary/30"
+                    : "hover:bg-accent"
+                )}
+                onClick={() => handleSelectModel('smart')}
+              >
+                <div className={cn(
+                  "flex items-center justify-center size-9 rounded-lg shrink-0",
+                  selectedModel === 'smart' ? "bg-primary/15 text-primary" : "bg-muted text-foreground"
+                )}>
+                  <Sparkles className="size-4" />
                 </div>
-                {/* 模型项 */}
-                {models.map((model) => (
-                  <button
-                    key={model.id}
-                    className={cn(
-                      "flex items-center justify-between w-full px-4 py-2.5 sm:py-3 transition-colors",
-                      selectedModel === model.id ? "bg-accent" : "hover:bg-accent/50"
-                    )}
-                    onClick={() => handleSelectModel(model.id)}
-                  >
-                    <div className="flex items-center gap-[10px]">
-                      <Bot className="w-4 sm:w-5 h-4 sm:h-5 text-foreground" />
-                      <span className="text-[14px] sm:text-[15px] text-foreground">{model.model_name}</span>
-                    </div>
-                    {selectedModel === model.id && (
-                      <span className="text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                        已选
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            ))}
+                <span className="flex-1 text-sm font-medium text-foreground">智能优选</span>
+                {selectedModel === 'smart' && (
+                  <Check className="size-4 text-primary shrink-0" />
+                )}
+              </button>
+
+              {/* 按供应商分组 */}
+              {Object.entries(groupedModels).map(([providerName, models]) => (
+                <div key={providerName} className="space-y-0.5">
+                  {/* 分组标题 */}
+                  <div className="px-3 pt-1 pb-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">{providerName}</span>
+                  </div>
+                  {/* 模型项 */}
+                  {models.map((model) => {
+                    const isSelected = selectedModel === model.id
+                    return (
+                      <button
+                        key={model.id}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors text-left",
+                          isSelected ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-accent"
+                        )}
+                        onClick={() => handleSelectModel(model.id)}
+                      >
+                        <div className={cn(
+                          "flex items-center justify-center size-9 rounded-lg shrink-0",
+                          isSelected ? "bg-primary/15 text-primary" : "bg-muted text-foreground"
+                        )}>
+                          <Bot className="size-4" />
+                        </div>
+                        <span className={cn(
+                          "flex-1 text-sm truncate",
+                          isSelected ? "font-medium text-foreground" : "text-foreground"
+                        )}>
+                          {model.model_name}
+                        </span>
+                        {isSelected && (
+                          <Check className="size-4 text-primary shrink-0" />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+
+              {/* 搜索无结果 */}
+              {filteredModels.length === 0 && modelList.length > 0 && (
+                <div className="flex flex-col items-center py-8 text-muted-foreground">
+                  <Search className="size-6 mb-2 opacity-40" />
+                  <p className="text-sm">未找到匹配的模型</p>
+                </div>
+              )}
+            </div>
           </ScrollArea>
         )}
       </DialogContent>

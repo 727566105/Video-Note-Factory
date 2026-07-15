@@ -8,9 +8,13 @@ export interface CollectionInfo {
   cover_url: string | null
   category: string | null
   sort_order: number
+  share_token: string | null
+  is_shared: number
   created_at: string | null
   updated_at: string | null
   item_count?: number
+  favorite_count?: number
+  author_name?: string
 }
 
 export interface CollectionItem {
@@ -32,6 +36,7 @@ export interface CollectionSummary {
   collection_id: string
   content: string | null
   style: string | null
+  summary_mode: string
   model_name: string | null
   provider_id: string | null
   extras: string | null
@@ -102,9 +107,76 @@ export async function generateCollectionSummary(params: {
   model_name?: string
   provider_id?: string
   extras?: string
+  mode?: string
 }): Promise<CollectionSummary> {
   const { collectionId, ...body } = params
   return await request.post(`/collections/${collectionId}/generate_summary`, body)
+}
+
+// ── 编辑总结 ──
+export async function editCollectionSummary(collectionId: string, content: string): Promise<CollectionSummary> {
+  return await request.put(`/collections/${collectionId}/summary`, { content })
+}
+
+// ── 分享 ──
+export async function shareCollection(id: string): Promise<{ share_token: string; is_shared: number }> {
+  return await request.post(`/collections/${id}/share`)
+}
+
+export async function unshareCollection(id: string): Promise<void> {
+  await request.delete(`/collections/${id}/share`)
+}
+
+// ── 广场 ──
+export async function getPlazaCollections(page = 1, limit = 20): Promise<{ items: CollectionInfo[]; total: number }> {
+  return await request.get(`/collections/plaza/list`, { params: { page, limit } })
+}
+
+export async function toggleFavorite(id: string): Promise<{ favorited: boolean }> {
+  return await request.post(`/collections/${id}/favorite`)
+}
+
+export async function getFavoriteCollections(): Promise<CollectionInfo[]> {
+  const data = await request.get('/collections/favorites/list')
+  return data ?? []
+}
+
+export async function cloneCollection(id: string, newName?: string): Promise<CollectionInfo> {
+  return await request.post(`/collections/${id}/clone`, { new_name: newName })
+}
+
+// ── 智能合集 ──
+export interface SmartCollectionInfo {
+  id: string
+  name: string
+  description: string | null
+  cover_url: string | null
+  rule_type: string
+  rule_value: string
+  match_count: number
+  created_at: string | null
+}
+
+export async function getSmartCollections(): Promise<SmartCollectionInfo[]> {
+  const data = await request.get('/collections/smart/list')
+  return data ?? []
+}
+
+export async function createSmartCollection(params: {
+  name: string
+  rule_type: string
+  rule_value: string
+  description?: string
+}): Promise<SmartCollectionInfo> {
+  return await request.post('/collections/smart', params)
+}
+
+export async function syncSmartCollection(id: string): Promise<{ match_count: number }> {
+  return await request.post(`/collections/smart/${id}/sync`)
+}
+
+export async function deleteSmartCollection(id: string): Promise<void> {
+  await request.delete(`/collections/smart/${id}`)
 }
 
 export async function getTaskCollectionMap(): Promise<Record<string, { id: string; name: string }[]>> {

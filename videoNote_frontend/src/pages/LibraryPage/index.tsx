@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, FolderOpen, MoreHorizontal, Pencil, Trash2,
-  ListOrdered, FolderCog, Users, Bookmark, Search, Tag, LayoutGrid,
+  ListOrdered, FolderCog, Users, Bookmark, Search, Tag, LayoutGrid, RefreshCw, Heart, Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
@@ -17,6 +18,12 @@ import {
   Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle,
 } from '@/components/ui/empty'
 import { useCollectionStore } from '@/store/collectionStore'
+import {
+  getSmartCollections, createSmartCollection, syncSmartCollection, deleteSmartCollection,
+  getPlazaCollections, toggleFavorite, getFavoriteCollections, cloneCollection,
+  type SmartCollectionInfo, type CollectionInfo,
+} from '@/services/collection'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 export function LibraryPage() {
@@ -27,7 +34,33 @@ export function LibraryPage() {
   const [newDesc, setNewDesc] = useState('')
   const [smartSearch, setSmartSearch] = useState('')
 
+  // 智能合集
+  const [smartCollections, setSmartCollections] = useState<SmartCollectionInfo[]>([])
+  const [smartCreateOpen, setSmartCreateOpen] = useState(false)
+  const [smartName, setSmartName] = useState('')
+  const [smartRuleType, setSmartRuleType] = useState('tag')
+  const [smartRuleValue, setSmartRuleValue] = useState('')
+
+  // 广场
+  const [plazaItems, setPlazaItems] = useState<CollectionInfo[]>([])
+  const [plazaLoading, setPlazaLoading] = useState(false)
+
+  // 收藏
+  const [favItems, setFavItems] = useState<CollectionInfo[]>([])
+
   useEffect(() => { fetchCollections() }, [])
+
+  const fetchSmart = async () => {
+    try { setSmartCollections(await getSmartCollections()) } catch {}
+  }
+  const fetchPlaza = async () => {
+    setPlazaLoading(true)
+    try { const d = await getPlazaCollections(); setPlazaItems(d.items || []) } catch {}
+    finally { setPlazaLoading(false) }
+  }
+  const fetchFavs = async () => {
+    try { setFavItems(await getFavoriteCollections()) } catch {}
+  }
 
   const handleCreate = async () => {
     if (!newName.trim()) return
@@ -79,60 +112,155 @@ export function LibraryPage() {
         </TabsContent>
 
         {/* ====== 智能合集 ====== */}
-        <TabsContent value="smart" className="mt-6">
+        <TabsContent value="smart" className="mt-6" onClick={fetchSmart}>
           <p className="mb-4 text-sm text-muted-foreground">
-            管理你的智能合集——通过 #标签 自动收录同类内容，支持单标签和多标签组合。
+            通过标签、频道或平台自动归集笔记，省去手动整理。
           </p>
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-1 items-center gap-2">
                 <Search className="size-4 text-gray-500" />
-                <Input
-                  value={smartSearch}
-                  onChange={e => setSmartSearch(e.target.value)}
-                  placeholder="搜索智能文件夹..."
-                  className="max-w-sm"
-                />
+                <Input value={smartSearch} onChange={e => setSmartSearch(e.target.value)} placeholder="搜索智能合集..." className="max-w-sm" />
               </div>
-              <Button>
-                <Plus className="mr-2 size-4" />
-                创建智能文件夹
-              </Button>
+              <Dialog open={smartCreateOpen} onOpenChange={setSmartCreateOpen}>
+                <DialogTrigger asChild>
+                  <Button><Plus className="mr-2 size-4" />创建智能合集</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>创建智能合集</DialogTitle></DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <Input value={smartName} onChange={e => setSmartName(e.target.value)} placeholder="合集名称（如：财经类）" />
+                    <Select value={smartRuleType} onValueChange={setSmartRuleType}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tag">按标签匹配</SelectItem>
+                        <SelectItem value="platform">按平台匹配</SelectItem>
+                        <SelectItem value="channel">按博主匹配</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {smartRuleType === 'platform' ? (
+                      <Select value={smartRuleValue} onValueChange={setSmartRuleValue}>
+                        <SelectTrigger><SelectValue placeholder="选择平台" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bilibili">B站</SelectItem>
+                          <SelectItem value="youtube">YouTube</SelectItem>
+                          <SelectItem value="douyin">抖音</SelectItem>
+                          <SelectItem value="xiaohongshu">小红书</SelectItem>
+                          <SelectItem value="kuaishou">快手</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={smartRuleValue} onChange={e => setSmartRuleValue(e.target.value)} placeholder={smartRuleType === 'tag' ? '标签名（如：AI）' : '博主 ID'} />
+                    )}
+                    <Button className="w-full" onClick={async () => {
+                      if (!smartName.trim() || !smartRuleValue.trim()) { toast.error('请填写完整'); return }
+                      try {
+                        await createSmartCollection({ name: smartName.trim(), rule_type: smartRuleType, rule_value: smartRuleValue })
+                        toast.success('智能合集已创建')
+                        setSmartCreateOpen(false); setSmartName(''); setSmartRuleValue('')
+                        fetchSmart()
+                      } catch { toast.error('创建失败') }
+                    }}>创建</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 px-6">
-              <Tag className="mb-4 size-12 text-muted-foreground/40" />
-              <h3 className="mb-2 text-lg font-semibold">暂无智能文件夹</h3>
-              <p className="mb-4 text-center text-sm text-muted-foreground">
-                创建您的第一个智能文件夹，通过标签筛选来整理内容
-              </p>
-              <Button>
-                <Plus className="mr-2 size-4" />
-                创建智能文件夹
-              </Button>
-            </div>
+            {smartCollections.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 px-6">
+                <Tag className="mb-4 size-12 text-muted-foreground/40" />
+                <h3 className="mb-2 text-lg font-semibold">暂无智能合集</h3>
+                <p className="text-sm text-muted-foreground mb-4">创建后可自动按规则归集笔记</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {smartCollections.filter(s => !smartSearch || s.name.includes(smartSearch)).map(sc => (
+                  <div key={sc.id} className="rounded-lg border bg-card p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="size-8 rounded bg-primary/10 flex items-center justify-center"><Tag className="size-4 text-primary" /></div>
+                        <span className="font-medium">{sc.name}</span>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={async () => { await syncSmartCollection(sc.id); toast.success('已同步'); fetchSmart() }}><RefreshCw className="mr-2 size-4" />同步</DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-500" onClick={async () => { await deleteSmartCollection(sc.id); toast.success('已删除'); fetchSmart() }}><Trash2 className="mr-2 size-4" />删除</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {sc.rule_type === 'tag' ? '标签' : sc.rule_type === 'platform' ? '平台' : '博主'}：{sc.rule_value}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{sc.match_count} 条匹配</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </TabsContent>
 
         {/* ====== 合集广场 ====== */}
-        <TabsContent value="public" className="mt-6">
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 px-6">
-            <LayoutGrid className="mb-4 size-12 text-muted-foreground/40" />
-            <h3 className="mb-2 text-lg font-semibold">合集广场</h3>
-            <p className="text-center text-sm text-muted-foreground">
-              发现和浏览其他用户分享的精选合集
-            </p>
+        <TabsContent value="public" className="mt-6" onClick={fetchPlaza}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-muted-foreground">发现其他用户分享的精选合集</p>
+            <Button variant="outline" size="sm" onClick={fetchPlaza} disabled={plazaLoading}>
+              <RefreshCw className={cn("mr-2 size-4", plazaLoading && "animate-spin")} />刷新
+            </Button>
           </div>
+          {plazaItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 px-6">
+              <LayoutGrid className="mb-4 size-12 text-muted-foreground/40" />
+              <h3 className="mb-2 text-lg font-semibold">暂无公开合集</h3>
+              <p className="text-sm text-muted-foreground">分享你的合集到广场，让更多人看到</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {plazaItems.map(item => (
+                <div key={item.id} className="rounded-lg border bg-card overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="aspect-video bg-muted">
+                    {item.cover_url && <img src={item.cover_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />}
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-medium truncate cursor-pointer hover:text-primary" onClick={() => navigate(`/library/${item.id}`)}>{item.name}</h3>
+                    {item.description && <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.description}</p>}
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{item.author_name}</span>
+                      <span className="flex items-center gap-1"><Heart className="size-3" />{item.favorite_count || 0}</span>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1" onClick={async () => {
+                        try { await toggleFavorite(item.id); toast.success('操作成功'); fetchPlaza() } catch { toast.error('操作失败') }
+                      }}><Bookmark className="mr-1 size-3" />收藏</Button>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={async () => {
+                        try { await cloneCollection(item.id); toast.success('已克隆到我的合集'); fetchCollections() } catch { toast.error('克隆失败') }
+                      }}><Copy className="mr-1 size-3" />克隆</Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* ====== 我的收藏 ====== */}
-        <TabsContent value="bookmarked" className="mt-6">
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 px-6">
-            <Bookmark className="mb-4 size-12 text-muted-foreground/40" />
-            <h3 className="mb-2 text-lg font-semibold">暂无收藏</h3>
-            <p className="text-center text-sm text-muted-foreground">
-              收藏感兴趣的合集，方便快速访问
-            </p>
-          </div>
+        <TabsContent value="bookmarked" className="mt-6" onClick={fetchFavs}>
+          {favItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 px-6">
+              <Bookmark className="mb-4 size-12 text-muted-foreground/40" />
+              <h3 className="mb-2 text-lg font-semibold">暂无收藏</h3>
+              <p className="text-sm text-muted-foreground">去广场收藏感兴趣的合集</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {favItems.map(item => (
+                <div key={item.id} className="rounded-lg border bg-card p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/library/${item.id}`)}>
+                  <h3 className="font-medium truncate">{item.name}</h3>
+                  {item.description && <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.description}</p>}
+                  <p className="mt-2 text-xs text-muted-foreground">{item.item_count || 0} 条内容</p>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

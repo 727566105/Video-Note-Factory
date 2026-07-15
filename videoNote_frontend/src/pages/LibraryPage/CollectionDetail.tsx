@@ -21,7 +21,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCollectionStore } from '@/store/collectionStore'
+import { shareCollection as apiShare, unshareCollection as apiUnshare, editCollectionSummary as apiEditSummary } from '@/services/collection'
+import { toast } from 'sonner'
 import { useModelStore } from '@/store/modelStore'
 import { useProviderStore } from '@/store/providerStore'
 import { cn } from '@/lib/utils'
@@ -61,6 +64,11 @@ export function CollectionDetail() {
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
 
+  // 总结模式 + 编辑总结
+  const [summaryMode, setSummaryMode] = useState('overview')
+  const [editingSummary, setEditingSummary] = useState(false)
+  const [editSummaryContent, setEditSummaryContent] = useState('')
+
 
   useEffect(() => {
     if (id) fetchDetail(id)
@@ -85,7 +93,7 @@ export function CollectionDetail() {
 
   const handleGenerate = async () => {
     if (!id) return
-    await generateSummary(id, localSettings.style, undefined, undefined, localSettings.extras)
+    await generateSummary(id, localSettings.style, undefined, undefined, localSettings.extras, summaryMode)
   }
 
   const handleSaveEdit = async () => {
@@ -167,11 +175,19 @@ export function CollectionDetail() {
 
         {/* 操作按钮行 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="h-8">
+          <Button variant="outline" size="sm" className="h-8" onClick={() => navigate('/notes')}>
             <SquarePlus className="w-4 h-4 mr-1.5" />
             批量添加
           </Button>
-          <Button variant="outline" size="sm" className="h-8">
+          <Button variant="outline" size="sm" className="h-8" onClick={async () => {
+            if (!id) return
+            const token = await useCollectionStore.getState().shareCollection(id)
+            if (token) {
+              const url = `${window.location.origin}/library/${id}?share=${token}`
+              try { await navigator.clipboard.writeText(url); toast.success('分享链接已复制') }
+              catch { toast.info(`分享链接: ${url}`) }
+            }
+          }}>
             <Share2 className="w-4 h-4 mr-1.5" />
             分享合集
           </Button>
@@ -185,7 +201,12 @@ export function CollectionDetail() {
               <DropdownMenuItem onClick={() => setEditOpen(true)}>
                 <Pencil className="w-4 h-4 mr-2" />编辑合集
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">
+              <DropdownMenuItem className="text-destructive" onClick={async () => {
+                if (!id) return
+                if (!confirm('确定删除此合集？')) return
+                await useCollectionStore.getState().deleteCollection(id)
+                navigate('/library')
+              }}>
                 <Trash2 className="w-4 h-4 mr-2" />删除合集
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -205,10 +226,16 @@ export function CollectionDetail() {
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setExportOpen(true)}>
                 <Download className="w-3.5 h-3.5 mr-1" />导出
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => {
+                setSummaryMode('mindmap'); handleGenerate()
+              }} disabled={generating}>
                 <Map className="w-3.5 h-3.5 mr-1" />思维导图
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => {
+                if (!summary?.content) return
+                setEditSummaryContent(summary.content)
+                setEditingSummary(true)
+              }}>
                 <Pencil className="w-3.5 h-3.5 mr-1" />编辑
               </Button>
               <Button
@@ -225,8 +252,38 @@ export function CollectionDetail() {
           )}
         </div>
 
+        {/* 总结模式选择器 */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">总结模式：</span>
+          <Select value={summaryMode} onValueChange={(v) => setSummaryMode(v)}>
+            <SelectTrigger className="h-7 w-[120px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="overview">综合概述</SelectItem>
+              <SelectItem value="comparison">对比分析</SelectItem>
+              <SelectItem value="timeline">时间线</SelectItem>
+              <SelectItem value="mindmap">思维导图</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* 总结内容 */}
-        {summary?.content ? (
+        {editingSummary ? (
+          <div className="space-y-2">
+            <Textarea value={editSummaryContent} onChange={e => setEditSummaryContent(e.target.value)} className="min-h-[200px]" />
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="outline" onClick={() => setEditingSummary(false)}>取消</Button>
+              <Button size="sm" onClick={async () => {
+                if (!id) return
+                await apiEditSummary(id, editSummaryContent)
+                await fetchDetail(id)
+                setEditingSummary(false)
+                toast.success('总结已保存')
+              }}>保存</Button>
+            </div>
+          </div>
+        ) : summary?.content ? (
           <div className="prose prose-sm dark:prose-invert max-w-none rounded-lg bg-muted/30 p-4">
             <ReactMarkdown>{summary.content}</ReactMarkdown>
           </div>

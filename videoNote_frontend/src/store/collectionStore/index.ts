@@ -10,6 +10,9 @@ import {
   addItemsToCollection as apiAddItems,
   removeItemFromCollection as apiRemoveItem,
   generateCollectionSummary as apiGenSummary,
+  editCollectionSummary as apiEditSummary,
+  shareCollection as apiShare,
+  unshareCollection as apiUnshare,
   type CollectionInfo,
   type CollectionDetail,
   type CollectionSummary,
@@ -28,7 +31,10 @@ interface CollectionStore {
   fetchDetail: (id: string) => Promise<void>
   addItems: (collectionId: string, taskIds: string[]) => Promise<number>
   removeItem: (collectionId: string, taskId: string) => Promise<void>
-  generateSummary: (collectionId: string, style?: string, modelName?: string, providerId?: string, extras?: string) => Promise<CollectionSummary | null>
+  generateSummary: (collectionId: string, style?: string, modelName?: string, providerId?: string, extras?: string, mode?: string) => Promise<CollectionSummary | null>
+  editSummary: (collectionId: string, content: string) => Promise<void>
+  shareCollection: (id: string) => Promise<string | null>
+  unshareCollection: (id: string) => Promise<void>
   clearDetail: () => void
 }
 
@@ -118,7 +124,7 @@ export const useCollectionStore = create<CollectionStore>()(
       }
     },
 
-    generateSummary: async (collectionId, style, modelName, providerId, extras) => {
+    generateSummary: async (collectionId, style, modelName, providerId, extras, mode) => {
       set({ generating: true })
       try {
         const result = await apiGenSummary({
@@ -127,8 +133,8 @@ export const useCollectionStore = create<CollectionStore>()(
           model_name: modelName,
           provider_id: providerId,
           extras,
+          mode: mode ?? 'overview',
         })
-        // 刷新详情
         await get().fetchDetail(collectionId)
         return result
       } catch {
@@ -136,6 +142,38 @@ export const useCollectionStore = create<CollectionStore>()(
         return null
       } finally {
         set({ generating: false })
+      }
+    },
+
+    editSummary: async (collectionId, content) => {
+      try {
+        await apiEditSummary(collectionId, content)
+        await get().fetchDetail(collectionId)
+        toast.success('总结已保存')
+      } catch {
+        toast.error('保存失败')
+      }
+    },
+
+    shareCollection: async (id) => {
+      try {
+        const result = await apiShare(id)
+        await get().fetchCollections()
+        toast.success('分享链接已生成')
+        return result.share_token
+      } catch {
+        toast.error('分享失败')
+        return null
+      }
+    },
+
+    unshareCollection: async (id) => {
+      try {
+        await apiUnshare(id)
+        await get().fetchCollections()
+        toast.success('已取消分享')
+      } catch {
+        toast.error('操作失败')
       }
     },
 

@@ -61,7 +61,11 @@ fun TaskResult.decodeTags(json: Json = Json): List<String> {
 
 @Serializable
 data class NoteVersion(
-    val version: String,
+    val ver_id: String? = null,
+    val content: String? = null,
+    val style: String? = null,
+    val model_name: String? = null,
+    val created_at: String? = null,
     val timestamp: String? = null
 )
 
