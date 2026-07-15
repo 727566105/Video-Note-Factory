@@ -20,6 +20,7 @@ android {
 dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:common"))
+    implementation(project(":core:designsystem"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)

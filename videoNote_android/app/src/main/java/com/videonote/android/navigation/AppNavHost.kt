@@ -1,22 +1,32 @@
 package com.videonote.android.navigation
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.*
 import androidx.navigation.toRoute
-import com.videonote.android.core.designsystem.theme.ThemeMode
-import com.videonote.android.core.designsystem.theme.VideoNoteTheme
+import com.videonote.android.core.designsystem.theme.*
 import com.videonote.android.feature.auth.LoginScreen
 import com.videonote.android.feature.feed.FeedScreen
 import com.videonote.android.feature.home.HomeScreen
@@ -25,11 +35,6 @@ import com.videonote.android.feature.notelist.CollectionDetailScreen
 import com.videonote.android.feature.notelist.NoteListScreen
 import com.videonote.android.feature.settings.SettingsScreen
 
-/**
- * 主导航图。
- * 使用类型安全路由（Route sealed class），通过 toRoute() 提取参数。
- * 启动时根据 token 是否存在决定起始页。
- */
 @Composable
 fun AppNavHost(
     mainViewModel: MainViewModel = hiltViewModel()
@@ -44,14 +49,14 @@ fun AppNavHost(
         themeMode = when (themeMode) {
             "light" -> ThemeMode.LIGHT
             "dark" -> ThemeMode.DARK
-            else -> ThemeMode.SYSTEM
+            else -> ThemeMode.DARK  // SYSTEM 也走暗色
         }
     ) {
         Scaffold(
+            containerColor = XaiBg,
             bottomBar = {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
-                // 只在 4 个主 Tab 上显示底部导航栏
                 val mainRoutes = setOf(
                     Route.Home::class, Route.Notes::class, Route.Feed::class, Route.Settings::class
                 )
@@ -59,28 +64,16 @@ fun AppNavHost(
                     mainRoutes.any { it.simpleName == dest.route }
                 } == true
                 if (showBottomBar && token != null) {
-                    NavigationBar {
-                        val items = listOf(
-                            Triple(Route.Home, "首页", Icons.Default.Home),
-                            Triple(Route.Notes, "笔记", Icons.Default.MenuBook),
-                            Triple(Route.Feed, "动态", Icons.Default.RssFeed),
-                            Triple(Route.Settings, "设置", Icons.Default.Settings)
-                        )
-                        items.forEach { (route, label, icon) ->
-                            NavigationBarItem(
-                                selected = currentDestination?.hierarchy?.any { it.route == route::class.simpleName } == true,
-                                onClick = {
-                                    navController.navigate(route) {
-                                        popUpTo(Route.Home) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = { Icon(icon, label) },
-                                label = { Text(label) }
-                            )
+                    XaiBottomBar(
+                        currentRoute = currentDestination?.route,
+                        onNavigate = { route ->
+                            navController.navigate(route) {
+                                popUpTo(Route.Home) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         }
-                    }
+                    )
                 }
             }
         ) { padding ->
@@ -116,7 +109,6 @@ fun AppNavHost(
                         navController.navigate(Route.Login) { popUpTo(0) { inclusive = true } }
                     })
                 }
-                // 类型安全路由参数提取：使用 toRoute() 扩展函数
                 composable<Route.NoteDetail> { backStackEntry ->
                     val route = backStackEntry.toRoute<Route.NoteDetail>()
                     NoteDetailScreen(taskId = route.taskId, onBack = { navController.popBackStack() })
@@ -133,3 +125,69 @@ fun AppNavHost(
         }
     }
 }
+
+/// xAI 风格底部导航栏
+@Composable
+private fun XaiBottomBar(
+    currentRoute: String?,
+    onNavigate: (Route) -> Unit
+) {
+    Column {
+        HorizontalDivider(thickness = 1.dp, color = XaiBorder)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(XaiBg)
+                .navigationBarsPadding()
+        ) {
+            val items = listOf(
+                BottomNavItem("Home", "首页", Icons.Default.Home) { onNavigate(Route.Home) },
+                BottomNavItem("Notes", "笔记", Icons.Default.MenuBook) { onNavigate(Route.Notes) },
+                BottomNavItem("Feed", "动态", Icons.Default.RssFeed) { onNavigate(Route.Feed) },
+                BottomNavItem("Settings", "设置", Icons.Default.Settings) { onNavigate(Route.Settings) }
+            )
+            items.forEach { item ->
+                val active = currentRoute == item.routeName
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { item.onClick() }
+                        .padding(top = 10.dp, bottom = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // active 顶部 2px 白条
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(2.dp)
+                            .background(if (active) XaiFg else Color.Transparent)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = item.label,
+                        tint = if (active) XaiFg else XaiMuted,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = item.label,
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.6.sp
+                        ),
+                        color = if (active) XaiFg else XaiMuted
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class BottomNavItem(
+    val routeName: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val onClick: () -> Unit
+)

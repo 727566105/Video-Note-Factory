@@ -19,7 +19,6 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.MaterialTheme
 
 /**
  * 数据类：思维导图节点
@@ -75,7 +74,7 @@ fun MindMapCanvas(
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val textMeasurer = rememberTextMeasurer()
-    val textColor = MaterialTheme.colorScheme.onSurface
+    val textColor = Color.White  // xAI 暗色：文字纯白
 
     Canvas(
         modifier = modifier
@@ -141,10 +140,11 @@ private fun DrawScope.drawTree(
     }
 
     // 绘制节点（圆角矩形 + 文字）
+    // 绘制节点 - xAI 暗色：白色透明度色阶
     val nodeColor = when (node.level) {
-        0 -> Color(0xFF006A6A)
-        1 -> Color(0xFF4A6363)
-        else -> Color(0xFF4B6074)
+        0 -> Color.White        // root: 纯白
+        1 -> Color(0xB3FFFFFF)  // l1: 70% 白
+        else -> Color(0x80FFFFFF) // l2+: 50% 白
     }
 
     val rect = androidx.compose.ui.geometry.Rect(
@@ -185,5 +185,5 @@ private fun DrawScope.drawConnection(
         moveTo(startX, startY)
         cubicTo(midX, startY, midX, endY, endX, endY)
     }
-    drawPath(path, color = Color.Gray, style = Stroke(width = 2f))
+    drawPath(path, color = Color(0x1AFFFFFF), style = Stroke(width = 2f))  // xAI border 色
 }
