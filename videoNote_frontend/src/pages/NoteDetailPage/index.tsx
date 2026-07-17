@@ -6,7 +6,7 @@ import { DetailSkeleton } from '@/components/Skeletons'
 import LeftPanel from './LeftPanel'
 import RightPanel, { type LocalSettings } from './RightPanel'
 import DetailNav from './DetailNav'
-import { Loader2, ArrowLeft, Video, FileText, CircleX, Ban } from 'lucide-react'
+import { Loader2, ArrowLeft, Video, FileText, CircleX, Ban, FileQuestion } from 'lucide-react'
 import { isProcessingStatus, hasMarkdownContent, ProcessingSpinner } from './processing'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -326,6 +326,33 @@ export default function NoteDetailPage() {
   // 任务取消时显示取消提示
   if (task.status === 'CANCELLED') {
     return <FailedView message="任务已取消" taskId={task.id} />
+  }
+
+  // 状态未知（文件查找失败/状态文件损坏）：有内容正常显示，无内容提示重新获取
+  if (task.status === 'UNKNOWN' && !hasContent) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background p-8 text-center">
+        <FileQuestion className="size-12 text-muted-foreground/40" />
+        <div className="text-lg font-medium text-foreground">无法获取笔记状态</div>
+        <div className="max-w-md text-sm text-muted-foreground">
+          {task.message || '笔记文件可能正在生成，或文件路径发生变更。请尝试刷新页面或重新生成。'}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+          >
+            刷新页面
+          </button>
+          <button
+            onClick={() => navigate('/notes')}
+            className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            返回列表
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // 移动端：单页上下滚动布局（顶部栏由 SiteHeader 处理）

@@ -84,6 +84,7 @@ const getStepProgress = (status: string) => {
   const step = PROGRESS_STEPS.find(s => s.key === status)
   if (!step) {
     if (status === 'FAILED') return { currentStep: 0, stepLabel: '失败' }
+    if (status === 'UNKNOWN') return { currentStep: 0, stepLabel: '未知' }
     if (status === 'QUEUED' || status === 'PENDING') return { currentStep: 0, stepLabel: '排队' }
     return { currentStep: 0, stepLabel: '未知' }
   }
@@ -91,7 +92,7 @@ const getStepProgress = (status: string) => {
 }
 
 const isProcessingStatus = (status: string) =>
-  ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(status)
+  ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING', 'PROCESSING', 'RUNNING'].includes(status)
 
 // 平台名称映射
 const platformLabel: Record<string, string> = {
@@ -311,7 +312,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
         const status = getRealtimeStatus(item, props.taskStoreTasks)
         return (
           <div className="flex items-center justify-end gap-1">
-            {status === 'FAILED' && (
+            {(status === 'FAILED' || status === 'UNKNOWN') && (
               <button className="p-1.5 hover:bg-accent rounded-md transition-colors"
                 onClick={(e) => { e.stopPropagation(); props.onRegenerate(item) }}>
                 <RotateCw className="w-4 h-4 text-primary" />

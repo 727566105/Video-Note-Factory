@@ -1109,24 +1109,43 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
             )
 
             # 读取状态文件，获取任务进度
+            # 优先级：status.json > note 文件存在 > task_queue 实时状态 > 数据库推断
             status = "PENDING"
             message = ""
+
+            # 0. 先查任务队列实时状态（正在运行/排队中）
+            try:
+                from app.services.task_queue import task_queue
+                if task_queue.is_active(task_id):
+                    status = "PROCESSING"
+                    message = "任务处理中"
+            except Exception:
+                pass
+
             if status_path and status_path.exists():
                 try:
                     with open(status_path, "r", encoding="utf-8") as f:
                         status_data = json.load(f)
-                        status = status_data.get("status", "PENDING")
-                        message = status_data.get("message", "")
+                        file_status = status_data.get("status", "PENDING")
+                        file_message = status_data.get("message", "")
+                        # status.json 的状态优先（除非队列显示正在运行）
+                        if status != "PROCESSING":
+                            status = file_status
+                            message = file_message
                 except (json.JSONDecodeError, Exception):
-                    status = "UNKNOWN"
-                    message = "状态文件损坏"
+                    if status != "PROCESSING":
+                        status = "UNKNOWN"
+                        message = "状态文件损坏"
             elif result_path and result_path.exists():
                 # 无状态文件但有结果文件，说明已完成
                 status = "SUCCESS"
-            elif task_title:
-                # 有标题（下载成功）但没有笔记文件，说明生成中断
-                status = "FAILED"
-                message = "笔记生成中断"
+                message = ""
+            elif status == "PENDING" and task_title:
+                # 有标题（下载成功）但没有状态文件也没有笔记文件
+                # 不直接判 FAILED，可能是文件查找失败（author_name 不一致等）
+                # 标记为 UNKNOWN 让前端显示"状态未知"而非"生成中断"
+                status = "UNKNOWN"
+                message = "无法定位笔记文件，可能正在生成或文件路径变更"
 
             # 读取笔记内容（如果存在）
             note_data = None
@@ -1503,7 +1522,7 @@ def get_note_media(task_id: str, current_user=Depends(get_current_user)) -> dict
     """
     from app.utils.path_helper import (
         VIDEO_DIR, _get_platform_dir, get_author_folder_name, get_video_folder_name,
-        find_note_file
+        find_note_file, get_video_folder
     )
 
     try:
@@ -1540,16 +1559,16 @@ def get_note_media(task_id: str, current_user=Depends(get_current_user)) -> dict
                 "live_photos": []
             })
 
-        # 3. 定位视频目录
+        # 3. 定位视频目录（使用带自愈合的 get_video_folder，兼容 author_name/title 不一致）
         if not author_id:
             return R.error(msg="缺少 author_id，无法定位媒体目录")
 
-        platform_dir_name = _get_platform_dir(platform)
-        author_folder = get_author_folder_name(author_id, author_name, platform)
-        video_folder = get_video_folder_name(video_id, title)
-        video_dir = VIDEO_DIR / platform_dir_name / author_folder / video_folder
+        try:
+            video_dir = get_video_folder(author_id, author_name, video_id, title, platform)
+        except Exception:
+            video_dir = None
 
-        if not video_dir.exists():
+        if not video_dir or not video_dir.exists():
             return R.error(msg="媒体目录不存在")
 
         # 4. 扫描目录获取图片和实况视频

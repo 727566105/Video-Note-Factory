@@ -22,7 +22,7 @@ export const getStepProgress = (status: string): { currentStep: number; stepLabe
 }
 
 export const isProcessingStatus = (status: string): boolean => {
-  return ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(status)
+  return ['PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING', 'PROCESSING', 'RUNNING'].includes(status)
 }
 
 export function hasMarkdownContent(markdown: string | unknown[] | undefined): boolean {

@@ -409,15 +409,38 @@ def find_note_file(
             if legacy_note_path.exists():
                 return legacy_note_path
 
-        # 1.2 自愈合：精确目录不存在时，按 video_id_ 前缀扫描截断点不同的已有目录
-        # （旧整机包导入时解压截断点可能与当前 get_video_folder_name 不一致）
-        if video_id:
-            vid_prefix = sanitize_path_name(str(video_id)) + "_"
-            author_dir = VIDEO_DIR / platform_dir_name / author_folder
-            if author_dir.exists():
+        # 1.2 自愈合：精确目录不存在时，按前缀扫描已有目录
+        # 两层自愈合：
+        #   a) author 目录名不一致（author_name 变更/截断差异）-> 按 author_id_ 前缀扫描
+        #   b) video 目录名不一致（title 截断点差异）-> 按 video_id_ 前缀扫描
+        if video_id or author_id:
+            vid_prefix = sanitize_path_name(str(video_id)) + "_" if video_id else ""
+            author_id_prefix = sanitize_path_name(str(author_id)) + "_" if author_id else ""
+            exact_author_dir = VIDEO_DIR / platform_dir_name / author_folder
+
+            # 收集候选 author 目录：精确目录 + 同前缀目录
+            candidate_author_dirs = []
+            if exact_author_dir.exists():
+                candidate_author_dirs.append(exact_author_dir)
+            if author_id_prefix:
+                plat_base = VIDEO_DIR / platform_dir_name
+                if plat_base.exists():
+                    try:
+                        for existing in plat_base.iterdir():
+                            if (existing.is_dir()
+                                    and existing.name.startswith(author_id_prefix)
+                                    and existing not in candidate_author_dirs):
+                                candidate_author_dirs.append(existing)
+                    except Exception:
+                        pass
+
+            for author_dir in candidate_author_dirs:
                 try:
                     for existing in author_dir.iterdir():
-                        if not existing.is_dir() or not existing.name.startswith(vid_prefix):
+                        if not existing.is_dir():
+                            continue
+                        # 有 video_id 时按前缀匹配，无 video_id 时匹配所有子目录
+                        if vid_prefix and not existing.name.startswith(vid_prefix):
                             continue
                         candidate = existing / filename
                         if candidate.exists():

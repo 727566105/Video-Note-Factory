@@ -30,7 +30,7 @@ export const useTaskPolling = (interval = 3000) => {
   useEffect(() => {
     const timer = setInterval(async () => {
       const pendingTasks = tasksRef.current.filter(
-        task => task.status != 'SUCCESS' && task.status != 'FAILED' && task.status != 'CANCELLED'
+        task => task.status != 'SUCCESS' && task.status != 'FAILED' && task.status != 'CANCELLED' && task.status != 'UNKNOWN'
       )
 
       for (const task of pendingTasks) {

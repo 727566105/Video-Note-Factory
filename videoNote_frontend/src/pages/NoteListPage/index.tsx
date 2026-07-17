@@ -111,6 +111,7 @@ const PLATFORM_OPTIONS: FilterOption[] = [
 const STATUS_OPTIONS: FilterOption[] = [
   { value: 'SUCCESS', label: '成功' },
   { value: 'FAILED', label: '失败' },
+  { value: 'UNKNOWN', label: '未知' },
   { value: 'PENDING', label: '等待中' },
   { value: 'QUEUED', label: '排队中' },
   { value: 'PARSING', label: '解析中' },
