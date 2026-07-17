@@ -1049,7 +1049,10 @@ def quick_view_note(task_id: str, current_user=Depends(get_current_user)) -> dic
     from app.db.video_task_dao import get_task_by_task_id_and_user, get_task_by_task_id
     task = get_task_by_task_id_and_user(task_id, current_user.id)
     if not task:
-        # 跨用户复用：查任意用户的 task（只读预览，不做修改）
+        # 跨用户复用：仅 admin 可查其他用户的 task（频道页"可复用"场景）
+        # 普通用户跨用户访问返回 403（安全隔离）
+        if current_user.role != 'admin':
+            raise HTTPException(status_code=403, detail="无权访问此笔记")
         task = get_task_by_task_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
