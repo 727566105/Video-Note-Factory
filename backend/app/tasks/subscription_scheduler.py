@@ -108,6 +108,14 @@ class SubscriptionScheduler:
             else:
                 update_fetch_result(subscription_id, "success", added, None, new_last_content_id)
 
+            # 抖音历史回溯：游标分页逐步拉取更早的历史视频（每次1页35条）
+            # 不触发 auto_generate（历史视频用户可手动生成），只填充 channel_videos + feed_items
+            if platform == "douyin" and platform_id and not result.error:
+                try:
+                    self._backfill_douyin_history(sub, platform_id)
+                except Exception as e:
+                    logger.warning(f"订阅 {subscription_id} 抖音历史回溯失败（不影响主流程）: {e}")
+
             # 自动生成笔记：订阅开启了 auto_generate 且有新内容
             if new_feed_items and getattr(sub, 'auto_generate', 0) == 1:
                 self._auto_generate_notes(sub, new_feed_items)
@@ -142,6 +150,96 @@ class SubscriptionScheduler:
         # 若 last_content_id 不在本次列表（博主删了那条 / 列表只返回最新N条），
         # new_ids 会包含全部，靠 upsert 兜底去重，这是"安全的退化"
         return new_ids
+
+    def _backfill_douyin_history(self, subscription, platform_id: str):
+        """抖音历史视频回溯：用游标分页逐步拉取更早的视频，每次1页。
+
+        实测抖音游标分页可用（next_cursor 非零时能返回新数据，非注释所说的"返回空"）。
+        每次定时刷新多拉1页历史（约35条），写入 channel_videos 共享表 + 为用户建 feed_items，
+        直到 has_more=0 标记 complete 后停止。
+        不触发 auto_generate（历史视频由用户手动生成），避免批量生成旧笔记。
+        """
+        from app.db.channel_video_dao import (
+            get_or_create_fetch_status, update_fetch_status,
+            upsert_channel_videos, count_channel_videos,
+        )
+        from app.db.subscription_dao import create_feed_items_from_channel_videos
+
+        status = get_or_create_fetch_status("douyin", platform_id)
+        # 已全部获取完成，不再回溯
+        if status.fetch_status == "complete":
+            return
+
+        # 解析 next_cursor（首次为 "0" 或 None -> 用第一页的 next_cursor 初始化）
+        cursor_str = status.next_cursor or "0"
+        try:
+            cursor = int(cursor_str)
+        except (ValueError, TypeError):
+            cursor = 0
+
+        # 首次回溯：cursor=0 会重复拉最新35条（已在主流程拉过），
+        # 所以首次需要用第一页的 next_cursor 作为起点。
+        # 但 ChannelFetchStatus 可能没记录过 next_cursor，此时跳过本次（下次主流程会更新）。
+        if cursor == 0 and status.fetch_status == "initial":
+            # 先拉第一页拿 next_cursor
+            from app.services.douyin_api import fetch_douyin_user_videos
+            r0 = fetch_douyin_user_videos(
+                sec_uid=platform_id, max_cursor=0, count=35, max_pages=1
+            )
+            if r0.error:
+                logger.warning(f"抖音回溯初始化失败 [{platform_id}]: {r0.error}")
+                return
+            update_fetch_status(
+                "douyin", platform_id,
+                next_cursor=str(r0.next_cursor) if r0.next_cursor else "0",
+                fetch_status="partial" if r0.has_more else "complete",
+                total_videos=count_channel_videos("douyin", platform_id),
+            )
+            logger.info(f"抖音回溯初始化 [{platform_id}]: next_cursor={r0.next_cursor}, has_more={r0.has_more}")
+            if not r0.has_more:
+                return
+            cursor = r0.next_cursor or 0
+            if cursor == 0:
+                return
+
+        # 用 next_cursor 拉取下一页历史
+        from app.services.douyin_api import fetch_douyin_user_videos
+        result = fetch_douyin_user_videos(
+            sec_uid=platform_id, max_cursor=cursor, count=35, max_pages=1
+        )
+
+        if result.error:
+            logger.warning(f"抖音历史回溯失败 [{platform_id}] cursor={cursor}: {result.error}")
+            update_fetch_status("douyin", platform_id, fetch_status="error", error_message=result.error)
+            return
+
+        if not result.items:
+            # 空页 = 历史已到尽头
+            update_fetch_status("douyin", platform_id, fetch_status="complete")
+            logger.info(f"抖音历史回溯完成 [{platform_id}]：空页，标记 complete")
+            return
+
+        # 写入共享缓存 + 为用户建 feed_items
+        cv_records = upsert_channel_videos(result.items, "douyin", platform_id)
+        created = create_feed_items_from_channel_videos(
+            subscription.user_id, subscription.id, cv_records, "douyin"
+        )
+
+        current_count = count_channel_videos("douyin", platform_id)
+        is_complete = not result.has_more
+        update_fetch_status(
+            "douyin", platform_id,
+            next_cursor=str(result.next_cursor) if result.next_cursor else "0",
+            fetched_count=current_count,
+            total_videos=max(current_count, status.total_videos),
+            fetch_status="complete" if is_complete else "partial",
+            error_message=None,
+        )
+        logger.info(
+            f"抖音历史回溯 [{platform_id}] cursor={cursor}: "
+            f"本页 {len(result.items)} 条, 新建 feed_items {created} 条, "
+            f"累计 {current_count}, has_more={result.has_more}, {'完成' if is_complete else '继续'}"
+        )
 
     def _auto_generate_notes(self, subscription, new_items: list):
         """为新增的 feed items 自动生成笔记

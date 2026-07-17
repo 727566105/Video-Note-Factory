@@ -158,7 +158,7 @@ class ChannelFetchQueue:
             )
             return
 
-        # 抖音分支：游标分页不可靠，始终从 cursor=0 获取，靠 upsert 去重
+        # 抖音分支：定时刷新只拉最新35条，历史回溯由 subscription_scheduler 游标分页完成
         if task.platform == "douyin":
             result: DouyinFetchResult = fetch_douyin_user_videos(
                 sec_uid=task.platform_id,

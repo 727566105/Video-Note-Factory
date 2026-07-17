@@ -118,11 +118,12 @@ def fetch_douyin_user_videos(
 ) -> DouyinFetchResult:
     """获取抖音用户视频列表（每页最多约35条）
 
-    注意：抖音 API 游标分页在非零 cursor 时返回空数据，因此建议始终使用 cursor=0。
-    单次请求最多可获取约 35-40 条视频，后续刷新应与已有数据对比去重。
+    注意：抖音 API 游标分页实测可用（next_cursor 非零时能返回新数据）。
+    cursor=0 拉最新约35条，next_cursor 指向更早的历史，可继续翻页。
+    单次请求最多约 35-40 条，多页可获取全部历史视频。
 
     :param sec_uid: 抖音用户 sec_user_id（加密ID）
-    :param max_cursor: 游标（建议始终使用 0）
+    :param max_cursor: 游标（0=从最新开始）
     :param count: 每页数量（建议 35，上限约 40）
     :param max_pages: 最大页数限制
     :param page_limit: 分批获取限制

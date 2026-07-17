@@ -552,12 +552,13 @@ def fetch_videos(channel_url: str, platform: str, limit: int | None = 20,
             result.items = result.items[:limit]
         return result
 
-    # 抖音：使用原生 API 分页获取（游标分页不可靠，始终从 cursor=0 获取最新视频）
+    # 抖音：使用原生 API 获取最新视频（定时刷新只拉最新一页用于增量检测；
+    # 历史回溯由 subscription_scheduler._backfill_douyin_history 用游标分页逐步完成）
     if platform == "douyin":
         sec_uid = _extract_douyin_uid(channel_url)
         if not sec_uid:
             return FetchResult(error=f"无法从 URL 提取抖音用户 ID: {channel_url}")
-        # 抖音 API 游标分页不工作，始终从 cursor=0 获取，单次最多约 35 条
+        # 定时刷新只从 cursor=0 拉最新约35条，历史回溯另走游标分页
         max_pages = 1
         result = fetch_douyin_user_videos(
             sec_uid=sec_uid,
