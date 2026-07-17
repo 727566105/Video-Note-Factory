@@ -17,7 +17,17 @@ def _as_aware_utc(value):
 
 
 def ensure_token_not_revoked(token: str, user) -> None:
-    payload = decode_payload(token)
+    """
+    检查 token 是否因密码修改而失效。
+    直接用 jose 解析 payload（不走 decode_payload 的类型检查，
+    因为 refresh token 也需要走这个检查）。
+    """
+    from jose import jwt as _jwt
+    from app.auth.jwt_handler import SECRET_KEY, ALGORITHM
+    try:
+        payload = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except Exception:
+        return  # 解析失败不在这里报，让调用方的 decode 处理
     issued_at = payload.get("iat")
     password_changed_at = _as_aware_utc(getattr(user, "password_changed_at", None))
     if password_changed_at:

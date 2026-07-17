@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useTaskStore } from '@/store/taskStore'
@@ -11,17 +11,32 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+
+const REMEMBERED_USERNAME_KEY = 'remembered-username'
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const [username, setUsername] = useState('')
+  // 从 localStorage 读取记住的用户名
+  const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_USERNAME_KEY) || '')
   const [password, setPassword] = useState('')
+  const [rememberUser, setRememberUser] = useState(() => !!localStorage.getItem(REMEMBERED_USERNAME_KEY))
+  const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
   const setAuth = useAuthStore(state => state.setAuth)
+
+  // rememberUser 变化时同步 localStorage
+  useEffect(() => {
+    if (rememberUser && username) {
+      localStorage.setItem(REMEMBERED_USERNAME_KEY, username)
+    } else if (!rememberUser) {
+      localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+    }
+  }, [rememberUser, username])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,9 +47,16 @@ export function LoginForm({
     }
     setLoading(true)
     try {
-      const res = await request.post<{ token: string; user: { id: number; username: string; role: string } }>('/auth/login', { username, password })
+      // 登录前先存/清记住的用户名
+      if (rememberUser) {
+        localStorage.setItem(REMEMBERED_USERNAME_KEY, username)
+      } else {
+        localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+      }
+
+      const res = await request.post<{ token: string; refresh_token?: string; user: { id: number; username: string; role: string } }>('/auth/login', { username, password, remember_me: rememberMe })
       useTaskStore.getState().clearTasks()  // 清空前一个用户的残留任务
-      setAuth(res.token, res.user)
+      setAuth(res.token, res.user, res.refresh_token || null)
       navigate('/', { replace: true })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : (err as { msg?: string })?.msg || '登录失败'
@@ -75,6 +97,29 @@ export function LoginForm({
             required
           />
         </Field>
+        {/* 记住用户名 + 7天免登录 */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="remember-user"
+              checked={rememberUser}
+              onCheckedChange={(checked) => setRememberUser(checked === true)}
+            />
+            <label htmlFor="remember-user" className="text-sm text-muted-foreground cursor-pointer select-none">
+              记住用户名
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="remember-me"
+              checked={rememberMe}
+              onCheckedChange={(checked) => setRememberMe(checked === true)}
+            />
+            <label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer select-none">
+              7天免登录
+            </label>
+          </div>
+        </div>
         {error && (
           <p className="text-center text-sm text-destructive">{error}</p>
         )}

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
-from app.auth.jwt_handler import create_access_token
+from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_refresh_token
 from app.auth.dependencies import get_current_user, require_admin
 from app.auth.rate_limiter import login_rate_limiter
 from app.db.user_dao import (
@@ -23,6 +23,11 @@ router = APIRouter()
 class LoginRequest(BaseModel):
     username: str
     password: str
+    remember_me: bool = False
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 
 class UserCreateRequest(BaseModel):
@@ -57,16 +62,49 @@ def login(req: LoginRequest, request: Request) -> dict:
     token = create_access_token(
         {"user_id": user.id, "username": user.username, "role": user.role}
     )
-    return R.success(
-        data={
-            "token": token,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "role": user.role,
-            },
-        }
+    data = {
+        "token": token,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role,
+        },
+    }
+    # 勾选"7天免登录"时签发 refresh token
+    if req.remember_me:
+        data["refresh_token"] = create_refresh_token(
+            {"user_id": user.id, "username": user.username, "role": user.role}
+        )
+    return R.success(data=data)
+
+
+@router.post("/refresh")
+def refresh_token(req: RefreshTokenRequest) -> dict:
+    """
+    用 refresh token 换取新的 access token。
+    - 不重新签发 refresh token（固定 7 天上限）
+    - refresh token 无效/过期返回 401
+    """
+    from app.auth.dependencies import ensure_token_not_revoked
+    from app.db.user_dao import get_user_by_id
+    from jose import JWTError
+
+    try:
+        user_id = decode_refresh_token(req.refresh_token)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="refresh token 无效或已过期")
+
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+
+    # 检查密码是否已修改（与 access token 相同的吊销逻辑）
+    ensure_token_not_revoked(req.refresh_token, user)
+
+    new_token = create_access_token(
+        {"user_id": user.id, "username": user.username, "role": user.role}
     )
+    return R.success(data={"token": new_token})
 
 
 @router.get("/me")
