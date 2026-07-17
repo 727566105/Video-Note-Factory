@@ -5,7 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.db.subscription_dao import get_all_enabled_subscriptions, upsert_feed_items, update_subscription_check
+from app.db.subscription_dao import get_all_enabled_subscriptions, upsert_feed_items
 from app.services.channel_fetcher import fetch_all_for_subscription
 from app.db.models.subscriptions import Subscription
 from app.utils.logger import get_logger
@@ -51,7 +51,11 @@ class SubscriptionScheduler:
     def _fetch_job(self, subscription_id: int, platform: str, platform_id: Optional[str], channel_name: str):
         """单个订阅的刷新任务"""
         try:
-            from app.db.subscription_dao import get_subscription_by_id
+            from app.db.subscription_dao import (
+                get_subscription_by_id, update_fetch_result,
+                create_feed_items_from_channel_videos_with_records,
+            )
+            from app.db.channel_video_dao import get_channel_videos
             sub = get_subscription_by_id(subscription_id)
             if not sub or sub.enabled != 1:
                 logger.info(f"订阅 {subscription_id} 已禁用或不存在，跳过刷新")
@@ -60,25 +64,91 @@ class SubscriptionScheduler:
             logger.info(f"开始刷新订阅 {subscription_id} ({channel_name})")
             result = fetch_all_for_subscription(sub, limit=50)
 
-            new_items = []
-            if result.items:
-                new_items = upsert_feed_items(result.items)
-                logger.info(f"订阅 {subscription_id} 新增 {len(new_items)} 条动态")
+            # 增量截断：所有平台列表"最新在前"，遇到 last_content_id 为止都算新
+            fetched_items = result.items or []
+            new_content_ids = self._truncate_by_cursor(fetched_items, sub.last_content_id)
 
+            # 查出对应的 ChannelVideo 记录，走共享缓存两步路径（与手动刷新统一）
+            new_feed_items = []
+            added = 0
+            if platform_id and new_content_ids:
+                try:
+                    all_cv = get_channel_videos(platform, platform_id)
+                    new_cv = [cv for cv in all_cv if cv.content_id in new_content_ids]
+                    if new_cv:
+                        added, new_feed_items = create_feed_items_from_channel_videos_with_records(
+                            sub.user_id, sub.id, new_cv, platform
+                        )
+                except Exception as e:
+                    logger.warning(f"订阅 {subscription_id} 共享缓存 feed_items 创建失败，回退 upsert: {e}")
+                    # 回退：用 upsert_feed_items 保证不丢内容
+                    from app.db.subscription_dao import upsert_feed_items
+                    fallback_items = [it for it in fetched_items if it.get("content_id") in new_content_ids]
+                    new_feed_items = upsert_feed_items(fallback_items) if fallback_items else []
+                    added = len(new_feed_items)
+            elif new_content_ids and not platform_id:
+                # 无 platform_id（理论不应发生），回退旧路径
+                from app.db.subscription_dao import upsert_feed_items
+                fallback_items = [it for it in fetched_items if it.get("content_id") in new_content_ids]
+                new_feed_items = upsert_feed_items(fallback_items) if fallback_items else []
+                added = len(new_feed_items)
+
+            logger.info(f"订阅 {subscription_id} 新增 {added} 条动态")
+
+            # 回写增量游标（取本次拉到的最新 content_id）
+            new_last_content_id = fetched_items[0].get("content_id") if fetched_items else None
+
+            # 写可观测性字段（四态）
             if result.error:
+                status = "cookie_expired" if "Cookie" in (result.error or "") else "failed"
+                update_fetch_result(subscription_id, status, added, result.error, new_last_content_id)
                 logger.warning(f"订阅 {subscription_id} 刷新失败: {result.error}")
-
-            update_subscription_check(subscription_id)
+            elif added == 0:
+                update_fetch_result(subscription_id, "empty", 0, None, new_last_content_id)
+            else:
+                update_fetch_result(subscription_id, "success", added, None, new_last_content_id)
 
             # 自动生成笔记：订阅开启了 auto_generate 且有新内容
-            if new_items and getattr(sub, 'auto_generate', 0) == 1:
-                self._auto_generate_notes(sub, new_items)
+            if new_feed_items and getattr(sub, 'auto_generate', 0) == 1:
+                self._auto_generate_notes(sub, new_feed_items)
 
         except Exception as e:
             logger.error(f"订阅 {subscription_id} 刷新异常: {e}")
+            try:
+                from app.db.subscription_dao import update_fetch_result
+                update_fetch_result(subscription_id, "failed", 0, str(e), None)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _truncate_by_cursor(items: list, last_content_id: Optional[str]) -> set:
+        """增量截断：所有平台列表"最新在前"，从头扫到遇到 last_content_id 为止算新。
+
+        :return: 新内容的 content_id 集合（供后续查 ChannelVideo 过滤用）
+        """
+        if not items:
+            return set()
+        if not last_content_id:
+            # 首次拉取（无游标），全部当新，靠 upsert 兜底去重
+            return {it.get("content_id") for it in items if it.get("content_id")}
+        new_ids = set()
+        for it in items:
+            cid = it.get("content_id")
+            if not cid:
+                continue
+            if cid == last_content_id:
+                break  # 遇到上次最新一条，之后的都是旧内容
+            new_ids.add(cid)
+        # 若 last_content_id 不在本次列表（博主删了那条 / 列表只返回最新N条），
+        # new_ids 会包含全部，靠 upsert 兜底去重，这是"安全的退化"
+        return new_ids
 
     def _auto_generate_notes(self, subscription, new_items: list):
-        """为新增的 feed items 自动生成笔记"""
+        """为新增的 feed items 自动生成笔记
+
+        :param new_items: FeedItem 对象列表（来自 create_feed_items_from_channel_videos_with_records
+                          或 upsert_feed_items 的返回）
+        """
         import uuid
         from app.services.task_queue import task_queue
         from app.routers.note import run_note_task, _save_queued_task_params
@@ -88,12 +158,20 @@ class SubscriptionScheduler:
         generated = 0
 
         for item in new_items:
-            # item 是 dict（从 upsert_feed_items 返回）
-            if item.get('task_id'):
+            # item 可能是 FeedItem 对象或 dict（回退路径）
+            if hasattr(item, 'task_id'):
+                task_id_existing = item.task_id
+                content_url = item.content_url
+                content_id = item.content_id
+                item_id = item.id
+            else:
+                task_id_existing = item.get('task_id')
+                content_url = item.get('content_url')
+                content_id = item.get('content_id')
+                item_id = item.get('id')
+
+            if task_id_existing:
                 continue
-            content_url = item.get('content_url')
-            content_id = item.get('content_id')
-            item_id = item.get('id')
             if not content_url:
                 continue
 
@@ -102,7 +180,8 @@ class SubscriptionScheduler:
             existing = get_user_task_for_video(content_id, subscription.platform, subscription.user_id)
             if existing and existing.deleted_at is None:
                 # 已有笔记，回写 task_id 到 feed item 并跳过
-                update_feed_item_task(item_id, existing.task_id)
+                if item_id:
+                    update_feed_item_task(item_id, existing.task_id)
                 logger.info(f"[自动生成] 订阅 {subscription.id} 内容 {content_id} 已有笔记，跳过")
                 continue
 

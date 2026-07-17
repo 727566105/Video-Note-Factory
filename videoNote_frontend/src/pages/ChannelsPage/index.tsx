@@ -20,6 +20,7 @@ import { fetchSummarizedChannels, parseChannelUrl, fetchIntervalOptions, updateF
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo } from '@/components/Icons/platform'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { FetchStatusBadge } from './FetchStatusBadge'
 
 interface SummarizedChannel {
   platform: string
@@ -135,7 +136,7 @@ export default function ChannelsPage() {
                 <th className="px-4 py-2 text-left font-medium">状态</th>
                 {isAdmin && <th className="px-4 py-2 text-left font-medium">刷新间隔</th>}
                 <th className="px-4 py-2 text-left font-medium">自动生成</th>
-                <th className="px-4 py-2 text-left font-medium">上次检查</th>
+                <th className="px-4 py-2 text-left font-medium">上次同步</th>
                 <th className="px-4 py-2 text-right font-medium">操作</th>
               </tr></thead>
               <tbody>
@@ -191,8 +192,8 @@ export default function ChannelsPage() {
                         }}
                       />
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground text-xs">
-                      {sub.last_checked_at ? new Date(sub.last_checked_at).toLocaleString() : '未检查'}
+                    <td className="px-4 py-2">
+                      <FetchStatusBadge sub={sub} />
                     </td>
                     <td className="px-4 py-2 text-right">
                       <Button size="sm" variant="ghost" onClick={() => toggleSubscription(sub.id)}>
@@ -281,7 +282,7 @@ export default function ChannelsPage() {
                         </SelectContent>
                       </Select>
                       <span className="text-xs text-muted-foreground ml-auto">
-                        {sub.last_checked_at ? new Date(sub.last_checked_at).toLocaleDateString() : '未检查'}
+                        <FetchStatusBadge sub={sub} />
                       </span>
                     </div>
                   )}

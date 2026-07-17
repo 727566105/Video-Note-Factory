@@ -251,7 +251,13 @@ export default function ChannelDetailPage() {
           } else if (p.status === 'failed') {
             stopPolling()
             setFetching(false)
-            toast.error(`获取失败: ${p.error || '未知错误'}`)
+            const errMsg = p.error || '未知错误'
+            const isCookieError = typeof errMsg === 'string' && errMsg.includes('Cookie')
+            if (isCookieError) {
+              toast.error('Cookie 已失效，请在「设置 → 基础数据设置」重新配置对应平台 Cookie', { duration: 8000 })
+            } else {
+              toast.error(`获取失败: ${errMsg}`)
+            }
             loadVideos()
           }
         } catch {

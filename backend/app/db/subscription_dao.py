@@ -149,6 +149,17 @@ def copy_feed_items_to_user(source_sub_id: int, target_user_id: int, target_sub_
             )
             db.add(new_item)
             copied += 1
+        db.flush()  # 确保新建的 FeedItem 可被下方查询命中
+        # 初始化增量游标，避免首次定时刷新触发大量"假新增"批量自动生成笔记
+        # 显式查询最新一条的 content_id（不依赖 source_items 顺序）
+        latest = db.query(FeedItem).filter_by(
+            subscription_id=target_sub_id,
+            user_id=target_user_id,
+        ).order_by(FeedItem.published_at.desc()).first()
+        if latest and latest.content_id:
+            sub = db.query(Subscription).filter_by(id=target_sub_id).first()
+            if sub and not sub.last_content_id:
+                sub.last_content_id = latest.content_id
         db.commit()
         return copied
     except Exception as e:
@@ -178,6 +189,61 @@ def update_subscription_check(sub_id: int):
     except Exception as e:
         db.rollback()
         logger.error(f"更新订阅检查时间失败: {e}")
+    finally:
+        db.close()
+
+
+def update_fetch_result(sub_id: int, status: str, count: int = 0,
+                        error: str = None, last_content_id: str = None):
+    """更新订阅的拉取结果（可观测性字段 + 增量游标 + 检查时间）
+
+    :param status: success/empty/failed/cookie_expired
+    :param count: 新增条数
+    :param error: 失败原因
+    :param last_content_id: 本次拉到的最新 content_id（用于增量同步游标回写）
+    """
+    db = next(get_db())
+    try:
+        sub = db.query(Subscription).filter_by(id=sub_id).first()
+        if sub:
+            from datetime import datetime
+            now = datetime.now()
+            sub.last_checked_at = now
+            sub.last_fetch_at = now
+            sub.last_fetch_status = status
+            sub.last_fetch_count = count
+            sub.last_fetch_error = error
+            if last_content_id is not None:
+                sub.last_content_id = last_content_id
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新订阅拉取结果失败: {e}")
+    finally:
+        db.close()
+
+
+def init_last_content_id_from_feed_items(sub_id: int):
+    """从已存在的 feed_items 初始化增量游标（仅当 last_content_id 为空时）。
+
+    用于订阅复用/缓存命中场景：feed_items 已从 channel_videos 复制进来，
+    但游标未设置。若不初始化，首次定时刷新会把全部历史内容当新内容，
+    可能触发批量自动生成笔记。
+    """
+    db = next(get_db())
+    try:
+        sub = db.query(Subscription).filter_by(id=sub_id).first()
+        if not sub or sub.last_content_id:
+            return  # 已有游标，不覆盖
+        latest = db.query(FeedItem).filter_by(
+            subscription_id=sub_id,
+        ).order_by(FeedItem.published_at.desc()).first()
+        if latest and latest.content_id:
+            sub.last_content_id = latest.content_id
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"初始化订阅游标失败 (sub_id={sub_id}): {e}")
     finally:
         db.close()
 
@@ -441,7 +507,25 @@ def get_channel_stats(platform: str, platform_id: str) -> dict:
 
 def create_feed_items_from_channel_videos(user_id: int, subscription_id: int,
                                            channel_videos: list, platform: str):
-    """从共享视频表为用户创建 feed_items（按 content_id 去重）"""
+    """从共享视频表为用户创建 feed_items（按 content_id 去重）。
+
+    返回新建数量（int）。如需获取新建的 FeedItem 对象列表，用
+    create_feed_items_from_channel_videos_with_records。
+    """
+    return create_feed_items_from_channel_videos_with_records(
+        user_id, subscription_id, channel_videos, platform
+    )[0]
+
+
+def create_feed_items_from_channel_videos_with_records(user_id: int, subscription_id: int,
+                                                        channel_videos: list, platform: str):
+    """同上，但返回 (created_count, new_feed_items)。
+
+    new_feed_items 为 dict 列表（含 id/content_id/content_url/content_type/title/task_id），
+    用于自动生成笔记等需要逐条处理的下游场景。
+    注意：返回 dict 而非 ORM 对象，因为 session 在函数内 close，
+    返回 ORM 对象会导致访问属性时抛 DetachedInstanceError（expire_on_commit=True）。
+    """
     db = next(get_db())
     try:
         # 获取该用户该平台已有的 content_id
@@ -452,6 +536,7 @@ def create_feed_items_from_channel_videos(user_id: int, subscription_id: int,
         )
 
         created = 0
+        new_items = []
         for cv in channel_videos:
             if cv.content_id in existing_ids:
                 continue
@@ -459,7 +544,7 @@ def create_feed_items_from_channel_videos(user_id: int, subscription_id: int,
                 user_id=user_id,
                 subscription_id=subscription_id,
                 platform=platform,
-                content_type="video",
+                content_type=cv.content_type or "video",
                 content_id=cv.content_id,
                 content_url=cv.content_url,
                 title=cv.title,
@@ -471,11 +556,21 @@ def create_feed_items_from_channel_videos(user_id: int, subscription_id: int,
                 channel_video_id=cv.id,
             )
             db.add(item)
+            db.flush()  # 拿到 item.id，便于下游回写 task_id
+            # 在 commit/close 前把需要的属性提取成 dict，避免 DetachedInstanceError
+            new_items.append({
+                "id": item.id,
+                "content_id": item.content_id,
+                "content_url": item.content_url,
+                "content_type": item.content_type,
+                "title": item.title,
+                "task_id": item.task_id,
+            })
             created += 1
 
         db.commit()
         logger.info(f"从 channel_videos 创建 feed_items: user_id={user_id}, created={created}, total={len(channel_videos)}")
-        return created
+        return created, new_items
     except Exception as e:
         db.rollback()
         logger.error(f"创建 feed_items 失败: {e}")

@@ -18,6 +18,16 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/subscriptions", tags=["订阅管理"])
 
 
+def _classify_fetch_error(error_str: str) -> str:
+    """分类拉取失败原因为四态之一。
+
+    三平台 Cookie 失效消息都含 'Cookie' 字样（"抖音 Cookie 已过期" / "小红书 Cookie 缺少必要字段" 等）。
+    """
+    if not error_str:
+        return "failed"
+    return "cookie_expired" if "Cookie" in error_str else "failed"
+
+
 class SubscribeRequest(BaseModel):
     url: str
 
@@ -46,6 +56,11 @@ async def list_subscriptions(user=Depends(get_current_user)) -> dict:
         "auto_generate": s.auto_generate,
         "generate_style": s.generate_style,
         "last_checked_at": s.last_checked_at.isoformat() if s.last_checked_at else None,
+        "last_content_id": s.last_content_id,
+        "last_fetch_status": s.last_fetch_status,
+        "last_fetch_count": s.last_fetch_count,
+        "last_fetch_error": s.last_fetch_error,
+        "last_fetch_at": s.last_fetch_at.isoformat() if s.last_fetch_at else None,
         "created_at": s.created_at.isoformat() if s.created_at else None,
     } for s in subs])
 
@@ -82,10 +97,11 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         # 尝试从共享缓存表 channel_videos 直接复制（零 API 调用）
         cached_count = count_channel_videos(info["platform"], reused_sub.platform_id) if reused_sub.platform_id else 0
         if cached_count > 0:
-            # 有缓存 → 从 channel_videos 创建 feed_items
+            # 有缓存 -> 从 channel_videos 创建 feed_items
             existing_videos = get_channel_videos(info["platform"], reused_sub.platform_id)
-            subscription_dao.create_feed_items_from_channel_videos(user.id, sub.id, existing_videos, info["platform"])
-            subscription_dao.update_subscription_check(sub.id)
+            added_cached = subscription_dao.create_feed_items_from_channel_videos(user.id, sub.id, existing_videos, info["platform"])
+            subscription_dao.init_last_content_id_from_feed_items(sub.id)
+            subscription_dao.update_fetch_result(sub.id, "success", added_cached, None, None)
             logger.info(f"订阅复用(缓存命中): 用户 {user.id} 复用了博主 {reused_sub.channel_name} 的缓存，共 {len(existing_videos)} 个视频")
 
             # 统计该用户实际的 feed_items 数量
@@ -105,7 +121,8 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
 
         # 缓存未命中 → 尝试复制已有 feed_items（旧逻辑兜底）
         copied = subscription_dao.copy_feed_items_to_user(reused_sub.id, user.id, sub.id)
-        subscription_dao.update_subscription_check(sub.id)
+        # copy_feed_items_to_user 内部已初始化 last_content_id，这里只补可观测性
+        subscription_dao.update_fetch_result(sub.id, "success", copied, None, None)
         logger.info(f"订阅复用(feed_items复制): 用户 {user.id} 复制了 {copied} 条动态")
 
         if copied > 0:
@@ -174,8 +191,9 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         if cached_count > 0:
             # 有缓存 → 直接复制，零 API 调用
             existing_videos = get_channel_videos(info["platform"], sub_platform_id)
-            subscription_dao.create_feed_items_from_channel_videos(user.id, sub.id, existing_videos, info["platform"])
-            subscription_dao.update_subscription_check(sub.id)
+            added_first = subscription_dao.create_feed_items_from_channel_videos(user.id, sub.id, existing_videos, info["platform"])
+            subscription_dao.init_last_content_id_from_feed_items(sub.id)
+            subscription_dao.update_fetch_result(sub.id, "success", added_first, None, None)
             actual_count = subscription_dao.count_feed_items_by_subscription(sub.id)
             logger.info(f"首次订阅(缓存命中): {sub.channel_name}, 缓存 {len(existing_videos)} 个视频")
 
@@ -194,7 +212,9 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         # 无缓存 → 加入串行队列，首批获取约 30 条
         get_or_create_fetch_status(info["platform"], sub_platform_id)
         channel_fetch_queue.enqueue(info["platform"], sub_platform_id, user.id, sub.id)
-        subscription_dao.update_subscription_check(sub.id)
+        # 队列异步获取中，标记为 empty 状态（前端显示"无新内容"而非"未检查"，
+        # 游标+实际结果由后续定时任务首次刷新回写）
+        subscription_dao.update_fetch_result(sub.id, "empty", 0, None, None)
         logger.info(f"首次订阅(加入队列): {sub.channel_name}, platform_id={sub_platform_id}")
 
         stats_hint = get_channel_stats(info["platform"], sub_platform_id)
@@ -215,7 +235,12 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
     added = 0
     if result.items:
         added = len(upsert_feed_items(result.items))
-    subscription_dao.update_subscription_check(sub.id)
+    new_last_content_id = result.items[0].get("content_id") if result.items else None
+    if result.error:
+        status = _classify_fetch_error(result.error)
+        subscription_dao.update_fetch_result(sub.id, status, added, result.error, new_last_content_id)
+    else:
+        subscription_dao.update_fetch_result(sub.id, "success" if added > 0 else "empty", added, None, new_last_content_id)
 
     response_data = {
         "id": sub.id,
@@ -301,6 +326,8 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 )
 
                 if result.error:
+                    status = _classify_fetch_error(result.error)
+                    subscription_dao.update_fetch_result(sub_id, status, 0, result.error, None)
                     complete_progress(progress_id, 0, 0, error=result.error)
                     logger.warning(f"订阅 {sub_id} 抖音刷新失败: {result.error}")
                     return
@@ -311,7 +338,9 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 added = create_feed_items_from_channel_videos(
                     user.id, sub.id, channel_video_records, "douyin"
                 )
-                subscription_dao.update_subscription_check(sub_id)
+                new_last_content_id = result.items[0].get("content_id") if result.items else None
+                status = "success" if added > 0 else "empty"
+                subscription_dao.update_fetch_result(sub_id, status, added, None, new_last_content_id)
                 db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
                 complete_progress(progress_id, added, db_total)
                 return
@@ -333,6 +362,8 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 )
 
                 if result.error:
+                    status = _classify_fetch_error(result.error)
+                    subscription_dao.update_fetch_result(sub_id, status, 0, result.error, None)
                     complete_progress(progress_id, 0, 0, error=result.error)
                     logger.warning(f"订阅 {sub_id} 小红书刷新失败: {result.error}")
                     return
@@ -343,7 +374,9 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 added = create_feed_items_from_channel_videos(
                     user.id, sub.id, channel_video_records, "xiaohongshu"
                 )
-                subscription_dao.update_subscription_check(sub_id)
+                new_last_content_id = result.items[0].get("content_id") if result.items else None
+                status = "success" if added > 0 else "empty"
+                subscription_dao.update_fetch_result(sub_id, status, added, None, new_last_content_id)
                 db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
                 complete_progress(progress_id, added, db_total)
                 return
@@ -356,17 +389,22 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
 
             result = fetch_all_for_subscription(sub, limit=limit, progress_callback=_progress_cb)
             added = len(upsert_feed_items(result.items)) if result.items else 0
-            subscription_dao.update_subscription_check(sub_id)
+            new_last_content_id = result.items[0].get("content_id") if result.items else None
 
             db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
 
             if result.error:
+                status = _classify_fetch_error(result.error)
+                subscription_dao.update_fetch_result(sub_id, status, added, result.error, new_last_content_id)
                 complete_progress(progress_id, added, db_total, error=result.error)
                 logger.warning(f"订阅 {sub_id} 刷新失败: {result.error}")
             else:
+                status = "success" if added > 0 else "empty"
+                subscription_dao.update_fetch_result(sub_id, status, added, None, new_last_content_id)
                 complete_progress(progress_id, added, db_total)
 
         except Exception as e:
+            subscription_dao.update_fetch_result(sub_id, "failed", 0, str(e), None)
             complete_progress(progress_id, 0, 0, error=str(e))
             logger.error(f"订阅 {sub_id} 刷新异常: {e}")
 

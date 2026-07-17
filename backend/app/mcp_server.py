@@ -702,7 +702,12 @@ async def refresh_subscription(subscription_id: int, ctx: Context = None) -> str
             limit = None if sub.platform == "bilibili" else 50
             result = fetch_all_for_subscription(sub, limit=limit, progress_callback=_cb)
             added = len(subscription_dao.upsert_feed_items(result.items)) if result.items else 0
-            subscription_dao.update_subscription_check(subscription_id)
+            new_last_content_id = result.items[0].get("content_id") if result.items else None
+            if result.error:
+                status = "cookie_expired" if "Cookie" in result.error else "failed"
+                subscription_dao.update_fetch_result(subscription_id, status, added, result.error, new_last_content_id)
+            else:
+                subscription_dao.update_fetch_result(subscription_id, "success" if added > 0 else "empty", added, None, new_last_content_id)
             db_total = subscription_dao.count_feed_items_by_subscription(subscription_id)
             complete_progress(progress_id, added, db_total)
         except Exception as e:
@@ -775,13 +780,18 @@ async def refresh_feed(ctx: Context = None) -> str:
                 continue
             try:
                 result = fetch_all_for_subscription(sub, limit=20)
-                if result.items:
-                    total_added += len(subscription_dao.upsert_feed_items(result.items))
+                added = len(subscription_dao.upsert_feed_items(result.items)) if result.items else 0
+                total_added += added
+                new_last_content_id = result.items[0].get("content_id") if result.items else None
                 if result.error:
                     errors.append(f"{sub.channel_name}: {result.error}")
-                subscription_dao.update_subscription_check(sub.id)
+                    status = "cookie_expired" if "Cookie" in result.error else "failed"
+                    subscription_dao.update_fetch_result(sub.id, status, added, result.error, new_last_content_id)
+                else:
+                    subscription_dao.update_fetch_result(sub.id, "success" if added > 0 else "empty", added, None, new_last_content_id)
             except Exception as e:
                 errors.append(f"{sub.channel_name}: {str(e)}")
+                subscription_dao.update_fetch_result(sub.id, "failed", 0, str(e), None)
 
     # 在线程中执行避免阻塞 MCP 响应
     _safe_run_in_thread(_do_refresh)

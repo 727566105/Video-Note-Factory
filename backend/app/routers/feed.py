@@ -69,13 +69,18 @@ async def refresh_feed(user=Depends(get_current_user)) -> dict:
             continue
         try:
             result = fetch_all_for_subscription(sub, limit=20)
-            if result.items:
-                total_added += len(upsert_feed_items(result.items))
+            added = len(upsert_feed_items(result.items)) if result.items else 0
+            total_added += added
+            new_last_content_id = result.items[0].get("content_id") if result.items else None
             if result.error:
                 errors.append(f"{sub.channel_name}: {result.error}")
-            subscription_dao.update_subscription_check(sub.id)
+                status = "cookie_expired" if "Cookie" in result.error else "failed"
+                subscription_dao.update_fetch_result(sub.id, status, added, result.error, new_last_content_id)
+            else:
+                subscription_dao.update_fetch_result(sub.id, "success" if added > 0 else "empty", added, None, new_last_content_id)
         except Exception as e:
             errors.append(f"{sub.channel_name}: {str(e)}")
+            subscription_dao.update_fetch_result(sub.id, "failed", 0, str(e), None)
 
     response = {"added": total_added}
     if errors:

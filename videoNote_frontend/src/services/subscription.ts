@@ -1,5 +1,7 @@
 import request from '@/utils/request'
 
+export type FetchStatus = 'success' | 'empty' | 'failed' | 'cookie_expired'
+
 export interface Subscription {
   id: number
   channel_url: string
@@ -15,6 +17,11 @@ export interface Subscription {
   auto_generate: number
   generate_style: string | null
   last_checked_at: string | null
+  last_content_id?: string | null
+  last_fetch_status?: FetchStatus | null
+  last_fetch_count?: number | null
+  last_fetch_error?: string | null
+  last_fetch_at?: string | null
   created_at: string | null
 }
 

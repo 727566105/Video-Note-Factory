@@ -760,6 +760,9 @@ def fetch_all_for_subscription(subscription, limit: int = 20, progress_callback=
                                 page_limit: int = None) -> FetchResult:
     """合并视频+图文，返回统一格式的动态列表
 
+    拉取后自动写入 channel_videos 共享缓存表（仅对有 platform_id 且有视频内容的订阅），
+    实现定时刷新与手动刷新路径统一，多用户订阅同一博主时共享缓存。
+
     :param page_limit: 限制获取的页数（传递给平台获取函数）
     """
     results = []
@@ -769,6 +772,13 @@ def fetch_all_for_subscription(subscription, limit: int = 20, progress_callback=
     video_result = fetch_videos(subscription.channel_url, subscription.platform,
                                 effective_limit or None, progress_callback=progress_callback,
                                 page_limit=page_limit)
+    # 写入共享缓存表（仅视频内容，图文走 RSSHub 不进 channel_videos）
+    if subscription.platform_id and video_result.items:
+        try:
+            from app.db.channel_video_dao import upsert_channel_videos
+            upsert_channel_videos(video_result.items, subscription.platform, subscription.platform_id)
+        except Exception as e:
+            logger.warning(f"写入 channel_videos 共享缓存失败 [{subscription.platform}]: {e}")
     for v in video_result.items:
         v["user_id"] = subscription.user_id
         v["subscription_id"] = subscription.id

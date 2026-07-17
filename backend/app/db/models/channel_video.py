@@ -17,6 +17,7 @@ class ChannelVideo(Base):
     duration = Column(Float)
     author = Column(String)
     published_at = Column(DateTime)
+    content_type = Column(String, default="video")    # video/article/live_photo
     raw_info = Column(Text)                            # 原始 API 数据（JSON）
     created_at = Column(DateTime, server_default=func.now())
 

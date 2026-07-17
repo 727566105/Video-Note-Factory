@@ -313,6 +313,8 @@ def init_db():
     migrate_video_tasks_tags_column()
     migrate_subscriptions_fetch_time()
     migrate_subscriptions_auto_generate()
+    migrate_subscriptions_fetch_observability()
+    migrate_channel_videos_content_type()
     migrate_video_tasks_multiuser_columns()
     migrate_users_security_columns()
     migrate_webdav_default_backup_mode()
@@ -382,6 +384,48 @@ def migrate_subscriptions_auto_generate():
             logger.info("subscriptions: generate_style 列添加成功")
     except Exception as e:
         logger.error(f"subscriptions auto_generate 迁移失败: {e}")
+    finally:
+        db.close()
+
+
+def migrate_subscriptions_fetch_observability():
+    """迁移：subscriptions 添加增量游标 + 拉取可观测性字段"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(subscriptions)"))
+        columns = [row[1] for row in result.fetchall()]
+        new_columns = [
+            ("last_content_id", "VARCHAR"),
+            ("last_fetch_status", "VARCHAR"),
+            ("last_fetch_count", "INTEGER"),
+            ("last_fetch_error", "VARCHAR"),
+            ("last_fetch_at", "DATETIME"),
+        ]
+        for col_name, col_type in new_columns:
+            if col_name not in columns:
+                logger.info(f"subscriptions: {col_name} 列不存在，正在添加...")
+                db.execute(text(f"ALTER TABLE subscriptions ADD COLUMN {col_name} {col_type}"))
+                db.commit()
+                logger.info(f"subscriptions: {col_name} 列添加成功")
+    except Exception as e:
+        logger.error(f"subscriptions 可观测性迁移失败: {e}")
+    finally:
+        db.close()
+
+
+def migrate_channel_videos_content_type():
+    """迁移：channel_videos 添加 content_type 字段（video/article/live_photo）"""
+    db = next(get_db())
+    try:
+        result = db.execute(text("PRAGMA table_info(channel_videos)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "content_type" not in columns:
+            logger.info("channel_videos: content_type 列不存在，正在添加...")
+            db.execute(text("ALTER TABLE channel_videos ADD COLUMN content_type VARCHAR DEFAULT 'video'"))
+            db.commit()
+            logger.info("channel_videos: content_type 列添加成功")
+    except Exception as e:
+        logger.error(f"channel_videos content_type 迁移失败: {e}")
     finally:
         db.close()
 

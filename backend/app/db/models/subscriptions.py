@@ -22,6 +22,11 @@ class Subscription(Base):
     auto_generate = Column(Integer, default=0)  # 是否自动生成笔记（0=关, 1=开）
     generate_style = Column(String, nullable=True)  # 自动生成笔记的风格
     last_checked_at = Column(DateTime, nullable=True)
+    last_content_id = Column(String, nullable=True)  # 增量同步游标：上次拉到的最新 content_id
+    last_fetch_status = Column(String, nullable=True)  # success/empty/failed/cookie_expired
+    last_fetch_count = Column(Integer, nullable=True)  # 上次拉取新增条数
+    last_fetch_error = Column(String, nullable=True)  # 上次拉取失败原因
+    last_fetch_at = Column(DateTime, nullable=True)  # 上次真正拉取时间（区别于 last_checked_at 每次都更新）
     created_at = Column(DateTime, server_default=func.now())
 
 

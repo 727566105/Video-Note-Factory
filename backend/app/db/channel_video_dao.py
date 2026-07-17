@@ -40,6 +40,8 @@ def upsert_channel_videos(videos: list[dict], platform: str, platform_id: str) -
                     existing.content_url = item["content_url"]
                 if item.get("published_at") and existing.published_at != item["published_at"]:
                     existing.published_at = item["published_at"]
+                if item.get("content_type") and existing.content_type != item["content_type"]:
+                    existing.content_type = item["content_type"]
                 if item.get("raw_info"):
                     existing.raw_info = item["raw_info"]
                 result.append(existing)
@@ -55,6 +57,7 @@ def upsert_channel_videos(videos: list[dict], platform: str, platform_id: str) -
                     duration=item.get("duration"),
                     author=item.get("author"),
                     published_at=item.get("published_at"),
+                    content_type=item.get("content_type") or "video",
                     raw_info=item.get("raw_info"),
                 )
                 db.add(video)
