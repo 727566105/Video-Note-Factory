@@ -1,5 +1,6 @@
 """订阅调度管理器 — 为每个订阅动态创建 APScheduler 任务"""
 from typing import Optional
+import threading
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -11,6 +12,22 @@ from app.db.models.subscriptions import Subscription
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# 抖音历史回溯的按 platform_id 应用层锁，防止多用户订阅同一博主时并发回溯竞态
+_backfill_locks: dict = {}
+_backfill_locks_guard = threading.Lock()
+
+
+def _get_backfill_lock(platform_id: str) -> threading.Lock:
+    """获取指定 platform_id 的回溯锁（双检锁单例）"""
+    lock = _backfill_locks.get(platform_id)
+    if lock is None:
+        with _backfill_locks_guard:
+            lock = _backfill_locks.get(platform_id)
+            if lock is None:
+                lock = threading.Lock()
+                _backfill_locks[platform_id] = lock
+    return lock
 
 # 预设间隔选项
 FETCH_INTERVAL_OPTIONS = {
@@ -154,10 +171,13 @@ class SubscriptionScheduler:
     def _backfill_douyin_history(self, subscription, platform_id: str):
         """抖音历史视频回溯：用游标分页逐步拉取更早的视频，每次1页。
 
-        实测抖音游标分页可用（next_cursor 非零时能返回新数据，非注释所说的"返回空"）。
+        实测抖音游标分页可用（next_cursor 非零时能返回新数据）。
         每次定时刷新多拉1页历史（约35条），写入 channel_videos 共享表 + 为用户建 feed_items，
         直到 has_more=0 标记 complete 后停止。
         不触发 auto_generate（历史视频由用户手动生成），避免批量生成旧笔记。
+
+        并发安全：按 platform_id 加应用层锁，防止多用户订阅同一博主时
+        并发回溯导致 upsert_channel_videos 唯一约束冲突和 next_cursor 竞态。
         """
         from app.db.channel_video_dao import (
             get_or_create_fetch_status, update_fetch_status,
@@ -165,45 +185,69 @@ class SubscriptionScheduler:
         )
         from app.db.subscription_dao import create_feed_items_from_channel_videos
 
+        lock = _get_backfill_lock(platform_id)
+        if not lock.acquire(timeout=5):
+            logger.info(f"抖音回溯跳过（另一线程正在回溯同一博主）: {platform_id}")
+            return
+        try:
+            self._do_backfill_douyin_history(
+                subscription, platform_id,
+                get_or_create_fetch_status, update_fetch_status,
+                upsert_channel_videos, count_channel_videos,
+                create_feed_items_from_channel_videos,
+            )
+        finally:
+            lock.release()
+
+    @staticmethod
+    def _do_backfill_douyin_history(
+        subscription, platform_id: str,
+        get_or_create_fetch_status, update_fetch_status,
+        upsert_channel_videos, count_channel_videos,
+        create_feed_items_from_channel_videos,
+    ):
+        """回溯的实际逻辑（调用方负责加锁）"""
+        from app.services.douyin_api import fetch_douyin_user_videos
+
         status = get_or_create_fetch_status("douyin", platform_id)
         # 已全部获取完成，不再回溯
         if status.fetch_status == "complete":
             return
 
-        # 解析 next_cursor（首次为 "0" 或 None -> 用第一页的 next_cursor 初始化）
+        # 解析 next_cursor
         cursor_str = status.next_cursor or "0"
         try:
             cursor = int(cursor_str)
         except (ValueError, TypeError):
             cursor = 0
 
-        # 首次回溯：cursor=0 会重复拉最新35条（已在主流程拉过），
-        # 所以首次需要用第一页的 next_cursor 作为起点。
-        # 但 ChannelFetchStatus 可能没记录过 next_cursor，此时跳过本次（下次主流程会更新）。
-        if cursor == 0 and status.fetch_status == "initial":
-            # 先拉第一页拿 next_cursor
-            from app.services.douyin_api import fetch_douyin_user_videos
+        # cursor=0 表示还没初始化历史游标（首次回溯或 error 后重置）。
+        # 需要先拉第一页拿 next_cursor 作为历史回溯起点。
+        # 注意：第一页是最新35条，主流程已拉过，这里只取 next_cursor，不重复建 feed_items。
+        if cursor == 0:
             r0 = fetch_douyin_user_videos(
                 sec_uid=platform_id, max_cursor=0, count=35, max_pages=1
             )
             if r0.error:
                 logger.warning(f"抖音回溯初始化失败 [{platform_id}]: {r0.error}")
+                update_fetch_status("douyin", platform_id,
+                                    fetch_status="error", error_message=r0.error)
                 return
-            update_fetch_status(
-                "douyin", platform_id,
-                next_cursor=str(r0.next_cursor) if r0.next_cursor else "0",
-                fetch_status="partial" if r0.has_more else "complete",
-                total_videos=count_channel_videos("douyin", platform_id),
-            )
-            logger.info(f"抖音回溯初始化 [{platform_id}]: next_cursor={r0.next_cursor}, has_more={r0.has_more}")
-            if not r0.has_more:
+            # 博主只有一页视频，无历史可回溯
+            if not r0.has_more or not r0.next_cursor:
+                update_fetch_status("douyin", platform_id, fetch_status="complete",
+                                    total_videos=count_channel_videos("douyin", platform_id))
+                logger.info(f"抖音回溯 [{platform_id}]: 仅一页视频，标记 complete")
                 return
-            cursor = r0.next_cursor or 0
-            if cursor == 0:
-                return
+            # 记录 next_cursor，本次不继续拉（避免一次刷新拉太多页）
+            update_fetch_status("douyin", platform_id,
+                                next_cursor=str(r0.next_cursor),
+                                fetch_status="partial",
+                                total_videos=count_channel_videos("douyin", platform_id))
+            logger.info(f"抖音回溯初始化 [{platform_id}]: next_cursor={r0.next_cursor}，下次开始拉历史")
+            return
 
         # 用 next_cursor 拉取下一页历史
-        from app.services.douyin_api import fetch_douyin_user_videos
         result = fetch_douyin_user_videos(
             sec_uid=platform_id, max_cursor=cursor, count=35, max_pages=1
         )

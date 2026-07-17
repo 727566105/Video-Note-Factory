@@ -193,6 +193,7 @@ class ChannelFetchQueue:
                 task.platform, task.platform_id,
                 total_videos=max(status.total_videos, current_count),
                 fetched_count=current_count,
+                next_cursor=str(result.next_cursor) if result.next_cursor else "0",
                 fetch_status="complete" if is_complete else "partial",
             )
 
