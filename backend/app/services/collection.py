@@ -427,6 +427,10 @@ def generate_collection_summary(
         logger.error("GPT 返回空结果")
         return None
 
+    # 去除 AI 可能返回的多余代码块包裹
+    from app.services.note import strip_code_fence
+    result_md = strip_code_fence(result_md)
+
     # 5. 保存到 collection_summaries 表
     existing = (
         db.query(CollectionSummary)
@@ -562,7 +566,9 @@ def _build_collection_summary_prompt(combined_text: str, style: str, extras: str
 
 --- 笔记内容结束 ---
 
-请生成综合总结："""
+请生成综合总结。
+
+**重要**：直接以 Markdown 标题（`#` 或 `##`）开头输出内容，**绝对不要**将输出包裹在 ```` ```markdown ```` 或 ```` ``` ```` 代码块中。"""
 
     return prompt
 

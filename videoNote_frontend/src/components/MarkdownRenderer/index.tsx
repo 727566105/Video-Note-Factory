@@ -22,7 +22,56 @@ import { getBaseURL } from '@/utils/api'
 
 // 确保 baseURL 没有尾部斜杠
 
+/**
+ * 前端兜底：去除 AI 可能返回的多余外层代码块包裹。
+ * 即使后端已做 strip_code_fence，导入旧数据或 API 直返时仍可能出现。
+ * 逻辑与后端 strip_code_fence 保持一致。
+ */
+function hasUnpairedFences(text: string): boolean {
+  return (text.match(/```/g) || []).length % 2 !== 0
+}
+
+function looksLikeMarkdownNote(text: string): boolean {
+  if (!text.trim()) return false
+  if (/^#{1,6}\s+\S/m.test(text)) return true
+  if (/^\s*[-*+]\s+\S/m.test(text)) return true
+  if (/^\s*\d+\.\s+\S/m.test(text)) return true
+  if (/^\|.+\|$/m.test(text)) return true
+  if (/^>\s+\S/m.test(text)) return true
+  return false
+}
+
+function stripSingleFenceLayer(text: string): string {
+  // 策略 1：标准包裹
+  const standard = text.match(/^```(?:markdown|md|text|txt|markdown-output|mdx)?\s*\n([\s\S]*?)\n```\s*$/)
+  if (standard && !hasUnpairedFences(standard[1]) && looksLikeMarkdownNote(standard[1])) {
+    return standard[1].trim()
+  }
+  // 策略 2：前导寒暄 + 代码块
+  const leading = text.match(/^[\s\S]{1,200}?```(?:markdown|md|text|txt)?\s*\n([\s\S]*?)\n```\s*$/)
+  if (leading && !hasUnpairedFences(leading[1]) && looksLikeMarkdownNote(leading[1])) {
+    return leading[1].trim()
+  }
+  return text
+}
+
+function stripCodeFence(md: string): string {
+  if (!md || typeof md !== 'string' || !md.trim()) return md || ''
+  let text = md.trim()
+  let result = stripSingleFenceLayer(text)
+
+  // 递归剥除多层包裹（最多 5 层）
+  let depth = 0
+  while (result !== text && depth < 5) {
+    text = result
+    result = stripSingleFenceLayer(text)
+    depth++
+  }
+  return result.trim()
+}
+
 const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBaseURL() }) => {
+  const cleanContent = stripCodeFence(content)
   return (
     <div className="markdown-body w-full !bg-transparent">
       <ReactMarkdown
@@ -284,7 +333,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({ content, baseURL = getBas
           ),
         }}
       >
-        {content}
+        {cleanContent}
       </ReactMarkdown>
     </div>
   )

@@ -43,6 +43,112 @@ class TaskCancelledError(Exception):
     pass
 
 
+def strip_code_fence(markdown: str) -> str:
+    """
+    去除 AI 返回的多余外层代码块包裹。
+
+    AI 模型有时会把整个 markdown 内容包在 ```markdown ... ``` 或 ``` ... ``` 里，
+    导致前端 Markdown 渲染器把内容当代码块纯文本显示，而非解析为标题/列表/段落。
+
+    处理策略（递归剥层）：
+    1. 去除前导寒暄文本（如"这是你的笔记："），提取真正的代码块
+    2. 逐层剥除 ```markdown / ```md / ```text / ``` 外层包裹
+    3. 保留内容中合理的内联代码块（只剥「整体被一层包裹」的情况）
+    4. 递归处理多层包裹（模型偶尔会双层包裹）
+    """
+    # 类型防御：非字符串直接返回
+    if not isinstance(markdown, str):
+        return markdown
+
+    if not markdown.strip():
+        return markdown.strip()
+
+    text = markdown.strip()
+    result = _strip_single_fence_layer(text)
+
+    # 递归剥除多层包裹（最多 5 层防止无限循环）
+    depth = 0
+    while result != text and depth < 5:
+        text = result
+        result = _strip_single_fence_layer(text)
+        depth += 1
+
+    return result.strip()
+
+
+def _has_unpaired_fences(text: str) -> bool:
+    """
+    检查文本中是否有未配对的 ``` 围栏。
+    成对的 ``` (偶数个) 表示有合法的内联代码块，不应误剥。
+    奇数个表示有未闭合的围栏，结构异常。
+    """
+    return text.count('```') % 2 != 0
+
+
+def _looks_like_markdown_note(text: str) -> bool:
+    """
+    启发式判断内容是否像 markdown 笔记（而非纯代码片段）。
+    判断依据：有标题行、列表行、或段落文本（非纯代码）。
+    """
+    if not text.strip():
+        return False
+    # 有 markdown 标题（# ~ ######）
+    if re.search(r'^#{1,6}\s+\S', text, re.MULTILINE):
+        return True
+    # 有无序列表（- * + 开头）
+    if re.search(r'^\s*[-*+]\s+\S', text, re.MULTILINE):
+        return True
+    # 有有序列表
+    if re.search(r'^\s*\d+\.\s+\S', text, re.MULTILINE):
+        return True
+    # 有 markdown 表格
+    if re.search(r'^\|.+\|$', text, re.MULTILINE):
+        return True
+    # 有引用块
+    if re.search(r'^>\s+\S', text, re.MULTILINE):
+        return True
+    return False
+
+
+def _strip_single_fence_layer(text: str) -> str:
+    """剥除单层代码块包裹（如果存在）"""
+    # 策略 1：标准包裹 - 整个内容被 ```lang ... ``` 包围
+    # 支持的语言标记：markdown, md, text, txt, 或无标记
+    fence_pattern = re.compile(
+        r'^```(?:markdown|md|text|txt|markdown-output|mdx)?\s*\n'
+        r'([\s\S]*?)'
+        r'\n```\s*$',
+        re.MULTILINE
+    )
+
+    match = fence_pattern.match(text)
+    if match:
+        inner = match.group(1)
+        # 只有内部没有未配对围栏时才剥除
+        # 成对的内联代码块（偶数个```）不阻止剥除，因为它们是合法内容
+        # 只有奇数个```（结构异常）才不剥
+        if not _has_unpaired_fences(inner):
+            # 启发式：内容看起来像 markdown 笔记才剥（防止误剥合法代码片段）
+            if _looks_like_markdown_note(inner):
+                return inner.strip()
+
+    # 策略 2：前导文本 + 代码块（如 "好的，这是你的笔记：\n```markdown\n..."）
+    # 提取最后一个代码块作为笔记内容
+    leading_pattern = re.compile(
+        r'^[\s\S]{1,200}?```(?:markdown|md|text|txt)?\s*\n'
+        r'([\s\S]*?)'
+        r'\n```\s*$',
+        re.MULTILINE
+    )
+    match2 = leading_pattern.match(text)
+    if match2:
+        inner2 = match2.group(1)
+        if not _has_unpaired_fences(inner2) and _looks_like_markdown_note(inner2):
+            return inner2.strip()
+
+    return text
+
+
 # ------------------ 环境变量与全局配置 ------------------
 
 # 从 .env 文件中加载环境变量
@@ -791,7 +897,7 @@ class NoteGenerator:
                             from app.db.model_usage_history_dao import record_usage
                             record_usage(user_id, model_id, actual_provider_id, True)
 
-                            return result, {
+                            return strip_code_fence(result), {
                                 "model_name": model_info["model_name"],
                                 "provider_name": model_info["provider_name"],
                                 "switched": model_info != sorted_models[0],
@@ -812,7 +918,7 @@ class NoteGenerator:
         # 普通模式：直接使用指定模型
         gpt = self._get_gpt(model_name, provider_id)
         result = gpt.chat(prompt)
-        return result, None
+        return strip_code_fence(result), None
 
     @staticmethod
     def delete_note(video_id: str, platform: str) -> int:
@@ -1402,6 +1508,7 @@ class NoteGenerator:
 
         try:
             markdown = gpt.summarize(source)
+            markdown = strip_code_fence(markdown)
             markdown_cache_file.parent.mkdir(parents=True, exist_ok=True)
             markdown_cache_file.write_text(markdown, encoding="utf-8")
             logger.info(f"GPT 总结并缓存成功 ({markdown_cache_file})")
@@ -1459,14 +1566,15 @@ class NoteGenerator:
 
         try:
             result = selector.summarize_with_retry(source, task_id)
+            markdown = strip_code_fence(result.markdown)
             markdown_cache_file.parent.mkdir(parents=True, exist_ok=True)
-            markdown_cache_file.write_text(result.markdown, encoding="utf-8")
+            markdown_cache_file.write_text(markdown, encoding="utf-8")
             logger.info(
                 f"智能优选 GPT 总结成功 ({markdown_cache_file}), "
                 f"使用模型: {result.provider_name}/{result.model_name}, "
                 f"切换: {result.switched}"
             )
-            return result.markdown, result
+            return markdown, result
         except SmartSelectionError as e:
             logger.error(f"智能优选全部失败: {e.message}")
             self._update_status(task_id, TaskStatus.FAILED, message=e.message)
