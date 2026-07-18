@@ -175,6 +175,46 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+def _normalize_error_message(raw: str) -> str:
+    """归一化 LLM API 错误消息，转为用户友好提示。
+
+    LLM SDK 抛出的异常通常包含原始 JSON（含 Request id、内部 code 等），
+    直接展示给用户不友好。这里提取关键信息并加上可操作建议。
+    保留原始错误的分类特征（429/key 无效等），前端 classifyError 靠这些关键词分类。
+    """
+    if not raw or not isinstance(raw, str):
+        return raw
+    msg_lower = raw.lower()
+
+    # 429 配额/限流：提取重置时间，给出可操作建议
+    if '429' in msg_lower or 'quota' in msg_lower or 'rate_limit' in msg_lower or 'too many requests' in msg_lower:
+        # 尝试提取配额重置时间（如 "reset at 2026-07-20 00:00:00"）
+        reset_match = re.search(r'reset at ([\d\-: ]+)', raw)
+        reset_hint = f'（配额将在 {reset_match.group(1).strip()} 重置）' if reset_match else ''
+        return f'AI 接口调用次数已达上限{reset_hint}，可切换模型/供应商后重试，或等待配额恢复。 [429]'
+
+    # 401/403 API key 无效
+    if '401' in msg_lower or 'invalid_api_key' in msg_lower or 'incorrect api key' in msg_lower:
+        return 'AI 供应商 API Key 无效或已过期，请在设置页检查配置。 [401]'
+    if '403' in msg_lower or 'permission' in msg_lower:
+        return 'AI 供应商拒绝访问（权限不足或区域限制），请检查账户状态。 [403]'
+
+    # 5xx 服务端异常
+    if any(code in msg_lower for code in ['500', '502', '503', '504']):
+        return 'AI 供应商服务暂时不可用，请稍后重试。 [服务异常]'
+
+    # 超时/网络
+    if 'timeout' in msg_lower or 'timed out' in msg_lower or '超时' in msg_lower:
+        return 'AI 接口请求超时，请稍后重试。 [超时]'
+    if 'connection' in msg_lower and ('error' in msg_lower or 'refused' in msg_lower):
+        return '无法连接 AI 供应商，请检查网络后重试。 [网络错误]'
+
+    # 其他：截断过长的错误（保留前 200 字符避免 JSON 刷屏）
+    if len(raw) > 200:
+        return raw[:200] + '...'
+    return raw
+
+
 class NoteGenerator:
     """
     NoteGenerator 用于执行视频/音频下载、转写、GPT 生成笔记、插入截图/链接、
@@ -649,7 +689,7 @@ class NoteGenerator:
             return None
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)
-            self._update_status(task_id, TaskStatus.FAILED, message=str(exc),
+            self._update_status(task_id, TaskStatus.FAILED, message=_normalize_error_message(str(exc)),
                                 title=locals().get('_title'), author_id=locals().get('author_id'),
                                 author_name=locals().get('author_name'),
                                 video_id=locals().get('video_id'), platform=platform)
@@ -837,7 +877,7 @@ class NoteGenerator:
 
         except Exception as e:
             logger.error(f"半流程生成失败: {e}", exc_info=True)
-            self._update_status(new_task_id, TaskStatus.FAILED, message=str(e))
+            self._update_status(new_task_id, TaskStatus.FAILED, message=_normalize_error_message(str(e)))
             return None
 
     def generate_article_note(self, title: str, author: str, description: str,
@@ -1072,6 +1112,8 @@ class NoteGenerator:
                 error_message = json.dumps(error_message, ensure_ascii=False)
             except Exception:
                 error_message = str(error_message)
+        # 归一化错误消息：把 LLM API 原始 JSON 错误转为用户友好提示
+        error_message = _normalize_error_message(error_message)
         self._update_status(task_id, TaskStatus.FAILED, message=error_message)
 
     def _download_media(
@@ -1577,7 +1619,7 @@ class NoteGenerator:
             return markdown, result
         except SmartSelectionError as e:
             logger.error(f"智能优选全部失败: {e.message}")
-            self._update_status(task_id, TaskStatus.FAILED, message=e.message)
+            self._update_status(task_id, TaskStatus.FAILED, message=_normalize_error_message(e.message))
             raise
 
     def _generate_raw_markdown(
