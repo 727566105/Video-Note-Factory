@@ -66,6 +66,7 @@ async def refresh_feed(user=Depends(get_current_user)) -> dict:
     errors = []
     for sub in subs:
         if sub.enabled != 1:
+            logger.debug(f"跳过已禁用订阅: {sub.channel_name} (id={sub.id})")
             continue
         try:
             result = fetch_all_for_subscription(sub, limit=20)
@@ -74,7 +75,7 @@ async def refresh_feed(user=Depends(get_current_user)) -> dict:
             new_last_content_id = result.items[0].get("content_id") if result.items else None
             if result.error:
                 errors.append(f"{sub.channel_name}: {result.error}")
-                status = "cookie_expired" if "Cookie" in result.error else "failed"
+                status = subscription_dao.classify_fetch_error(result.error)
                 subscription_dao.update_fetch_result(sub.id, status, added, result.error, new_last_content_id)
             else:
                 subscription_dao.update_fetch_result(sub.id, "success" if added > 0 else "empty", added, None, new_last_content_id)

@@ -18,15 +18,6 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/subscriptions", tags=["订阅管理"])
 
 
-def _classify_fetch_error(error_str: str) -> str:
-    """分类拉取失败原因为四态之一。
-
-    三平台 Cookie 失效消息都含 'Cookie' 字样（"抖音 Cookie 已过期" / "小红书 Cookie 缺少必要字段" 等）。
-    """
-    if not error_str:
-        return "failed"
-    return "cookie_expired" if "Cookie" in error_str else "failed"
-
 
 class SubscribeRequest(BaseModel):
     url: str
@@ -237,7 +228,7 @@ async def add_subscription(req: SubscribeRequest, user=Depends(get_current_user)
         added = len(upsert_feed_items(result.items))
     new_last_content_id = result.items[0].get("content_id") if result.items else None
     if result.error:
-        status = _classify_fetch_error(result.error)
+        status = subscription_dao.classify_fetch_error(result.error)
         subscription_dao.update_fetch_result(sub.id, status, added, result.error, new_last_content_id)
     else:
         subscription_dao.update_fetch_result(sub.id, "success" if added > 0 else "empty", added, None, new_last_content_id)
@@ -326,7 +317,7 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 )
 
                 if result.error:
-                    status = _classify_fetch_error(result.error)
+                    status = subscription_dao.classify_fetch_error(result.error)
                     subscription_dao.update_fetch_result(sub_id, status, 0, result.error, None)
                     complete_progress(progress_id, 0, 0, error=result.error)
                     logger.warning(f"订阅 {sub_id} 抖音刷新失败: {result.error}")
@@ -362,7 +353,7 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
                 )
 
                 if result.error:
-                    status = _classify_fetch_error(result.error)
+                    status = subscription_dao.classify_fetch_error(result.error)
                     subscription_dao.update_fetch_result(sub_id, status, 0, result.error, None)
                     complete_progress(progress_id, 0, 0, error=result.error)
                     logger.warning(f"订阅 {sub_id} 小红书刷新失败: {result.error}")
@@ -394,7 +385,7 @@ async def refresh_subscription(sub_id: int, user=Depends(get_current_user)) -> d
             db_total = subscription_dao.count_feed_items_by_subscription(sub_id)
 
             if result.error:
-                status = _classify_fetch_error(result.error)
+                status = subscription_dao.classify_fetch_error(result.error)
                 subscription_dao.update_fetch_result(sub_id, status, added, result.error, new_last_content_id)
                 complete_progress(progress_id, added, db_total, error=result.error)
                 logger.warning(f"订阅 {sub_id} 刷新失败: {result.error}")

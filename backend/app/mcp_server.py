@@ -704,7 +704,7 @@ async def refresh_subscription(subscription_id: int, ctx: Context = None) -> str
             added = len(subscription_dao.upsert_feed_items(result.items)) if result.items else 0
             new_last_content_id = result.items[0].get("content_id") if result.items else None
             if result.error:
-                status = "cookie_expired" if "Cookie" in result.error else "failed"
+                status = subscription_dao.classify_fetch_error(result.error)
                 subscription_dao.update_fetch_result(subscription_id, status, added, result.error, new_last_content_id)
             else:
                 subscription_dao.update_fetch_result(subscription_id, "success" if added > 0 else "empty", added, None, new_last_content_id)
@@ -712,6 +712,7 @@ async def refresh_subscription(subscription_id: int, ctx: Context = None) -> str
             complete_progress(progress_id, added, db_total)
         except Exception as e:
             complete_progress(progress_id, 0, 0, error=str(e))
+            subscription_dao.update_fetch_result(subscription_id, "failed", 0, str(e), None)
             logger.error(f"MCP 刷新订阅 {subscription_id} 失败: {e}", exc_info=True)
 
     _safe_run_in_thread(_do_fetch)
@@ -777,6 +778,7 @@ async def refresh_feed(ctx: Context = None) -> str:
         nonlocal total_added, errors
         for sub in subs:
             if sub.enabled != 1:
+                logger.debug(f"MCP refresh_feed 跳过已禁用订阅: {sub.channel_name} (id={sub.id})")
                 continue
             try:
                 result = fetch_all_for_subscription(sub, limit=20)
@@ -785,7 +787,7 @@ async def refresh_feed(ctx: Context = None) -> str:
                 new_last_content_id = result.items[0].get("content_id") if result.items else None
                 if result.error:
                     errors.append(f"{sub.channel_name}: {result.error}")
-                    status = "cookie_expired" if "Cookie" in result.error else "failed"
+                    status = subscription_dao.classify_fetch_error(result.error)
                     subscription_dao.update_fetch_result(sub.id, status, added, result.error, new_last_content_id)
                 else:
                     subscription_dao.update_fetch_result(sub.id, "success" if added > 0 else "empty", added, None, new_last_content_id)

@@ -21,7 +21,7 @@ import {
 import { useSubscriptionStore } from '@/store/subscriptionStore'
 import { fetchChannelVideos, refreshSubscription, fetchRefreshProgress, quickViewNote, checkNoteAvailability, fetchChannelSubscribers, getFetchStatus, fetchMoreVideos, markChannelVideoSeen } from '@/services/subscription'
 import { BiliBiliLogo, YoutubeLogo, DouyinLogo, XiaohongshuLogo, KuaishouLogo, CCTVLogo } from '@/components/Icons/platform'
-import type { FeedItem, FetchStatus } from '@/services/subscription'
+import type { FeedItem, ChannelFetchStatus } from '@/services/subscription'
 import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { useModelStore } from '@/store/modelStore'
 import { useTaskStore } from '@/store/taskStore'
@@ -101,7 +101,7 @@ export default function ChannelDetailPage() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // 分批获取状态（加载更多）
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus | null>(null)
+  const [fetchStatus, setFetchStatus] = useState<ChannelFetchStatus | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
 
   const { modelList, loadEnabledModels } = useModelStore()

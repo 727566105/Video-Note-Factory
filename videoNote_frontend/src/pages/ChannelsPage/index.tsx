@@ -281,11 +281,13 @@ export default function ChannelsPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <span className="text-xs text-muted-foreground ml-auto">
-                        <FetchStatusBadge sub={sub} />
-                      </span>
                     </div>
                   )}
+                  {/* 上次同步状态：所有用户可见（非管理员也需知道订阅是否正常拉取） */}
+                  <div className="mt-2 pt-2 border-t flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">上次同步:</span>
+                    <FetchStatusBadge sub={sub} />
+                  </div>
                   <div className="mt-2 pt-2 border-t flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">自动生成笔记</span>
                     <Switch

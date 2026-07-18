@@ -117,7 +117,8 @@ class SubscriptionScheduler:
 
             # 写可观测性字段（四态）
             if result.error:
-                status = "cookie_expired" if "Cookie" in (result.error or "") else "failed"
+                from app.db.subscription_dao import classify_fetch_error
+                status = classify_fetch_error(result.error)
                 update_fetch_result(subscription_id, status, added, result.error, new_last_content_id)
                 logger.warning(f"订阅 {subscription_id} 刷新失败: {result.error}")
             elif added == 0:
@@ -135,7 +136,9 @@ class SubscriptionScheduler:
             # 只看 video_error（不被图文 RSSHub 抖动连带跳过）
             if platform == "douyin" and platform_id and not result.video_error:
                 try:
-                    self._backfill_douyin_history(sub, platform_id)
+                    # 透传主流程已拉到的 next_cursor，避免回溯初始化重复拉第一页
+                    self._backfill_douyin_history(sub, platform_id,
+                                                  main_next_cursor=result.next_cursor)
                 except Exception as e:
                     logger.warning(f"订阅 {subscription_id} 抖音历史回溯失败（不影响主流程）: {e}")
 
@@ -170,7 +173,8 @@ class SubscriptionScheduler:
         # new_ids 会包含全部，靠 upsert 兜底去重，这是"安全的退化"
         return new_ids
 
-    def _backfill_douyin_history(self, subscription, platform_id: str):
+    def _backfill_douyin_history(self, subscription, platform_id: str,
+                                  main_next_cursor: str = None):
         """抖音历史视频回溯：用游标分页逐步拉取更早的视频，每次1页。
 
         实测抖音游标分页可用（next_cursor 非零时能返回新数据）。
@@ -180,6 +184,9 @@ class SubscriptionScheduler:
 
         并发安全：按 platform_id 加应用层锁，防止多用户订阅同一博主时
         并发回溯导致 upsert_channel_videos 唯一约束冲突和 next_cursor 竞态。
+
+        :param main_next_cursor: 主流程 fetch_all_for_subscription 已拉到的第一页游标，
+                                  传入可避免回溯初始化重复拉第一页。
         """
         from app.db.channel_video_dao import (
             get_or_create_fetch_status, update_fetch_status,
@@ -189,7 +196,7 @@ class SubscriptionScheduler:
 
         lock = _get_backfill_lock(platform_id)
         if not lock.acquire(timeout=5):
-            logger.info(f"抖音回溯跳过（另一线程正在回溯同一博主）: {platform_id}")
+            logger.debug(f"抖音回溯跳过（另一线程正在回溯同一博主）: {platform_id}")
             return
         try:
             self._do_backfill_douyin_history(
@@ -197,6 +204,7 @@ class SubscriptionScheduler:
                 get_or_create_fetch_status, update_fetch_status,
                 upsert_channel_videos, count_channel_videos,
                 create_feed_items_from_channel_videos,
+                main_next_cursor,
             )
         finally:
             lock.release()
@@ -207,6 +215,7 @@ class SubscriptionScheduler:
         get_or_create_fetch_status, update_fetch_status,
         upsert_channel_videos, count_channel_videos,
         create_feed_items_from_channel_videos,
+        main_next_cursor: str = None,
     ):
         """回溯的实际逻辑（调用方负责加锁）"""
         from app.services.douyin_api import fetch_douyin_user_videos
@@ -223,52 +232,63 @@ class SubscriptionScheduler:
         except (ValueError, TypeError):
             cursor = 0
 
-        # cursor=0 表示还没初始化历史游标（首次回溯或 error 后重置）。
-        # 需要先拉第一页拿 next_cursor 作为历史回溯起点。
-        # 注意：第一页是最新35条，主流程已拉过，这里只取 next_cursor，不重复建 feed_items。
+        # cursor=0 表示还没初始化历史游标（首次回溯）。
+        # 优先复用主流程已拉到的 next_cursor（避免重复拉第一页）；
+        # 若主流程没带（如手动触发回溯），才自己拉第一页拿游标。
         if cursor == 0:
-            r0 = fetch_douyin_user_videos(
-                sec_uid=platform_id, max_cursor=0, count=35, max_pages=1
-            )
-            if r0.error:
-                logger.warning(f"抖音回溯初始化失败 [{platform_id}]: {r0.error}")
-                update_fetch_status("douyin", platform_id,
-                                    fetch_status="error", error_message=r0.error)
-                return
+            r0_next_cursor = main_next_cursor
+            r0_has_more = True  # 假设有更多（下面会验证）
+            if not r0_next_cursor:
+                # 主流程没带游标，自己拉第一页
+                r0 = fetch_douyin_user_videos(
+                    sec_uid=platform_id, max_cursor=0, count=35, max_pages=1
+                )
+                if r0.error:
+                    logger.warning(f"抖音回溯初始化失败 [{platform_id}]: {r0.error}")
+                    update_fetch_status("douyin", platform_id,
+                                        fetch_status="error", error_message=r0.error)
+                    return
+                r0_next_cursor = str(r0.next_cursor) if r0.next_cursor else None
+                r0_has_more = r0.has_more
             # 博主只有一页视频，无历史可回溯
-            if not r0.has_more or not r0.next_cursor:
+            if not r0_next_cursor:
                 update_fetch_status("douyin", platform_id, fetch_status="complete",
                                     total_videos=count_channel_videos("douyin", platform_id))
                 logger.info(f"抖音回溯 [{platform_id}]: 仅一页视频，标记 complete")
                 return
             # 记录 next_cursor，本次不继续拉（避免一次刷新拉太多页）
             update_fetch_status("douyin", platform_id,
-                                next_cursor=str(r0.next_cursor),
+                                next_cursor=r0_next_cursor,
                                 fetch_status="partial",
+                                error_message=None,
                                 total_videos=count_channel_videos("douyin", platform_id))
-            logger.info(f"抖音回溯初始化 [{platform_id}]: next_cursor={r0.next_cursor}，下次开始拉历史")
+            logger.info(f"抖音回溯初始化 [{platform_id}]: next_cursor={r0_next_cursor}，下次开始拉历史")
             return
 
         # 用 next_cursor 拉取下一页历史
+        # 注意：error 状态下不重置 cursor，而是从上次失败的 cursor 续传（保留进度）。
+        # 若游标本身失效（API 变更/风控），拉取会返回空页 -> 走 complete 分支自然停止，
+        # 不会卡死。若拉取报错 -> 保持 error + 旧 cursor，下次重试同一页。
         result = fetch_douyin_user_videos(
             sec_uid=platform_id, max_cursor=cursor, count=35, max_pages=1
         )
 
         if result.error:
             logger.warning(f"抖音历史回溯失败 [{platform_id}] cursor={cursor}: {result.error}")
+            # 保持旧 next_cursor（续传），写 error 状态
             update_fetch_status("douyin", platform_id, fetch_status="error", error_message=result.error)
             return
 
         if not result.items:
-            # 空页 = 历史已到尽头
-            update_fetch_status("douyin", platform_id, fetch_status="complete")
+            # 空页 = 历史已到尽头（也可能是游标失效，API 返回空）
+            update_fetch_status("douyin", platform_id, fetch_status="complete", error_message=None)
             logger.info(f"抖音历史回溯完成 [{platform_id}]：空页，标记 complete")
             return
 
-        # 写入共享缓存 + 为用户建 feed_items
+        # 写入共享缓存 + 为用户建 feed_items（历史视频标为已读，避免突然出现大量未读）
         cv_records = upsert_channel_videos(result.items, "douyin", platform_id)
         created = create_feed_items_from_channel_videos(
-            subscription.user_id, subscription.id, cv_records, "douyin"
+            subscription.user_id, subscription.id, cv_records, "douyin", mark_read=True
         )
 
         current_count = count_channel_videos("douyin", platform_id)

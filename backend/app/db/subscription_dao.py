@@ -178,19 +178,15 @@ def get_all_enabled_subscriptions() -> list[Subscription]:
         db.close()
 
 
-def update_subscription_check(sub_id: int):
-    db = next(get_db())
-    try:
-        sub = db.query(Subscription).filter_by(id=sub_id).first()
-        if sub:
-            from datetime import datetime
-            sub.last_checked_at = datetime.now()
-            db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error(f"更新订阅检查时间失败: {e}")
-    finally:
-        db.close()
+def classify_fetch_error(error_str: str) -> str:
+    """分类拉取失败原因为四态之一。
+
+    三平台 Cookie 失效消息都含 'Cookie' 字样（"抖音 Cookie 已过期" / "小红书 Cookie 缺少必要字段" 等）。
+    公共函数，供 subscription.py / feed.py / mcp_server.py 复用。
+    """
+    if not error_str:
+        return "failed"
+    return "cookie_expired" if "Cookie" in error_str else "failed"
 
 
 def update_fetch_result(sub_id: int, status: str, count: int = 0,
@@ -506,25 +502,29 @@ def get_channel_stats(platform: str, platform_id: str) -> dict:
 
 
 def create_feed_items_from_channel_videos(user_id: int, subscription_id: int,
-                                           channel_videos: list, platform: str):
+                                           channel_videos: list, platform: str,
+                                           mark_read: bool = False):
     """从共享视频表为用户创建 feed_items（按 content_id 去重）。
 
     返回新建数量（int）。如需获取新建的 FeedItem 对象列表，用
     create_feed_items_from_channel_videos_with_records。
+    :param mark_read: 新建的 feed_items 是否标记为已读（历史回溯用 True，避免突然出现大量未读）
     """
     return create_feed_items_from_channel_videos_with_records(
-        user_id, subscription_id, channel_videos, platform
+        user_id, subscription_id, channel_videos, platform, mark_read=mark_read
     )[0]
 
 
 def create_feed_items_from_channel_videos_with_records(user_id: int, subscription_id: int,
-                                                        channel_videos: list, platform: str):
+                                                        channel_videos: list, platform: str,
+                                                        mark_read: bool = False):
     """同上，但返回 (created_count, new_feed_items)。
 
     new_feed_items 为 dict 列表（含 id/content_id/content_url/content_type/title/task_id），
     用于自动生成笔记等需要逐条处理的下游场景。
     注意：返回 dict 而非 ORM 对象，因为 session 在函数内 close，
     返回 ORM 对象会导致访问属性时抛 DetachedInstanceError（expire_on_commit=True）。
+    :param mark_read: 新建的 feed_items 是否标记为已读（历史回溯用 True）
     """
     db = next(get_db())
     try:
@@ -554,6 +554,7 @@ def create_feed_items_from_channel_videos_with_records(user_id: int, subscriptio
                 published_at=cv.published_at,
                 raw_info=cv.raw_info,
                 channel_video_id=cv.id,
+                is_read=1 if mark_read else 0,
             )
             db.add(item)
             db.flush()  # 拿到 item.id，便于下游回写 task_id

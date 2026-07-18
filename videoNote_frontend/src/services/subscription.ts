@@ -142,8 +142,8 @@ export const fetchChannelSubscribers = (platform: string, platformId: string) =>
 
 // ---- 分批获取相关 API ----
 
-/** 分批获取状态 */
-export interface FetchStatus {
+/** 频道分批获取状态（注意：与订阅拉取四态 FetchStatus 不同，勿混淆） */
+export interface ChannelFetchStatus {
   fetched: number
   total: number
   status: 'initial' | 'partial' | 'complete' | 'error'
@@ -152,7 +152,7 @@ export interface FetchStatus {
 
 /** 查询频道分批获取状态 */
 export const getFetchStatus = (platform: string, platformId: string) =>
-  request.get<FetchStatus>(`/channels/${platform}/${platformId}/fetch-status`)
+  request.get<ChannelFetchStatus>(`/channels/${platform}/${platformId}/fetch-status`)
 
 /** 触发加载更多返回 */
 export interface FetchMoreResult {
