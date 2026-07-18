@@ -335,13 +335,17 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
         task_succeeded = True
 
         # 回写 task_id 到 feed_item（让频道详情页/动态页即时显示"查看笔记"）
-        if task_succeeded and video_id:
+        if task_succeeded:
             try:
-                from app.db.subscription_dao import update_feed_item_task_by_content
-                update_feed_item_task_by_content(
-                    content_id=video_id, platform=platform,
-                    user_id=user_id, task_id=task_id
-                )
+                from app.db.video_task_dao import get_task_by_task_id
+                _task = get_task_by_task_id(task_id)
+                _video_id = _task.video_id if _task else None
+                if _video_id:
+                    from app.db.subscription_dao import update_feed_item_task_by_content
+                    update_feed_item_task_by_content(
+                        content_id=_video_id, platform=platform,
+                        user_id=user_id, task_id=task_id
+                    )
             except Exception as e:
                 logger.warning(f"回写 feed_item task_id 失败: {e}")
     finally:

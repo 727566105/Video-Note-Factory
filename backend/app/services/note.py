@@ -434,7 +434,12 @@ class NoteGenerator:
                     provider_id=provider_id,
                     smart_mode=smart_mode,
                     user_id=user_id,
+                    task_id=task_id,
                 )
+
+                # 图文笔记生成失败（智能优选全部失败 / 普通模式异常已被 _handle_exception 处理）
+                if not markdown:
+                    return None
 
                 if output_path:
                     note_path = os.path.join(output_path, "note.md")
@@ -884,7 +889,8 @@ class NoteGenerator:
                               images: list = None, live_photo_videos: list = None,
                               model_name: str = None,
                               provider_id: str = None, smart_mode: bool = False,
-                              user_id: int = None) -> Tuple[str, Optional[dict]]:
+                              user_id: int = None,
+                              task_id: str = None) -> Tuple[str, Optional[dict]]:
         """
         从图文内容直接生成笔记（跳过下载和转写）
 
@@ -922,7 +928,9 @@ class NoteGenerator:
                 # 获取排序后的模型，逐个尝试
                 sorted_models = selector.get_sorted_models()
                 if not sorted_models:
-                    return "智能优选失败：没有可用的模型", None
+                    if task_id:
+                        self._handle_exception(task_id, ValueError("智能优选失败：没有可用的模型"))
+                    return "", None
 
                 for model_info in sorted_models[:3]:  # 最多尝试 3 个
                     model_id = model_info["model_id"]
@@ -950,15 +958,26 @@ class NoteGenerator:
                         logger.warning(f"智能优选图文笔记失败 (model={model_info['model_name']}): {e}")
                         continue
 
-                return "智能优选失败：所有模型尝试均失败", None
+                # 所有模型都失败
+                if task_id:
+                    self._handle_exception(task_id, ValueError("智能优选失败：所有模型尝试均失败"))
+                return "", None
             except Exception as e:
                 logger.error(f"智能优选图文笔记异常: {e}")
-                return f"智能优选异常: {e}", None
+                if task_id:
+                    self._handle_exception(task_id, e)
+                return "", None
 
         # 普通模式：直接使用指定模型
-        gpt = self._get_gpt(model_name, provider_id)
-        result = gpt.chat(prompt)
-        return strip_code_fence(result), None
+        try:
+            gpt = self._get_gpt(model_name, provider_id)
+            result = gpt.chat(prompt)
+            return strip_code_fence(result), None
+        except Exception as exc:
+            # 不在此处 raise：让 generate() 外层统一捕获并设置 FAILED 状态，
+            # 避免重复状态更新。此处仅记录日志。
+            logger.error(f"图文笔记 GPT 总结失败：{exc}")
+            raise
 
     @staticmethod
     def delete_note(video_id: str, platform: str) -> int:

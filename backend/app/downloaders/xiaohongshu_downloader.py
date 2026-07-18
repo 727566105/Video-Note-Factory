@@ -259,9 +259,12 @@ class XiaohongshuDownloader(Downloader):
         from datetime import datetime
         published_at = datetime.fromtimestamp(timestamp / 1000) if timestamp else None
 
+        # 标题优先；无标题时用正文前 200 字兜底（避免目录名为空）
+        resolved_title = title or (desc[:200] if desc else "")
+
         return {
             "note_id": note_id,
-            "title": title or desc[:200] if desc else "",
+            "title": resolved_title,
             "desc": desc,
             "cover_url": cover_url,
             "duration": duration,
