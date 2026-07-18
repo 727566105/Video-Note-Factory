@@ -122,11 +122,10 @@ class XiaohongshuDownloader(Downloader):
         else:
             url = f"{XHS_DOMAIN}/explore/{note_id}"
         try:
-            # 页面请求需要携带 Cookie
-            page_headers = {
-                **self.headers,
-                "Cookie": self.cookie_str or "",
-            }
+            # 页面请求需要携带 Cookie（cookie 为空时不设 Cookie 头，避免触发反爬）
+            page_headers = {**self.headers}
+            if self.cookie_str:
+                page_headers["Cookie"] = self.cookie_str
             resp = requests.get(url, headers=page_headers, timeout=15)
             logger.info(f"小红书页面请求状态码: {resp.status_code}, 响应长度: {len(resp.text)}")
             if resp.status_code != 200:

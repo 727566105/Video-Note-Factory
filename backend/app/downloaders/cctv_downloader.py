@@ -275,8 +275,17 @@ class CCTVDownloader(Downloader, ABC):
             raise ValueError(f"音频提取失败: {e}")
 
     def _download_cover(self, api_data: dict, output_dir: str, video_id: str) -> Optional[str]:
-        """下载封面图（与其他平台一致：走 save_cover_to_video_dir 统一命名）"""
+        """下载封面图（与其他平台一致：走 save_cover_to_video_dir 统一命名）。
+
+        从 api_data 取封面 URL（兼容 cover_url/f_cover/image 字段）；
+        下载失败或无封面时返回 None，绝不保留远程 CDN URL（会过期导致永久丢封面）。
+        """
         cover_url = api_data.get("cover_url") or api_data.get("f_cover") or api_data.get("image")
+        return self._download_cover_by_url(cover_url, output_dir, video_id)
+
+    def _download_cover_by_url(self, cover_url: Optional[str], output_dir: str,
+                               video_id: str) -> Optional[str]:
+        """按 URL 下载封面到本地，失败返回 None。yt-dlp 备用路径复用此方法。"""
         if not cover_url:
             return None
 
@@ -362,11 +371,16 @@ class CCTVDownloader(Downloader, ABC):
             if ext != "mp3" and os.path.exists(downloaded_path):
                 self._extract_audio_from_mp4(downloaded_path, audio_path)
 
+            # 封面：下载到本地，失败置 None（绝不保留远程 CDN URL）
+            cover_url = self._download_cover_by_url(
+                info.get("thumbnail"), output_dir, video_id
+            )
+
             return AudioDownloadResult(
                 file_path=audio_path,
-                title=info.get("title", ""),
+                title=info.get("title", "") or video_id,
                 duration=info.get("duration", 0),
-                cover_url=info.get("thumbnail"),
+                cover_url=cover_url,
                 platform="cctv",
                 video_id=video_id,
                 description=info.get("description") or info.get("title", ""),

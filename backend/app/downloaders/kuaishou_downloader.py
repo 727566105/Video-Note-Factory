@@ -18,6 +18,32 @@ class KuaiShouDownloader(Downloader, ABC):
     def __init__(self):
         super().__init__()
 
+    @staticmethod
+    def _extract_atlas_image_urls(photo_info: dict) -> list:
+        """从快手图集（atlas）的 photo_info 中提取图片 URL 列表。
+
+        get_video_info 与 download 共用此逻辑，保证两条路径的
+        raw_info['images'] 行为一致（上游 note.py 会据此判断走图文流程）。
+        """
+        img_urls = []
+        manifest = photo_info.get('manifest') or {}
+        adaptation_set = manifest.get('adaptationSet') or []
+        for adp in adaptation_set:
+            for rep in (adp.get('representation') or []):
+                url = rep.get('url')
+                if url and url.startswith('http'):
+                    img_urls.append(url)
+
+        # 如果 manifest 没有，尝试从 ext_params/atlas 提取
+        if not img_urls:
+            ext_params = photo_info.get('ext_params') or {}
+            atlas = ext_params.get('atlas') or {}
+            for item in (atlas.get('items') or []):
+                url = item.get('url') or item.get('imgUrl')
+                if url and url.startswith('http'):
+                    img_urls.append(url)
+        return img_urls
+
     def get_video_info(self, video_url: str) -> VideoInfoResult:
         """只获取视频元数据，不下载文件"""
         ks = KuaiShou()
@@ -33,20 +59,35 @@ class KuaiShouDownloader(Downloader, ABC):
         photo_type = photo_info.get('photoType', '')
         content_type = "article" if photo_type == "atlas" else "video"
 
+        # 标题：caption 前 50 字兜底；为空时用 video_id（避免目录名为空）
+        video_id = photo_info.get('id', '')
+        raw_caption = (photo_info.get('caption') or '').strip().replace('\n', '').replace(' ', '_')
+        title = raw_caption[:50] if raw_caption else video_id
+
+        # 图集类型：提取图片 URL 放入 raw_info['images']，
+        # 否则上游 note.py 的图文流程会拿到空列表导致无图可处理
+        raw_info = {
+            'tags': ','.join(tag['name'] for tag in video_raw_info.get('tags', []) if tag.get('name')),
+            'owner': {'name': ks_author},
+        }
+        if content_type == "article":
+            atlas_urls = self._extract_atlas_image_urls(photo_info)
+            if atlas_urls:
+                raw_info['images'] = atlas_urls
+            else:
+                logger.warning(f"快手图集 {video_id} 未提取到图片 URL")
+
         return VideoInfoResult(
-            title=(photo_info.get('caption') or '').strip().replace('\n', '').replace(' ', '_')[:50],
+            title=title,
             duration=photo_info.get('duration', 0) or 0,
             cover_url=photo_info.get('coverUrl'),
             platform="kuaishou",
-            video_id=photo_info.get('id', ''),
+            video_id=video_id,
             author_id=ks_author_id,
             author_name=ks_author,
             description=photo_info.get('caption', ''),
             content_type=content_type,
-            raw_info={
-                'tags': ','.join(tag['name'] for tag in video_raw_info.get('tags', []) if tag.get('name')),
-                'owner': {'name': ks_author},
-            },
+            raw_info=raw_info,
         )
 
     def download(
@@ -180,24 +221,8 @@ class KuaiShouDownloader(Downloader, ABC):
         """下载快手图集（atlas 类型）：提取图片并下载"""
         from app.utils.download_helper import DownloadHelper
 
-        # 快手图集图片 URL 从 manifest 或 atlas 字段提取
-        img_urls = []
-        manifest = photo_info.get('manifest') or {}
-        adaptation_set = manifest.get('adaptationSet') or []
-        for adp in adaptation_set:
-            for rep in (adp.get('representation') or []):
-                url = rep.get('url')
-                if url and url.startswith('http'):
-                    img_urls.append(url)
-
-        # 如果 manifest 没有，尝试从 ext_params/atlas 提取
-        if not img_urls:
-            ext_params = photo_info.get('ext_params') or {}
-            atlas = ext_params.get('atlas') or {}
-            for item in (atlas.get('items') or []):
-                url = item.get('url') or item.get('imgUrl')
-                if url and url.startswith('http'):
-                    img_urls.append(url)
+        # 复用 get_video_info 的图片 URL 提取逻辑，保证两条路径一致
+        img_urls = self._extract_atlas_image_urls(photo_info)
 
         if not img_urls:
             logger.warning(f"快手图集 {video_id} 未提取到图片 URL，尝试用 coverUrl 兜底")

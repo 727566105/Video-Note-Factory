@@ -80,11 +80,11 @@ class LocalDownloader(Downloader, ABC):
             subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
 
             if not os.path.exists(output_path):
-                raise RuntimeError(f"封面图片生成失败: {output_path}")
+                raise ValueError(f"封面图片生成失败: {output_path}")
 
             return output_path
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"提取封面失败: {output_path}") from e
+            raise ValueError(f"提取封面失败: {output_path}") from e
 
     def convert_to_mp3(self,input_path: str, output_path: str = None) -> str:
         """
@@ -113,11 +113,11 @@ class LocalDownloader(Downloader, ABC):
             subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
 
             if not os.path.exists(output_path):
-                raise RuntimeError(f"mp3 文件生成失败: {output_path}")
+                raise ValueError(f"mp3 文件生成失败: {output_path}")
 
             return output_path
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"mp3 文件生成失败: {output_path}") from e
+            raise ValueError(f"mp3 文件生成失败: {output_path}") from e
     def download_video(self, video_url: str, output_dir: str = None) -> str:
         """
         处理本地文件路径，返回视频文件路径

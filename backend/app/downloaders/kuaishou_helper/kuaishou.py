@@ -87,7 +87,12 @@ class KuaiShou:
             logger.error(f"快手视频 cookies 解析失败 {url},请考虑设置环境变量 KUAISHOU_COOKIES")
             return None
 
-        self.header['Cookie'] = cookies.strip()
+        # cookie 为空串/纯空白时不设 Cookie 头（避免传空字符串触发反爬）
+        cookies = cookies.strip()
+        if not cookies:
+            logger.error(f"快手视频 cookies 为空 {url}")
+            return None
+        self.header['Cookie'] = cookies
         photo_id = self.get_photo_id(real_url)
         if not photo_id:
             logger.error(f"快手视频 ID 解析失败 {url}")

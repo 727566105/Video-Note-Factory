@@ -145,8 +145,10 @@ class BilibiliDownloader(Downloader, ABC):
         # 从 HTML 正文中提取图片 URL
         content = article.get("content", "")
         img_urls = re.findall(r'src="(https?://[^"]*\.(?:jpg|png|webp|gif))"', content)
+        # 标题兜底：专栏无标题时用 cv_id（避免目录名为空）
+        title = article.get("title", "") or f"cv{cv_id}"
         return VideoInfoResult(
-            title=article.get("title", ""),
+            title=title,
             duration=0,
             cover_url=img_urls[0] if img_urls else None,
             platform="bilibili",
@@ -155,6 +157,8 @@ class BilibiliDownloader(Downloader, ABC):
             author_name=article.get("author", {}).get("name", ""),
             description=article.get("summary", "") or re.sub(r'<[^>]+>', '', content)[:500],
             content_type="article",
+            # raw_info['images'] 这里是远程 URL（get_info 不下载）；
+            # download 路径里是本地路径。上游 note.py 同时兼容两种类型。
             raw_info={"images": img_urls, "cv_id": cv_id},
         )
 

@@ -157,13 +157,17 @@ class DouyinDownloader(Downloader):
             video_url = video_url[0]
             try:
                 # 使用带 Cookie 和 UA 的请求头，避免触发反爬验证
+                # cookie 为空时不设 Cookie 头（避免传空字符串触发反爬）
+                head_headers = {
+                    "User-Agent": DouyinConfig.HEADERS["User-Agent"],
+                }
+                _cookie = self.headers_config.get("Cookie")
+                if _cookie:
+                    head_headers["Cookie"] = _cookie
                 response = requests.head(
                     video_url,
                     allow_redirects=True,
-                    headers={
-                        "User-Agent": DouyinConfig.HEADERS["User-Agent"],
-                        "Cookie": self.headers_config.get("Cookie", "")
-                    },
+                    headers=head_headers,
                     timeout=10
                 )
                 url = response.url
