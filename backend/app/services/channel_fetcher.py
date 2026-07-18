@@ -21,11 +21,16 @@ BILIBILI_PAGE_INTERVAL = int(os.getenv("BILIBILI_PAGE_INTERVAL", "10"))
 
 
 class FetchResult:
-    """获取结果封装，携带数据和错误信息"""
+    """获取结果封装，携带数据和错误信息。
 
-    def __init__(self, items=None, error=None):
+    video_error 单独记录视频拉取错误，供回溯等功能判断视频是否成功
+    （不被图文 RSSHub 抖动连带影响）。未传时默认为 None（视频成功）。
+    """
+
+    def __init__(self, items=None, error=None, video_error=None):
         self.items = items or []
         self.error = error
+        self.video_error = video_error
         self.success = error is None
 
 RSSHUB_BASE_URL = os.getenv("RSSHUB_BASE_URL", "https://rsshub.app")
@@ -797,7 +802,9 @@ def fetch_all_for_subscription(subscription, limit: int = 20, progress_callback=
         results.extend(articles)
 
     combined_error = "; ".join(errors) if errors else None
-    return FetchResult(items=results, error=combined_error)
+    # video_error 单独记录视频拉取错误（不含图文 RSSHub 错误），供回溯判断视频是否成功
+    video_error = video_result.error
+    return FetchResult(items=results, error=combined_error, video_error=video_error)
 
 
 def _parse_rss_date(date_str: str) -> Optional[str]:

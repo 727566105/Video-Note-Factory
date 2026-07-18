@@ -125,17 +125,19 @@ class SubscriptionScheduler:
             else:
                 update_fetch_result(subscription_id, "success", added, None, new_last_content_id)
 
+            # 自动生成笔记：订阅开启了 auto_generate 且有新内容（优先执行，不被回溯拖延）
+            if new_feed_items and getattr(sub, 'auto_generate', 0) == 1:
+                self._auto_generate_notes(sub, new_feed_items)
+
             # 抖音历史回溯：游标分页逐步拉取更早的历史视频（每次1页35条）
+            # 放在 auto_generate 之后，避免回溯的 5-10 秒 API 调用推迟新作品笔记生成
             # 不触发 auto_generate（历史视频用户可手动生成），只填充 channel_videos + feed_items
-            if platform == "douyin" and platform_id and not result.error:
+            # 只看 video_error（不被图文 RSSHub 抖动连带跳过）
+            if platform == "douyin" and platform_id and not result.video_error:
                 try:
                     self._backfill_douyin_history(sub, platform_id)
                 except Exception as e:
                     logger.warning(f"订阅 {subscription_id} 抖音历史回溯失败（不影响主流程）: {e}")
-
-            # 自动生成笔记：订阅开启了 auto_generate 且有新内容
-            if new_feed_items and getattr(sub, 'auto_generate', 0) == 1:
-                self._auto_generate_notes(sub, new_feed_items)
 
         except Exception as e:
             logger.error(f"订阅 {subscription_id} 刷新异常: {e}")
