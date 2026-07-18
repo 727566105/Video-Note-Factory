@@ -182,7 +182,10 @@ export const useTaskStore = create<TaskStore>()(
           return
         }
         const task = get().tasks.find(task => task.id === id)
-        if (!task) return
+        if (!task) {
+          toast.error('任务不存在，请返回列表重试')
+          return
+        }
 
         // 防抖：如果任务正在生成中，拒绝重复提交
         const activeStatuses = ['PENDING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'QUEUED']
@@ -191,11 +194,24 @@ export const useTaskStore = create<TaskStore>()(
           return
         }
 
-        const newFormData = payload || task.formData
-        await generateNote({
-          ...newFormData,
+        // 合并 payload > task.formData，再用 task 已有字段兜底缺失的必填参数
+        // 解决从后端加载的任务 formData 不完整（video_url/platform/quality 缺失）导致 422
+        const baseFormData = payload || task.formData || {}
+        const newFormData = {
+          video_url: baseFormData.video_url || task.audioMeta?.file_path || '',
+          platform: baseFormData.platform || task.platform || '',
+          quality: baseFormData.quality || 'medium',
+          ...baseFormData, // payload 里的字段优先（model_name/provider_id 等）
           task_id: id,
-        })
+        }
+
+        // 最终检查必填字段
+        if (!newFormData.video_url || !newFormData.platform) {
+          toast.error('无法获取原始视频信息，请从首页重新提交链接')
+          return
+        }
+
+        await generateNote(newFormData)
 
         set(state => ({
           tasks: state.tasks.map(t =>
