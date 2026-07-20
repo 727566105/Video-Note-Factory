@@ -152,6 +152,8 @@ class DouyinDownloader(Downloader):
 
     def extract_video_id(self, url: str) -> str:
         video_url = self.find_url(url)
+        # 保留原始 URL，用于 patterns 匹配兜底（find_url 正则不含 ?&=，会截断查询参数）
+        original_url = url
 
         if len(video_url):
             video_url = video_url[0]
@@ -173,16 +175,20 @@ class DouyinDownloader(Downloader):
                 url = response.url
             except Exception as e:
                 logger.warning(f"抖音短链接解析失败: {e}")
-                return ""
+                # head 失败不 return，继续用原始 URL 尝试 patterns
+                url = original_url
         patterns = [
             r'video/(\d+)',
             r'note/(\d+)',
             r'aweme_id=(\d+)',
+            r'[?&]modal_id=(\d+)',  # 搜索页 URL 兜底：?modal_id=7621100275181771880
         ]
-        for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
-                return match.group(1)
+        # 先在重定向后的 URL 里找，找不到再用原始 URL 兜底
+        for source_url in (url, original_url):
+            for pattern in patterns:
+                match = re.search(pattern, source_url)
+                if match:
+                    return match.group(1)
         return ""
 
     def gen_real_msToken(self) -> str:

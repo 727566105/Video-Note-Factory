@@ -98,7 +98,16 @@ def extract_video_id(url: str, platform: str) -> Optional[str]:
                 actual_url = resolved
 
         match = re.search(r"/(?:video|note)/(\d+)", actual_url)
-        return match.group(1) if match else None
+        if match:
+            return match.group(1)
+
+        # 搜索页 URL 兜底：从 modal_id 查询参数提取 video_id
+        # 例：https://www.douyin.com/search/xxx?modal_id=7621100275181771880&type=general
+        modal_match = re.search(r"[?&]modal_id=(\d+)", actual_url)
+        if modal_match:
+            return modal_match.group(1)
+
+        return None
 
     elif platform == "xiaohongshu":
         # 处理 xhslink.com 短链接

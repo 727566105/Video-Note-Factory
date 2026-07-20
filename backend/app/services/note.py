@@ -193,10 +193,12 @@ def _normalize_error_message(raw: str) -> str:
         reset_hint = f'（配额将在 {reset_match.group(1).strip()} 重置）' if reset_match else ''
         return f'AI 接口调用次数已达上限{reset_hint}，可切换模型/供应商后重试，或等待配额恢复。 [429]'
 
-    # 401/403 API key 无效
-    if '401' in msg_lower or 'invalid_api_key' in msg_lower or 'incorrect api key' in msg_lower:
+    # 401/403 API key 无效（严格匹配，避免误判含"401"数字的错误消息）
+    if 'invalid_api_key' in msg_lower or 'incorrect api key' in msg_lower or 'authentication' in msg_lower and '401' in msg_lower:
         return 'AI 供应商 API Key 无效或已过期，请在设置页检查配置。 [401]'
-    if '403' in msg_lower or 'permission' in msg_lower:
+    if 'http 401' in msg_lower or 'status.*401' in msg_lower or 'code.*401' in msg_lower:
+        return 'AI 供应商 API Key 无效或已过期，请在设置页检查配置。 [401]'
+    if 'http 403' in msg_lower or 'permission_denied' in msg_lower:
         return 'AI 供应商拒绝访问（权限不足或区域限制），请检查账户状态。 [403]'
 
     # 5xx 服务端异常

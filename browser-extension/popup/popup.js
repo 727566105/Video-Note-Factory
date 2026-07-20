@@ -737,6 +737,16 @@ async function onSubmitNoteTask(overrideUrl) {
     style: config.defaultStyle || ''
   };
 
+  // 提交前检查：必须有 model_name 和 provider_id，否则后端会立即 FAILED
+  if (!requestData.model_name || !requestData.provider_id) {
+    showMessage('error', {
+      title: '提交失败',
+      body: '未配置默认模型',
+      detail: '请先在设置页选择默认模型，保存后再提交任务',
+    });
+    return;
+  }
+
   const btn = document.getElementById('submitBtn');
   setLoading(btn, '提交中…');
 
