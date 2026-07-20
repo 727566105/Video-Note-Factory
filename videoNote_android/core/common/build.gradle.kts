@@ -27,4 +27,7 @@ dependencies {
     // 用于 ImageProxyHelper 的 @Composable rememberImageProxyHelper()
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
+    // 媒体下载用：OkHttp 流式 + androidx.core FileProvider
+    implementation(libs.okhttp)
+    implementation("androidx.core:core-ktx:1.13.1")
 }

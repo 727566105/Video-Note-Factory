@@ -2,10 +2,20 @@
 
 package com.videonote.android.feature.notedetail
 
+import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.webkit.WebView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -29,11 +45,17 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.videonote.android.core.common.ImageProxyHelper
 import com.videonote.android.core.common.rememberImageProxyHelper
 import com.videonote.android.core.designsystem.component.*
 import com.videonote.android.core.designsystem.theme.*
+import com.videonote.android.core.network.dto.LivePhotoItem
+import com.videonote.android.core.network.dto.NoteMediaResponse
 import com.videonote.android.core.network.dto.QuickViewResponse
 import com.videonote.android.core.network.dto.formatDuration
 import dev.jeziellago.compose.markdowntext.MarkdownText
@@ -46,8 +68,39 @@ fun NoteDetailScreen(
     imageProxyHelper: ImageProxyHelper = rememberImageProxyHelper()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var showExportSheet by remember { mutableStateOf(false) }
     var copyFeedback by remember { mutableStateOf(false) }
+
+    // 权限请求：下载时申请 READ_MEDIA_IMAGES / READ_MEDIA_VIDEO / POST_NOTIFICATIONS
+    // 用户授权后自动执行缓存的下载动作
+    val lastDownloadAction = remember { mutableStateOf<(() -> Unit)?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        // 权限申请完成后执行缓存的下载动作
+        lastDownloadAction.value?.let { action ->
+            if (result.values.all { it }) action.invoke()
+            lastDownloadAction.value = null
+        }
+    }
+
+    fun requestMediaPermissionsThen(action: () -> Unit) {
+        // 只申请 POST_NOTIFICATIONS（API 33+），写入 MediaStore 不需要 READ_MEDIA_* 权限
+        // READ_MEDIA_IMAGES / READ_MEDIA_VIDEO 是读取相册用的，我们不读只写
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val perm = Manifest.permission.POST_NOTIFICATIONS
+            if (context.checkSelfPermission(perm) == PackageManager.PERMISSION_GRANTED) {
+                action()
+            } else {
+                lastDownloadAction.value = action
+                permissionLauncher.launch(arrayOf(perm))
+            }
+        } else {
+            // Android 12 以下无需运行时申请
+            action()
+        }
+    }
 
     LaunchedEffect(taskId) {
         viewModel.loadNote(taskId)
@@ -63,7 +116,7 @@ fun NoteDetailScreen(
             )
         },
         bottomBar = {
-            // 底部操作栏：复制 | 导出 | 重做（无圆角分割按钮行）
+            // 底部操作栏：复制 | 导出 | 保存
             Column {
                 HorizontalDivider(thickness = 1.dp, color = XaiBorder)
                 Row(modifier = Modifier.fillMaxWidth().height(48.dp)) {
@@ -72,8 +125,9 @@ fun NoteDetailScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clickable {
-                                uiState.note?.summary?.let {
-                                    // TODO: 复制到剪贴板
+                                uiState.note?.markdown?.let { md ->
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("note", md))
                                     copyFeedback = true
                                 }
                             }
@@ -98,15 +152,67 @@ fun NoteDetailScreen(
                         Text("导出", style = TextStyle(fontSize = 15.sp, fontFamily = FontFamily.Default), color = XaiFg)
                     }
                     VerticalDivider(thickness = 1.dp, color = XaiBorder)
-                    // 重做
+                    // 保存（原"重做"按钮改造）
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { /* TODO: 重做 */ }
+                            .clickable {
+                                val note = uiState.note
+                                val media = uiState.media
+                                if (note != null) {
+                                    requestMediaPermissionsThen {
+                                        when (note.content_type) {
+                                            "video" -> {
+                                                // 下载视频：拼 /api/video_file
+                                                note.author_id?.let { aid ->
+                                                    note.video_id?.let { vid ->
+                                                        val url = "/api/video_file/${note.platform}/$aid/$vid"
+                                                        val filename = "videonote_${note.video_id}.mp4"
+                                                        viewModel.downloadVideo(url, filename)
+                                                    }
+                                                }
+                                            }
+                                            "article", "live_photo" -> {
+                                                // 图文/Live Photo：下载所有图片
+                                                media?.images?.forEachIndexed { idx, img ->
+                                                    val filename = "videonote_${note.task_id}_img_${idx + 1}.jpg"
+                                                    viewModel.downloadImage(img, filename)
+                                                }
+                                                // Live Photo：同时下载对应的实况视频合成
+                                                media?.live_photos?.forEach { lp ->
+                                                    val imageUrl = media.images.getOrNull(lp.index - 1)
+                                                    if (imageUrl != null) {
+                                                        val base = "videonote_${note.task_id}_live_${lp.index}"
+                                                        viewModel.downloadLivePhoto(imageUrl, lp.video_url, base)
+                                                    }
+                                                }
+                                            }
+                                            else -> {
+                                                // 未知类型，尝试下载视频
+                                                note.author_id?.let { aid ->
+                                                    note.video_id?.let { vid ->
+                                                        val url = "/api/video_file/${note.platform}/$aid/$vid"
+                                                        val filename = "videonote_${note.video_id}.mp4"
+                                                        viewModel.downloadVideo(url, filename)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             .fillMaxHeight(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("重做", style = TextStyle(fontSize = 15.sp, fontFamily = FontFamily.Default), color = XaiFg)
+                        if (uiState.isDownloading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = XaiFg
+                            )
+                        } else {
+                            Text("保存", style = TextStyle(fontSize = 15.sp, fontFamily = FontFamily.Default), color = XaiFg)
+                        }
                     }
                 }
             }
@@ -119,8 +225,8 @@ fun NoteDetailScreen(
 
         uiState.note?.let { note ->
             Column(modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-                // ── 媒体区 ──
-                NoteMediaSection(note, imageProxyHelper)
+                // ── 媒体区（封面 + 视频播放器） ──
+                NoteMediaSection(note, uiState.media, imageProxyHelper)
 
                 // ── 笔记信息 ──
                 Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
@@ -151,6 +257,24 @@ fun NoteDetailScreen(
 
                 Spacer(Modifier.height(16.dp))
 
+                // ── 媒体画廊（article/live_photo 类型，正文下方） ──
+                NoteMediaGallery(
+                    media = uiState.media,
+                    imageProxyHelper = imageProxyHelper,
+                    onDownloadImage = { url, idx ->
+                        requestMediaPermissionsThen {
+                            val filename = "videonote_${note.task_id}_img_${idx}.jpg"
+                            viewModel.downloadImage(url, filename)
+                        }
+                    },
+                    onDownloadLivePhoto = { img, vid, idx ->
+                        requestMediaPermissionsThen {
+                            val base = "videonote_${note.task_id}_live_${idx}"
+                            viewModel.downloadLivePhoto(img, vid, base)
+                        }
+                    }
+                )
+
                 // ── 4 Tab ──
                 XaiTabRow(
                     tabs = listOf("摘要", "字幕", "导图", "原文"),
@@ -160,7 +284,6 @@ fun NoteDetailScreen(
 
                 // ── Tab 内容 ──
                 when (uiState.selectedTab) {
-                    // 摘要 Tab：后端实测返回 markdown（不是 summary），优先用 markdown
                     0 -> (note.markdown ?: note.summary)?.let {
                         MarkdownText(
                             markdown = it,
@@ -175,7 +298,6 @@ fun NoteDetailScreen(
                             style = TextStyle(fontSize = 14.sp, color = XaiFg2, lineHeight = 22.sp)
                         )
                     }
-                    // 导图 Tab：优先用 outline，否则用 markdown 生成
                     2 -> (note.outline ?: note.markdown)?.let {
                         MindMapCanvas(
                             markdown = it,
@@ -184,7 +306,6 @@ fun NoteDetailScreen(
                     }
                     3 -> {
                         Column(modifier = Modifier.padding(20.dp)) {
-                            // 原文 Tab：后端没有 raw_article，回退用 markdown 显示
                             (note.raw_article ?: note.markdown)?.let {
                                 MarkdownText(
                                     markdown = it,
@@ -221,7 +342,6 @@ fun NoteDetailScreen(
             containerColor = XaiBg
         ) {
             Column {
-                // 手柄
                 Box(
                     modifier = Modifier
                         .width(36.dp)
@@ -239,7 +359,13 @@ fun NoteDetailScreen(
                 HorizontalDivider(color = XaiBorderSoft)
 
                 val exportItems = buildList {
-                    add("复制 Markdown" to { copyFeedback = true })
+                    add("复制 Markdown" to {
+                        uiState.note?.markdown?.let { md ->
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("note", md))
+                            copyFeedback = true
+                        }
+                    })
                     add("导出为 PDF" to { /* TODO */ })
                     add("导出为长图" to { /* TODO */ })
                     if (uiState.siyuanConfig?.enabled == 1) {
@@ -249,11 +375,14 @@ fun NoteDetailScreen(
                         add("导出到 Obsidian" to { viewModel.exportToObsidian(taskId) })
                     }
                 }
-                exportItems.forEach { (label, _) ->
+                exportItems.forEach { (label, action) ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showExportSheet = false }
+                            .clickable {
+                                action()
+                                showExportSheet = false
+                            }
                             .padding(horizontal = 20.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -261,7 +390,6 @@ fun NoteDetailScreen(
                     }
                     HorizontalDivider(color = XaiBorderSoft)
                 }
-                // 取消
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -275,6 +403,21 @@ fun NoteDetailScreen(
         }
     }
 
+    // 下载/导出消息提示
+    uiState.downloadMessage?.let { msg ->
+        Snackbar(
+            modifier = Modifier.padding(16.dp),
+            containerColor = XaiFg,
+            contentColor = XaiBg
+        ) {
+            Text(msg)
+        }
+        LaunchedEffect(msg) {
+            kotlinx.coroutines.delay(2200)
+            viewModel.clearMessage()
+        }
+    }
+
     // 复制反馈自动消失
     LaunchedEffect(copyFeedback) {
         if (copyFeedback) {
@@ -284,19 +427,44 @@ fun NoteDetailScreen(
     }
 }
 
+/**
+ * 媒体区：视频笔记显示封面 + 播放器，图文笔记只显示封面。
+ */
 @Composable
-private fun NoteMediaSection(note: QuickViewResponse, imageProxyHelper: ImageProxyHelper) {
+private fun NoteMediaSection(
+    note: QuickViewResponse,
+    media: NoteMediaResponse?,
+    imageProxyHelper: ImageProxyHelper
+) {
     var playerVisible by remember { mutableStateOf(false) }
-    val videoUrl = note.video_url
-    Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-        // 封面图
+    // 视频源：/api/video_file/{platform}/{author_id}/{video_id}（无鉴权 + Range，ExoPlayer 可 seek）
+    val videoFileUrl = remember(note.task_id, note.platform, note.author_id, note.video_id) {
+        if (note.content_type == "video" && !note.author_id.isNullOrBlank() && !note.video_id.isNullOrBlank()) {
+            imageProxyHelper.resolveUrl("/api/video_file/${note.platform}/${note.author_id}/${note.video_id}")
+        } else null
+    }
+
+    val density = LocalDensity.current
+    val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val coverHeightPx = screenWidthPx * 9f / 16f
+    val coverHeightDp = with(density) { coverHeightPx.toDp() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(coverHeightDp)
+    ) {
+        // 封面图（live_photo/article 用 media.cover_url，video 用 note.cover_url）
+        val coverUrl = media?.cover_url ?: note.cover_url
         AsyncImage(
-            model = imageProxyHelper.getProxyUrl(note.cover_url, note.platform),
+            model = imageProxyHelper.getProxyUrl(coverUrl, note.platform),
             contentDescription = null,
-            modifier = Modifier.fillMaxSize().background(XaiSurfaceWarm)
+            modifier = Modifier.fillMaxSize().background(XaiSurfaceWarm),
+            contentScale = ContentScale.Crop
         )
-        // 播放按钮 FAB（圆形白色）
-        if (!playerVisible && videoUrl != null) {
+
+        // 播放按钮 FAB（仅视频类型且有视频源）
+        if (!playerVisible && videoFileUrl != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -314,31 +482,151 @@ private fun NoteMediaSection(note: QuickViewResponse, imageProxyHelper: ImagePro
                 )
             }
         }
-        // 播放器
-        if (playerVisible && videoUrl != null) {
-            when (note.platform) {
-                "local", "local_audio" -> {
-                    AndroidView(factory = { ctx ->
-                        androidx.media3.ui.PlayerView(ctx).apply {
-                            player = androidx.media3.exoplayer.ExoPlayer.Builder(ctx).build().apply {
-                                setMediaItem(androidx.media3.common.MediaItem.fromUri(videoUrl))
-                                prepare()
-                                playWhenReady = true
-                            }
-                        }
-                    }, modifier = Modifier.fillMaxSize())
+
+        // ExoPlayer 播放视频（/api/video_file 直链 + Range）
+        if (playerVisible && videoFileUrl != null) {
+            ExoPlayerView(
+                videoUrl = videoFileUrl,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // 下载按钮（右上角，仅视频类型）
+        if (note.content_type == "video" && videoFileUrl != null) {
+            // 这里仅显示图标，实际下载由底部"保存"按钮触发，避免重复入口
+            // （也可加 IconButton 单独触发，但当前设计统一在底部保存）
+        }
+    }
+}
+
+/**
+ * ExoPlayer 视频播放 Composable，自动管理生命周期（DisposableEffect 中 release）。
+ */
+@Composable
+private fun ExoPlayerView(
+    videoUrl: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var player by remember { mutableStateOf<ExoPlayer?>(null) }
+
+    DisposableEffect(videoUrl) {
+        val exo = ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(videoUrl))
+            prepare()
+            playWhenReady = true
+        }
+        player = exo
+        onDispose {
+            exo.release()
+            player = null
+        }
+    }
+
+    player?.let { p ->
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    this.player = p
+                    useController = true
+                    layoutParams = android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    )
                 }
-                else -> {
-                    AndroidView(factory = { ctx ->
-                        WebView(ctx).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 12) Mobile"
-                            loadUrl(videoUrl)
-                        }
-                    }, modifier = Modifier.fillMaxSize())
+            },
+            modifier = modifier
+        )
+    }
+}
+
+/**
+ * 媒体画廊：正文下方独立区块，展示所有图片缩略图。
+ * - article 类型：纯图片缩略图横滑
+ * - live_photo 类型：图片带"实况"徽章，长按播放实况视频，每张图带下载按钮
+ */
+@Composable
+private fun NoteMediaGallery(
+    media: NoteMediaResponse?,
+    imageProxyHelper: ImageProxyHelper,
+    onDownloadImage: (imageUrl: String, index: Int) -> Unit,
+    onDownloadLivePhoto: (imageUrl: String, videoUrl: String, index: Int) -> Unit
+) {
+    if (media == null) return
+    if (media.images.isEmpty()) return
+    // 只对 article/live_photo 类型显示
+    if (media.content_type != "article" && media.content_type != "live_photo") return
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        XaiSectionLabel(
+            text = if (media.live_photos.isNotEmpty()) "实况图片（${media.images.size}）" else "原图（${media.images.size}）",
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+        Spacer(Modifier.height(10.dp))
+
+        // 横滑图片列表
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            media.images.forEachIndexed { idx, imgPath ->
+                val livePhoto = media.live_photos.firstOrNull { it.index == idx + 1 }
+                val resolvedImg = imageProxyHelper.resolveUrl(imgPath)
+                val resolvedVid = imageProxyHelper.resolveUrl(livePhoto?.video_url)
+
+                // 单个缩略图（120x160 竖图比例）
+                Box(
+                    modifier = Modifier
+                        .size(width = 120.dp, height = 160.dp)
+                        .background(XaiSurfaceWarm)
+                        .border(1.dp, XaiBorder)
+                ) {
+                    if (livePhoto != null && resolvedVid != null && resolvedImg != null) {
+                        // Live Photo：长按播放
+                        LivePhotoPlayer(
+                            imageUrl = resolvedImg,
+                            videoUrl = resolvedVid,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else if (resolvedImg != null) {
+                        // 普通图片
+                        AsyncImage(
+                            model = resolvedImg,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+
+                    // 右上角下载按钮
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(24.dp)
+                            .background(XaiBg.copy(alpha = 0.7f), RoundedCornerShape(2.dp))
+                            .clickable {
+                                if (livePhoto != null && resolvedVid != null) {
+                                    onDownloadLivePhoto(imgPath, livePhoto.video_url, idx + 1)
+                                } else {
+                                    onDownloadImage(imgPath, idx + 1)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = "下载",
+                            tint = XaiFg,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
     }
 }

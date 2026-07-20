@@ -6,6 +6,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 剪贴板读取：Android 12+ 无需特殊权限，系统会在读取时提示用户 -->
 
+    <!-- 媒体下载相关：minSdk 31 用 MediaStore 写入免 WRITE_EXTERNAL_STORAGE -->
+    <!-- API 33+ 需要分类型申请读权限；写权限通过 MediaStore 无需申请 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- 兼容 Android 12-13 的旧版权限（API 32 以下，本工程 minSdk 31 不触发但保留兼容） -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- 下载进度通知：API 33+ 运行时申请 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".VideoNoteApp"
         android:allowBackup="true"
@@ -28,5 +38,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- FileProvider：分享/打开已下载的媒体文件 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

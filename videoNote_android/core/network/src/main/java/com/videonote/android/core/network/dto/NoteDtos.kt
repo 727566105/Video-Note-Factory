@@ -119,10 +119,12 @@ data class QuickViewResponse(
     // 后端实测返回的笔记正文
     val markdown: String? = null,
     val model_name: String? = null,
-    // 以下字段后端实测不返回，但保留为可空以兼容未来扩展
+    // 以下字段后端 /api/quick_view 实测不返回，由 NoteDetailRepository 合并 /api/tasks 元数据填充
     val platform: String = "",
     val cover_url: String? = null,
     val video_url: String? = null,
+    val video_id: String? = null,
+    val content_type: String? = null,
     @Serializable(with = AnyToStringSerializer::class)
     val duration: String? = null,
     val created_at: String = "",
@@ -133,6 +135,7 @@ data class QuickViewResponse(
     val screenshots: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
     val author_id: String? = null,
+    val author_name: String? = null,
     val subscribed: Boolean = false
 )
 

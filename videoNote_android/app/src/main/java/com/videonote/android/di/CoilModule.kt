@@ -1,39 +1,17 @@
 package com.videonote.android.di
 
-import android.content.Context
-import coil.ImageLoader
-import coil.disk.DiskCache
-import coil.memory.MemoryCache
 import dagger.Module
-import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
 
 /**
- * Coil 图片加载配置：内存缓存（25%）+ 磁盘缓存（100MB）。
+ * Coil ImageLoader 已通过 VideoNoteApp.newImageLoader() 提供（实现 ImageLoaderFactory）。
  *
- * 对于 B站/抖音等有 Referer 限制的封面图，由 ImageProxyHelper 构造代理 URL，
- * 后端 GET /api/image_proxy?url=... 自动处理 Referer，Coil 直接加载代理 URL。
+ * 必须用 newImageLoader 而非 @Provides，因为 AsyncImage 默认用 LocalContext.imageLoader，
+ * 它取的是 Application（实现 ImageLoaderFactory）的 newImageLoader()，不是 Hilt 注入的实例。
+ *
+ * 此 Module 保留为空，未来如需其他 DI 提供项可在此添加。
  */
 @Module
 @InstallIn(SingletonComponent::class)
-object CoilModule {
-
-    @Provides
-    @Singleton
-    fun provideImageLoader(@ApplicationContext context: Context): ImageLoader {
-        return ImageLoader.Builder(context)
-            .memoryCache {
-                MemoryCache.Builder(context).maxSizePercent(0.25).build()
-            }
-            .diskCache {
-                DiskCache.Builder()
-                    .directory(context.cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(100L * 1024 * 1024)
-                    .build()
-            }
-            .build()
-    }
-}
+object CoilModule
