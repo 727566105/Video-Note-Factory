@@ -1,14 +1,21 @@
 {
   "manifest_version": 3,
   "name": "VideoNote Helper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "一键获取平台 Cookie 并快捷提交视频笔记任务到 VideoNote",
   "permissions": ["cookies", "activeTab", "storage", "scripting"],
   "host_permissions": [
     "*://*.bilibili.com/*",
+    "*://*.b23.tv/*",
     "*://*.douyin.com/*",
     "*://*.kuaishou.com/*",
-    "*://*.youtube.com/*"
+    "*://*.kuaishou.cn/*",
+    "*://*.youtube.com/*",
+    "*://*.youtu.be/*",
+    "*://*.xiaohongshu.com/*",
+    "*://*.xhslink.com/*",
+    "*://*.cctv.com/*",
+    "*://*.cntv.cn/*"
   ],
   "optional_host_permissions": [
     "*://*/*"

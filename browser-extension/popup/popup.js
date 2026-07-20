@@ -1,26 +1,115 @@
-// popup.js - 弹窗主逻辑
+// popup.js - 弹窗主逻辑（设计稿视觉 + 真实 chrome.* 逻辑）
 
-// 通过 background service worker 代理 API 请求（绕过 CORS）
-async function apiCall(url, options = {}) {
+// ─── 平台元数据 ───────────────────────────────────────────────────
+const PLATFORMS = [
+  { id: 'bilibili',    name: '哔哩哔哩', initial: 'B',  cls: 'bilibili',    domains: ['bilibili.com', 'b23.tv'] },
+  { id: 'douyin',      name: '抖音',     initial: '抖', cls: 'douyin',      domains: ['douyin.com'] },
+  { id: 'kuaishou',    name: '快手',     initial: '快', cls: 'kuaishou',    domains: ['kuaishou.com', 'kuaishou.cn'] },
+  { id: 'youtube',     name: 'YouTube',  initial: 'Y',  cls: 'youtube',     domains: ['youtube.com', 'youtu.be'] },
+  { id: 'xiaohongshu', name: '小红书',   initial: '红', cls: 'xiaohongshu', domains: ['xiaohongshu.com', 'xhslink.com'] },
+  { id: 'cctv',        name: 'CCTV',     initial: 'C',  cls: 'cctv',        domains: ['cctv.com', 'cntv.cn'] }
+];
+const PLATFORM_DOMAINS = Object.fromEntries(PLATFORMS.map(p => [p.id, p.domains]));
+const PLATFORM_NAMES = Object.fromEntries(PLATFORMS.map(p => [p.id, p.name]));
+
+// ─── 状态 ─────────────────────────────────────────────────────────
+let selectedPlatform = null;       // 用户当前在 Cookie Tab 选中的平台
+let currentPlatform = null;        // 当前页自动检测到的平台
+let currentCookies = null;         // 当前获取的 Cookie 字符串
+let videoNoteUrl = 'http://localhost:8483';
+let savedCookieStatus = { bilibili: false, douyin: false, kuaishou: false, youtube: false, xiaohongshu: false, cctv: false };
+
+// ─── 通过 background service worker 代理 API 请求（绕过 CORS + 注入 Bearer） ───
+// 带 1 次重试，缓解 service worker 冷启动抖动
+function apiCall(url, options = {}, token = null, retries = 1) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      { type: 'apiCall', url, options },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
+    const attempt = (n) => {
+      chrome.runtime.sendMessage(
+        { type: 'apiCall', url, options, token },
+        (response) => {
+          if (chrome.runtime.lastError && n > 0) {
+            setTimeout(() => attempt(n - 1), 150);
+            return;
+          }
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (response && response.success) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response?.error || '请求失败'));
+          }
         }
-        if (response && response.success) {
-          resolve(response.data);
-        } else {
-          reject(new Error(response?.error || '请求失败'));
-        }
-      }
-    );
+      );
+    };
+    attempt(retries);
   });
 }
 
-// 确保对指定 URL 有访问权限
+// ─── 鉴权：token 存取 ─────────────────────────────────────────────
+async function getAuth() {
+  try {
+    return await chrome.storage.local.get(['authToken', 'refreshToken', 'authUsername', 'authRole']);
+  } catch (e) {
+    return {};
+  }
+}
+async function setAuth(patch) {
+  await chrome.storage.local.set(patch);
+}
+async function clearAuth() {
+  await chrome.storage.local.remove(['authToken', 'refreshToken', 'authUsername', 'authRole']);
+}
+
+// 401 时尝试用 refresh_token 续期，返回新 token 或 null
+async function tryRefreshToken() {
+  const auth = await getAuth();
+  if (!auth.refreshToken) return null;
+
+  try {
+    const data = await apiCall(`${videoNoteUrl}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: auth.refreshToken })
+    });
+    if (data.code === 0 && data.data && data.data.token) {
+      await setAuth({ authToken: data.data.token });
+      return data.data.token;
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+// 带自动续期的 apiCall：401 时自动 refresh 一次再重试
+async function apiCallWithAuth(url, options = {}) {
+  const auth = await getAuth();
+  if (!auth.authToken) {
+    const err = new Error('未登录');
+    err.code = 'NO_AUTH';
+    throw err;
+  }
+
+  try {
+    return await apiCall(url, options, auth.authToken);
+  } catch (e) {
+    if (/HTTP 401/.test(e.message)) {
+      const newToken = await tryRefreshToken();
+      if (newToken) {
+        return await apiCall(url, options, newToken);
+      }
+      // refresh 也失效，清空登录态
+      await clearAuth();
+      showAuthGate();
+      const err = new Error('登录已失效，请重新登录');
+      err.code = 'AUTH_EXPIRED';
+      throw err;
+    }
+    throw e;
+  }
+}
+
+// ─── 确保对指定 URL 有访问权限 ─────────────────────────────────────
 async function ensurePermission(url) {
   try {
     const origin = new URL(url).origin;
@@ -34,47 +123,86 @@ async function ensurePermission(url) {
   }
 }
 
-// 平台域名映射
-const PLATFORM_DOMAINS = {
-  bilibili: ['bilibili.com', 'b23.tv'],
-  douyin: ['douyin.com'],
-  kuaishou: ['kuaishou.com', 'kuaishou.cn'],
-  youtube: ['youtube.com', 'youtu.be']
-};
+// ─── 复制到剪贴板 ─────────────────────────────────────────────────
+async function copyToClipboard(text) {
+  await navigator.clipboard.writeText(text);
+}
 
-// 平台名称映射
-const PLATFORM_NAMES = {
-  bilibili: '哔哩哔哩',
-  douyin: '抖音',
-  kuaishou: '快手',
-  youtube: 'YouTube'
-};
+// ─── Toast ────────────────────────────────────────────────────────
+const toastTimers = {};
+function toast(panelId, msg, type) {
+  const el = document.getElementById(panelId);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'toast show ' + (type || '');
+  clearTimeout(toastTimers[panelId]);
+  toastTimers[panelId] = setTimeout(() => {
+    el.className = 'toast ' + (type || '');
+  }, 3000);
+}
 
-// 当前选中的平台
-let selectedPlatform = null;
-let currentPlatform = null;
-let currentCookies = null;
-let videoNoteUrl = 'http://localhost:8483';
+// ─── Loading 态 ───────────────────────────────────────────────────
+// 调用方在成功分支若想保留禁用态，应在 finally 前 `delete btn.dataset.orig`，
+// 这样 clearLoading 不会还原按钮（避免覆盖防重禁用态）
+function setLoading(btn, text) {
+  btn.disabled = true;
+  btn.dataset.orig = btn.innerHTML;
+  btn.innerHTML = `<span class="spin"></span>${text}`;
+}
+function clearLoading(btn) {
+  // 没有 orig 说明调用方已主动接管按钮状态（如成功后保持禁用），直接返回
+  if (!btn.dataset.orig) return;
+  btn.disabled = false;
+  btn.innerHTML = btn.dataset.orig;
+  delete btn.dataset.orig;
+}
 
-// 初始化
+// ─── 初始化 ───────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  // 加载配置
-  await loadConfig();
-
-  // Tab 切换
+  try { await loadConfig(); } catch (e) { /* chrome.storage 不可用（非扩展上下文） */ }
   initTabs();
+  renderPlatforms();
 
-  // 检测当前页面平台
-  await detectCurrentPlatform();
+  // 登录态检查：未登录显示遮罩，已登录才进真实流程
+  let auth = {};
+  try { auth = await getAuth(); } catch (e) { /* ignore */ }
+  if (!auth.authToken) {
+    showAuthGate();
+  } else {
+    hideAuthGate();
+    try { await detectCurrentPlatform(); } catch (e) { /* chrome.tabs 不可用 */ }
+    try { await detectVideoUrl(); } catch (e) { /* chrome.scripting 不可用 */ }
+  }
 
-  // 初始化 Cookie Tab
   initCookieTab();
-
-  // 初始化提交 Tab
   initSubmitTab();
+
+  // 恢复上次 Tab，默认快捷提交
+  try {
+    const last = localStorage.getItem('vn-helper-tab');
+    if (last === 'cookie') switchTab('cookie');
+  } catch (e) { /* ignore */ }
 });
 
-// 加载配置
+// ─── 登录遮罩 ─────────────────────────────────────────────────────
+function showAuthGate() {
+  document.getElementById('authGate').classList.add('show');
+}
+function hideAuthGate() {
+  document.getElementById('authGate').classList.remove('show');
+}
+
+// ─── 登录遮罩按钮 ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const gateBtn = document.getElementById('gateOpenOptions');
+  if (gateBtn) {
+    gateBtn.addEventListener('click', () => {
+      chrome.runtime.openOptionsPage();
+    });
+  }
+});
+
+// ─── 加载配置 ─────────────────────────────────────────────────────
 async function loadConfig() {
   const config = await chrome.storage.local.get([
     'videoNoteUrl',
@@ -87,215 +215,286 @@ async function loadConfig() {
 
   videoNoteUrl = config.videoNoteUrl || 'http://localhost:8483';
 
-  // 显示预设信息
-  document.getElementById('preset-model').textContent = config.defaultModel || '未设置';
-  document.getElementById('preset-style').textContent = config.defaultStyle || '未设置';
-  document.getElementById('preset-format').textContent =
-    config.defaultFormat?.join('、') || '未设置';
+  // 预设信息显示
+  const presetModel = document.getElementById('presetModel');
+  const presetStyle = document.getElementById('presetStyle');
+  const presetFormat = document.getElementById('presetFormat');
 
-  // 更新平台保存状态
-  if (config.cookieStatus) {
-    Object.entries(config.cookieStatus).forEach(([platform, saved]) => {
-      const statusEl = document.getElementById(`${platform}-status`);
-      if (statusEl && saved) {
-        statusEl.textContent = '✓ 已保存';
-      }
-    });
-  }
-}
-
-// Tab 切换
-function initTabs() {
-  const tabBtns = document.querySelectorAll('.tab-btn');
-  const tabContents = document.querySelectorAll('.tab-content');
-
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tabId = btn.dataset.tab;
-
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabContents.forEach(c => c.classList.remove('active'));
-
-      btn.classList.add('active');
-      document.getElementById(`${tabId}-tab`).classList.add('active');
-    });
-  });
-}
-
-// 检测当前页面平台
-async function detectCurrentPlatform() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-  if (!tab || !tab.url) {
-    document.getElementById('current-page-name').textContent = '未知';
-    return;
-  }
-
-  const url = tab.url;
-  let detectedPlatform = null;
-
-  for (const [platform, domains] of Object.entries(PLATFORM_DOMAINS)) {
-    for (const domain of domains) {
-      if (url.includes(domain)) {
-        detectedPlatform = platform;
-        break;
-      }
-    }
-    if (detectedPlatform) break;
-  }
-
-  currentPlatform = detectedPlatform;
-
-  if (detectedPlatform) {
-    document.getElementById('current-page-name').textContent =
-      PLATFORM_NAMES[detectedPlatform];
-
-    // 标记当前页面平台
-    document.getElementById(`${detectedPlatform}-current`).classList.add('visible');
-
-    // 选中当前平台
-    const platformItem = document.querySelector(`.platform-item[data-platform="${detectedPlatform}"]`);
-    if (platformItem) {
-      platformItem.classList.add('selected');
-      selectedPlatform = detectedPlatform;
-    }
+  if (config.defaultModel) {
+    presetModel.textContent = config.defaultModel;
+    presetModel.classList.remove('empty');
   } else {
-    document.getElementById('current-page-name').textContent = '非视频平台';
+    presetModel.textContent = '未设置';
+    presetModel.classList.add('empty');
+  }
+
+  if (config.defaultStyle) {
+    presetStyle.textContent = config.defaultStyle;
+    presetStyle.classList.remove('empty');
+  } else {
+    presetStyle.textContent = '未设置';
+    presetStyle.classList.add('empty');
+  }
+
+  if (config.defaultFormat && config.defaultFormat.length) {
+    presetFormat.textContent = config.defaultFormat.join('、');
+    presetFormat.classList.remove('empty');
+  } else {
+    presetFormat.textContent = '未设置';
+    presetFormat.classList.add('empty');
+  }
+
+  // Cookie 保存状态（兼容历史布尔值：true->'saved'，false->'unsaved'）
+  if (config.cookieStatus) {
+    const migrated = {};
+    Object.entries(config.cookieStatus).forEach(([k, v]) => {
+      if (v === true) migrated[k] = 'saved';
+      else if (v === 'valid') migrated[k] = 'valid';
+      else if (v === 'saved') migrated[k] = 'saved';
+      else migrated[k] = 'unsaved';
+    });
+    savedCookieStatus = { ...savedCookieStatus, ...migrated };
   }
 }
 
-// Cookie Tab 初始化
-function initCookieTab() {
-  // 平台点击选择
-  const platformItems = document.querySelectorAll('.platform-item');
-  platformItems.forEach(item => {
-    item.addEventListener('click', () => {
-      platformItems.forEach(i => i.classList.remove('selected'));
-      item.classList.add('selected');
-      selectedPlatform = item.dataset.platform;
-    });
+// ─── Tab 切换 + 持久 ──────────────────────────────────────────────
+function initTabs() {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => switchTab(t.dataset.tab));
   });
+}
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tabpane').forEach(p => {
+    p.classList.toggle('active', p.id === `${name}-tab`);
+  });
+  try { localStorage.setItem('vn-helper-tab', name); } catch (e) { /* ignore */ }
+}
 
-  // 获取 Cookie 按钮
-  document.getElementById('get-cookie-btn').addEventListener('click', async () => {
-    if (!selectedPlatform) {
-      showMessage('cookie-message', '请先选择平台', 'error');
-      return;
-    }
+// ─── 平台列表渲染（三态：valid=有效 / saved=已保存未验证 / unsaved=未保存） ────
+function renderPlatforms() {
+  const list = document.getElementById('platformList');
+  list.innerHTML = '';
 
-    currentCookies = await getCookiesForPlatform(selectedPlatform);
+  PLATFORMS.forEach(p => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'platform-row' + (p.id === selectedPlatform ? ' selected' : '');
+    row.dataset.platform = p.id;
 
-    if (currentCookies) {
-      document.getElementById('cookie-text').value = currentCookies;
-      document.getElementById('cookie-result').style.display = 'block';
-      showMessage('cookie-message', 'Cookie 已获取', 'success');
+    const status = savedCookieStatus[p.id]; // 'valid' / 'saved' / 'unsaved' / undefined
+    const isCurrent = p.id === currentPlatform;
+
+    const checkSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const warnSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+
+    let statusHtml;
+    if (status === 'valid') {
+      statusHtml = `<span class="p-status">${checkSvg}有效</span>`;
+    } else if (status === 'saved') {
+      statusHtml = `<span class="p-status saved">${warnSvg}已保存</span>`;
     } else {
-      showMessage('cookie-message', '获取 Cookie 失败', 'error');
+      statusHtml = `<span class="p-status unsaved">未保存</span>`;
     }
-  });
+    const currentBadge = isCurrent ? `<span class="p-current">当前</span>` : '';
 
-  // 复制按钮
-  document.getElementById('copy-browser-btn').addEventListener('click', async () => {
-    await copyToClipboard(currentCookies);
-    showMessage('cookie-message', '已复制到剪贴板', 'success');
-  });
-
-  // 推送按钮
-  document.getElementById('push-btn').addEventListener('click', async () => {
-    await pushCookieToVideoNote(selectedPlatform, currentCookies);
-  });
-
-  // 复制 Netscape 格式
-  document.getElementById('copy-netscape-btn').addEventListener('click', async () => {
-    const netscape = convertToNetscape(selectedPlatform, currentCookies);
-    await copyToClipboard(netscape);
-    showMessage('cookie-message', '已复制 Netscape 格式', 'success');
+    row.innerHTML = `
+      <span class="badge ${p.cls}" aria-hidden="true">${p.initial}</span>
+      <span class="p-name">${p.name}</span>
+      ${statusHtml}
+      ${currentBadge}
+    `;
+    row.addEventListener('click', () => {
+      selectedPlatform = p.id;
+      renderPlatforms();
+    });
+    list.appendChild(row);
   });
 }
 
-// 提交 Tab 初始化
-function initSubmitTab() {
-  // 修改设置链接
-  document.getElementById('open-options').addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
-  });
+// ─── 检测当前页平台 ───────────────────────────────────────────────
+async function detectCurrentPlatform() {
+  const nameEl = document.getElementById('currentPlatformName');
+  const dotEl = document.getElementById('currentDot');
 
-  // 提交按钮
-  document.getElementById('submit-btn').addEventListener('click', async () => {
-    const videoUrl = document.getElementById('video-url').value;
-
-    if (!videoUrl) {
-      showMessage('submit-message', '未检测到视频页面', 'error');
-      return;
-    }
-
-    await submitNoteTask(videoUrl);
-  });
-
-  // 查看笔记按钮
-  document.getElementById('view-note-btn').addEventListener('click', async () => {
-    const taskId = document.getElementById('view-note-btn').dataset.taskId;
-    chrome.tabs.create({ url: `${videoNoteUrl}/?task_id=${taskId}` });
-  });
-
-  // 切换到提交 Tab 时自动检测视频 URL
-  document.querySelector('.tab-btn[data-tab="submit"]').addEventListener('click', async () => {
-    await detectVideoUrl();
-  });
-}
-
-// 检测视频 URL
-async function detectVideoUrl() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  let tab = null;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  } catch (e) {
+    // chrome.tabs 不可用（非扩展上下文）
+  }
 
   if (!tab || !tab.url) {
-    document.getElementById('video-url').value = '';
-    document.getElementById('video-title').value = '';
+    nameEl.textContent = '未知';
     return;
   }
 
-  const url = tab.url;
+  let detected = null;
+  for (const p of PLATFORMS) {
+    for (const domain of p.domains) {
+      if (tab.url.includes(domain)) { detected = p.id; break; }
+    }
+    if (detected) break;
+  }
 
-  // 检查是否为视频页面
-  if (!currentPlatform) {
-    document.getElementById('video-url').value = '';
-    document.getElementById('video-title').value = '';
+  currentPlatform = detected;
+
+  if (detected) {
+    nameEl.textContent = PLATFORM_NAMES[detected];
+    dotEl.classList.remove('nonvideo');
+    selectedPlatform = detected;
+  } else {
+    nameEl.textContent = '非视频平台';
+    dotEl.classList.add('nonvideo');
+  }
+
+  renderPlatforms();
+}
+
+// ─── Cookie Tab ───────────────────────────────────────────────────
+function initCookieTab() {
+  document.getElementById('getCookieBtn').addEventListener('click', onGetCookie);
+  document.getElementById('copyBtn').addEventListener('click', onCopy);
+  document.getElementById('pushBtn').addEventListener('click', onPush);
+  document.getElementById('netscapeBtn').addEventListener('click', onCopyNetscape);
+}
+
+async function onGetCookie() {
+  if (!selectedPlatform) {
+    toast('cookieToast', '请先选择平台', 'error');
     return;
   }
 
-  // 设置视频 URL
-  document.getElementById('video-url').value = url;
+  const btn = document.getElementById('getCookieBtn');
+  setLoading(btn, '获取中…');
 
-  // 尝试获取视频标题
   try {
-    const title = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => {
-        // 不同平台的标题获取方式
-        const selectors = [
-          'h1.video-title',
-          '.video-title',
-          'h1.title',
-          '#video-title',
-          'meta[property="og:title"]',
-          'title'
-        ];
-
-        for (const sel of selectors) {
-          const el = document.querySelector(sel);
-          if (el) {
-            return el.getAttribute('content') || el.textContent?.trim() || '';
-          }
-        }
-        return document.title || '';
-      }
-    });
-
-    if (title && title[0]?.result) {
-      document.getElementById('video-title').value = title[0].result;
+    currentCookies = await getCookiesForPlatform(selectedPlatform);
+    if (currentCookies) {
+      document.getElementById('cookieText').value = currentCookies;
+      document.getElementById('cookieResult').style.display = 'block';
+      toast('cookieToast', 'Cookie 已获取', 'success');
+    } else {
+      toast('cookieToast', '未检测到登录态，请先在该平台登录', 'error');
     }
   } catch (e) {
-    console.error('获取标题失败:', e);
+    toast('cookieToast', `获取失败: ${e.message}`, 'error');
+  } finally {
+    clearLoading(btn);
+  }
+}
+
+async function onCopy() {
+  if (!currentCookies) return;
+  try {
+    await copyToClipboard(currentCookies);
+    toast('cookieToast', '已复制到剪贴板', 'success');
+  } catch (e) {
+    toast('cookieToast', '复制失败', 'error');
+  }
+}
+
+async function onCopyNetscape() {
+  if (!currentCookies) return;
+  try {
+    const netscape = convertToNetscape(selectedPlatform, currentCookies);
+    await copyToClipboard(netscape);
+    toast('cookieToast', '已复制 Netscape 格式', 'success');
+  } catch (e) {
+    toast('cookieToast', '复制失败', 'error');
+  }
+}
+
+async function onPush() {
+  if (!currentCookies || !selectedPlatform) return;
+
+  // 入口快照：后续所有写入/校验都用局部变量，避免用户切平台导致状态写错 slot
+  const platform = selectedPlatform;
+  const cookie = currentCookies;
+
+  const btn = document.getElementById('pushBtn');
+  setLoading(btn, '推送中…');
+
+  try {
+    if (!await ensurePermission(videoNoteUrl)) {
+      toast('cookieToast', '请先授权访问该服务', 'error');
+      return;
+    }
+
+    const auth = await getAuth();
+    if (!auth.authToken) {
+      toast('cookieToast', '请先在设置页登录', 'error');
+      showAuthGate();
+      return;
+    }
+    if (auth.authRole !== 'admin') {
+      toast('cookieToast', '推送 Cookie 需要管理员账号', 'error');
+      return;
+    }
+
+    const data = await apiCallWithAuth(`${videoNoteUrl}/api/update_downloader_cookie`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, cookie })
+    });
+
+    if (data.code !== 0) {
+      toast('cookieToast', `推送失败: ${data.msg || '未知错误'}`, 'error');
+      return;
+    }
+
+    // 推送成功，持久化保存状态（先标 saved，校验通过后升为 valid）
+    savedCookieStatus[platform] = 'saved';
+    renderPlatforms();
+    const config = await chrome.storage.local.get('cookieStatus');
+    const cookieStatus = { ...(config.cookieStatus || {}), [platform]: 'saved' };
+    await chrome.storage.local.set({ cookieStatus });
+
+    // 立即调 test_downloader_cookie 在线校验有效性
+    setLoading(btn, '校验中…');
+    let validity;
+    try {
+      validity = await apiCallWithAuth(`${videoNoteUrl}/api/test_downloader_cookie`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, cookie })
+      });
+    } catch (e) {
+      // 校验接口失败（网络/超时/auth 过期）-> 保留 saved 状态，不阻塞用户
+      const msg = (e.code === 'AUTH_EXPIRED' || e.code === 'NO_AUTH') ? e.message : '有效性校验失败（稍后可重试）';
+      toast('cookieToast', `已推送，${msg}`, 'error');
+      return;
+    }
+
+    if (validity.code === 0 && validity.data) {
+      if (validity.data.valid) {
+        savedCookieStatus[platform] = 'valid';
+        const cs = await chrome.storage.local.get('cookieStatus');
+        await chrome.storage.local.set({
+          cookieStatus: { ...(cs.cookieStatus || {}), [platform]: 'valid' }
+        });
+        renderPlatforms();
+        toast('cookieToast', `已推送 · ${validity.data.message || 'Cookie 有效'}`, 'success');
+      } else {
+        // 在线校验未通过（如 B站 isLogin=false）-> 保留 saved 状态
+        const detail = validity.data.details || validity.data.message || 'Cookie 不可用';
+        toast('cookieToast', `已推送但 Cookie 无效：${detail}`, 'error');
+      }
+    } else {
+      toast('cookieToast', `已推送，校验失败: ${validity.msg || '未知错误'}`, 'error');
+    }
+  } catch (e) {
+    if (e.code === 'AUTH_EXPIRED' || e.code === 'NO_AUTH') {
+      toast('cookieToast', e.message, 'error');
+    } else {
+      toast('cookieToast', `推送失败: ${e.message}`, 'error');
+    }
+  } finally {
+    clearLoading(btn);
   }
 }
 
@@ -305,16 +504,11 @@ async function getCookiesForPlatform(platform) {
   const cookies = [];
 
   for (const domain of domains) {
-    const domainCookies = await chrome.cookies.getAll({ domain: domain });
-    domainCookies.forEach(cookie => {
-      cookies.push(`${cookie.name}=${cookie.value}`);
-    });
+    const domainCookies = await chrome.cookies.getAll({ domain });
+    domainCookies.forEach(c => cookies.push(`${c.name}=${c.value}`));
 
-    // 也获取 .domain 格式的 cookie
     const subdomainCookies = await chrome.cookies.getAll({ domain: `.${domain}` });
-    subdomainCookies.forEach(cookie => {
-      cookies.push(`${cookie.name}=${cookie.value}`);
-    });
+    subdomainCookies.forEach(c => cookies.push(`${c.name}=${c.value}`));
   }
 
   return cookies.join('; ');
@@ -324,57 +518,141 @@ async function getCookiesForPlatform(platform) {
 function convertToNetscape(platform, cookieStr) {
   const domains = PLATFORM_DOMAINS[platform];
   const primaryDomain = domains[0];
-
   const lines = ['# Netscape HTTP Cookie File\n'];
 
   cookieStr.split(';').forEach(item => {
     item = item.trim();
-    if (item.includes('=')) {
-      const [name, value] = item.split('=');
-      lines.push(`.${primaryDomain}\tTRUE\t/\tTRUE\t0\t${name.trim()}\t${value.trim()}\n`);
+    const i = item.indexOf('=');
+    if (i > 0) {
+      const name = item.slice(0, i).trim();
+      const value = item.slice(i + 1).trim();
+      lines.push(`.${primaryDomain}\tTRUE\t/\tFALSE\t0\t${name}\t${value}\n`);
     }
   });
 
   return lines.join('');
 }
 
-// 推送 Cookie 到 VideoNote
-async function pushCookieToVideoNote(platform, cookie) {
-  try {
-    if (!await ensurePermission(videoNoteUrl)) {
-      showMessage('cookie-message', '请先授权访问该服务', 'error');
+// ─── 提交 Tab ─────────────────────────────────────────────────────
+function initSubmitTab() {
+  document.getElementById('openOptions').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.runtime.openOptionsPage();
+  });
+
+  document.getElementById('submitBtn').addEventListener('click', onSubmitNoteTask);
+
+  document.getElementById('refreshVideoBtn').addEventListener('click', async () => {
+    await detectVideoUrl();
+    toast('submitToast', '已重新检测当前页视频', 'success');
+  });
+
+  document.getElementById('copyUrlBtn').addEventListener('click', async () => {
+    const url = document.getElementById('videoUrl').textContent;
+    if (!url || url === '-') {
+      toast('submitToast', '未检测到视频链接', 'error');
       return;
     }
-
-    const data = await apiCall(`${videoNoteUrl}/api/update_downloader_cookie`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, cookie })
-    });
-
-    if (data.code === 0) {
-      showMessage('cookie-message', '推送成功', 'success');
-
-      // 更新保存状态
-      const statusEl = document.getElementById(`${platform}-status`);
-      statusEl.textContent = '✓ 已保存';
-
-      // 保存到本地
-      const config = await chrome.storage.local.get('cookieStatus');
-      const cookieStatus = config.cookieStatus || {};
-      cookieStatus[platform] = true;
-      chrome.storage.local.set({ cookieStatus });
-    } else {
-      showMessage('cookie-message', `推送失败: ${data.msg || '未知错误'}`, 'error');
+    try {
+      await copyToClipboard(url);
+      toast('submitToast', '视频链接已复制', 'success');
+    } catch (e) {
+      toast('submitToast', '复制失败', 'error');
     }
+  });
+}
+
+// 检测视频 URL + 标题
+async function detectVideoUrl() {
+  const urlEl = document.getElementById('videoUrl');
+  const titleEl = document.getElementById('videoTitle');
+  const emptyTip = document.getElementById('videoEmptyTip');
+  const copyUrlBtn = document.getElementById('copyUrlBtn');
+  const refreshVideoBtn = document.getElementById('refreshVideoBtn');
+  const submitBtn = document.getElementById('submitBtn');
+
+  let tab = null;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   } catch (e) {
-    showMessage('cookie-message', `推送失败: ${e.message}`, 'error');
+    // chrome.tabs 不可用（非扩展上下文）
+  }
+
+  if (!tab || !tab.url || !currentPlatform) {
+    urlEl.textContent = '-';
+    urlEl.classList.add('empty');
+    titleEl.textContent = '未检测到视频页面';
+    titleEl.classList.add('empty');
+    emptyTip.style.display = 'block';
+    copyUrlBtn.disabled = true;
+    refreshVideoBtn.disabled = !currentPlatform; // 没平台就没必要重新检测
+    submitBtn.disabled = true;
+    return;
+  }
+
+  urlEl.textContent = tab.url;
+  urlEl.classList.remove('empty');
+  emptyTip.style.display = 'none';
+  copyUrlBtn.disabled = false;
+  refreshVideoBtn.disabled = false;
+  submitBtn.disabled = false;
+
+  // 尝试获取视频标题
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        const selectors = [
+          'h1.video-title',
+          '.video-title',
+          'h1.title',
+          '#video-title',
+          'meta[property="og:title"]',
+          'title'
+        ];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            return el.getAttribute('content') || el.textContent?.trim() || '';
+          }
+        }
+        return document.title || '';
+      }
+    });
+    const title = results && results[0]?.result;
+    titleEl.textContent = title || '未能获取';
+    titleEl.classList.remove('empty');
+  } catch (e) {
+    titleEl.textContent = '未能获取';
   }
 }
 
 // 提交笔记任务
-async function submitNoteTask(videoUrl) {
-  // 获取预设配置
+// 防重策略：①提交期间按钮 disabled ②本次 popup 会话已提交过的 videoUrl 不允许重复提交
+const submittedUrls = new Set(); // 本次 popup 会话已提交的 video_url 集合
+const submittedTasks = []; // 本次 popup 会话已提交的任务列表（最新在前）
+
+async function onSubmitNoteTask(overrideUrl) {
+  // overrideUrl 用于失败任务重试：传入失败任务的原 URL，而不是读当前页 URL
+  const videoUrl = overrideUrl || document.getElementById('videoUrl').textContent;
+  if (!videoUrl || videoUrl === '-') {
+    toast('submitToast', '未检测到视频页面', 'error');
+    return;
+  }
+
+  // 防重：同一 URL 本次会话已提交过（除非是重试失败任务，已在外层移除记录）
+  if (submittedUrls.has(videoUrl)) {
+    toast('submitToast', '该视频已提交，请查看下方任务列表', 'error');
+    return;
+  }
+
+  const auth = await getAuth();
+  if (!auth.authToken) {
+    toast('submitToast', '请先在设置页登录', 'error');
+    showAuthGate();
+    return;
+  }
+
   const config = await chrome.storage.local.get([
     'defaultModel',
     'defaultProviderId',
@@ -383,11 +661,9 @@ async function submitNoteTask(videoUrl) {
     'defaultQuality'
   ]);
 
-  const platform = currentPlatform || 'unknown';
-
   const requestData = {
     video_url: videoUrl,
-    platform: platform,
+    platform: currentPlatform || 'unknown',
     quality: config.defaultQuality || 'fast',
     model_name: config.defaultModel || '',
     provider_id: config.defaultProviderId || '',
@@ -395,61 +671,192 @@ async function submitNoteTask(videoUrl) {
     style: config.defaultStyle || ''
   };
 
+  const btn = document.getElementById('submitBtn');
+  setLoading(btn, '提交中…');
+
   try {
     if (!await ensurePermission(videoNoteUrl)) {
-      showMessage('submit-message', '请先授权访问该服务', 'error');
+      toast('submitToast', '请先授权访问该服务', 'error');
       return;
     }
 
-    const data = await apiCall(`${videoNoteUrl}/api/generate_note`, {
+    const data = await apiCallWithAuth(`${videoNoteUrl}/api/generate_note`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestData)
     });
 
-    const resultDiv = document.getElementById('submit-result');
-    const resultText = document.getElementById('result-text');
-    const viewBtn = document.getElementById('view-note-btn');
-
-    resultDiv.style.display = 'block';
-    resultDiv.classList.remove('error');
-
     if (data.code === 0) {
-      resultText.textContent = '提交成功！任务已创建';
-      viewBtn.style.display = 'inline-block';
-      viewBtn.dataset.taskId = data.data?.task_id;
+      const taskId = data.data?.task_id || '';
+      const videoTitle = document.getElementById('videoTitle').textContent;
 
-      showMessage('submit-message', '', 'success');
+      // 记录已提交 URL，防止重复
+      submittedUrls.add(videoUrl);
+
+      // 添加到任务列表（最新在前）
+      submittedTasks.unshift({
+        taskId,
+        videoUrl,
+        videoTitle,
+        state: 'success',
+        createdAt: Date.now()
+      });
+      // 最多保留 5 条
+      if (submittedTasks.length > 5) submittedTasks.length = 5;
+
+      renderTaskList();
+      toast('submitToast', '提交成功！任务已创建', 'success');
+
+      // 提交成功后：保留按钮禁用，显示「提交新任务」入口
+      // 用户要提交不同视频，可点「提交新任务」重置
+      // delete orig 让 finally 的 clearLoading 不会还原按钮（避免覆盖防重禁用态）
+      delete btn.dataset.orig;
+      btn.disabled = true;
+      btn.innerHTML = '已提交';
+      showNewTaskEntry();
     } else {
-      resultDiv.classList.add('error');
-      resultText.textContent = `提交失败: ${data.msg || '未知错误'}`;
-      viewBtn.style.display = 'none';
+      appendErrorTask(data.msg || '未知错误', videoUrl);
     }
   } catch (e) {
-    const resultDiv = document.getElementById('submit-result');
-    resultDiv.style.display = 'block';
-    resultDiv.classList.add('error');
-    document.getElementById('result-text').textContent = `提交失败: ${e.message}`;
-    document.getElementById('view-note-btn').style.display = 'none';
+    if (e.code === 'AUTH_EXPIRED' || e.code === 'NO_AUTH') {
+      toast('submitToast', e.message, 'error');
+    } else {
+      appendErrorTask(e.message, videoUrl);
+    }
+  } finally {
+    clearLoading(btn);
   }
 }
 
-// 复制到剪贴板
-async function copyToClipboard(text) {
-  await navigator.clipboard.writeText(text);
+// 错误任务也进列表（不计入 submittedUrls，允许重试）
+function appendErrorTask(errorMsg, videoUrl) {
+  submittedTasks.unshift({
+    taskId: '',
+    videoUrl,
+    videoTitle: document.getElementById('videoTitle').textContent,
+    state: 'error',
+    errorMsg,
+    createdAt: Date.now()
+  });
+  if (submittedTasks.length > 5) submittedTasks.length = 5;
+  renderTaskList();
+  toast('submitToast', '提交失败', 'error');
+  // 错误态保留按钮可点，允许重试
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = false;
+  btn.innerHTML = '提交笔记任务';
 }
 
-// 显示消息
-function showMessage(elementId, text, type) {
-  const el = document.getElementById(elementId);
-  el.textContent = text;
-  el.className = `message ${type}`;
+// 渲染任务列表
+function renderTaskList() {
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
 
-  // 自动消失
-  if (text) {
-    setTimeout(() => {
-      el.textContent = '';
-      el.className = 'message';
-    }, 3000);
+  submittedTasks.forEach((task, idx) => {
+    const card = document.createElement('div');
+    card.className = 'task-card ' + task.state;
+
+    const numText = `#${submittedTasks.length - idx}`;
+    const titleText = task.videoTitle && task.videoTitle !== '未检测到视频页面' && task.videoTitle !== '未能获取'
+      ? task.videoTitle : (task.videoUrl.length > 40 ? task.videoUrl.slice(0, 40) + '…' : task.videoUrl);
+
+    if (task.state === 'success') {
+      const safeTid = escapeHtml(task.taskId);
+      card.innerHTML = `
+        <div class="row1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          提交成功
+          <span class="num">${numText}</span>
+        </div>
+        <div class="title" title="${escapeHtml(titleText)}">${escapeHtml(titleText)}</div>
+        <div class="tid">${safeTid}</div>
+        ${task.taskId ? `
+        <div class="ops">
+          <button class="btn btn-primary" data-act="view" data-tid="${safeTid}">查看笔记</button>
+          <button class="btn btn-secondary" data-act="copy" data-tid="${safeTid}">复制编号</button>
+        </div>
+        ` : ''}
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="row1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          提交失败
+          <span class="num">${numText}</span>
+        </div>
+        <div class="title" title="${escapeHtml(titleText)}">${escapeHtml(titleText)}</div>
+        <div class="tid" style="color:var(--accent)">${escapeHtml(task.errorMsg || '请重试')}</div>
+        <div class="ops">
+          <button class="btn btn-secondary" data-act="retry" data-url="${escapeHtml(task.videoUrl)}">重试</button>
+        </div>
+      `;
+    }
+
+    // 事件绑定
+    card.querySelectorAll('button[data-act]').forEach(b => {
+      b.addEventListener('click', () => {
+        const act = b.dataset.act;
+        const tid = b.dataset.tid;
+        if (act === 'view') {
+          // 校验 tid 是合法 UUID（防 XSS/任意 URL 跳转）
+          const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRe.test(tid)) {
+            toast('submitToast', '任务编号不合法', 'error');
+            return;
+          }
+          chrome.tabs.create({ url: `${videoNoteUrl}/?task_id=${tid}` });
+        } else if (act === 'copy') {
+          copyToClipboard(tid).then(
+            () => toast('submitToast', '任务编号已复制', 'success'),
+            () => toast('submitToast', '复制失败', 'error')
+          );
+        } else if (act === 'retry') {
+          // 移除失败记录，允许重新提交（同时从 submittedUrls 移除该 URL）
+          const i = submittedTasks.findIndex(t => t.createdAt === task.createdAt);
+          if (i >= 0) submittedTasks.splice(i, 1);
+          submittedUrls.delete(task.videoUrl);
+          renderTaskList();
+          const btn = document.getElementById('submitBtn');
+          btn.disabled = false;
+          btn.innerHTML = '提交笔记任务';
+          // 用失败任务的原 URL 重试，不是当前页 URL
+          onSubmitNoteTask(task.videoUrl);
+        }
+      });
+    });
+
+    list.appendChild(card);
+  });
+}
+
+// 提交成功后显示「提交新任务」入口
+function showNewTaskEntry() {
+  let entry = document.getElementById('newTaskEntry');
+  if (!entry) {
+    entry = document.createElement('div');
+    entry.id = 'newTaskEntry';
+    entry.className = 'new-task-row';
+    entry.innerHTML = `<button class="btn btn-secondary" id="newTaskBtn" style="height:32px;font-size:var(--text-xs);padding:0 var(--space-4)">提交新任务</button>`;
+    document.getElementById('submitBtn').after(entry);
+    document.getElementById('newTaskBtn').addEventListener('click', resetForNewTask);
   }
+  entry.style.display = 'flex';
+}
+
+// 重置为可提交新任务状态
+function resetForNewTask() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = false;
+  btn.innerHTML = '提交笔记任务';
+  const entry = document.getElementById('newTaskEntry');
+  if (entry) entry.style.display = 'none';
+  toast('submitToast', '请切换到其他视频页或重新打开 popup', 'success');
+}
+
+// HTML 转义（任务标题可能含特殊字符）
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }

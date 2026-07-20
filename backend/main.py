@@ -150,9 +150,11 @@ else:
         origins.extend([o.strip() for o in extra_origins.split(",") if o.strip()])
     logger.info(f"CORS origins (dev): {origins}")
     logger.info(f"ENV mode: {env_mode}")
+    # dev 模式额外放行所有 chrome-extension://（联调用，生产模式不受影响）
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
+        allow_origin_regex=r"^chrome-extension://[a-z0-9]+$",
         allow_credentials=True,
         allow_methods=cors_methods,
         allow_headers=cors_headers,
