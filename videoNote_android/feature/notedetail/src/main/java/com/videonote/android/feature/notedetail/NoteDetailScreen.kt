@@ -180,8 +180,11 @@ fun NoteDetailScreen(
                                                 val hasLivePhotos = media?.live_photos?.isNotEmpty() == true
                                                 if (hasLivePhotos) {
                                                     // 实况图：每个 live_photo 配对对应的 image 一起合成
+                                                    // 注意：images 数组按文件名字符串排序（image_1, image_10, image_11, ... image_2）
+                                                    // 不能用 images[lp.index - 1] 按下标配对！
+                                                    // 必须从 images 里按文件名匹配 image_{index}.jpg
                                                     media.live_photos.forEach { lp ->
-                                                        val imageUrl = media.images.getOrNull(lp.index - 1)
+                                                        val imageUrl = findImageByIndex(media.images, lp.index)
                                                         if (imageUrl != null) {
                                                             val base = "videonote_${note.task_id}_live_${lp.index}"
                                                             viewModel.downloadLivePhoto(imageUrl, lp.video_url, base)
@@ -189,7 +192,9 @@ fun NoteDetailScreen(
                                                     }
                                                     // 没有实况视频的图片（images 有但 live_photos 没有对应 index）单独下载
                                                     media.images.forEachIndexed { idx, img ->
-                                                        val hasMatchingLive = media.live_photos.any { it.index == idx + 1 }
+                                                        val imgIndex = extractImageIndex(img)
+                                                        val hasMatchingLive = imgIndex != null &&
+                                                            media.live_photos.any { it.index == imgIndex }
                                                         if (!hasMatchingLive) {
                                                             val filename = "videonote_${note.task_id}_img_${idx + 1}.jpg"
                                                             viewModel.downloadImage(img, filename)
@@ -603,7 +608,12 @@ private fun NoteMediaGallery(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             media.images.forEachIndexed { idx, imgPath ->
-                val livePhoto = media.live_photos.firstOrNull { it.index == idx + 1 }
+                // images 按文件名字符串排序，不能用 idx+1 配对 live_photos
+                // 从文件名提取数字 index，再匹配 live_photos
+                val imgIndex = extractImageIndex(imgPath)
+                val livePhoto = if (imgIndex != null) {
+                    media.live_photos.firstOrNull { it.index == imgIndex }
+                } else null
                 val resolvedImg = imageProxyHelper.resolveUrl(imgPath)
                 val resolvedVid = imageProxyHelper.resolveUrl(livePhoto?.video_url)
 
@@ -640,7 +650,7 @@ private fun NoteMediaGallery(
                             .background(XaiBg.copy(alpha = 0.7f), RoundedCornerShape(2.dp))
                             .clickable {
                                 if (livePhoto != null && resolvedVid != null) {
-                                    onDownloadLivePhoto(imgPath, livePhoto.video_url, idx + 1)
+                                    onDownloadLivePhoto(imgPath, livePhoto.video_url, imgIndex ?: (idx + 1))
                                 } else {
                                     onDownloadImage(imgPath, idx + 1)
                                 }
@@ -658,5 +668,33 @@ private fun NoteMediaGallery(
             }
         }
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+/**
+ * 从图片 URL 中提取文件名里的数字索引。
+ * 例如 "/api/note_media_file/.../image_42.jpg" -> 42
+ *
+ * 后端 images 数组按文件名字符串排序（image_1, image_10, image_11, ..., image_2），
+ * 不能用数组下标配对 live_photos，必须用文件名里的数字。
+ */
+private fun extractImageIndex(imageUrl: String): Int? {
+    // 提取文件名
+    val filename = imageUrl.substringAfterLast('/')
+    // 匹配 image_N.jpg 中的 N
+    val regex = Regex("image_(\\d+)\\.")
+    val match = regex.find(filename)
+    return match?.groupValues?.get(1)?.toIntOrNull()
+}
+
+/**
+ * 从 images 数组中按文件名里的数字索引查找对应的图片 URL。
+ *
+ * 例如 index=2 会找 "image_2.jpg" 对应的 URL，不管它在数组哪个位置。
+ * 解决 images 按字符串排序导致 image_2 在 image_10 后面的问题。
+ */
+private fun findImageByIndex(images: List<String>, index: Int): String? {
+    return images.firstOrNull { imgUrl ->
+        extractImageIndex(imgUrl) == index
     }
 }

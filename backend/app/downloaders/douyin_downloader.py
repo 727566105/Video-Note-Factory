@@ -293,18 +293,34 @@ class DouyinDownloader(Downloader):
             try:
                 json_data = response.json()
                 logger.info("成功解析 JSON 响应")
-                
-                # 检查响应结构
-                if 'aweme_detail' not in json_data:
-                    logger.warning(f"响应中缺少 aweme_detail 字段，完整响应: {json.dumps(json_data, ensure_ascii=False)[:500]}")
 
-                    # 检查是否有错误信息
+                # 检查响应结构：aweme_detail 可能缺失，也可能存在但为 null
+                aweme_detail = json_data.get('aweme_detail')
+                if not aweme_detail:
+                    # 优先读 filter_detail，它包含作品被删除/私密/审核中等的真实原因
+                    filter_detail = json_data.get('filter_detail') or {}
+                    filter_reason = filter_detail.get('filter_reason', '')
+                    detail_msg = filter_detail.get('detail_msg', '')
+                    notice = filter_detail.get('notice', '')
+
+                    # 有错误码时优先用 status_msg
                     if 'status_code' in json_data and json_data['status_code'] != 0:
-                        error_msg = json_data.get('status_msg', '未知错误')
+                        error_msg = json_data.get('status_msg', '') or detail_msg or notice or '未知错误'
                         raise ValueError(f"抖音 API 返回错误: {error_msg}")
 
-                    # aweme_detail 缺失但无错误码，抛出异常
-                    raise ValueError(f"抖音 API 响应缺少 aweme_detail: {json.dumps(json_data, ensure_ascii=False)[:200]}")
+                    # aweme_detail 为 null 但带 filter_detail：作品被删除/设为私密/审核中等
+                    if filter_detail:
+                        # detail_msg 更具体（如"因作品权限或已被删除"），notice 更短（如"作品不见了"）
+                        reason = detail_msg or notice or filter_reason or '作品不可访问'
+                        raise ValueError(
+                            f"抖音作品不可访问: {reason}"
+                            f"{'（filter_reason=' + filter_reason + '）' if filter_reason else ''}"
+                        )
+
+                    # 既无 aweme_detail 也无 filter_detail：可能是 Cookie 失效或反爬拦截
+                    raise ValueError(
+                        f"抖音 API 响应缺少 aweme_detail: {json.dumps(json_data, ensure_ascii=False)[:200]}"
+                    )
 
                 # 缓存结果
                 self._cached_aweme_id = aweme_id
@@ -352,7 +368,9 @@ class DouyinDownloader(Downloader):
 
         # 图集或实况照片：按 aweme_type 或 images 字段判断（兜底检测）
         if aweme_type in (68, 69) or images:
-            image_urls = [img.get('url_list', [None])[0] for img in images if img.get('url_list')]
+            # 抖音 url_list 按分辨率从小到大排列，取最后一个（最高分辨率原图）
+            image_urls = [img.get('url_list', [None])[-1] if img.get('url_list') else None for img in images]
+            image_urls = [u for u in image_urls if u]  # 过滤 None
             cover_url = image_urls[0] if image_urls else None
             content_type = "live_photo" if aweme_type == 69 else "article"
 
@@ -451,7 +469,10 @@ class DouyinDownloader(Downloader):
         for i, img in enumerate(images):
             url_list = img.get('url_list', [])
             if url_list:
-                img_path = self._download_image(url_list[0], output_dir, f"image_{i+1}.jpg")
+                # 抖音 url_list 按分辨率从小到大排列，取最后一个（最高分辨率原图）
+                # 原 url_list[0] 是缩略图（~350KB），url_list[-1] 是原图（~3MB）
+                best_url = url_list[-1] if len(url_list) > 1 else url_list[0]
+                img_path = self._download_image(best_url, output_dir, f"image_{i+1}.jpg")
                 if img_path:
                     downloaded_paths.append(img_path)
 
