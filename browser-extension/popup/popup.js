@@ -775,6 +775,8 @@ async function onSubmitNoteTask(overrideUrl) {
       showNewTaskEntry();
     } else {
       // 失败：弹出错误 Message（3秒自动消失，提交按钮保持可点允许重试）
+      // 注意：videoTitle 必须显式声明局部变量，否则会引用 window.videoTitle（id 自动绑定的 DOM 元素）
+      const videoTitle = document.getElementById('videoTitle').textContent;
       showMessage('error', {
         title: '提交失败',
         body: videoTitle || videoUrl,
@@ -805,6 +807,7 @@ async function onSubmitNoteTask(overrideUrl) {
 // opts: { title, body, detail, taskId? }
 // 成功态带「查看笔记」「复制编号」按钮；失败态无按钮（靠提交按钮重试）
 let messageTimer;
+let messageHideTimer;
 function showMessage(state, opts) {
   const el = document.getElementById('submitMessage');
   if (!el) return;
@@ -834,7 +837,12 @@ function showMessage(state, opts) {
     ${safeDetail ? `<div class="msg-detail">${safeDetail}</div>` : ''}
     ${opsHtml}
   `;
-  el.className = 'message show ' + state;
+  // 先 display:block 但不带 show（opacity:0），下一帧再加 show 触发淡入
+  // 这样 display 切换不会破坏 opacity transition
+  el.className = 'message ' + state;
+  // 强制 reflow 让 display:block 生效，再加 show class 触发 transition
+  void el.offsetWidth;
+  el.classList.add('show');
 
   // 绑定操作按钮
   el.querySelectorAll('button[data-act]').forEach(b => {
@@ -858,10 +866,20 @@ function showMessage(state, opts) {
     });
   });
 
-  // 3 秒后自动消失
+  // 3 秒后自动消失：先移除 show 触发淡出，等 transition 结束再 display:none
+  // 否则只设 opacity:0 会占位，把下方内容往下挤
   clearTimeout(messageTimer);
+  clearTimeout(messageHideTimer);
   messageTimer = setTimeout(() => {
-    el.className = 'message ' + state;
+    el.classList.remove('show');
+    // transition 时长 150ms，等淡出动画结束后再 display:none
+    messageHideTimer = setTimeout(() => {
+      if (!el.classList.contains('show')) {
+        el.style.display = 'none';
+        // 清掉 inline style，下次 showMessage 设 className 时能正常 display:block
+        el.style.display = '';
+      }
+    }, 200);
   }, 3000);
 }
 

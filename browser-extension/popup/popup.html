@@ -242,14 +242,14 @@ textarea,input{font:inherit; color:inherit}
 /* ─── Message 全局提示（成功/失败，3秒自动消失，顶部显示） ─────────── */
 .message-wrap{position:sticky; top:0; display:flex; justify-content:center; pointer-events:none; z-index:20}
 .message{
-  pointer-events:auto; width:100%; max-width:var(--popup-width);
+  display:none; pointer-events:auto; width:100%; max-width:var(--popup-width);
   margin-top:var(--space-3); padding:var(--space-3) var(--space-4);
   border-radius:var(--radius-md); border:1px solid var(--border);
   background:var(--surface); box-shadow:0 8px 24px rgba(0,0,0,0.12);
   opacity:0; transform:translateY(-8px);
   transition:opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
-.message.show{opacity:1; transform:translateY(0)}
+.message.show{display:block; opacity:1; transform:translateY(0)}
 .message.success{background:var(--success-soft); border-color:color-mix(in oklab, var(--success) 30%, transparent)}
 .message.error{background:color-mix(in oklab, var(--accent) 6%, var(--surface)); border-color:var(--accent-soft)}
 .message .msg-head{display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-sm); font-weight:600}
