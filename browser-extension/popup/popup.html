@@ -109,7 +109,7 @@ textarea,input{font:inherit; color:inherit}
 
 /* ─── 主体 ─────────────────────────────────────────────────────────── */
 .tabbody{flex:1 1 auto; overflow-y:auto; overscroll-behavior:contain}
-.tabpane{display:none; padding:var(--space-3) var(--space-4) var(--space-6)}
+.tabpane{display:none; padding:var(--space-3) var(--space-4) var(--space-6); position:relative}
 .tabpane.active{display:block}
 
 /* ─── 状态条 · 当前页面 ─────────────────────────────────────────────── */
@@ -239,11 +239,11 @@ textarea,input{font:inherit; color:inherit}
 .submit-result .actions{margin-top:var(--space-3); display:flex; flex-direction:column; gap:var(--space-2)}
 .submit-result svg{width:16px; height:16px}
 
-/* ─── Message 全局提示（成功/失败，3秒自动消失，顶部显示） ─────────── */
-.message-wrap{position:sticky; top:0; display:flex; justify-content:center; pointer-events:none; z-index:20}
+/* ─── Message 全局提示（成功/失败，3秒自动消失，顶部浮层不占位） ───── */
+.message-wrap{position:absolute; top:0; left:0; right:0; display:flex; justify-content:center; pointer-events:none; z-index:20; padding:var(--space-3) var(--space-4)}
 .message{
-  display:none; pointer-events:auto; width:100%; max-width:var(--popup-width);
-  margin-top:var(--space-3); padding:var(--space-3) var(--space-4);
+  display:none; pointer-events:auto; width:100%;
+  padding:var(--space-3) var(--space-4);
   border-radius:var(--radius-md); border:1px solid var(--border);
   background:var(--surface); box-shadow:0 8px 24px rgba(0,0,0,0.12);
   opacity:0; transform:translateY(-8px);
