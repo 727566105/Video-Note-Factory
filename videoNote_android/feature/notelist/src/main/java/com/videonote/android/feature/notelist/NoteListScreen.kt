@@ -31,8 +31,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.videonote.android.core.common.ImageProxyHelper
+import com.videonote.android.core.common.rememberImageProxyHelper
 import com.videonote.android.core.designsystem.component.PlatformDot
 import com.videonote.android.core.designsystem.component.VNEmpty
+import com.videonote.android.core.designsystem.component.VNError
 import com.videonote.android.core.designsystem.component.VNLoading
 import com.videonote.android.core.designsystem.component.XaiCard
 import com.videonote.android.core.designsystem.component.XaiIconButton
@@ -52,6 +54,7 @@ import com.videonote.android.core.designsystem.theme.platformColor
 import com.videonote.android.core.designsystem.theme.platformName
 import com.videonote.android.core.network.dto.CollectionDto
 import com.videonote.android.core.network.dto.TaskItem
+import com.videonote.android.core.network.dto.formatDuration
 
 /// 平台筛选候选（与原实现保持一致）
 private val PLATFORM_FILTERS = listOf(
@@ -63,7 +66,7 @@ fun NoteListScreen(
     onNoteClick: (String) -> Unit,
     onCollectionClick: (String) -> Unit,
     viewModel: NoteListViewModel = hiltViewModel(),
-    imageProxyHelper: ImageProxyHelper = hiltViewModel()
+    imageProxyHelper: ImageProxyHelper = rememberImageProxyHelper()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -165,9 +168,16 @@ private fun AllNotesTab(
         // 笔记卡片网格（每行 2 张）
         if (uiState.tasks.isEmpty() && uiState.isLoading) {
             VNLoading(modifier = Modifier.weight(1f))
+        } else if (uiState.tasks.isEmpty() && uiState.error != null) {
+            // 错误态：显示错误信息 + 重试按钮（ViewModel.loadTasks 会清空 tasks 并置 error）
+            VNError(
+                message = "加载失败",
+                onRetry = { viewModel.loadTasks(refresh = true) },
+                modifier = Modifier.weight(1f)
+            )
         } else if (uiState.tasks.isEmpty()) {
             VNEmpty(
-                message = if (uiState.error != null) "加载失败" else "暂无笔记",
+                message = "暂无笔记",
                 modifier = Modifier.weight(1f)
             )
         } else {
@@ -248,8 +258,8 @@ private fun NoteCard(
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize()
                 )
-                // 右下角时长 badge
-                task.duration?.takeIf { it.isNotBlank() }?.let { duration ->
+                // 右下角时长 badge（后端 duration 可能是 float 秒数或 "mm:ss"，统一格式化）
+                task.duration.formatDuration()?.let { duration ->
                     Text(
                         text = duration,
                         style = TextStyle(
@@ -419,7 +429,7 @@ private fun CollectionRow(collection: CollectionDto, onClick: () -> Unit) {
 
 /// 副标题：「N 篇笔记 · 更新于 日期」
 private fun buildCollectionSubtitle(collection: CollectionDto): String {
-    val count = "${collection.note_count} 篇笔记"
+    val count = "${collection.effectiveCount} 篇笔记"
     return if (collection.updated_at.isNotBlank()) {
         "$count · 更新于 ${collection.updated_at}"
     } else {

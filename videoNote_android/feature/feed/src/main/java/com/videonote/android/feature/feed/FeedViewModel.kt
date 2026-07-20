@@ -45,12 +45,13 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
-                val response = repository.getFeed(page = state.page)
+                // 后端 /api/feed 直接返回数组，repository.getFeed 返回 List<FeedItem>
+                val newItems = repository.getFeed(page = state.page)
                 _uiState.value = _uiState.value.copy(
-                    items = if (refresh) response.items else state.items + response.items,
+                    items = if (refresh) newItems else state.items + newItems,
                     isLoading = false,
                     page = state.page + 1,
-                    hasMore = response.items.size >= 20
+                    hasMore = newItems.size >= 20
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)

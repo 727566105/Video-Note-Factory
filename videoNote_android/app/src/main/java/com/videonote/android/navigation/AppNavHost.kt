@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.*
 import androidx.navigation.toRoute
@@ -57,15 +58,16 @@ fun AppNavHost(
             bottomBar = {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
-                val mainRoutes = setOf(
+                val mainRoutes = listOf(
                     Route.Home::class, Route.Notes::class, Route.Feed::class, Route.Settings::class
                 )
+                // type-safe 路由：destination.route 是全限定类名，必须用 qualifiedName 比较
                 val showBottomBar = currentDestination?.hierarchy?.any { dest ->
-                    mainRoutes.any { it.simpleName == dest.route }
+                    mainRoutes.any { it.qualifiedName == dest.route }
                 } == true
                 if (showBottomBar && token != null) {
                     XaiBottomBar(
-                        currentRoute = currentDestination?.route,
+                        currentDestination = currentDestination,
                         onNavigate = { route ->
                             navController.navigate(route) {
                                 popUpTo(Route.Home) { saveState = true }
@@ -129,7 +131,7 @@ fun AppNavHost(
 /// xAI 风格底部导航栏
 @Composable
 private fun XaiBottomBar(
-    currentRoute: String?,
+    currentDestination: NavDestination?,
     onNavigate: (Route) -> Unit
 ) {
     Column {
@@ -141,17 +143,22 @@ private fun XaiBottomBar(
                 .navigationBarsPadding()
         ) {
             val items = listOf(
-                BottomNavItem("Home", "首页", Icons.Default.Home) { onNavigate(Route.Home) },
-                BottomNavItem("Notes", "笔记", Icons.Default.MenuBook) { onNavigate(Route.Notes) },
-                BottomNavItem("Feed", "动态", Icons.Default.RssFeed) { onNavigate(Route.Feed) },
-                BottomNavItem("Settings", "设置", Icons.Default.Settings) { onNavigate(Route.Settings) }
+                BottomNavItem(Route.Home, "首页", Icons.Default.Home),
+                BottomNavItem(Route.Notes, "笔记", Icons.Default.MenuBook),
+                BottomNavItem(Route.Feed, "动态", Icons.Default.RssFeed),
+                BottomNavItem(Route.Settings, "设置", Icons.Default.Settings)
             )
             items.forEach { item ->
-                val active = currentRoute == item.routeName
+                // 用 hierarchy 判断当前栈是否包含目标路由
+                // type-safe 路由的 destination.route 是全限定类名，
+                // 不能用字符串 == 比较，必须用 hierarchy.any { route == ... }
+                val active = currentDestination?.hierarchy?.any { dest ->
+                    dest.route == item.route::class.qualifiedName
+                } == true
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { item.onClick() }
+                        .clickable { onNavigate(item.route) }
                         .padding(top = 10.dp, bottom = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -186,8 +193,7 @@ private fun XaiBottomBar(
 }
 
 private data class BottomNavItem(
-    val routeName: String,
+    val route: Route,
     val label: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val onClick: () -> Unit
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
 )

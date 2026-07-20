@@ -56,7 +56,9 @@ class CollectionDetailViewModel @Inject constructor(
                 repository.removeFromCollection(collectionId, taskId)
                 _uiState.value.collection?.let { col ->
                     _uiState.value = _uiState.value.copy(
-                        collection = col.copy(tasks = col.tasks.filter { it.task_id != taskId })
+                        collection = col.copy(
+                            items = col.effectiveItems.filter { it.task_id != taskId }
+                        )
                     )
                 }
             } catch (_: Exception) {}

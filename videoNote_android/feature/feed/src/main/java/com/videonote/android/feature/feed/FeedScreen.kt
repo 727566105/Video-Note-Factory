@@ -28,6 +28,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.videonote.android.core.common.ImageProxyHelper
+import com.videonote.android.core.common.rememberImageProxyHelper
 import com.videonote.android.core.designsystem.component.*
 import com.videonote.android.core.designsystem.theme.*
 import com.videonote.android.core.network.dto.FeedItem
@@ -36,7 +37,7 @@ import com.videonote.android.core.network.dto.FeedItem
 fun FeedScreen(
     onNavigateToNoteDetail: (String) -> Unit,
     viewModel: FeedViewModel = hiltViewModel(),
-    imageProxyHelper: ImageProxyHelper = hiltViewModel()
+    imageProxyHelper: ImageProxyHelper = rememberImageProxyHelper()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddSubSheet by remember { mutableStateOf(false) }
@@ -132,7 +133,7 @@ fun FeedScreen(
 
             // ── 动态列表 ──
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(uiState.items, key = { it.id }) { item ->
+                items(uiState.items, key = { it.id ?: it.content_id ?: it.title }) { item ->
                     XaiFeedItem(
                         item = item,
                         imageProxyHelper = imageProxyHelper,
@@ -208,7 +209,7 @@ fun FeedScreen(
                             color = XaiMuted
                         )
                     }
-                    item.description.takeIf { it.isNotBlank() }?.let {
+                    item.description?.takeIf { it.isNotBlank() }?.let {
                         Spacer(Modifier.height(14.dp))
                         Text(
                             text = it,
@@ -232,14 +233,14 @@ fun FeedScreen(
                         } else {
                             XaiButton(
                                 text = "生成笔记",
-                                onClick = { viewModel.generateNoteFromFeed(item.id) },
+                                onClick = { viewModel.generateNoteFromFeed(item.id ?: "") },
                                 modifier = Modifier.weight(1f)
                             )
                         }
                         if (!item.is_read) {
                             XaiButton(
                                 text = "标记已读",
-                                onClick = { viewModel.markRead(item.id) },
+                                onClick = { viewModel.markRead(item.id ?: "") },
                                 ghost = true,
                                 modifier = Modifier.width(120.dp)
                             )

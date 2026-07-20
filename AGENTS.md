@@ -46,6 +46,13 @@ AI 视频笔记工具：导入音视频链接/文件，自动转写、总结、�
   - `popup/` + `options/` - 普通 HTML + 内联 CSS + 原生 JS（无框架）
   - `background/service_worker.js` - API 代理（绕 CORS + 注入 Bearer + 12s 超时）
   - `icons/` - 16/48/128px 三尺寸 logo（与主应用 logo.png 同源）
+- `videoNote_android/` - Android 移动端（Jetpack Compose + Kotlin，minSdk 31 / targetSdk 35）
+  - 模块化：`app/`（入口 + 导航 + DI）+ `core/{common,network,designsystem}` + `feature/{auth,home,notelist,notedetail,feed,settings}`
+  - `app/src/main/java/com/videonote/android/` - `MainActivity.kt`、`VideoNoteApp.kt`（`@HiltAndroidApp`）、`navigation/{AppNavHost.kt, Routes.kt, MainViewModel.kt}`、`di/{NetworkModule.kt, CoilModule.kt}`
+  - `core/network/` - Retrofit API + DTO + `SessionManager` + 拦截器（`AuthInterceptor`/`BaseUrlInterceptor`），不依赖 Compose
+  - `core/common/` - `EncryptedDataStore`（token/serverUrl 持久化）+ `ImageProxyHelper`（图片代理 URL）+ `SessionRepository`（启动恢复）
+  - `core/designsystem/` - xAI 暗色主题（`Color.kt`/`Theme.kt`/`Type.kt`/`VNComponents.kt`）：零圆角、等宽字体、白底深字 CTA、平台色点为唯一彩色
+  - `feature/*/` - 每个特性模块自带 `Screen.kt`（Composable）+ `ViewModel.kt`（`@HiltViewModel`）+ `Repository.kt`（`@Singleton`）
 
 ## 常用命令
 
@@ -63,6 +70,12 @@ pnpm test                         # vitest 单测
 pnpm test:e2e                     # playwright e2e
 npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必跑）
 
+# Android（从 videoNote_android/ 运行）
+./gradlew :app:assembleDebug              # 构建 debug APK（产物 app/build/outputs/apk/debug/app-debug.apk）
+./gradlew :app:assembleDebug --rerun-tasks  # 强制重编译（增量有时不识别 DTO 改动）
+./gradlew :app:assembleRelease            # 构建 release APK
+# 注：目前 Android 端无单元测试，改完 DTO/Serializer 后建议手动跑模拟器验证
+
 # Docker 部署（生产模式，nginx 静态文件，无 HMR）
 ./deploy.sh                       # 拉镜像 + 启动容器
 ./stop.sh                         # 停止 Docker 容器 + 本地进程
@@ -78,6 +91,8 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **路径管理统一走 `path_helper.py`**：不要在业务代码里手拼 `data/video/...` 路径，用 `get_video_folder` / `find_note_file` / `sanitize_path_name` 等。
 - **数据库替换 SQLite 文件前必须 `engine.dispose()`**（释放连接池），否则 Windows/文件锁导致写入失败。
 - **前端设置页导航**：新增/调整设置子页面需要同时改三处 — `App.tsx`（路由）+ `SettingLayout.tsx`（`settingGroups` 数组）+ 新页面组件。设置页偏好（视图模式等）用 Zustand `configStore` + persist 持久化，不要用 `useState`（页面切换会丢）。
+- **Android 模块依赖方向**：`feature/*` → `core/{common,network,designsystem}` → `core/network`（最底层）。`core/network` **禁止**依赖 Compose 或 `core/common`（会循环依赖）。需要 Compose 的工具放 `core/common`（已加 `kotlin.compose` plugin + `compose-bom`）。
+- **Android 分层**：`Screen.kt`（Composable，纯 UI）→ `ViewModel.kt`（`@HiltViewModel`，状态管理）→ `Repository.kt`（`@Singleton`，网络/数据）。Composable 不直接调 Repository，ViewModel 不直接调 API。
 
 ## 关键 gotcha
 
@@ -88,12 +103,34 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **备份/恢复全局状态**：`_restore_in_progress` 等模块级变量，`main.py` lifespan 启动时调 `reset_stale_backup_state()` 自愈重置（防进程被 kill 卡死）。
 - **配置导入**：`_is_placeholder` 只认 `********`（导出脱敏占位符）为假值；`sk-test` 是系统内置 provider 默认 key，应忠实导入，不要当占位符跳过。
 
+### Android 端关键 gotcha
+
+- **DTO 字段必须与后端真实返回对齐**：`core/network/dto/*.kt` 的字段名/类型必须用 curl 拉真实 API 响应对照。`ignoreUnknownKeys=true` 只保护「后端多返回字段」，**不保护**「字段缺失」或「类型不符」。
+  - 无默认值的非空字段（如 `val title: String`）若后端不返回，会抛 `MissingFieldException` 整个列表加载失败
+  - 类型不符（后端 int/float/bool，DTO 写 String/Boolean）会抛 `JsonDecodingException`
+  - 修复套路：所有 DTO 字段尽量带默认值；类型不固定时用 `CompatSerializers.kt` 里的 `AnyToStringSerializer` / `AnyToIntSerializer` / `AnyToBooleanStrictSerializer`
+- **`hiltViewModel()` 只能注入 `@HiltViewModel` 类**：继承 `ViewModel` 的才能用。普通 `@Singleton class` 用 `hiltViewModel()` 会抛 `ClassCastException`。需要在 Composable 中拿 `@Singleton` 实例时用 `@EntryPoint` + `EntryPointAccessors.fromApplication`，参考 `core/common/ImageProxyHelper.kt` 的 `rememberImageProxyHelper()`。
+- **type-safe 路由比较用 `qualifiedName`**：`currentDestination.route` 是全限定类名（如 `com.videonote.android.navigation.Route.Home`，**用点号分隔**不是 `$`）。比较 active tab 时必须用 `dest.route == item.route::class.qualifiedName`，**不能**用 `simpleName`（"Home"）比较，否则永远 false，底栏不渲染 / 高亮不亮。
+  - 注意：带参数的路由（如 `Route.NoteDetail(taskId)`）的 `destination.route` 是 `...Route.NoteDetail/{taskId}`，与 `qualifiedName` 不等，所以带参路由不能用作底部 tab。
+- **后端字段类型不稳定的重灾区**（实测）：
+  - `duration` 可能是 `float` 秒数 / `string "mm:ss"` / `null` -> DTO 用 `String?` + `AnyToStringSerializer`，UI 用 `String?.formatDuration()`（`core/network/dto/DurationFormatter.kt`）格式化
+  - `enabled` / `is_read` / `is_shared` 后端是 `int(0/1)`，DTO 用 `AnyToBooleanStrictSerializer`
+  - `id` 后端有时是 `int` 有时是 `string(UUID)`，DTO 统一用 `String?` + `AnyToStringSerializer`
+  - 后端字段名变化：`note_count`->`item_count`、`tasks`->`items`、`video_url`->`content_url`、`author`->`channel_name`、`avatar`->`avatar_url`、`name`->`model_name`。DTO 同时保留两个别名 + `effective*` 属性统一接口
+- **`/api/feed` 直接返回数组**（不是 `{items:[...]}`），`FeedApi.getFeed` 返回类型是 `ApiResponse<List<FeedItem>>` 不是 `ApiResponse<FeedListResponse>`。其他列表 API（`/api/tasks`/`/api/collections`/`/api/subscriptions`/`/api/model_list`）都是 `{items: [...]}` 或 `{tasks: [...]}` 对象包数组，注意区分。
+- **Json 配置**（`app/di/NetworkModule.kt`）：`ignoreUnknownKeys=true` + `coerceInputValues=true`（只处理显式 null）+ `explicitNulls=false` + `encodeDefaults=true`。改 Json 配置会影响所有 DTO 反序列化行为。
+- **模拟器访问本机后端**：用 `http://10.0.2.2:8483`（10.0.2.2 是 Android 模拟器到 host 的固定映射），**不要**用 `localhost` 或 `127.0.0.1`（指模拟器自身）。
+- **重新编译 DTO 改动**：增量构建偶尔不识别 DTO 变化，改完 DTO/Serializer 跑 `./gradlew :app:assembleDebug --rerun-tasks` 强制重编译。
+- **暗色主题是唯一主题**：`VideoNoteTheme` 的 SYSTEM/LIGHT 都映射到暗色 `XaiColorScheme`。零圆角（`RoundedCornerShape(0.dp)`，不用 `RectangleShape` - M3 Shapes 不接受）。平台色点是唯一允许的彩色，其余走白/灰透明度色阶。
+
 ## 敏感区域改动前必读
 
 - 改 `path_helper.py` 目录命名/查找逻辑 → 影响所有笔记媒体定位，先看现有自愈合测试
 - 改备份/恢复 → 看 `tests/test_backup_import.py` + `tests/test_webdav_cleanup.py` + `tests/test_webdav_hardening.py`（含 zip-slip 安全回归）
 - 改笔记分享 → 看 `tests/test_note_share.py`（跨用户权限 + 冲突解决）
 - 改 `SettingLayout.tsx` 分组结构 → 需同步检查 `App.tsx` 路由是否存在
+- 改 Android DTO（`core/network/dto/*.kt`）→ 先用 curl 拉对应后端 API 真实返回，逐字段对照类型/字段名/是否缺失。无默认值的非空字段是高危（后端不返回就崩）。
+- 改 Android 底部导航（`AppNavHost.kt` 的 `XaiBottomBar`）→ 注意 type-safe 路由必须用 `qualifiedName` 比较，带参路由不能用作 tab。
 - `openspec/` — 架构/重大变更走 OpenSpec 提案流程（见文件顶部 managed block）
 - 根 `CLAUDE.md` / `videoNote_frontend/CLAUDE.md` — 更详细的项目约定
 

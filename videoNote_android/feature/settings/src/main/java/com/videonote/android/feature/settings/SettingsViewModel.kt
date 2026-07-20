@@ -80,7 +80,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val health = safeApiCall { configApi.getHealth() }
-                _uiState.value = _uiState.value.copy(healthStatus = "${health.status} (v${health.version})")
+                // 后端不返回 version 字段；用 status + checks 概况显示
+                val checkCount = health.checks?.let { c ->
+                    listOfNotNull(c.database, c.ffmpeg, c.ai_provider, c.cookie, c.transcriber, c.directories).size
+                } ?: 0
+                _uiState.value = _uiState.value.copy(
+                    healthStatus = if (checkCount > 0) "${health.status} · ${checkCount} 项检查通过"
+                                   else health.status
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(healthStatus = "连接失败: ${e.message}")
             }

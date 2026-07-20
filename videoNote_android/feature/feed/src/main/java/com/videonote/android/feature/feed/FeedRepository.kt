@@ -12,7 +12,7 @@ class FeedRepository @Inject constructor(
     private val feedApi: FeedApi,
     private val subscriptionApi: SubscriptionApi
 ) {
-    suspend fun getFeed(page: Int = 1, unreadOnly: Boolean = false): FeedListResponse {
+    suspend fun getFeed(page: Int = 1, unreadOnly: Boolean = false): List<FeedItem> {
         return safeApiCall { feedApi.getFeed(page = page, unreadOnly = unreadOnly) }
     }
 

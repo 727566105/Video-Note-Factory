@@ -31,9 +31,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.videonote.android.core.common.ImageProxyHelper
+import com.videonote.android.core.common.rememberImageProxyHelper
 import com.videonote.android.core.designsystem.component.*
 import com.videonote.android.core.designsystem.theme.*
 import com.videonote.android.core.network.dto.QuickViewResponse
+import com.videonote.android.core.network.dto.formatDuration
 import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
@@ -41,7 +43,7 @@ fun NoteDetailScreen(
     taskId: String,
     onBack: () -> Unit,
     viewModel: NoteDetailViewModel = hiltViewModel(),
-    imageProxyHelper: ImageProxyHelper = hiltViewModel()
+    imageProxyHelper: ImageProxyHelper = rememberImageProxyHelper()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showExportSheet by remember { mutableStateOf(false) }
@@ -134,7 +136,7 @@ fun NoteDetailScreen(
                     ) {
                         Text(note.author, style = MaterialTheme.typography.bodySmall, color = XaiFg2)
                         Text("·", color = XaiMeta)
-                        note.duration?.let {
+                        note.duration.formatDuration()?.let {
                             Text(it, style = TextStyle(fontSize = 11.sp, fontFamily = FontFamily.Monospace), color = XaiMuted)
                         }
                         Text("·", color = XaiMeta)
@@ -158,7 +160,8 @@ fun NoteDetailScreen(
 
                 // ── Tab 内容 ──
                 when (uiState.selectedTab) {
-                    0 -> note.summary?.let {
+                    // 摘要 Tab：后端实测返回 markdown（不是 summary），优先用 markdown
+                    0 -> (note.markdown ?: note.summary)?.let {
                         MarkdownText(
                             markdown = it,
                             modifier = Modifier.padding(20.dp).fillMaxWidth(),
@@ -172,7 +175,8 @@ fun NoteDetailScreen(
                             style = TextStyle(fontSize = 14.sp, color = XaiFg2, lineHeight = 22.sp)
                         )
                     }
-                    2 -> note.outline?.let {
+                    // 导图 Tab：优先用 outline，否则用 markdown 生成
+                    2 -> (note.outline ?: note.markdown)?.let {
                         MindMapCanvas(
                             markdown = it,
                             modifier = Modifier.fillMaxWidth().height(300.dp)
@@ -180,7 +184,8 @@ fun NoteDetailScreen(
                     }
                     3 -> {
                         Column(modifier = Modifier.padding(20.dp)) {
-                            note.raw_article?.let {
+                            // 原文 Tab：后端没有 raw_article，回退用 markdown 显示
+                            (note.raw_article ?: note.markdown)?.let {
                                 MarkdownText(
                                     markdown = it,
                                     modifier = Modifier.fillMaxWidth(),

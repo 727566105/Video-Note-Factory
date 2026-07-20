@@ -73,7 +73,7 @@ fun CollectionDetailScreen(
             }
 
             // ── 笔记数量 ──
-            uiState.collection?.tasks?.let { tasks ->
+            uiState.collection?.effectiveItems?.let { tasks ->
                 item {
                     XaiSectionLabel(text = "${tasks.size} 篇笔记")
                 }
