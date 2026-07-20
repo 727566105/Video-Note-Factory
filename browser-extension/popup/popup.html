@@ -58,6 +58,7 @@ textarea,input{font:inherit; color:inherit}
 
 /* ─── popup 外框 ──────────────────────────────────────────────────── */
 .popup{
+  position:relative;
   width:var(--popup-width); max-height:var(--popup-max-height);
   display:flex; flex-direction:column;
   background:var(--bg);
@@ -239,29 +240,26 @@ textarea,input{font:inherit; color:inherit}
 .submit-result .actions{margin-top:var(--space-3); display:flex; flex-direction:column; gap:var(--space-2)}
 .submit-result svg{width:16px; height:16px}
 
-/* ─── Message 全局提示（成功/失败，3秒自动消失，顶部浮层不占位） ───── */
-.message-wrap{position:absolute; top:0; left:0; right:0; display:flex; justify-content:center; pointer-events:none; z-index:20; padding:var(--space-3) var(--space-4)}
+/* ─── Message 全局提示（成功/失败，3秒自动消失，浮在 popup 顶部不占位） ── */
+.message-wrap{position:absolute; top:0; left:0; right:0; z-index:50; pointer-events:none}
 .message{
-  display:none; pointer-events:auto; width:100%;
-  padding:var(--space-3) var(--space-4);
-  border-radius:var(--radius-md); border:1px solid var(--border);
-  background:var(--surface); box-shadow:0 8px 24px rgba(0,0,0,0.12);
-  opacity:0; transform:translateY(-8px);
+  display:none; pointer-events:auto;
+  margin:0; padding:var(--space-2) var(--space-4);
+  border-radius:0; border:0; border-bottom:1px solid var(--border);
+  background:var(--surface); box-shadow:0 4px 12px rgba(0,0,0,0.08);
+  opacity:0; transform:translateY(-100%);
   transition:opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
-.message.show{display:block; opacity:1; transform:translateY(0)}
+.message.show{display:flex; opacity:1; transform:translateY(0)}
 .message.success{background:var(--success-soft); border-color:color-mix(in oklab, var(--success) 30%, transparent)}
 .message.error{background:color-mix(in oklab, var(--accent) 6%, var(--surface)); border-color:var(--accent-soft)}
-.message .msg-head{display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-sm); font-weight:600}
+.message .msg-head{display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-sm); font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .message.success .msg-head{color:var(--success)}
 .message.error .msg-head{color:var(--accent)}
 .message .msg-head svg{width:16px; height:16px; flex:none}
-.message .msg-body{font-size:var(--text-xs); color:var(--fg); margin-top:var(--space-1);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.message .msg-detail{font-size:var(--text-xs); color:var(--muted); font-family:var(--font-mono); margin-top:var(--space-1); word-break:break-all; white-space:normal}
-.message.error .msg-detail{color:var(--accent)}
-.message .msg-ops{margin-top:var(--space-2); display:flex; gap:var(--space-2)}
-.message .msg-ops .btn{height:30px; font-size:var(--text-xs); padding:0 var(--space-3)}
+.message .msg-title{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.message .msg-ops{display:flex; gap:var(--space-2); flex:none; margin-left:auto}
+.message .msg-ops .btn{height:26px; font-size:var(--text-xs); padding:0 var(--space-3)}
 
 .new-task-row{margin-top:var(--space-3); display:flex; justify-content:center}
 
@@ -333,9 +331,6 @@ textarea,input{font:inherit; color:inherit}
 
     <!-- 快捷提交（默认 Tab） -->
     <section class="tabpane active" id="submit-tab" role="tabpanel" data-od-id="0102-submit">
-      <!-- Message 全局提示（提交成功/失败，顶部显示，3秒自动消失） -->
-      <div class="message-wrap"><div class="message" id="submitMessage" role="status" aria-live="polite"></div></div>
-
       <div class="card" data-od-id="submit-video-card">
         <div class="video-head">
           <span class="title">视频信息</span>
@@ -400,6 +395,9 @@ textarea,input{font:inherit; color:inherit}
     </section>
 
   </div>
+
+  <!-- Message 全局提示（浮在 popup 顶层，不占位，不影响任何 tab 内容布局） -->
+  <div class="message-wrap"><div class="message" id="submitMessage" role="status" aria-live="polite"></div></div>
 </div>
 
 <script src="popup.js"></script>

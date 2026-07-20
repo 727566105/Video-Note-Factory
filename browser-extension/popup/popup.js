@@ -825,22 +825,22 @@ function showMessage(state, opts) {
 
   // 成功态且有 taskId 才显示操作按钮
   const opsHtml = (isOk && tid)
-    ? `<div class="msg-ops">
-         <button class="btn btn-primary" data-act="view" data-tid="${safeTid}">查看笔记</button>
-         <button class="btn btn-secondary" data-act="copy" data-tid="${safeTid}">复制编号</button>
-       </div>`
+    ? `<button class="btn btn-primary" data-act="view" data-tid="${safeTid}">查看笔记</button>
+       <button class="btn btn-secondary" data-act="copy" data-tid="${safeTid}">复制编号</button>`
     : '';
 
+  // 紧凑单行：图标 + 标题（detail 作为 title 提示） + 操作按钮
+  // 视频标题和 task_id 不单独显示，避免 Message 过高遮挡内容
+  const tooltip = safeBody || safeDetail;
   el.innerHTML = `
-    <div class="msg-head">${icon}${safeTitle}</div>
-    ${safeBody ? `<div class="msg-body" title="${safeBody}">${safeBody}</div>` : ''}
-    ${safeDetail ? `<div class="msg-detail">${safeDetail}</div>` : ''}
-    ${opsHtml}
+    <div class="msg-head" title="${escapeHtml(tooltip)}">${icon}<span class="msg-title">${safeTitle}</span></div>
+    ${opsHtml ? `<div class="msg-ops">${opsHtml}</div>` : ''}
   `;
-  // 先 display:block 但不带 show（opacity:0），下一帧再加 show 触发淡入
+  // 先 display:flex 但不带 show（opacity:0），下一帧再加 show 触发淡入
   // 这样 display 切换不会破坏 opacity transition
   el.className = 'message ' + state;
-  // 强制 reflow 让 display:block 生效，再加 show class 触发 transition
+  el.style.display = 'flex';
+  // 强制 reflow 让 display:flex 生效，再加 show class 触发 transition
   void el.offsetWidth;
   el.classList.add('show');
 
@@ -872,11 +872,10 @@ function showMessage(state, opts) {
   clearTimeout(messageHideTimer);
   messageTimer = setTimeout(() => {
     el.classList.remove('show');
-    // transition 时长 150ms，等淡出动画结束后再 display:none
+    // transition 时长 150ms，等淡出动画结束后再清 inline display，让 CSS 默认 display:none 生效
     messageHideTimer = setTimeout(() => {
       if (!el.classList.contains('show')) {
-        el.style.display = 'none';
-        // 清掉 inline style，下次 showMessage 设 className 时能正常 display:block
+        // 清掉 inline display:flex，回到 CSS 默认 display:none（不占位）
         el.style.display = '';
       }
     }, 200);
