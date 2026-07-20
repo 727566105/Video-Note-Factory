@@ -41,6 +41,11 @@ AI 视频笔记工具：导入音视频链接/文件，自动转写、总结、�
 - `deploy.sh` / `deploy.local.sh` / `restart.sh` / `stop.sh` — 部署/重启/停止脚本（`stop.sh` 同时处理 Docker 容器和本地进程）
 - `Dockerfile` — 多阶段构建（前端 pnpm build → nginx 静态文件 + 后端 Python），镜像 `dick86114/videonote:dev3.0`
 - `.env` / `.env.example` / `.env.low-spec.example` — 环境变量配置
+- `browser-extension/` - Chrome MV3 扩展（popup + options + background service_worker），与后端通过 `/api` 通信
+  - `manifest.json` - MV3 配置，6 平台 host_permissions，版本号改动后需重打 zip
+  - `popup/` + `options/` - 普通 HTML + 内联 CSS + 原生 JS（无框架）
+  - `background/service_worker.js` - API 代理（绕 CORS + 注入 Bearer + 12s 超时）
+  - `icons/` - 16/48/128px 三尺寸 logo（与主应用 logo.png 同源）
 
 ## 常用命令
 
@@ -109,3 +114,35 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **生产代码禁止 `print()`**，用 `logger`（`from app.utils.logger import get_logger`）。
 - **cookie 为空时不设 Cookie header**（否则传字面 "None" 给 requests）。
 - **支持平台**：抖音(douyin)、小红书(xiaohongshu)、B站(bilibili, yt-dlp)、YouTube(yt-dlp)、快手(kuaishou)、CCTV、本地文件(local/local_audio)。每个平台在 `app/downloaders/` 下有独立下载器。
+
+## 浏览器插件（browser-extension/）
+
+- **MV3 架构**：`manifest_version: 3`，`background/service_worker.js` 做 API 代理（绕 CORS + 注入 Bearer Token + 12s fetch 超时），popup/options 是普通 HTML + 内联 CSS + 原生 JS（无框架）。
+- **chrome.storage.local 键名约定**：`videoNoteUrl` / `authToken` / `refreshToken` / `authUsername` / `authRole` / `defaultModel` / `defaultProviderId` / `defaultStyle` / `defaultFormat` / `defaultQuality` / `cookieStatus`。改键名会破坏向后兼容（用户需重新配置）。
+- **`apiCall` 走 service worker 代理**：`chrome.runtime.sendMessage({type:'apiCall', url, options, token})`。有 1 次重试（service worker 冷启动）+ 20s 总超时兜底（避免 service worker 通道异常时 Promise 永久 pending）。
+- **`apiCallWithAuth` 自动续期**：401 时用 `refreshToken` 调 `/api/auth/refresh` 换新 token 重试一次；refresh 也失效则清登录态 + 弹 authGate。
+- **`setLoading`/`clearLoading` 模式**：`setLoading(btn, text)` 存 `btn.dataset.orig = 原始HTML`，`clearLoading` 还原。**连续 `setLoading` 不覆盖 orig**（只在 `!dataset.orig` 时存），否则 `clearLoading` 会还原成 spinner HTML（已踩坑，pushBtn 卡在"推送中"）。
+- **Message 全局提示**：`showMessage(state, opts)` 浮在 popup 顶部（`position:absolute` + `z-index:50`），不进文档流不占位。`.message` 默认 `display:none`，`.show` 时 `display:flex`；显示需 `void el.offsetWidth` reflow 后加 `.show` class 触发 transition；消失需先移除 `.show` 触发淡出，200ms 后清 inline display。
+- **打包**：改完代码用 `cd browser-extension && zip -rq ../videonote-helper-vX.Y.Z.zip manifest.json background/ popup/ options/ icons/`。zip 在仓库根，被 .gitignore（不入仓库）。
+- **版本号**：`manifest.json` 的 `version` 字段，每次改动递增（用户重载插件能识别更新）。
+
+## 抖音 URL 解析（关键 gotcha）
+
+- **搜索页 URL**：抖音搜索页是 `https://www.douyin.com/search/xxx?modal_id=7621100275181771880&type=general`，真正的 video_id 在 `modal_id` 查询参数里，**不在路径里**。
+- **`url_parser.py` 抖音分支**：先匹配 `/(?:video|note)/(\d+)`，匹配不到再兜底 `r'[?&]modal_id=(\d+)'`。
+- **`douyin_downloader.extract_video_id`**：同样有 modal_id 兜底。**注意 `find_url` 正则不含 `?&=` 字符，会截断查询参数**，所以必须保留 `original_url`，head 请求失败时用原始 URL 兜底匹配 patterns。
+- **video_id 兜底**：`generate_note` 路由在 URL 解析失败时用 `task_id` 作为 `effective_video_id`（避免 DB 记录创建失败），但这会导致复用检查失效（不同任务的 video_id 都是各自 UUID）。
+
+## LLM 错误归一化（`_normalize_error_message`）
+
+- **位置**：`app/services/note.py` 的 `_normalize_error_message(raw)`，把 LLM SDK 异常转成用户友好提示。
+- **严格匹配 HTTP 状态码**：`'401' in msg_lower` 这种宽松匹配会误判（如错误消息里含"401"数字的任务编号、video_id 都会被误判为 API Key 无效）。必须用 `'http 401'` / `'invalid_api_key'` / `'incorrect api key'` 等明确关键词。
+- **分类关键词**：401(key 无效) / 403(权限) / 429(配额) / 5xx(服务异常) / timeout / connection。前端 `classifyError` 靠这些关键词分类，改归因逻辑要同步检查前端。
+- **调用点**：`generate()` / `generate_from_transcript()` 的 `except Exception` 调用，写入 `status.json` 的 `message` 字段。
+
+## 笔记风格/格式动态化
+
+- **`GET /api/note_options`**（`config.py`）：返回 `{styles, formats}`，复用 `app.gpt.prompt_builder.note_styles` / `note_formats` 常量。后端改了常量，插件自动同步。用 `get_current_user`（普通用户可访问）。
+- **后端 `style` 字段不枚举校验**：`note.py` 的 `VideoRequest.style: str = None`，任意字符串都能进 DB。`prompt_builder.note_styles` 只是 prompt 生成时参考的字典，不是校验枚举。所以插件传中文 label 不会 422，但 LLM 会用错风格模板（应传英文 value 如 `minimal`/`detailed`）。
+- **`DownloadQuality` 枚举**（`app/enmus/note_enums.py`）：`fast`/`medium`/`slow`，**会校验**（`quality: DownloadQuality`）。插件必须传这三个值之一，否则 422。
+- **`mcp_server.py` 的 `_VALID_QUALITIES`**：重复定义了 `{"fast", "medium", "slow"}`，与枚举不同步（技术债，后续应直接用枚举）。
