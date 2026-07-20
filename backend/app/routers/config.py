@@ -196,6 +196,18 @@ def update_cookie(data: CookieUpdateRequest, current_user=Depends(require_admin)
     except ValueError as e:
         return R.error(msg=str(e))
 
+
+@router.get("/note_options")
+def get_note_options(current_user=Depends(get_current_user)) -> dict:
+    """返回笔记风格和格式选项，供前端/插件动态拉取。
+    直接复用 prompt_builder 的常量，后端改了插件自动同步。"""
+    from app.gpt.prompt_builder import note_styles, note_formats
+    return R.success(data={
+        "styles": note_styles,
+        "formats": note_formats,
+    })
+
+
 @router.get("/sys_health")
 async def sys_health() -> dict:
     try:
