@@ -177,10 +177,7 @@ input,select{font:inherit; color:inherit}
     </div>
   </header>
 
-  <!-- 账号登录节（动态显示登录表单或已登录状态） -->
-  <div id="authSection"></div>
-
-  <!-- 节 1 · 服务地址 -->
+  <!-- 节 1 · 服务地址（需先填地址再登录，所以放在登录节之前） -->
   <section class="card" data-od-id="options-server">
     <h2 class="section-title">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="6" rx="2"/><rect x="2" y="15" width="20" height="6" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
@@ -197,10 +194,16 @@ input,select{font:inherit; color:inherit}
       <div class="hint error" id="urlErrorHint" style="display:none">请输入以 http:// 或 https:// 开头的完整地址</div>
       <div class="test-result" id="testResult" role="status" aria-live="polite"></div>
     </div>
+    <div class="save-row">
+      <button class="btn btn-primary" id="saveUrlBtn">保存地址</button>
+    </div>
   </section>
 
-  <!-- 节 2 · 默认参数 -->
-  <section class="card" data-od-id="options-defaults">
+  <!-- 账号登录节（动态显示登录表单或已登录状态；依赖上方服务地址） -->
+  <div id="authSection"></div>
+
+  <!-- 节 2 · 默认参数（登录后才显示） -->
+  <section class="card" id="defaultsSection" hidden data-od-id="options-defaults">
     <h2 class="section-title">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
       默认参数
@@ -217,19 +220,15 @@ input,select{font:inherit; color:inherit}
     <div class="field">
       <label for="defaultStyle">默认笔记风格</label>
       <select class="select" id="defaultStyle">
-        <option value="精简">精简</option>
-        <option value="详细">详细</option>
-        <option value="学术">学术</option>
-        <option value="口语化">口语化</option>
+        <option value="">登录后加载风格列表</option>
       </select>
+      <div class="hint">从 VideoNote 服务获取可用风格（精简/详细/学术等）</div>
     </div>
 
     <div class="field">
       <label>默认笔记格式</label>
       <div class="check-group" id="formatGroup">
-        <label class="check"><input type="checkbox" value="目录"> 目录</label>
-        <label class="check"><input type="checkbox" value="原片跳转"> 原片跳转</label>
-        <label class="check"><input type="checkbox" value="AI总结"> AI 总结</label>
+        <div class="hint" style="padding:var(--space-2) var(--space-4)">登录后加载格式列表</div>
       </div>
     </div>
 
@@ -241,12 +240,12 @@ input,select{font:inherit; color:inherit}
         <option value="slow">高质量</option>
       </select>
     </div>
-  </section>
 
-  <div class="save-row">
-    <button class="btn btn-secondary" id="resetBtn">恢复默认</button>
-    <button class="btn btn-primary" id="saveBtn">保存设置</button>
-  </div>
+    <div class="save-row">
+      <button class="btn btn-secondary" id="resetBtn">恢复默认</button>
+      <button class="btn btn-primary" id="saveBtn">保存设置</button>
+    </div>
+  </section>
 
   <div class="foot-note">设置保存在本地（chrome.storage.local），与 VideoNote 服务通信需在保存时授权域名访问。</div>
 </div>

@@ -1,12 +1,13 @@
 // options.js - 设置页逻辑（含登录鉴权 + 真实 chrome.* 逻辑）
 
 // 默认值（恢复默认时使用）
+// style/formats 的 value 必须与后端 prompt_builder.note_styles / note_formats 的 value 对齐
 const DEFAULTS = {
   url: 'http://localhost:8483',
   model: '',
   providerId: '',
-  style: '精简',
-  formats: ['目录', '原片跳转', 'AI总结'],
+  style: 'minimal',
+  formats: ['toc', 'link', 'summary'],
   quality: 'fast'
 };
 
@@ -123,12 +124,48 @@ function clearTestResult() {
   document.getElementById('testResult').className = 'test-result';
 }
 
+// 显隐默认参数节。auth 有合法 token + 用户名才显示。
+// 与 updateButtonState 正交：本函数只管节显隐（基于登录态），
+// updateButtonState 只管按钮 disabled（基于 URL 校验）。
+function applyDefaultsVisibility(auth) {
+  const visible = !!(auth && auth.authToken && auth.authUsername);
+  document.getElementById('defaultsSection').hidden = !visible;
+}
+
+// 仅保存服务地址（未登录也能用，不动默认参数）
+async function saveServerUrl() {
+  const videoNoteUrl = document.getElementById('videoNoteUrl').value.trim().replace(/\/$/, '');
+  if (!isValidUrl(videoNoteUrl)) {
+    showToast('服务地址格式不正确', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('saveUrlBtn');
+  setLoading(btn, '保存中…');
+
+  try {
+    const origin = new URL(videoNoteUrl).origin;
+    const granted = await chrome.permissions.request({ origins: [origin + '/*'] });
+    if (!granted) {
+      showToast('需要授权才能访问该服务地址', 'error');
+      return;
+    }
+    await chrome.storage.local.set({ videoNoteUrl });
+    showToast('服务地址已保存', 'success');
+  } catch (e) {
+    showToast(`保存失败: ${e.message}`, 'error');
+  } finally {
+    clearLoading(btn);
+  }
+}
+
 // 实时校验：根据 URL 输入切换按钮可用性 + hint
 function updateButtonState() {
   const url = document.getElementById('videoNoteUrl').value.trim();
   const ok = isValidUrl(url);
   document.getElementById('testBtn').disabled = !ok;
   document.getElementById('saveBtn').disabled = !ok;
+  document.getElementById('saveUrlBtn').disabled = !ok;
   document.getElementById('urlHint').style.display = ok ? 'block' : 'none';
   document.getElementById('urlErrorHint').style.display = ok ? 'none' : 'block';
   if (!ok) clearTestResult();
@@ -153,9 +190,8 @@ function renderAuthSection(auth) {
       await clearAuth();
       renderAuthSection({});
       showToast('已退出登录', 'success');
-      // 清空模型列表（需要重新登录才能拉）
-      const modelSelect = document.getElementById('defaultModel');
-      modelSelect.innerHTML = '<option value="">登录后加载模型</option>';
+      // 默认参数节会随 renderAuthSection({}) -> applyDefaultsVisibility({}) 一起隐藏
+      // 不再清空 defaultModel 下拉 DOM：节已隐藏，无视觉意义；下次登录 loadModels 会重填
     });
   } else {
     section.innerHTML = `
@@ -183,6 +219,8 @@ function renderAuthSection(auth) {
     `;
     document.getElementById('loginBtn').addEventListener('click', onLogin);
   }
+  // 末尾统一显隐默认参数节（登录态/登出态都走这里）
+  applyDefaultsVisibility(auth);
 }
 
 // ─── 登录 ─────────────────────────────────────────────────────────
@@ -192,7 +230,7 @@ async function onLogin() {
   const password = document.getElementById('loginPassword').value;
 
   if (!isValidUrl(url)) {
-    showToast('请先在下方填写正确的服务地址', 'error');
+    showToast('请先在上方填写正确的服务地址', 'error');
     return;
   }
   if (!username || !password) {
@@ -239,8 +277,9 @@ async function onLogin() {
         authRole: d.user?.role || ''
       });
       showToast(`已登录 ${d.user?.username || username}`, 'success');
-      // 登录后自动拉模型
+      // 登录后自动拉模型 + 风格/格式选项
       await loadModels(url);
+      await loadNoteOptions(url);
     } else {
       showToast(data.msg || '登录失败', 'error');
     }
@@ -305,16 +344,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   try { auth = await getAuth(); } catch (e) { /* ignore */ }
   renderAuthSection(auth);
 
-  document.getElementById('saveBtn').addEventListener('click', saveConfig);
+  document.getElementById('saveBtn').addEventListener('click', saveDefaults);
+  document.getElementById('saveUrlBtn').addEventListener('click', saveServerUrl);
   document.getElementById('testBtn').addEventListener('click', testConnection);
   document.getElementById('resetBtn').addEventListener('click', resetDefaults);
   document.getElementById('videoNoteUrl').addEventListener('input', updateButtonState);
 
-  // 已登录 + 已有保存地址时尝试加载模型
+  // 已登录 + 已有保存地址时尝试加载模型 + 风格/格式选项
   if (auth.authToken) {
     const url = document.getElementById('videoNoteUrl').value.trim();
     if (url && isValidUrl(url)) {
       try { await loadModels(url); } catch (e) { /* ignore */ }
+      try { await loadNoteOptions(url); } catch (e) { /* ignore */ }
     }
   } else {
     document.getElementById('defaultModel').innerHTML = '<option value="">登录后加载模型</option>';
@@ -334,7 +375,6 @@ async function loadConfig() {
   ]);
 
   document.getElementById('videoNoteUrl').value = config.videoNoteUrl || DEFAULTS.url;
-  document.getElementById('defaultStyle').value = config.defaultStyle || DEFAULTS.style;
   document.getElementById('defaultQuality').value = config.defaultQuality || DEFAULTS.quality;
 
   // 缓存已保存的模型/provider_id，等下拉填充后选中
@@ -342,11 +382,12 @@ async function loadConfig() {
   if (config.defaultModel) modelSelect.dataset.savedModel = config.defaultModel;
   if (config.defaultProviderId) modelSelect.dataset.savedProviderId = config.defaultProviderId;
 
-  // 复选框
-  const formats = config.defaultFormat || DEFAULTS.formats;
-  document.querySelectorAll('#formatGroup input[type="checkbox"]').forEach(cb => {
-    cb.checked = formats.includes(cb.value);
-  });
+  // 缓存已保存的 style/formats，等 loadNoteOptions 渲染完下拉/复选后再选中
+  // （下拉/复选是登录后动态渲染的，loadConfig 时还没渲染）
+  const styleSelect = document.getElementById('defaultStyle');
+  styleSelect.dataset.savedValue = config.defaultStyle || DEFAULTS.style;
+  const formatGroup = document.getElementById('formatGroup');
+  formatGroup.dataset.savedFormats = JSON.stringify(config.defaultFormat || DEFAULTS.formats);
 }
 
 // 从 VideoNote 加载模型列表（带 Bearer token）
@@ -424,6 +465,83 @@ async function loadModels(baseUrl) {
   }
 }
 
+// 从 VideoNote 加载笔记风格 + 格式选项（带 Bearer token）
+// 渲染 defaultStyle 下拉和 formatGroup 复选组，选中 loadConfig 缓存的 savedValue/savedFormats
+async function loadNoteOptions(baseUrl) {
+  const url = baseUrl.replace(/\/$/, '');
+  const auth = await getAuth();
+  if (!auth.authToken) return;
+
+  try {
+    let data;
+    try {
+      data = await apiCall(`${url}/api/note_options`, { method: 'GET' }, auth.authToken);
+    } catch (e) {
+      // 401 时尝试 refresh 续期一次
+      if (/HTTP 401/.test(e.message) && await tryRefreshToken()) {
+        const newAuth = await getAuth();
+        data = await apiCall(`${url}/api/note_options`, { method: 'GET' }, newAuth.authToken);
+      } else {
+        throw e;
+      }
+    }
+
+    if (data.code !== 0 || !data.data) {
+      console.warn('[loadNoteOptions] 返回异常', data);
+      return;
+    }
+
+    const styles = data.data.styles || [];
+    const formats = data.data.formats || [];
+
+    // 渲染风格下拉
+    const styleSelect = document.getElementById('defaultStyle');
+    const savedStyle = styleSelect.dataset.savedValue || DEFAULTS.style;
+    styleSelect.innerHTML = '';
+    if (styles.length === 0) {
+      styleSelect.innerHTML = '<option value="">服务未配置风格</option>';
+    } else {
+      styles.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.value;
+        opt.textContent = s.label;
+        if (s.value === savedStyle) opt.selected = true;
+        styleSelect.appendChild(opt);
+      });
+      // 如果 savedStyle 不在列表里（如旧的中文 label "精简"），默认选第一个
+      if (!styles.some(s => s.value === savedStyle) && styles.length > 0) {
+        styleSelect.selectedIndex = 0;
+      }
+    }
+
+    // 渲染格式复选组
+    const formatGroup = document.getElementById('formatGroup');
+    let savedFormats;
+    try {
+      savedFormats = JSON.parse(formatGroup.dataset.savedFormats || JSON.stringify(DEFAULTS.formats));
+    } catch (e) {
+      savedFormats = DEFAULTS.formats;
+    }
+    // 类型守卫：storage 里可能被外部改成非数组（如旧版存了字符串），确保是数组
+    if (!Array.isArray(savedFormats)) savedFormats = DEFAULTS.formats;
+    formatGroup.innerHTML = '';
+    formats.forEach(f => {
+      const label = document.createElement('label');
+      label.className = 'check';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = f.value;
+      if (savedFormats.includes(f.value)) cb.checked = true;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(' ' + f.label));
+      formatGroup.appendChild(label);
+    });
+  } catch (e) {
+    console.warn('[loadNoteOptions] 拉取失败', e);
+    // 失败不阻塞，保留下拉/复选的占位文案
+  }
+}
+
 // 测试连接
 async function testConnection() {
   const videoNoteUrl = document.getElementById('videoNoteUrl').value.trim().replace(/\/$/, '');
@@ -434,7 +552,7 @@ async function testConnection() {
 
   const auth = await getAuth();
   if (!auth.authToken) {
-    setTestResult('error', '请先在上方登录');
+    setTestResult('error', '请先在下方登录');
     return;
   }
 
@@ -465,6 +583,7 @@ async function testConnection() {
       const modelCount = (data.data && data.data.length) || 0;
       setTestResult('success', `连接成功 · 发现 ${modelCount} 个可用模型`);
       await loadModels(videoNoteUrl);
+      await loadNoteOptions(videoNoteUrl);
     } else {
       setTestResult('error', `服务响应错误: ${data.msg || '未知错误'}`);
     }
@@ -481,8 +600,8 @@ async function testConnection() {
   }
 }
 
-// 保存配置
-async function saveConfig() {
+// 保存配置（默认参数节内的保存按钮：URL + 默认参数）
+async function saveDefaults() {
   const videoNoteUrl = document.getElementById('videoNoteUrl').value.trim().replace(/\/$/, '');
   if (!isValidUrl(videoNoteUrl)) {
     showToast('服务地址格式不正确', 'error');
@@ -493,13 +612,22 @@ async function saveConfig() {
   const defaultModel = modelSelect.value;
   const selectedOption = modelSelect.options[modelSelect.selectedIndex];
   const defaultProviderId = selectedOption?.dataset?.providerId || '';
-  const defaultStyle = document.getElementById('defaultStyle').value;
+  const styleSelect = document.getElementById('defaultStyle');
+  const defaultStyle = styleSelect.value;
   const defaultQuality = document.getElementById('defaultQuality').value;
 
   const defaultFormat = [];
   document.querySelectorAll('#formatGroup input[type="checkbox"]:checked').forEach(cb => {
     defaultFormat.push(cb.value);
   });
+
+  // 守卫：loadNoteOptions 失败时下拉/复选可能还是占位（value="" / 无 checkbox），
+  // 此时不要把空值写进 storage 覆盖原有正确值，保留 storage 原值。
+  const existingConfig = await chrome.storage.local.get(['defaultStyle', 'defaultFormat']);
+  const finalStyle = defaultStyle || existingConfig.defaultStyle || DEFAULTS.style;
+  const finalFormat = defaultFormat.length > 0
+    ? defaultFormat
+    : (existingConfig.defaultFormat || DEFAULTS.formats);
 
   const btn = document.getElementById('saveBtn');
   setLoading(btn, '保存中…');
@@ -516,8 +644,8 @@ async function saveConfig() {
       videoNoteUrl,
       defaultModel,
       defaultProviderId,
-      defaultStyle,
-      defaultFormat,
+      defaultStyle: finalStyle,
+      defaultFormat: finalFormat,
       defaultQuality
     });
 
@@ -532,9 +660,8 @@ async function saveConfig() {
 }
 
 // 恢复默认
-function resetDefaults() {
+async function resetDefaults() {
   document.getElementById('videoNoteUrl').value = DEFAULTS.url;
-  document.getElementById('defaultStyle').value = DEFAULTS.style;
   document.getElementById('defaultQuality').value = DEFAULTS.quality;
 
   const modelSelect = document.getElementById('defaultModel');
@@ -542,9 +669,19 @@ function resetDefaults() {
   delete modelSelect.dataset.savedModel;
   delete modelSelect.dataset.savedProviderId;
 
-  document.querySelectorAll('#formatGroup input[type="checkbox"]').forEach(cb => {
-    cb.checked = DEFAULTS.formats.includes(cb.value);
-  });
+  // 重置 style/formats 的 dataset 默认值，再重拉后端选项并选中默认
+  const styleSelect = document.getElementById('defaultStyle');
+  styleSelect.dataset.savedValue = DEFAULTS.style;
+  const formatGroup = document.getElementById('formatGroup');
+  formatGroup.dataset.savedFormats = JSON.stringify(DEFAULTS.formats);
+
+  const auth = await getAuth();
+  if (auth.authToken) {
+    const url = document.getElementById('videoNoteUrl').value.trim();
+    if (url && isValidUrl(url)) {
+      await loadNoteOptions(url);
+    }
+  }
 
   updateButtonState();
   clearTestResult();
