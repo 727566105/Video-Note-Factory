@@ -19,6 +19,32 @@ let currentCookies = null;         // 当前获取的 Cookie 字符串
 let videoNoteUrl = 'http://localhost:8483';
 let savedCookieStatus = { bilibili: false, douyin: false, kuaishou: false, youtube: false, xiaohongshu: false, cctv: false };
 
+// 笔记风格/格式选项缓存（登录后从 /api/note_options 拉取，用于预设卡显示中文 label）
+let noteOptionsCache = { styles: [], formats: [] };
+
+// value -> 中文 label，缓存没拉到时 fallback 返回 value 本身
+function styleLabel(value) {
+  const found = noteOptionsCache.styles.find(s => s.value === value);
+  return found ? found.label : value;
+}
+function formatLabel(value) {
+  const found = noteOptionsCache.formats.find(f => f.value === value);
+  return found ? found.label : value;
+}
+
+// 拉取 /api/note_options 到缓存（已登录才调，失败静默 -- 预设卡会用 value 兜底）
+async function loadNoteOptionsToCache() {
+  const auth = await getAuth();
+  if (!auth.authToken) return;
+  try {
+    const data = await apiCallWithAuth(`${videoNoteUrl}/api/note_options`, { method: 'GET' });
+    if (data.code === 0 && data.data) {
+      noteOptionsCache.styles = data.data.styles || [];
+      noteOptionsCache.formats = data.data.formats || [];
+    }
+  } catch (e) { /* 静默：预设卡用 value 兜底 */ }
+}
+
 // ─── 通过 background service worker 代理 API 请求（绕过 CORS + 注入 Bearer） ───
 // 带 1 次重试，缓解 service worker 冷启动抖动
 function apiCall(url, options = {}, token = null, retries = 1) {
@@ -189,6 +215,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     showAuthGate();
   } else {
     hideAuthGate();
+    // 已登录：拉取笔记风格/格式选项到缓存，再重新渲染预设卡（用中文 label 替换英文 value）
+    try {
+      await loadNoteOptionsToCache();
+      await loadConfig(); // 重新渲染预设卡，此时 noteOptionsCache 已就绪
+    } catch (e) { /* ignore */ }
     try { await detectCurrentPlatform(); } catch (e) { /* chrome.tabs 不可用 */ }
     try { await detectVideoUrl(); } catch (e) { /* chrome.scripting 不可用 */ }
   }
@@ -248,7 +279,7 @@ async function loadConfig() {
   }
 
   if (config.defaultStyle) {
-    presetStyle.textContent = config.defaultStyle;
+    presetStyle.textContent = styleLabel(config.defaultStyle);
     presetStyle.classList.remove('empty');
   } else {
     presetStyle.textContent = '未设置';
@@ -256,7 +287,7 @@ async function loadConfig() {
   }
 
   if (config.defaultFormat && config.defaultFormat.length) {
-    presetFormat.textContent = config.defaultFormat.join('、');
+    presetFormat.textContent = config.defaultFormat.map(formatLabel).join('、');
     presetFormat.classList.remove('empty');
   } else {
     presetFormat.textContent = '未设置';
