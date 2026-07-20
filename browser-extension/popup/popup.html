@@ -251,8 +251,9 @@ textarea,input{font:inherit; color:inherit}
   transition:opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 .message.show{display:flex; opacity:1; transform:translateY(0)}
-.message.success{background:var(--success-soft); border-color:color-mix(in oklab, var(--success) 30%, transparent)}
-.message.error{background:color-mix(in oklab, var(--accent) 6%, var(--surface)); border-color:var(--accent-soft)}
+/* 背景必须不透明（Message 是浮层，不能透出下方标题栏文字） */
+.message.success{background:color-mix(in oklab, var(--success) 14%, var(--surface)); border-color:color-mix(in oklab, var(--success) 30%, transparent)}
+.message.error{background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-color:var(--accent-soft)}
 .message .msg-head{display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-sm); font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .message.success .msg-head{color:var(--success)}
 .message.error .msg-head{color:var(--accent)}
