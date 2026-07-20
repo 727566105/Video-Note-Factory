@@ -6,7 +6,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
 
 from app.db.webdav_config_dao import get_config
-from app.services.webdav_backup import WebDAVBackup
+from app.services.webdav_backup import WebDAVBackup, acquire_backup_lock, release_backup_lock
 from app.services.cache_cleaner import cache_cleaner_job, CACHE_TTL_DAYS
 from app.utils.path_helper import cleanup_stale_pending
 from app.utils.logger import get_logger
@@ -45,11 +45,18 @@ def backup_job():
         # 使用配置的默认备份方式（full/quick）
         backup_mode = config.default_backup_mode or "full"
 
+        # 获取锁：避免与手动导出/恢复并发冲突
+        if not acquire_backup_lock():
+            logger.info("Scheduled backup skipped: another backup/restore in progress")
+            return
+
         # 执行备份
         backup_service = WebDAVBackup(config)
-        result = backup_service.create_backup(backup_type="auto", backup_mode=backup_mode)
-
-        logger.info(f"Scheduled backup completed: {result}")
+        try:
+            result = backup_service.create_backup(backup_type="auto", backup_mode=backup_mode)
+            logger.info(f"Scheduled backup completed: {result}")
+        finally:
+            release_backup_lock()
 
     except Exception as e:
         logger.error(f"Scheduled backup failed: {e}")

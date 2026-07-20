@@ -319,13 +319,13 @@ class WebDAVBackup:
 
         Returns:
             dict: 备份结果
+
+        注意：
+            锁的获取/释放由调用方负责（路由层 acquire_backup_lock / release_backup_lock）。
+            调用方必须已持有锁，本方法不再做冗余自检（避免与 acquire_backup_lock 的置位逻辑冲突）。
         """
-        global _backup_in_progress, _current_operation, _current_progress, _current_message
+        global _current_operation, _current_progress, _current_message
 
-        if _backup_in_progress:
-            raise Exception("备份操作正在执行中")
-
-        _backup_in_progress = True
         _current_operation = "backup"
         _current_progress = 0
         mode_label = "快速备份" if backup_mode == "quick" else "全部备份"
@@ -402,7 +402,9 @@ class WebDAVBackup:
 
             raise
         finally:
-            _backup_in_progress = False
+            # 注意：锁由调用方（_run_backup_async 的 finally）负责释放，
+            # 这里只清理进度状态和临时目录，不能动 _backup_in_progress
+            # （否则会在备份过程中提前释放锁，破坏互斥）
             _current_operation = None
             # 清理临时目录
             if BACKUP_TEMP_DIR.exists():
