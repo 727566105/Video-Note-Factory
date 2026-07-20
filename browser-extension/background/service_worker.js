@@ -24,12 +24,13 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// 代理 API 请求（绕过 CORS）+ 注入 Authorization + 15s 超时 + 错误透传 detail
+// 代理 API 请求（绕过 CORS）+ 注入 Authorization + 12s 超时 + 错误透传 detail
+// 12s 早于 popup 的 20s 总超时，保证 service worker 能先正常返回错误
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type !== 'apiCall') return;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), 12000);
 
   const finalOptions = { ...request.options, signal: controller.signal };
 
@@ -72,7 +73,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     .then(data => sendResponse({ success: true, data }))
     .catch(error => {
       const msg = error.name === 'AbortError'
-        ? '请求超时（15s）'
+        ? '请求超时（12s）'
         : error.message;
       sendResponse({ success: false, error: msg });
     })

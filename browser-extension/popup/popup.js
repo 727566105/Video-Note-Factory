@@ -22,22 +22,41 @@ let savedCookieStatus = { bilibili: false, douyin: false, kuaishou: false, youtu
 // ─── 通过 background service worker 代理 API 请求（绕过 CORS + 注入 Bearer） ───
 // 带 1 次重试，缓解 service worker 冷启动抖动
 function apiCall(url, options = {}, token = null, retries = 1) {
+  // 总超时 20s：比 service worker 的 fetch 超时（12s）稍长，
+  // 保证 service worker 能先正常返回错误；同时兜底 service worker 通道异常
+  // 导致 sendMessage callback 永不触发的情况，避免 onPush 永远卡在"推送中"。
+  const TIMEOUT_MS = 20000;
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('请求超时（20s）- 服务无响应'));
+    }, TIMEOUT_MS);
+
     const attempt = (n) => {
       chrome.runtime.sendMessage(
         { type: 'apiCall', url, options, token },
         (response) => {
+          if (settled) return;
           if (chrome.runtime.lastError && n > 0) {
+            // 通道关闭（service worker 冷启动），延迟重试
             setTimeout(() => attempt(n - 1), 150);
             return;
           }
           if (chrome.runtime.lastError) {
+            settled = true;
+            clearTimeout(timer);
             reject(new Error(chrome.runtime.lastError.message));
             return;
           }
           if (response && response.success) {
+            settled = true;
+            clearTimeout(timer);
             resolve(response.data);
           } else {
+            settled = true;
+            clearTimeout(timer);
             reject(new Error(response?.error || '请求失败'));
           }
         }
@@ -410,7 +429,11 @@ async function onCopyNetscape() {
 }
 
 async function onPush() {
-  if (!currentCookies || !selectedPlatform) return;
+  console.log('[onPush] 入口', { hasCookie: !!currentCookies, platform: selectedPlatform });
+  if (!currentCookies || !selectedPlatform) {
+    console.warn('[onPush] 早退：无 cookie 或未选平台');
+    return;
+  }
 
   // 入口快照：后续所有写入/校验都用局部变量，避免用户切平台导致状态写错 slot
   const platform = selectedPlatform;
@@ -420,12 +443,14 @@ async function onPush() {
   setLoading(btn, '推送中…');
 
   try {
+    console.log('[onPush] 检查权限', videoNoteUrl);
     if (!await ensurePermission(videoNoteUrl)) {
       toast('cookieToast', '请先授权访问该服务', 'error');
       return;
     }
 
     const auth = await getAuth();
+    console.log('[onPush] 鉴权', { hasToken: !!auth.authToken, role: auth.authRole });
     if (!auth.authToken) {
       toast('cookieToast', '请先在设置页登录', 'error');
       showAuthGate();
@@ -436,11 +461,13 @@ async function onPush() {
       return;
     }
 
+    console.log('[onPush] 调 update_downloader_cookie', platform);
     const data = await apiCallWithAuth(`${videoNoteUrl}/api/update_downloader_cookie`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ platform, cookie })
     });
+    console.log('[onPush] update_downloader_cookie 返回', data);
 
     if (data.code !== 0) {
       toast('cookieToast', `推送失败: ${data.msg || '未知错误'}`, 'error');
@@ -456,6 +483,7 @@ async function onPush() {
 
     // 立即调 test_downloader_cookie 在线校验有效性
     setLoading(btn, '校验中…');
+    console.log('[onPush] 调 test_downloader_cookie', platform);
     let validity;
     try {
       validity = await apiCallWithAuth(`${videoNoteUrl}/api/test_downloader_cookie`, {
@@ -463,8 +491,10 @@ async function onPush() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform, cookie })
       });
+      console.log('[onPush] test_downloader_cookie 返回', validity);
     } catch (e) {
       // 校验接口失败（网络/超时/auth 过期）-> 保留 saved 状态，不阻塞用户
+      console.warn('[onPush] test_downloader_cookie 异常', e);
       const msg = (e.code === 'AUTH_EXPIRED' || e.code === 'NO_AUTH') ? e.message : '有效性校验失败（稍后可重试）';
       toast('cookieToast', `已推送，${msg}`, 'error');
       return;
@@ -488,12 +518,14 @@ async function onPush() {
       toast('cookieToast', `已推送，校验失败: ${validity.msg || '未知错误'}`, 'error');
     }
   } catch (e) {
+    console.error('[onPush] 异常', e);
     if (e.code === 'AUTH_EXPIRED' || e.code === 'NO_AUTH') {
       toast('cookieToast', e.message, 'error');
     } else {
       toast('cookieToast', `推送失败: ${e.message}`, 'error');
     }
   } finally {
+    console.log('[onPush] finally，还原按钮');
     clearLoading(btn);
   }
 }
@@ -634,7 +666,11 @@ const submittedTasks = []; // 本次 popup 会话已提交的任务列表（最�
 
 async function onSubmitNoteTask(overrideUrl) {
   // overrideUrl 用于失败任务重试：传入失败任务的原 URL，而不是读当前页 URL
-  const videoUrl = overrideUrl || document.getElementById('videoUrl').textContent;
+  // 注意：本函数也会被 addEventListener('click', onSubmitNoteTask) 直接调用，
+  // 此时 overrideUrl 是 PointerEvent 对象，必须过滤掉，否则 video_url 会变成 [object PointerEvent]
+  const videoUrl = (typeof overrideUrl === 'string' && overrideUrl)
+    ? overrideUrl
+    : document.getElementById('videoUrl').textContent;
   if (!videoUrl || videoUrl === '-') {
     toast('submitToast', '未检测到视频页面', 'error');
     return;
