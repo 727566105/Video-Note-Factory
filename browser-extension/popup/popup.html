@@ -239,14 +239,14 @@ textarea,input{font:inherit; color:inherit}
 .submit-result .actions{margin-top:var(--space-3); display:flex; flex-direction:column; gap:var(--space-2)}
 .submit-result svg{width:16px; height:16px}
 
-/* ─── Message 全局提示（成功/失败，3秒自动消失） ────────────────────── */
-.message-wrap{position:sticky; bottom:0; display:flex; justify-content:center; pointer-events:none; z-index:20}
+/* ─── Message 全局提示（成功/失败，3秒自动消失，顶部显示） ─────────── */
+.message-wrap{position:sticky; top:0; display:flex; justify-content:center; pointer-events:none; z-index:20}
 .message{
   pointer-events:auto; width:100%; max-width:var(--popup-width);
-  margin-bottom:var(--space-3); padding:var(--space-3) var(--space-4);
+  margin-top:var(--space-3); padding:var(--space-3) var(--space-4);
   border-radius:var(--radius-md); border:1px solid var(--border);
   background:var(--surface); box-shadow:0 8px 24px rgba(0,0,0,0.12);
-  opacity:0; transform:translateY(8px);
+  opacity:0; transform:translateY(-8px);
   transition:opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 .message.show{opacity:1; transform:translateY(0)}
@@ -333,6 +333,9 @@ textarea,input{font:inherit; color:inherit}
 
     <!-- 快捷提交（默认 Tab） -->
     <section class="tabpane active" id="submit-tab" role="tabpanel" data-od-id="0102-submit">
+      <!-- Message 全局提示（提交成功/失败，顶部显示，3秒自动消失） -->
+      <div class="message-wrap"><div class="message" id="submitMessage" role="status" aria-live="polite"></div></div>
+
       <div class="card" data-od-id="submit-video-card">
         <div class="video-head">
           <span class="title">视频信息</span>
@@ -363,9 +366,6 @@ textarea,input{font:inherit; color:inherit}
       </div>
 
       <button class="btn btn-primary btn-block" id="submitBtn" disabled>提交笔记任务</button>
-
-      <!-- Message 全局提示（提交成功/失败，3秒自动消失） -->
-      <div class="message-wrap"><div class="message" id="submitMessage" role="status" aria-live="polite"></div></div>
 
       <!-- 轻量 toast（复制成功等纯文字反馈） -->
       <div class="toast-wrap"><div class="toast" id="submitToast" role="status" aria-live="polite"></div></div>
