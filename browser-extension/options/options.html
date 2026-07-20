@@ -42,10 +42,11 @@ input,select{font:inherit; color:inherit}
 /* ─── 页头 ─────────────────────────────────────────────────────────── */
 .page-head{display:flex; align-items:center; gap:var(--space-3); margin-bottom:var(--space-6)}
 .logo-pill{
-  display:inline-grid; place-items:center; height:28px; padding:0 var(--space-3);
-  border-radius:var(--radius-pill); background:var(--fill2); color:var(--muted);
-  font-size:var(--text-xs); letter-spacing:0.04em; font-weight:600;
+  display:inline-grid; place-items:center;
+  width:28px; height:28px; overflow:hidden;
+  border-radius:var(--radius-pill);
 }
+.logo-pill img{width:100%; height:100%; object-fit:cover; display:block}
 .page-head h1{font-size:var(--text-2xl); font-weight:600; margin:0; letter-spacing:-0.01em}
 .page-head .sub{font-size:var(--text-xs); color:var(--muted); margin-top:var(--space-1)}
 
@@ -170,7 +171,7 @@ input,select{font:inherit; color:inherit}
 <div class="page" data-od-id="options-page">
 
   <header class="page-head" data-od-id="options-head">
-    <span class="logo-pill" aria-label="LOGO 占位">LOGO</span>
+    <span class="logo-pill" aria-label="VideoNote"><img src="../icons/icon48.png" alt="VideoNote" width="20" height="20"></span>
     <div>
       <h1>VideoNote Helper 设置</h1>
       <div class="sub">配置后端服务与默认笔记参数</div>
