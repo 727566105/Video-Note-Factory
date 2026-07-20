@@ -173,17 +173,33 @@ fun NoteDetailScreen(
                                                 }
                                             }
                                             "article", "live_photo" -> {
-                                                // 图文/Live Photo：下载所有图片
-                                                media?.images?.forEachIndexed { idx, img ->
-                                                    val filename = "videonote_${note.task_id}_img_${idx + 1}.jpg"
-                                                    viewModel.downloadImage(img, filename)
-                                                }
-                                                // Live Photo：同时下载对应的实况视频合成
-                                                media?.live_photos?.forEach { lp ->
-                                                    val imageUrl = media.images.getOrNull(lp.index - 1)
-                                                    if (imageUrl != null) {
-                                                        val base = "videonote_${note.task_id}_live_${lp.index}"
-                                                        viewModel.downloadLivePhoto(imageUrl, lp.video_url, base)
+                                                // 区分纯图文和实况图：
+                                                // - 纯图文（article，无 live_photos）：直接下载所有图片
+                                                // - 实况图（live_photo，有 live_photos）：只下载 Live Photo 合成，
+                                                //   不再单独下载图片（Live Photo 已包含静态图，避免重复）
+                                                val hasLivePhotos = media?.live_photos?.isNotEmpty() == true
+                                                if (hasLivePhotos) {
+                                                    // 实况图：每个 live_photo 配对对应的 image 一起合成
+                                                    media.live_photos.forEach { lp ->
+                                                        val imageUrl = media.images.getOrNull(lp.index - 1)
+                                                        if (imageUrl != null) {
+                                                            val base = "videonote_${note.task_id}_live_${lp.index}"
+                                                            viewModel.downloadLivePhoto(imageUrl, lp.video_url, base)
+                                                        }
+                                                    }
+                                                    // 没有实况视频的图片（images 有但 live_photos 没有对应 index）单独下载
+                                                    media.images.forEachIndexed { idx, img ->
+                                                        val hasMatchingLive = media.live_photos.any { it.index == idx + 1 }
+                                                        if (!hasMatchingLive) {
+                                                            val filename = "videonote_${note.task_id}_img_${idx + 1}.jpg"
+                                                            viewModel.downloadImage(img, filename)
+                                                        }
+                                                    }
+                                                } else {
+                                                    // 纯图文：直接下载所有图片
+                                                    media?.images?.forEachIndexed { idx, img ->
+                                                        val filename = "videonote_${note.task_id}_img_${idx + 1}.jpg"
+                                                        viewModel.downloadImage(img, filename)
                                                     }
                                                 }
                                             }
@@ -440,8 +456,13 @@ private fun NoteMediaSection(
     // 视频源：/api/video_file/{platform}/{author_id}/{video_id}（无鉴权 + Range，ExoPlayer 可 seek）
     val videoFileUrl = remember(note.task_id, note.platform, note.author_id, note.video_id) {
         if (note.content_type == "video" && !note.author_id.isNullOrBlank() && !note.video_id.isNullOrBlank()) {
-            imageProxyHelper.resolveUrl("/api/video_file/${note.platform}/${note.author_id}/${note.video_id}")
-        } else null
+            val url = imageProxyHelper.resolveUrl("/api/video_file/${note.platform}/${note.author_id}/${note.video_id}")
+            android.util.Log.i("NoteDetailVideo", "video source: $url (platform=${note.platform}, author_id=${note.author_id}, video_id=${note.video_id})")
+            url
+        } else {
+            android.util.Log.i("NoteDetailVideo", "video source: null (content_type=${note.content_type}, author_id=${note.author_id}, video_id=${note.video_id})")
+            null
+        }
     }
 
     val density = LocalDensity.current
@@ -456,11 +477,20 @@ private fun NoteMediaSection(
     ) {
         // 封面图（live_photo/article 用 media.cover_url，video 用 note.cover_url）
         val coverUrl = media?.cover_url ?: note.cover_url
+        val coverModel = imageProxyHelper.getProxyUrl(coverUrl, note.platform)
+        // DEBUG: 临时日志，定位真机封面加载失败
+        android.util.Log.i("NoteDetailImg", "cover load: coverUrl=$coverUrl model=$coverModel platform=${note.platform}")
         AsyncImage(
-            model = imageProxyHelper.getProxyUrl(coverUrl, note.platform),
+            model = coverModel,
             contentDescription = null,
             modifier = Modifier.fillMaxSize().background(XaiSurfaceWarm),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
+            onError = { state ->
+                android.util.Log.e("NoteDetailImg", "cover load FAIL: model=$coverModel error=${state.result.throwable.javaClass.simpleName}: ${state.result.throwable.message}")
+            },
+            onSuccess = {
+                android.util.Log.i("NoteDetailImg", "cover load OK: model=$coverModel")
+            }
         )
 
         // 播放按钮 FAB（仅视频类型且有视频源）

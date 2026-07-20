@@ -183,3 +183,40 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **后端 `style` 字段不枚举校验**：`note.py` 的 `VideoRequest.style: str = None`，任意字符串都能进 DB。`prompt_builder.note_styles` 只是 prompt 生成时参考的字典，不是校验枚举。所以插件传中文 label 不会 422，但 LLM 会用错风格模板（应传英文 value 如 `minimal`/`detailed`）。
 - **`DownloadQuality` 枚举**（`app/enmus/note_enums.py`）：`fast`/`medium`/`slow`，**会校验**（`quality: DownloadQuality`）。插件必须传这三个值之一，否则 422。
 - **`mcp_server.py` 的 `_VALID_QUALITIES`**：重复定义了 `{"fast", "medium", "slow"}`，与枚举不同步（技术债，后续应直接用枚举）。
+
+## Android 端实况照片（Live Photo）保存方案（独家逆向）
+
+### vivo OriginOS 实况照片机制（与 Google MotionPhoto 完全不同）
+
+vivo 实况照片不是单文件（MotionPhoto），而是**双文件 + MediaStore `live_photo` 自定义隐藏列**：
+
+1. **文件结构**：两份独立文件 `xxx.jpg`（静态图）+ `xxx.mp4`（实况视频），同目录同前缀
+2. **MediaStore `live_photo` 字段**：图片和视频记录都要写，值必须完全相同
+   - 格式：`<13位毫秒时间戳>000000000000000`（28 位，如 `1784565185491000000000000000`）
+   - 只写图片不写视频 -> 相册显示 2 份独立文件；都写且值相同 -> 合并为 1 个实况照片
+3. **写入坑**：`live_photo` 是隐藏列，`ContentValues.put("live_photo", ...)` 在 `insert` 时被过滤。必须先 insert + 写文件 + `IS_PENDING=0`，再用 `ContentResolver.update()` **单独**写入
+
+### 各平台图片格式差异
+
+- 小红书 `image_*.jpg`：标准 JPEG（FF D8 开头）
+- 抖音 `image_*.jpg`：**实际是 WebP**（RIFF...WEBP），文件名 .jpg 但内容是 WebP
+
+### 后端媒体 API
+
+- `GET /api/note_media/{task_id}`（鉴权）：返回 `{content_type, images[], live_photos[{index, video_url}], cover_url}`
+- `GET /api/note_media_file/{platform}/{author_id}/{video_id}/{filename}`（无鉴权 + Range）：图片/实况视频
+- `GET /api/video_file/{platform}/{author_id}/{video_id}`（无鉴权 + Range）：视频原文件
+- `images[i]` 与 `live_photos[j]` 按 `index` 配对（`live_photos[j].index` 对应 `image_{index}.jpg`，1-based）
+
+### 适配其他厂商
+
+- **OPPO**：可能也有类似的 `live_photo` 自定义列，调研方法：在真机上用抖音保存实况图 -> `adb shell content query --uri content://media/external/images/media` 查所有字段 -> 找自定义列
+- **小米**：支持 Google MotionPhoto XMP 格式（GCamera:MicroVideoOffset）
+- **华为**：有自己的 LivePhoto API
+
+### 相关文件
+
+- `core/common/media/MediaStoreSaver.kt` - `saveLivePhotoVivo()` 方法
+- `core/common/media/MediaDownloader.kt` - `saveLivePhoto()` 编排
+- `feature/notedetail/NoteDetailViewModel.kt` - `downloadLivePhoto()` 下载+保存
+- 完整技术文档：`~/.zcode/cli/memories/projects/videonote-9e923298f7f309f5/topics/vivo-live-photo-spec.md`

@@ -144,12 +144,16 @@ class MediaDownloader @Inject constructor(
     }
 
     /**
-     * 保存 Live Photo。
+     * 保存 Live Photo（实况照片）。
      *
-     * Android 14+：合成 MotionPhoto 单文件（JPEG+MP4+XMP），写入 MediaStore.Images，
-     *              Google Photos / Pixel 系统相册识别为 Live Photo。
-     * Android 14 以下：分别保存 JPEG 和 MP4 到 MediaStore.Images / MediaStore.Video，
-     *              文件名同前缀（如 live_photo_1.jpg + live_photo_1.mp4）。
+     * **vivo OriginOS 实况照片机制**（调研确认，与 Google MotionPhoto 完全不同）：
+     * 1. 保存两份独立文件：xxx.jpg（图片）+ xxx.mp4（视频），同目录同前缀
+     * 2. 在图片的 MediaStore 记录里设 `live_photo` 字段
+     *    格式：`<13位毫秒时间戳>000000000000000`（28 位）
+     * 3. vivo 相册扫描时发现 `live_photo` 有值 + 同目录有同名 .mp4，就识别为实况照片
+     * 4. 用户长按图片时播放对应的 .mp4 视频
+     *
+     * 不再使用 MotionPhoto 单文件方案（vivo 不识别 XMP 元数据格式的实况照片）。
      *
      * @param context Context
      * @param imageFile 静态图 JPEG（cacheDir 临时文件）
@@ -164,19 +168,15 @@ class MediaDownloader @Inject constructor(
         baseFilename: String
     ): Result<LivePhotoSaveResult> = withContext(Dispatchers.IO) {
         try {
-            if (MotionPhotoWriter.isSupported()) {
-                // Android 14+：合成 MotionPhoto 单文件
-                val motionBytes = MotionPhotoWriter.write(imageFile, videoFile)
-                val filename = "$baseFilename.jpg"
-                val uri = MediaStoreSaver.saveMotionPhoto(context, motionBytes, filename)
-                success(LivePhotoSaveResult(motionPhotoUri = uri, imageUri = null, videoUri = null))
-            } else {
-                // Android 14 以下：双文件保存
-                val imageUri = MediaStoreSaver.saveImage(context, imageFile, "$baseFilename.jpg")
-                val videoUri = MediaStoreSaver.saveVideo(context, videoFile, "$baseFilename.mp4")
-                success(LivePhotoSaveResult(motionPhotoUri = null, imageUri = imageUri, videoUri = videoUri))
-            }
+            val uris = MediaStoreSaver.saveLivePhotoVivo(context, imageFile, videoFile, baseFilename)
+            android.util.Log.i("LivePhotoSave", "vivo 实况照片保存成功: img=${uris.imageUri} vid=${uris.videoUri}")
+            success(LivePhotoSaveResult(
+                motionPhotoUri = null,
+                imageUri = uris.imageUri,
+                videoUri = uris.videoUri
+            ))
         } catch (e: Exception) {
+            android.util.Log.e("LivePhotoSave", "vivo 实况照片保存失败: ${e.message}", e)
             failure(e)
         }
     }

@@ -13,8 +13,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.io.File
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 
 data class NoteDetailUiState(
     val note: QuickViewResponse? = null,
@@ -41,6 +46,13 @@ class NoteDetailViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(NoteDetailUiState())
     val uiState: StateFlow<NoteDetailUiState> = _uiState.asStateFlow()
+
+    /**
+     * 下载去重锁：修复 B2 TOCTOU。
+     * 用 ConcurrentHashMap 替代 containsKey + updateProgress 的非原子检查，
+     * putIfAbsent 原子操作保证同一 key 的下载只启动一次。
+     */
+    private val activeDownloads = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
 
     fun loadNote(taskId: String) {
         viewModelScope.launch {
@@ -115,8 +127,9 @@ class NoteDetailViewModel @Inject constructor(
      * @param filename 文件名（如 "note_xxx.mp4"）
      */
     fun downloadVideo(videoFileUrl: String, filename: String) {
-        if (_uiState.value.downloadProgress.containsKey(filename)) return
-        viewModelScope.launch {
+        // 修复 B2：原子去重
+        if (activeDownloads.putIfAbsent(filename, kotlinx.coroutines.Job()) != null) return
+        val job = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(downloadMessage = null)
             updateProgress(filename, 0f)
             try {
@@ -124,26 +137,31 @@ class NoteDetailViewModel @Inject constructor(
                     updateProgress(filename, progress)
                 }.getOrThrow()
                 val uri = mediaDownloader.saveVideoToGallery(application, file, filename).getOrThrow()
-                file.delete()
                 _uiState.value = _uiState.value.copy(
                     downloadMessage = "视频已保存到相册",
                     downloadProgress = _uiState.value.downloadProgress - filename
                 )
+            } catch (ce: CancellationException) {
+                throw ce
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     downloadMessage = "下载失败: ${e.message}",
                     downloadProgress = _uiState.value.downloadProgress - filename
                 )
+            } finally {
+                runCatching { File(System.getProperty("java.io.tmpdir") ?: "/tmp", "videonote_media/$filename").delete() }
             }
         }
+        activeDownloads[filename] = job
+        job.invokeOnCompletion { activeDownloads.remove(filename, job) }
     }
 
     /**
      * 下载图片到相册。
      */
     fun downloadImage(imageUrl: String, filename: String) {
-        if (_uiState.value.downloadProgress.containsKey(filename)) return
-        viewModelScope.launch {
+        if (activeDownloads.putIfAbsent(filename, kotlinx.coroutines.Job()) != null) return
+        val job = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(downloadMessage = null)
             updateProgress(filename, 0f)
             try {
@@ -151,18 +169,23 @@ class NoteDetailViewModel @Inject constructor(
                     updateProgress(filename, progress)
                 }.getOrThrow()
                 val uri = mediaDownloader.saveImageToGallery(application, file, filename).getOrThrow()
-                file.delete()
                 _uiState.value = _uiState.value.copy(
                     downloadMessage = "图片已保存到相册",
                     downloadProgress = _uiState.value.downloadProgress - filename
                 )
+            } catch (ce: CancellationException) {
+                throw ce
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     downloadMessage = "下载失败: ${e.message}",
                     downloadProgress = _uiState.value.downloadProgress - filename
                 )
+            } finally {
+                runCatching { File(System.getProperty("java.io.tmpdir") ?: "/tmp", "videonote_media/$filename").delete() }
             }
         }
+        activeDownloads[filename] = job
+        job.invokeOnCompletion { activeDownloads.remove(filename, job) }
     }
 
     /**
@@ -173,25 +196,29 @@ class NoteDetailViewModel @Inject constructor(
      * @param baseFilename 文件名（不含扩展名，如 "live_photo_1"）
      */
     fun downloadLivePhoto(imageUrl: String, videoUrl: String, baseFilename: String) {
-        if (_uiState.value.downloadProgress.containsKey(baseFilename)) return
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(downloadMessage = null)
-            updateProgress(baseFilename, 0f)
+        android.util.Log.i("LivePhotoDL", "downloadLivePhoto: base=$baseFilename img=$imageUrl vid=$videoUrl")
+        // 修复 B2：用 ConcurrentHashMap.putIfAbsent 原子去重，防止 TOCTOU
+        val dummyJob = kotlinx.coroutines.Job()
+        if (activeDownloads.putIfAbsent(baseFilename, dummyJob) != null) return
+        // 修复 B5：用 launch 创建 Job 并放入 map，finally 清理
+        val job = viewModelScope.launch {
+            var imgFile: File? = null
+            var vidFile: File? = null
             try {
+                _uiState.value = _uiState.value.copy(downloadMessage = null)
+                updateProgress(baseFilename, 0f)
                 val imgName = mediaDownloader.genFilename("img_$baseFilename", "jpg")
                 val vidName = mediaDownloader.genFilename("vid_$baseFilename", "mp4")
 
                 // 串行下载图片和视频
-                val imgFile = mediaDownloader.downloadToCache(imageUrl, imgName) { p ->
+                imgFile = mediaDownloader.downloadToCache(imageUrl, imgName) { p ->
                     updateProgress(baseFilename, p * 0.5f)
                 }.getOrThrow()
-                val vidFile = mediaDownloader.downloadToCache(videoUrl, vidName) { p ->
+                vidFile = mediaDownloader.downloadToCache(videoUrl, vidName) { p ->
                     updateProgress(baseFilename, 0.5f + p * 0.5f)
                 }.getOrThrow()
 
                 val result = mediaDownloader.saveLivePhoto(application, imgFile, vidFile, baseFilename).getOrThrow()
-                imgFile.delete()
-                vidFile.delete()
 
                 val msg = if (result.motionPhotoUri != null) {
                     "实况图已保存到相册（MotionPhoto 格式）"
@@ -202,18 +229,28 @@ class NoteDetailViewModel @Inject constructor(
                     downloadMessage = msg,
                     downloadProgress = _uiState.value.downloadProgress - baseFilename
                 )
+            } catch (ce: CancellationException) {
+                // 修复 B5：CancellationException 必须传播，不能被 catch(e: Exception) 吞掉
+                throw ce
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     downloadMessage = "下载失败: ${e.message}",
                     downloadProgress = _uiState.value.downloadProgress - baseFilename
                 )
+            } finally {
+                // 修复 B5：无论如何都清理临时文件，避免残留
+                imgFile?.let { runCatching { it.delete() } }
+                vidFile?.let { runCatching { it.delete() } }
             }
         }
+        activeDownloads[baseFilename] = job
+        job.invokeOnCompletion { activeDownloads.remove(baseFilename, job) }
     }
 
     private fun updateProgress(key: String, progress: Float) {
-        _uiState.value = _uiState.value.copy(
-            downloadProgress = _uiState.value.downloadProgress + (key to progress)
-        )
+        // 修复 M8：用 StateFlow.update 原子操作（CAS 循环），避免并发 read-modify-write 丢失更新
+        _uiState.update { state ->
+            state.copy(downloadProgress = state.downloadProgress + (key to progress))
+        }
     }
 }
