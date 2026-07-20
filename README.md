@@ -32,26 +32,27 @@ videoNote 是一个开源的 AI 视频笔记助手，支持通过哔哩哔哩、
 
 ## 📦 Windows 打包版
 
-本项目提供了 Windows 系统的 exe 文件，可在[release](https://github.com/JefferyHcool/videoNote/releases/tag/v1.1.1)进行下载。**注意一定要在没有中文路径的环境下运行。**
+本项目提供了 Windows 系统的 exe 文件，可在 [release](https://github.com/727566105/Video-Note-Factory/releases) 页面下载最新版本。**注意一定要在没有中文路径的环境下运行。**
 
 ## 🔧 功能特性
 
 ### 📹 视频平台支持
 
-- **多平台下载**：Bilibili、YouTube、抖音、快手、本地视频、本地音频
+- **多平台下载**：Bilibili、YouTube、抖音、快手、小红书、CCTV、本地视频/音频
 - **批量生成**：支持批量提交视频链接，自动排队处理
 - **灵活扩展**：插件化下载器架构，易于添加新平台支持
 
 ### 🧩 浏览器插件
 
-- **VideoNote Helper**：Chrome 浏览器插件，一键获取平台 Cookie
-- **快捷提交**：直接从浏览器提交视频链接到 VideoNote 后端
-- **平台支持**：B站、抖音、快手、YouTube
+- **VideoNote Helper**：Chrome MV3 扩展，一键获取平台 Cookie 并快捷提交笔记任务
+- **快捷提交**：直接从浏览器当前页提交视频链接到 VideoNote 后端，3 秒 Message 提示结果
+- **Cookie 管理**：获取平台 Cookie 后推送至后端，在线校验有效性
+- **平台支持**：B站、抖音、快手、YouTube、小红书、CCTV
 
 ### 📝 笔记生成
 
 - **多格式输出**：Markdown（支持导出为 PDF/Word/Notion，开发中）
-- **笔记风格**：学术风、口语风、重点提取等多种风格
+- **笔记风格**：精简、详细、原文、学术、教程、小红书、生活向、任务导向、商业风格、会议纪要共 10 种风格
 - **智能截图**：自动截取视频关键帧插入笔记
 - **时间戳跳转**：关联原视频，一键跳转到对应时间点
 
@@ -121,7 +122,7 @@ videoNote/
 | ------------ | ---------------------------- | ------------------- |
 | **前端**     | React 19 + TypeScript + Vite | 现代化前端框架      |
 | **状态管理** | Zustand + persist            | 轻量级状态管理      |
-| **UI 组件**  | Tailwind CSS 4.x + shadcn/ui | 原子化 CSS + 组件库 |
+| **UI 组件**  | Tailwind CSS 4.x + shadcn/ui (Radix) | 原子化 CSS + 组件库（antd 仍有残留引用，新组件统一用 shadcn/ui） |
 | **后端**     | FastAPI + Python 3.13+       | 高性能异步 API 框架 |
 | **数据库**   | SQLite                       | 轻量级嵌入式数据库  |
 | **部署**     | Docker + Nginx               | 容器化部署方案      |
@@ -142,14 +143,16 @@ videoNote/
 
 ```
 data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
-├── cover.jpg           # 视频封面图
-├── screenshots/        # 视频帧截图
-├── note.md / note.json # AI 生成的笔记
-├── audio.json          # 音频缓存
-└── transcript.json     # 转写缓存
+├── cover.jpg               # 视频封面图
+├── screenshots/            # 视频帧截图
+├── note.md                 # 笔记 Markdown
+├── note_{user_id}.json     # 笔记元数据（按用户隔离）
+├── status.json             # 任务状态
+├── audio.json              # 音频缓存
+└── transcript.json         # 转写缓存
 ```
 
-支持平台: bilibili, youtube, douyin, kuaishou, xiaohongshu, local
+支持平台: bilibili, youtube, douyin, kuaishou, xiaohongshu, cctv, local, local_audio
 
 ## 📸 截图预览
 
@@ -164,7 +167,7 @@ data/video/{platform}/{author_id}_{author_name}/{video_id}_{title}/
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/JefferyHcool/videoNote.git
+git clone https://github.com/727566105/Video-Note-Factory.git
 cd videoNote
 mv .env.example .env
 ```
@@ -290,7 +293,7 @@ sudo apt install ffmpeg
 - [x] 浏览器插件（Chrome Extension）
 - [x] 用户登录认证与数据隔离
 - [x] NewAPI 快捷接入功能
-- [ ] 笔记导出为 PDF / Word / Notion
+- [x] 笔记导出为 PDF / Word / Notion
 - [ ] 支持视频剪辑功能
 - [ ] 移动端 App 开发
 
