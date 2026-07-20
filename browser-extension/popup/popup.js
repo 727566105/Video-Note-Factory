@@ -692,8 +692,7 @@ async function detectVideoUrl() {
 
 // 提交笔记任务
 // 防重策略：①提交期间按钮 disabled ②本次 popup 会话已提交过的 videoUrl 不允许重复提交
-const submittedUrls = new Set(); // 本次 popup 会话已提交的 video_url 集合
-const submittedTasks = []; // 本次 popup 会话已提交的任务列表（最新在前）
+const submittedUrls = new Set(); // 本次 popup 会话已提交的 video_url 集合（防重）
 
 async function onSubmitNoteTask(overrideUrl) {
   // overrideUrl 用于失败任务重试：传入失败任务的原 URL，而不是读当前页 URL
@@ -760,140 +759,110 @@ async function onSubmitNoteTask(overrideUrl) {
       // 记录已提交 URL，防止重复
       submittedUrls.add(videoUrl);
 
-      // 添加到任务列表（最新在前）
-      submittedTasks.unshift({
+      // 弹出成功 Message（带查看笔记/复制编号按钮，3秒自动消失）
+      showMessage('success', {
+        title: '提交成功！任务已创建',
+        body: videoTitle || videoUrl,
+        detail: taskId,
         taskId,
-        videoUrl,
-        videoTitle,
-        state: 'success',
-        createdAt: Date.now()
       });
-      // 最多保留 5 条
-      if (submittedTasks.length > 5) submittedTasks.length = 5;
-
-      renderTaskList();
-      toast('submitToast', '提交成功！任务已创建', 'success');
 
       // 提交成功后：保留按钮禁用，显示「提交新任务」入口
-      // 用户要提交不同视频，可点「提交新任务」重置
       // delete orig 让 finally 的 clearLoading 不会还原按钮（避免覆盖防重禁用态）
       delete btn.dataset.orig;
       btn.disabled = true;
       btn.innerHTML = '已提交';
       showNewTaskEntry();
     } else {
-      appendErrorTask(data.msg || '未知错误', videoUrl);
+      // 失败：弹出错误 Message（3秒自动消失，提交按钮保持可点允许重试）
+      showMessage('error', {
+        title: '提交失败',
+        body: videoTitle || videoUrl,
+        detail: data.msg || '未知错误',
+      });
+      btn.disabled = false;
+      btn.innerHTML = '提交笔记任务';
     }
   } catch (e) {
     if (e.code === 'AUTH_EXPIRED' || e.code === 'NO_AUTH') {
       toast('submitToast', e.message, 'error');
     } else {
-      appendErrorTask(e.message, videoUrl);
+      const videoTitle = document.getElementById('videoTitle').textContent;
+      showMessage('error', {
+        title: '提交失败',
+        body: videoTitle || videoUrl,
+        detail: e.message,
+      });
+      btn.disabled = false;
+      btn.innerHTML = '提交笔记任务';
     }
   } finally {
     clearLoading(btn);
   }
 }
 
-// 错误任务也进列表（不计入 submittedUrls，允许重试）
-function appendErrorTask(errorMsg, videoUrl) {
-  submittedTasks.unshift({
-    taskId: '',
-    videoUrl,
-    videoTitle: document.getElementById('videoTitle').textContent,
-    state: 'error',
-    errorMsg,
-    createdAt: Date.now()
-  });
-  if (submittedTasks.length > 5) submittedTasks.length = 5;
-  renderTaskList();
-  toast('submitToast', '提交失败', 'error');
-  // 错误态保留按钮可点，允许重试
-  const btn = document.getElementById('submitBtn');
-  btn.disabled = false;
-  btn.innerHTML = '提交笔记任务';
-}
+// Message 全局提示（成功/失败，3秒自动消失，带操作按钮）
+// opts: { title, body, detail, taskId? }
+// 成功态带「查看笔记」「复制编号」按钮；失败态无按钮（靠提交按钮重试）
+let messageTimer;
+function showMessage(state, opts) {
+  const el = document.getElementById('submitMessage');
+  if (!el) return;
 
-// 渲染任务列表
-function renderTaskList() {
-  const list = document.getElementById('taskList');
-  list.innerHTML = '';
+  const isOk = state === 'success';
+  const icon = isOk
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
 
-  submittedTasks.forEach((task, idx) => {
-    const card = document.createElement('div');
-    card.className = 'task-card ' + task.state;
+  const tid = opts.taskId || '';
+  const safeTid = escapeHtml(tid);
+  const safeTitle = escapeHtml(opts.title || (isOk ? '提交成功' : '提交失败'));
+  const safeBody = escapeHtml(opts.body || '');
+  const safeDetail = escapeHtml(opts.detail || '');
 
-    const numText = `#${submittedTasks.length - idx}`;
-    const titleText = task.videoTitle && task.videoTitle !== '未检测到视频页面' && task.videoTitle !== '未能获取'
-      ? task.videoTitle : (task.videoUrl.length > 40 ? task.videoUrl.slice(0, 40) + '…' : task.videoUrl);
+  // 成功态且有 taskId 才显示操作按钮
+  const opsHtml = (isOk && tid)
+    ? `<div class="msg-ops">
+         <button class="btn btn-primary" data-act="view" data-tid="${safeTid}">查看笔记</button>
+         <button class="btn btn-secondary" data-act="copy" data-tid="${safeTid}">复制编号</button>
+       </div>`
+    : '';
 
-    if (task.state === 'success') {
-      const safeTid = escapeHtml(task.taskId);
-      card.innerHTML = `
-        <div class="row1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          提交成功
-          <span class="num">${numText}</span>
-        </div>
-        <div class="title" title="${escapeHtml(titleText)}">${escapeHtml(titleText)}</div>
-        <div class="tid">${safeTid}</div>
-        ${task.taskId ? `
-        <div class="ops">
-          <button class="btn btn-primary" data-act="view" data-tid="${safeTid}">查看笔记</button>
-          <button class="btn btn-secondary" data-act="copy" data-tid="${safeTid}">复制编号</button>
-        </div>
-        ` : ''}
-      `;
-    } else {
-      card.innerHTML = `
-        <div class="row1">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          提交失败
-          <span class="num">${numText}</span>
-        </div>
-        <div class="title" title="${escapeHtml(titleText)}">${escapeHtml(titleText)}</div>
-        <div class="tid" style="color:var(--accent)">${escapeHtml(task.errorMsg || '请重试')}</div>
-        <div class="ops">
-          <button class="btn btn-secondary" data-act="retry" data-url="${escapeHtml(task.videoUrl)}">重试</button>
-        </div>
-      `;
-    }
+  el.innerHTML = `
+    <div class="msg-head">${icon}${safeTitle}</div>
+    ${safeBody ? `<div class="msg-body" title="${safeBody}">${safeBody}</div>` : ''}
+    ${safeDetail ? `<div class="msg-detail">${safeDetail}</div>` : ''}
+    ${opsHtml}
+  `;
+  el.className = 'message show ' + state;
 
-    // 事件绑定
-    card.querySelectorAll('button[data-act]').forEach(b => {
-      b.addEventListener('click', () => {
-        const act = b.dataset.act;
-        const tid = b.dataset.tid;
-        if (act === 'view') {
-          // 校验 tid 是合法 UUID（防 XSS/任意 URL 跳转）
-          const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (!uuidRe.test(tid)) {
-            toast('submitToast', '任务编号不合法', 'error');
-            return;
-          }
-          chrome.tabs.create({ url: `${videoNoteUrl}/?task_id=${tid}` });
-        } else if (act === 'copy') {
-          copyToClipboard(tid).then(
-            () => toast('submitToast', '任务编号已复制', 'success'),
-            () => toast('submitToast', '复制失败', 'error')
-          );
-        } else if (act === 'retry') {
-          // 移除失败记录，允许重新提交（同时从 submittedUrls 移除该 URL）
-          const i = submittedTasks.findIndex(t => t.createdAt === task.createdAt);
-          if (i >= 0) submittedTasks.splice(i, 1);
-          submittedUrls.delete(task.videoUrl);
-          renderTaskList();
-          const btn = document.getElementById('submitBtn');
-          btn.disabled = false;
-          btn.innerHTML = '提交笔记任务';
-          // 用失败任务的原 URL 重试，不是当前页 URL
-          onSubmitNoteTask(task.videoUrl);
+  // 绑定操作按钮
+  el.querySelectorAll('button[data-act]').forEach(b => {
+    b.addEventListener('click', () => {
+      const act = b.dataset.act;
+      const clickedTid = b.dataset.tid;
+      if (act === 'view') {
+        // 校验 tid 是合法 UUID（防 XSS/任意 URL 跳转）
+        const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRe.test(clickedTid)) {
+          toast('submitToast', '任务编号不合法', 'error');
+          return;
         }
-      });
+        chrome.tabs.create({ url: `${videoNoteUrl}/?task_id=${clickedTid}` });
+      } else if (act === 'copy') {
+        copyToClipboard(clickedTid).then(
+          () => toast('submitToast', '任务编号已复制', 'success'),
+          () => toast('submitToast', '复制失败', 'error')
+        );
+      }
     });
-
-    list.appendChild(card);
   });
+
+  // 3 秒后自动消失
+  clearTimeout(messageTimer);
+  messageTimer = setTimeout(() => {
+    el.className = 'message ' + state;
+  }, 3000);
 }
 
 // 提交成功后显示「提交新任务」入口

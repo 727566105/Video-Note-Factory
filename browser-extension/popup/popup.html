@@ -239,29 +239,33 @@ textarea,input{font:inherit; color:inherit}
 .submit-result .actions{margin-top:var(--space-3); display:flex; flex-direction:column; gap:var(--space-2)}
 .submit-result svg{width:16px; height:16px}
 
-/* ─── 任务列表（多次提交累计展示） ─────────────────────────────────── */
-.task-list{margin-top:var(--space-3); display:flex; flex-direction:column; gap:var(--space-2)}
-.task-list:empty{display:none}
-.task-card{
-  padding:var(--space-3); border-radius:var(--radius-md);
-  background:var(--surface); border:1px solid var(--border);
+/* ─── Message 全局提示（成功/失败，3秒自动消失） ────────────────────── */
+.message-wrap{position:sticky; bottom:0; display:flex; justify-content:center; pointer-events:none; z-index:20}
+.message{
+  pointer-events:auto; width:100%; max-width:var(--popup-width);
+  margin-bottom:var(--space-3); padding:var(--space-3) var(--space-4);
+  border-radius:var(--radius-md); border:1px solid var(--border);
+  background:var(--surface); box-shadow:0 8px 24px rgba(0,0,0,0.12);
+  opacity:0; transform:translateY(8px);
+  transition:opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
-.task-card.success{background:var(--success-soft); border-color:color-mix(in oklab, var(--success) 30%, transparent)}
-.task-card.error{background:color-mix(in oklab, var(--accent) 6%, var(--surface)); border-color:var(--accent-soft)}
-.task-card .row1{display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-sm); font-weight:600}
-.task-card.success .row1{color:var(--success)}
-.task-card.error .row1{color:var(--accent)}
-.task-card .row1 svg{width:14px; height:14px; flex:none}
-.task-card .row1 .num{margin-left:auto; font-size:var(--text-xs); color:var(--muted); font-weight:400}
-.task-card .title{font-size:var(--text-xs); color:var(--fg); margin-top:var(--space-1);
+.message.show{opacity:1; transform:translateY(0)}
+.message.success{background:var(--success-soft); border-color:color-mix(in oklab, var(--success) 30%, transparent)}
+.message.error{background:color-mix(in oklab, var(--accent) 6%, var(--surface)); border-color:var(--accent-soft)}
+.message .msg-head{display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-sm); font-weight:600}
+.message.success .msg-head{color:var(--success)}
+.message.error .msg-head{color:var(--accent)}
+.message .msg-head svg{width:16px; height:16px; flex:none}
+.message .msg-body{font-size:var(--text-xs); color:var(--fg); margin-top:var(--space-1);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.task-card .tid{font-size:var(--text-xs); color:var(--muted); font-family:var(--font-mono); margin-top:var(--space-1)}
-.task-card .ops{margin-top:var(--space-2); display:flex; gap:var(--space-2)}
-.task-card .ops .btn{height:32px; font-size:var(--text-xs); padding:0 var(--space-3)}
+.message .msg-detail{font-size:var(--text-xs); color:var(--muted); font-family:var(--font-mono); margin-top:var(--space-1); word-break:break-all; white-space:normal}
+.message.error .msg-detail{color:var(--accent)}
+.message .msg-ops{margin-top:var(--space-2); display:flex; gap:var(--space-2)}
+.message .msg-ops .btn{height:30px; font-size:var(--text-xs); padding:0 var(--space-3)}
 
 .new-task-row{margin-top:var(--space-3); display:flex; justify-content:center}
 
-/* ─── Toast ───────────────────────────────────────────────────────── */
+/* ─── Toast（小卷纯文字提示，用于复制成功等轻量反馈） ──────────────── */
 .toast-wrap{position:sticky; bottom:0; display:flex; justify-content:center; pointer-events:none}
 .toast{
   pointer-events:auto; max-width:calc(var(--popup-width) - 32px);
@@ -360,9 +364,10 @@ textarea,input{font:inherit; color:inherit}
 
       <button class="btn btn-primary btn-block" id="submitBtn" disabled>提交笔记任务</button>
 
-      <!-- 任务列表（累计本次 popup 会话提交的任务，最多保留 5 条） -->
-      <div class="task-list" id="taskList" data-od-id="submit-task-list"></div>
+      <!-- Message 全局提示（提交成功/失败，3秒自动消失） -->
+      <div class="message-wrap"><div class="message" id="submitMessage" role="status" aria-live="polite"></div></div>
 
+      <!-- 轻量 toast（复制成功等纯文字反馈） -->
       <div class="toast-wrap"><div class="toast" id="submitToast" role="status" aria-live="polite"></div></div>
     </section>
 
