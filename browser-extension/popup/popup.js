@@ -191,7 +191,12 @@ function toast(panelId, msg, type) {
 // 这样 clearLoading 不会还原按钮（避免覆盖防重禁用态）
 function setLoading(btn, text) {
   btn.disabled = true;
-  btn.dataset.orig = btn.innerHTML;
+  // 只在第一次进入 loading 时保存原始 HTML，避免连续 setLoading 覆盖 orig
+  // （onPush 流程：setLoading('推送中') -> 成功 -> setLoading('校验中') -> clearLoading）
+  // 如果第二次也覆盖，orig 会变成 spinner HTML，clearLoading 还原成 spinner
+  if (!btn.dataset.orig) {
+    btn.dataset.orig = btn.innerHTML;
+  }
   btn.innerHTML = `<span class="spin"></span>${text}`;
 }
 function clearLoading(btn) {
