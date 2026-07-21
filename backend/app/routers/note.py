@@ -486,6 +486,17 @@ def _cleanup_task_files(task):
             if video_dir.exists():
                 shutil.rmtree(video_dir)
                 logger.info(f"已删除视频目录（无其他用户引用）: {video_dir}")
+
+            # 作者目录变空时一并清理（避免留空 {author_id}_{author_name}/ 目录）
+            author_dir = VIDEO_DIR / platform_dir / author_folder
+            if author_dir.exists():
+                try:
+                    next(author_dir.iterdir())  # 有内容会抛 StopIteration 之外的情况
+                    # 有内容，不删
+                except StopIteration:
+                    # 目录为空，删除
+                    author_dir.rmdir()
+                    logger.info(f"已删除空作者目录: {author_dir}")
         except Exception as e:
             logger.warning(f"删除视频目录失败: {e}")
 
