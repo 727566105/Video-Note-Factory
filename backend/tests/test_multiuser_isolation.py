@@ -126,6 +126,160 @@ class TestHardDelete:
 
 
 @pytest.mark.skipif(not _db_ok, reason="数据库或 bcrypt 不可用")
+class TestCleanupTaskFiles:
+    """物理删除时本地文件清理测试（含空作者目录清理）"""
+
+    # 测试用的固定字段，避免污染真实数据
+    _PLATFORM = "bilibili"
+    _AUTHOR_ID = "TEST_CLEANUP_AUTH"
+    _AUTHOR_NAME = "清理测试作者"
+    _USER_ID = 1
+
+    def _make_task(self, video_id, title, task_id):
+        """造一条测试任务 + 本地笔记文件，返回 (task_id, video_dir)"""
+        from app.db.video_task_dao import insert_video_task, update_task_metadata
+        from app.utils.path_helper import (
+            get_video_folder_name, get_author_folder_name, _get_platform_dir, VIDEO_DIR
+        )
+        insert_video_task(video_id, self._PLATFORM, task_id, "https://test.com",
+                          user_id=self._USER_ID, author_id=self._AUTHOR_ID,
+                          author_name=self._AUTHOR_NAME)
+        # insert_video_task 不接受 title 参数，需单独更新
+        update_task_metadata(task_id=task_id, title=title, user_id=self._USER_ID)
+        # 造本地文件（路径必须和 _cleanup_task_files 计算的一致）
+        platform_dir = _get_platform_dir(self._PLATFORM)
+        author_folder = get_author_folder_name(self._AUTHOR_ID, self._AUTHOR_NAME, self._PLATFORM)
+        video_folder = get_video_folder_name(video_id, title)
+        video_dir = VIDEO_DIR / platform_dir / author_folder / video_folder
+        video_dir.mkdir(parents=True, exist_ok=True)
+        (video_dir / f"note_{self._USER_ID}.json").write_text('{"markdown":"# test"}')
+        (video_dir / "status.json").write_text('{"status":"SUCCESS"}')
+        (video_dir / "cover.jpg").write_text("fake cover")
+        return task_id, video_dir
+
+    def _author_dir(self):
+        from app.utils.path_helper import (
+            get_author_folder_name, _get_platform_dir, VIDEO_DIR
+        )
+        return VIDEO_DIR / _get_platform_dir(self._PLATFORM) / get_author_folder_name(
+            self._AUTHOR_ID, self._AUTHOR_NAME, self._PLATFORM
+        )
+
+    def _cleanup_test_data(self):
+        """清理测试残留（作者目录及以下全删 + 数据库记录）"""
+        import shutil
+        from app.db.video_task_dao import get_db
+        from app.db.models.video_tasks import VideoTask
+        author_dir = self._author_dir()
+        if author_dir.exists():
+            shutil.rmtree(author_dir, ignore_errors=True)
+        db = next(get_db())
+        try:
+            db.query(VideoTask).filter(VideoTask.author_id == self._AUTHOR_ID).delete()
+            db.commit()
+        finally:
+            db.close()
+
+    def setup_method(self):
+        """每个测试前确保环境干净"""
+        self._cleanup_test_data()
+
+    def teardown_method(self):
+        """每个测试后清理"""
+        self._cleanup_test_data()
+
+    def test_single_video_cleanup_author_dir(self, client, admin_token):
+        """删最后一条视频时，视频目录 + 空作者目录都应被清理"""
+        if not admin_token:
+            pytest.skip("admin 不可用")
+        task_id, video_dir = self._make_task("CLEAN_SINGLE", "单视频测试", "cleanup-single-001")
+        author_dir = self._author_dir()
+        assert video_dir.exists(), "测试前视频目录应存在"
+        assert author_dir.exists(), "测试前作者目录应存在"
+
+        resp = client.post("/api/delete_task",
+                           json={"task_id": task_id},
+                           headers={"Authorization": f"Bearer {admin_token}"})
+        assert resp.json()["code"] == 0
+
+        assert not video_dir.exists(), "视频目录应被删除"
+        assert not author_dir.exists(), "空作者目录应被清理"
+
+    def test_multi_video_keep_author_dir(self, client, admin_token):
+        """多视频作者删一个，作者目录应保留（其他视频还在）"""
+        if not admin_token:
+            pytest.skip("admin 不可用")
+        _, video_dir1 = self._make_task("CLEAN_MULTI_1", "多视频1", "cleanup-multi-001")
+        _, video_dir2 = self._make_task("CLEAN_MULTI_2", "多视频2", "cleanup-multi-002")
+        author_dir = self._author_dir()
+
+        # 删第一个
+        resp = client.post("/api/delete_task",
+                           json={"task_id": "cleanup-multi-001"},
+                           headers={"Authorization": f"Bearer {admin_token}"})
+        assert resp.json()["code"] == 0
+
+        assert not video_dir1.exists(), "被删的视频目录应消失"
+        assert video_dir2.exists(), "未删的视频目录应保留"
+        assert author_dir.exists(), "作者目录应保留（还有其他视频）"
+
+    def test_ds_store_keeps_author_dir(self, client, admin_token):
+        """作者目录只剩 .DS_Store 时不应被清理（隐藏文件算内容）"""
+        if not admin_token:
+            pytest.skip("admin 不可用")
+        task_id, video_dir = self._make_task("CLEAN_DS", "DS测试", "cleanup-ds-001")
+        author_dir = self._author_dir()
+        # 预先放一个 .DS_Store
+        (author_dir / ".DS_Store").write_text("fake ds store")
+
+        resp = client.post("/api/delete_task",
+                           json={"task_id": task_id},
+                           headers={"Authorization": f"Bearer {admin_token}"})
+        assert resp.json()["code"] == 0
+
+        assert not video_dir.exists(), "视频目录应被删除"
+        assert author_dir.exists(), "有 .DS_Store 的作者目录应保留"
+        assert (author_dir / ".DS_Store").exists(), ".DS_Store 应保留"
+
+    def test_concurrent_delete_same_author(self, client, admin_token):
+        """并发删除同一作者的两个视频，最后作者目录应被清理"""
+        if not admin_token:
+            pytest.skip("admin 不可用")
+        _, video_dir1 = self._make_task("CLEAN_CONC_1", "并发1", "cleanup-conc-001")
+        _, video_dir2 = self._make_task("CLEAN_CONC_2", "并发2", "cleanup-conc-002")
+        author_dir = self._author_dir()
+
+        # 串行删两个（TestClient 不支持真并发，但能验证多次删除的累积效果）
+        client.post("/api/delete_task",
+                    json={"task_id": "cleanup-conc-001"},
+                    headers={"Authorization": f"Bearer {admin_token}"})
+        client.post("/api/delete_task",
+                    json={"task_id": "cleanup-conc-002"},
+                    headers={"Authorization": f"Bearer {admin_token}"})
+
+        assert not video_dir1.exists() and not video_dir2.exists(), "两个视频目录都应删除"
+        assert not author_dir.exists(), "空作者目录应被清理"
+
+    def test_missing_video_dir_no_crash(self, client, admin_token):
+        """视频目录不存在（已被手动删）时不应崩溃"""
+        if not admin_token:
+            pytest.skip("admin 不可用")
+        # 只造数据库记录，不造本地文件
+        from app.db.video_task_dao import insert_video_task
+        insert_video_task("CLEAN_NODIR", self._PLATFORM, "cleanup-nodir-001", "https://test.com",
+                          user_id=self._USER_ID, author_id=self._AUTHOR_ID,
+                          author_name=self._AUTHOR_NAME)
+
+        resp = client.post("/api/delete_task",
+                           json={"task_id": "cleanup-nodir-001"},
+                           headers={"Authorization": f"Bearer {admin_token}"})
+        assert resp.json()["code"] == 0, "目录不存在时删除应成功（幂等）"
+
+        from app.db.video_task_dao import get_task_by_task_id
+        assert get_task_by_task_id("cleanup-nodir-001") is None, "数据库记录应已删除"
+
+
+@pytest.mark.skipif(not _db_ok, reason="数据库或 bcrypt 不可用")
 class TestCrossUserAccess:
     """TC08: 跨用户访问拒绝"""
 
