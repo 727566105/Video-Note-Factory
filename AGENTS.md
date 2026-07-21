@@ -134,6 +134,38 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - `openspec/` — 架构/重大变更走 OpenSpec 提案流程（见文件顶部 managed block）
 - 根 `CLAUDE.md` / `videoNote_frontend/CLAUDE.md` — 更详细的项目约定
 
+## 删除逻辑（物理删除，非软删除）
+
+- **用户删除即物理删除**：`POST /api/delete_task`（`note.py`）直接 `db.delete(task)` + 清理本地文件 + 清理关联数据，不再有 `deleted_at` 软删除标记。前端确认弹窗"此操作不可恢复"名副其实。
+- **删除执行顺序**（符合外键约束，防孤儿数据）：
+  1. 定位任务 + 权限校验（task_id 或 video_id+platform 两种入参；空入参返回 400）
+  2. `_cleanup_task_relations(task_id, user_id)` - 清关联数据（**先于主表删除**）
+  3. `hard_delete_task_by_user(task_id, user_id)` - 物理删 video_tasks 记录，返回被删 task 对象
+  4. `_cleanup_task_files(task)` - 清本地文件（按引用计数决定是否 rmtree 整个视频目录）
+  5. `task_queue.remove(task_id)` - 清任务队列
+- **`hard_delete_task_by_user` 异常处理**：任务不存在返回 None（幂等）；数据库故障 **抛异常**（让调用方返回 500，不误报"删除成功"）。
+- **跨用户共享视频目录**：多用户引用同一 `video_id` 时，只删当前用户的 `note_{user_id}.json` + `status.json`；`other_refs` 计数为 0 才 `rmtree` 整个视频目录（含媒体/截图/exports）。
+- **关联数据清理带 user_id 过滤**：`collection_items` 通过 `join collections` 过滤 user_id，`feed_items` 用自带 user_id 字段。**防跨用户共享 task_id 时误删其他用户的合集/feed**（`clone_task_to_user` 会让多用户共享同一 task_id）。
+- **`get_video_folder()` 有 mkdir 副作用**：删除文件时不要用它，改用 `get_video_folder_name()` + `get_author_folder_name()` + `_get_platform_dir()` + `VIDEO_DIR` 手动拼路径。
+- **已移除的接口/字段**：`cleanup_deleted_tasks` 管理员清理接口（`config.py`）、`deleted_at` 字段（`video_tasks` 模型 + init_db 迁移）、`soft_delete_task`/`get_deleted_tasks`/`hard_delete_task` DAO 函数、前端"清理过期数据"按钮（`TaskQueue.tsx`）。旧库的 `deleted_at` 列保留但代码不再读写。
+- **MCP 删除接口**：`mcp_server.py` 的 `delete_task` 也是物理删除，复用 `_cleanup_task_files` + `_cleanup_task_relations`。
+
+## status.json 归属校验（防张冠李戴）
+
+- **写 status.json 时必带 task_id**：`NoteGenerator._update_status`（`services/note.py`）写入时带 `task_id` 字段，供读取时做归属校验。
+- **读取时校验 task_id 归属**：`/api/tasks`（`note.py` 的 `get_tasks`）和 `/api/task_status/{task_id}`（`note.py`）读 status.json 时，若 `file_task_id != current_task_id` 且状态为 FAILED，**忽略旧状态**（回退到 PENDING/实时队列/数据库推断）。
+- **只对 FAILED 状态生效**：现有 SUCCESS 任务的旧 status.json 无 task_id 字段，校验规则不能影响它们（否则会破坏所有成功任务的状态显示）。
+- **`find_note_file` 自愈合扫描的风险**：自愈合按 `video_id_` 前缀扫描，可能找到**其他 task_id 的旧 status.json**（比如 6-28 的失败任务遗留的 status.json 被 7-20 的新任务扫描到）。归属校验是兜底防护。
+- **前端轮询接口是 status.json 张冠李戴的真凶**：`useTaskPolling`（`hooks/useTaskPolling.ts`）每 3 秒调 `/api/task_status/{task_id}` 单查活跃任务状态。这个接口读 status.json 时也必须做归属校验，否则会用旧 status 覆盖 `loadTasksFromBackend` 返回的最新状态。
+- **前端 taskStore 合并逻辑**：`loadTasksFromBackend`（`store/taskStore/index.ts`）的合并策略 - 本地过时 FAILED/PENDING **不能覆盖**后端最新状态。只有本地是活跃态（PROCESSING/QUEUED 等）且后端也是活跃态时才保留本地（轮询更实时）。
+
+## 笔记保存的空 title bug（`save_note_to_file`）
+
+- **位置**：`routers/note.py` 的 `save_note_to_file`（被 `run_note_task` 调用）。
+- **原 bug**：图文笔记（article/live_photo）的 `NoteResult` 没有 `audio_meta`，走 elif 分支 `elif hasattr(note, 'title') and note.title:`。但**标题可能为空**（抖音返回空标题），`note.title=''` 判断为 False，跳过整个分支，导致 `video_id/author_id/platform` 全是 None。
+- **后果**：`get_note_file_path_v2` 走 `author_id=None` 分支，写到 `_pending/{task_id}/note_1.json`。但 `_pending` 已被 `_cleanup_pending` 清理 -> **note.json 丢失，但 status.json 已先写成 SUCCESS**。结果：status 显示成功，笔记内容为空。
+- **修复**：用 `video_id` 判断（`elif getattr(note, 'video_id', None):`），空标题也能正确提取字段。同时加 `result_path.parent.mkdir(parents=True, exist_ok=True)` 防御。
+
 ## 并发与任务队列（关键架构）
 
 - **`TaskQueueManager`（`app/services/task_queue.py`）** 是全局单例，控制并发执行数（`MAX_CONCURRENT_TASKS` 默认 3）。所有方法用 `threading.RLock` 保护，`acquire` 有 task_id 去重（已在运行/排队的不重复入队），`release` 幂等（看门狗先释放后卡死线程不会重复拉起）。
