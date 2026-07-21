@@ -151,6 +151,27 @@ function FailedView({ message, taskId, platform }: { message?: string; taskId: s
   )
 }
 
+/**
+ * 旧笔记提示横幅：任务状态为 FAILED 但本地已有笔记内容时显示。
+ * 场景：原作品已被作者删除/私密，但本地笔记仍可正常查看。
+ */
+function StaleNoteBanner({ message, platform }: { message: string; platform?: string }) {
+  const category = message ? classifyError(message, platform) : null
+  // 判断是否"原作品已删除"类错误（抖音/快手等平台 filter_detail）
+  const isRemoteDeleted = /作品不可访问|作品权限|已被删除|作品不见了|filter_reason/.test(message || '')
+
+  return (
+    <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm">
+      <FileQuestion className="h-4 w-4 shrink-0 text-amber-600" />
+      <span className="text-amber-800">
+        {isRemoteDeleted
+          ? '原作品已被删除或设为私密，以下为本地已生成的笔记内容'
+          : `上次生成失败${category ? `（${category.label}）` : ''}，以下为本地已有的笔记内容`}
+      </span>
+    </div>
+  )
+}
+
 // 用 memo 包裹子组件，防止拖拽时重新渲染
 const MemoLeftPanel = memo(LeftPanel)
 const MemoRightPanel = memo(RightPanel)
@@ -203,19 +224,19 @@ export default function NoteDetailPage() {
     }
   }, [task?.id])
 
-  // 从后端加载（如果 store 中没有）
+  // 从后端加载（刷新状态，避免 localStorage 旧缓存导致显示过时状态）
+  // 场景：localStorage 可能缓存了 FAILED，但后端 status.json 已被清理/状态已变
   useEffect(() => {
-    if (task) {
-      setLoading(false)
-      return
-    }
     if (!id) {
       setNotFound(true)
       setLoading(false)
       return
     }
 
-    setLoading(true)
+    // task 不存在时显示骨架屏，存在时直接用（后台刷新后 selector 会自动更新）
+    if (!task) {
+      setLoading(true)
+    }
     loadTasksFromBackend()
       .then(() => {
         // loadTasksFromBackend 会更新 store，task selector 会自动重新计算
@@ -231,7 +252,7 @@ export default function NoteDetailPage() {
         setNotFound(true)
         setLoading(false)
       })
-  }, [id, task, loadTasksFromBackend])
+  }, [id, loadTasksFromBackend])
 
   const onMouseDown = useCallback(() => {
     isDragging.current = true
@@ -318,8 +339,9 @@ export default function NoteDetailPage() {
     return <QueuedView taskId={task.id} />
   }
 
-  // 任务失败时显示失败提示
-  if (task.status === 'FAILED') {
+  // 任务失败时：若本地已生成过笔记内容，仍正常显示笔记 + 顶部加"原作品已删除/生成失败"提示
+  // 场景：任务曾成功生成笔记（有 note.md），后来原作品被作者删除，重新提交时下载失败变 FAILED
+  if (task.status === 'FAILED' && !hasContent) {
     return <FailedView message={task.message} taskId={task.id} platform={task.platform} />
   }
 
@@ -359,6 +381,10 @@ export default function NoteDetailPage() {
   if (isMobile) {
     return (
       <div className="flex flex-col bg-background">
+        {/* 失败但有内容的提示横幅 */}
+        {task.status === 'FAILED' && hasContent && (
+          <StaleNoteBanner message={task.message} platform={task.platform} />
+        )}
         {/* 视频信息区 */}
         <MemoLeftPanel
           task={task}
@@ -381,7 +407,12 @@ export default function NoteDetailPage() {
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background" ref={containerRef}>
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+      {/* 失败但有内容的提示横幅 */}
+      {task.status === 'FAILED' && hasContent && (
+        <StaleNoteBanner message={task.message} platform={task.platform} />
+      )}
+      <div className="flex flex-1 min-h-0 overflow-hidden" ref={containerRef}>
       {/* 左栏（根据 panelSwapped 决定是视频还是笔记） */}
       <div className="flex flex-col overflow-hidden" style={{ width: leftWidth, minWidth: 380 }}>
         {/* 面板内容（带切换动画） */}
@@ -448,6 +479,7 @@ export default function NoteDetailPage() {
 
       {/* 右侧导航栏 */}
       <MemoDetailNav />
+      </div>
     </div>
   )
 }

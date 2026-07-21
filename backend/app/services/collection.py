@@ -794,10 +794,8 @@ def sync_smart_collection(db: Session, sc_id: str, user_id: int) -> int:
     if not sc:
         return 0
 
-    # 按规则类型查询匹配的 task
-    query = db.query(VideoTask).filter(
-        VideoTask.user_id == user_id, VideoTask.deleted_at.is_(None)
-    )
+    # 按规则类型查询匹配的 task（物理删除后已删除任务不在表内，无需过滤）
+    query = db.query(VideoTask).filter(VideoTask.user_id == user_id)
     if sc.rule_type == "platform":
         matched = query.filter(VideoTask.platform == sc.rule_value).all()
     elif sc.rule_type == "tag":

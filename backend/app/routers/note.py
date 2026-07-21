@@ -149,9 +149,11 @@ def save_note_to_file(task_id: str, note):
                 author_name = note.audio_meta.raw_info.get("uploader", "")
             if not author_name:
                 author_name = note.audio_meta.raw_info.get("channel", "")
-    # 图文类型：从 note 直接属性获取
-    elif hasattr(note, 'title') and note.title:
-        title = note.title
+    # 图文类型：从 note 直接属性获取（video_id 是关键字段，title 可能为空）
+    # 注意：旧逻辑用 `note.title` 判断，空标题时会跳过，导致 video_id/author_id 也拿不到，
+    # 最终写到 _pending 目录被清理，note.json 丢失
+    elif getattr(note, 'video_id', None):
+        title = getattr(note, 'title', None)
         video_id = getattr(note, 'video_id', None)
         platform = getattr(note, 'platform', '')
         author_id = getattr(note, 'author_id', None)
@@ -218,6 +220,8 @@ def save_note_to_file(task_id: str, note):
         save_data["used_model_name"] = note.used_model_name or note.model_name
         save_data["used_provider_name"] = note.used_provider_name
 
+    # 确保父目录存在（图文笔记可能未预先创建目录）
+    result_path.parent.mkdir(parents=True, exist_ok=True)
     with open(result_path, "w", encoding="utf-8") as f:
         json.dump(save_data, f, ensure_ascii=False, indent=2)
 
@@ -360,31 +364,179 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
 
 @router.post('/delete_task')
 def delete_task(data: RecordRequest, current_user=Depends(get_current_user)) -> dict:
-    """软删除任务（标记 deleted_at，前端隐藏，数据保留）"""
-    from app.db.video_task_dao import soft_delete_task
-    try:
-        if data.task_id:
-            # 权限检查
-            db_task = get_task_by_task_id(data.task_id)
-            if not db_task or db_task.user_id != current_user.id:
-                raise HTTPException(status_code=403, detail="无权删除该任务")
-            # 软删除
-            soft_delete_task(data.task_id, current_user.id)
-            # 清理队列
-            task_queue.remove(data.task_id)
-        else:
-            # 兼容旧逻辑：通过 video_id + platform 软删除
-            from app.db.video_task_dao import get_user_task_for_video
-            task = get_user_task_for_video(data.video_id, data.platform, current_user.id)
-            if task:
-                soft_delete_task(task.task_id, current_user.id)
+    """物理删除任务（数据库记录 + 本地文件 + 关联数据，不可恢复）
 
+    执行顺序（避免孤儿数据 + 外键约束）：
+    1. 定位任务 + 权限校验
+    2. 清理关联数据（先于主表删除，避免外键约束失败）
+    3. 物理删除 video_tasks 记录（主表）
+    4. 清理本地文件（数据库已删，按引用计数决定是否删整个视频目录）
+    5. 清理任务队列
+    """
+    from app.db.video_task_dao import hard_delete_task_by_user, get_user_task_for_video
+    try:
+        # 1. 定位任务 + 权限校验（支持 task_id 或 video_id+platform 两种入参）
+        if data.task_id:
+            db_task = get_task_by_task_id(data.task_id)
+            if not db_task:
+                # 任务不存在，幂等返回（可能已被删除）
+                return R.success(msg='删除成功')
+            if db_task.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="无权删除该任务")
+            task_id = data.task_id
+        else:
+            if not data.video_id or not data.platform:
+                raise HTTPException(status_code=400, detail="task_id 或 video_id+platform 至少需要一个")
+            # 兼容旧逻辑：通过 video_id + platform 定位
+            db_task = get_user_task_for_video(data.video_id, data.platform, current_user.id)
+            if not db_task:
+                return R.success(msg='删除成功')  # 无任务可删，幂等返回
+            task_id = db_task.task_id
+
+        # 2. 清理关联数据（先于主表删除，符合外键约束顺序）
+        _cleanup_task_relations(task_id, current_user.id)
+
+        # 3. 物理删除 video_tasks 记录（拿到 task 信息供清理文件）
+        deleted_task = hard_delete_task_by_user(task_id, current_user.id)
+        if not deleted_task:
+            # 关联数据可能已被清理，但主表记录不存在，幂等返回
+            return R.success(msg='删除成功')
+
+        # 4. 清理本地文件（按引用计数决定是否删整个视频目录）
+        _cleanup_task_files(deleted_task)
+
+        # 5. 清理任务队列
+        task_queue.remove(task_id)
+
+        logger.info(f"任务已物理删除（含文件+关联数据）: task_id={task_id}")
         return R.success(msg='删除成功')
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"删除任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _cleanup_task_files(task):
+    """清理被删任务的本地文件（按引用计数决定是否删整个视频目录）。
+
+    多用户共享同一视频目录时：
+    - 只删当前用户的 note_{user_id}.json + status.json
+    - 其他用户仍引用该 video_id 时不删视频目录（含媒体/截图）
+    - 最后一个用户删除时才 rmtree 整个视频目录
+
+    注意：此函数在 video_tasks 记录已删除后调用，other_refs 查询的是剩余引用。
+    """
+    import shutil
+    from app.db.video_task_dao import get_db
+    from app.db.models.video_tasks import VideoTask
+    from app.utils.path_helper import (
+        find_note_file, get_video_folder_name, get_author_folder_name,
+        _get_platform_dir, VIDEO_DIR
+    )
+
+    if not task.author_id:
+        logger.warning(f"任务 author_id 为空，无法定位文件，仅删数据库记录: task_id={task.task_id}")
+        return
+
+    # 检查是否还有其他用户引用同一 video_id（当前 task 已删，查剩余的）
+    # 注意：video_id/platform 为 NULL 时不计入引用计数（NULL != NULL in SQL）
+    db = next(get_db())
+    try:
+        other_refs = db.query(VideoTask).filter(
+            VideoTask.video_id == task.video_id,
+            VideoTask.platform == task.platform,
+        ).count()  # 当前 task 已删，无需 id != task.id
+    finally:
+        db.close()
+
+    # 删当前用户的 note_{user_id}.json
+    try:
+        note_path = find_note_file(
+            task.task_id, task.author_id, task.author_name,
+            task.video_id, task.title, "note", task.platform,
+            user_id=task.user_id
+        )
+        if note_path and note_path.exists():
+            note_path.unlink()
+            logger.info(f"已删除笔记文件: {note_path}")
+    except Exception as e:
+        logger.warning(f"删除笔记文件失败: {e}")
+
+    # 删 status.json
+    try:
+        status_path = find_note_file(
+            task.task_id, task.author_id, task.author_name,
+            task.video_id, task.title, "status", task.platform
+        )
+        if status_path and status_path.exists():
+            status_path.unlink()
+            logger.info(f"已删除 status.json: {status_path}")
+    except Exception as e:
+        logger.warning(f"删除 status.json 失败: {e}")
+
+    # 无其他用户引用 -> 删整个视频目录（含媒体/截图/exports）
+    if other_refs == 0:
+        try:
+            # 注意：不用 get_video_folder()，它有 mkdir 副作用会先创建目录再删
+            platform_dir = _get_platform_dir(task.platform)
+            author_folder = get_author_folder_name(task.author_id, task.author_name, task.platform)
+            video_folder_name = get_video_folder_name(task.video_id, task.title)
+            video_dir = VIDEO_DIR / platform_dir / author_folder / video_folder_name
+            if video_dir.exists():
+                shutil.rmtree(video_dir)
+                logger.info(f"已删除视频目录（无其他用户引用）: {video_dir}")
+        except Exception as e:
+            logger.warning(f"删除视频目录失败: {e}")
+
+
+def _cleanup_task_relations(task_id: str, user_id: int):
+    """清理被删任务的关联数据（合集/订阅/导出历史）。
+
+    关键：跨用户复用时多个用户可能共享同一 task_id（clone_task_to_user），
+    所以关联数据清理必须带 user_id 过滤，只清当前用户的，避免误删其他用户的。
+
+    - collection_items：通过 join collections 过滤 user_id，删除当前用户的合集条目
+    - feed_items：feed_items 自带 user_id，清空当前用户的 task_id（置 NULL）
+    - obsidian/siyuan_export_history：暂无 user_id 字段，按 task_id 删（跨用户共享时可能误删，
+      但导出历史是操作日志，误删影响小；且跨用户复用场景下各用户独立导出，task_id 相同即同一条记录）
+    """
+    from app.db.video_task_dao import get_db
+    from app.db.models.collection import CollectionItem, Collection
+    from app.db.models.subscriptions import FeedItem
+    from app.db.models.obsidian_export_history import ObsidianExportHistory
+    from app.db.models.siyuan_export_history import SiyuanExportHistory
+
+    db = next(get_db())
+    try:
+        # 1. collection_items：join collections 过滤 user_id，只删当前用户的合集条目
+        # （跨用户复用时同一 task_id 可能出现在多个用户的合集中）
+        db.query(CollectionItem).filter(
+            CollectionItem.task_id == task_id,
+            CollectionItem.collection_id.in_(
+                db.query(Collection.id).filter(Collection.user_id == user_id)
+            )
+        ).delete(synchronize_session=False)
+
+        # 2. feed_items：feed_items 自带 user_id，清空当前用户的 task_id（置 NULL）
+        # （让订阅能重新生成；其他用户的 feed_item 不受影响）
+        db.query(FeedItem).filter(
+            FeedItem.task_id == task_id,
+            FeedItem.user_id == user_id
+        ).update({"task_id": None}, synchronize_session=False)
+
+        # 3. obsidian/siyuan 导出历史：按 task_id 删
+        # （导出历史无 user_id 字段；跨用户复用时 task_id 相同即同一条导出记录，删了无害）
+        db.query(ObsidianExportHistory).filter(ObsidianExportHistory.task_id == task_id).delete()
+        db.query(SiyuanExportHistory).filter(SiyuanExportHistory.task_id == task_id).delete()
+
+        db.commit()
+        logger.info(f"已清理关联数据: task_id={task_id}, user_id={user_id}")
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"清理关联数据失败（不影响删除）: {e}")
+    finally:
+        db.close()
 
 
 @router.post("/cancel_task")
@@ -468,7 +620,7 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
     """
     from app.db.video_task_dao import (
         get_user_task_for_video, find_matching_note, find_source_data,
-        clone_task_to_user, soft_delete_task
+        clone_task_to_user
     )
     from app.services.note import NoteGenerator
 
@@ -668,6 +820,23 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
 
         status = status_content.get("status")
         message = status_content.get("message", "")
+        file_task_id = status_content.get("task_id")
+
+        # 归属校验：自愈合扫描可能找到其他 task_id 的旧 status.json，
+        # 旧 FAILED 状态会误导用户。只对 FAILED 生效（避免破坏现有 SUCCESS 任务）。
+        # 新代码写 status.json 必带 task_id，所以"FAILED 但 task_id 不匹配"= 旧残留，忽略。
+        is_stale_failed = (
+            status == TaskStatus.FAILED.value
+            and file_task_id != task_id
+        )
+        if is_stale_failed:
+            logger.info(
+                f"task_status: status.json 归属不匹配，忽略旧 FAILED："
+                f"file_task_id={file_task_id}, current_task_id={task_id}, path={status_path}"
+            )
+            # 不读旧状态，status 置空走后面的 fallback 逻辑
+            status = None
+            message = ""
 
         if status == TaskStatus.SUCCESS.value:
             # 成功状态的话，继续读取最终笔记内容
@@ -701,12 +870,13 @@ def get_task_status(task_id: str, current_user=Depends(get_current_user)) -> dic
                 "task_id": task_id
             })
 
-        # 处理中状态
-        return R.success({
-            "status": status,
-            "message": message,
-            "task_id": task_id
-        })
+        # 处理中状态（status 为 None 表示旧 status.json 被归属校验忽略，走 fallback）
+        if status is not None:
+            return R.success({
+                "status": status,
+                "message": message,
+                "task_id": task_id
+            })
 
     # 没有状态文件，但有结果
     if result_path and result_path.exists():
@@ -1135,8 +1305,23 @@ def get_tasks(limit: int = 100, current_user=Depends(get_current_user)) -> dict:
                         status_data = json.load(f)
                         file_status = status_data.get("status", "PENDING")
                         file_message = status_data.get("message", "")
-                        # status.json 的状态优先（除非队列显示正在运行）
-                        if status != "PROCESSING":
+                        file_task_id = status_data.get("task_id")
+                        # 归属校验：自愈合扫描可能找到其他 task_id 的旧 status.json，
+                        # 旧 FAILED 状态会误导用户（显示过时错误）。
+                        # 规则只对 FAILED 状态生效，避免破坏现有 SUCCESS 任务（旧 status.json 无 task_id 字段）。
+                        # 新代码写 status.json 必带 task_id，所以"FAILED 但无 task_id"= 旧残留，忽略。
+                        is_stale_failed = (
+                            file_status == "FAILED"
+                            and file_task_id != task_id
+                        )
+                        if is_stale_failed:
+                            logger.info(
+                                f"status.json 归属不匹配，忽略旧 FAILED 状态："
+                                f"file_task_id={file_task_id}, current_task_id={task_id}, path={status_path}"
+                            )
+                            # 不读旧状态，留给后面的 result_path / UNKNOWN 兜底
+                        elif status != "PROCESSING":
+                            # status.json 的状态优先（除非队列显示正在运行）
                             status = file_status
                             message = file_message
                 except (json.JSONDecodeError, Exception):

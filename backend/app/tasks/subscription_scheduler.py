@@ -339,10 +339,10 @@ class SubscriptionScheduler:
             if not content_url:
                 continue
 
-            # 去重：检查该用户是否已有该视频的笔记（未删除的），避免重复生成
+            # 去重：检查该用户是否已有该视频的笔记，避免重复生成
             from app.db.video_task_dao import get_user_task_for_video
             existing = get_user_task_for_video(content_id, subscription.platform, subscription.user_id)
-            if existing and existing.deleted_at is None:
+            if existing:
                 # 已有笔记，回写 task_id 到 feed item 并跳过
                 if item_id:
                     update_feed_item_task(item_id, existing.task_id)

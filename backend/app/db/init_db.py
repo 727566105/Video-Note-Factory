@@ -202,12 +202,6 @@ def migrate_video_tasks_multiuser_columns():
         result = db.execute(text("PRAGMA table_info(video_tasks)"))
         columns = [row[1] for row in result.fetchall()]
 
-        if 'deleted_at' not in columns:
-            logger.info("video_tasks: deleted_at 列不存在，正在添加...")
-            db.execute(text("ALTER TABLE video_tasks ADD COLUMN deleted_at DATETIME"))
-            db.commit()
-            logger.info("video_tasks: deleted_at 列添加成功")
-
         if 'source_task_id' not in columns:
             logger.info("video_tasks: source_task_id 列不存在，正在添加...")
             db.execute(text("ALTER TABLE video_tasks ADD COLUMN source_task_id VARCHAR"))

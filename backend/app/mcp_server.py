@@ -527,7 +527,7 @@ async def cancel_task(task_id: str, ctx: Context = None) -> str:
 
 @mcp.tool()
 async def delete_task(task_id: str, ctx: Context = None) -> str:
-    """删除一条笔记（软删除）。
+    """删除一条笔记（物理删除，不可恢复）。
 
     Args:
         task_id: 任务 ID
@@ -537,12 +537,23 @@ async def delete_task(task_id: str, ctx: Context = None) -> str:
     if err:
         return _json({"error": err})
 
-    from app.db.video_task_dao import soft_delete_task
+    from app.db.video_task_dao import hard_delete_task_by_user
     from app.services.task_queue import task_queue
 
-    ok = await _run_sync(soft_delete_task, task_id, user["user_id"])
-    if not ok:
+    deleted_task = await _run_sync(hard_delete_task_by_user, task_id, user["user_id"])
+    if not deleted_task:
         return _json({"error": "笔记不存在或无权删除"})
+
+    # 清理本地文件 + 关联数据（复用 note.py 的清理逻辑）
+    try:
+        from app.routers.note import _cleanup_task_files, _cleanup_task_relations
+        await _run_sync(_cleanup_task_files, deleted_task)
+        await _run_sync(_cleanup_task_relations, task_id, user["user_id"])
+    except Exception as e:
+        # 文件/关联数据清理失败不阻断删除（数据库已删）
+        import logging
+        logging.getLogger(__name__).warning(f"MCP 删除清理失败: {e}")
+
     task_queue.remove(task_id)
     return _json({"task_id": task_id, "message": "删除成功"})
 

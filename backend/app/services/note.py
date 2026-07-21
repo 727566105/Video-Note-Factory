@@ -1098,7 +1098,11 @@ class NoteGenerator:
             task_id, author_id, author_name, video_id, title, "status", platform
         )
         print(f"写入状态文件: {status_file} 当前状态: {status}")
-        data = {"status": status.value if isinstance(status, TaskStatus) else status}
+        # 带 task_id 写入，供读取时做归属校验（防自愈合扫描找到其他 task 的旧 status.json）
+        data = {
+            "status": status.value if isinstance(status, TaskStatus) else status,
+            "task_id": task_id,
+        }
         if message:
             data["message"] = message
 

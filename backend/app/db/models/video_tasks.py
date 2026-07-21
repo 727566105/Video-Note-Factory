@@ -27,6 +27,5 @@ class VideoTask(Base):
     author_name = Column(String, nullable=True)     # 博主名称（冗余存储）
     tags = Column(Text, nullable=True)              # JSON: {"platform_tags": [], "ai_tags": [], "manual_tags": []}
     # 多用户复用相关字段
-    deleted_at = Column(DateTime, nullable=True)    # 软删除时间戳
     source_task_id = Column(String, nullable=True)  # 指向原始任务的 task_id（复用追踪）
     note_style = Column(String, nullable=True)      # 用户选择的笔记风格（minimal/academic等）

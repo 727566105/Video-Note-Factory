@@ -14,15 +14,7 @@ def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str
     try:
         existing = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id).first()
         if existing:
-            # 软删除复活：如果任务之前被软删除（deleted_at 非空），清空 deleted_at 使其重新可见
-            if existing.deleted_at is not None:
-                existing.deleted_at = None
-                if video_url:
-                    existing.video_url = video_url
-                if note_style:
-                    existing.note_style = note_style
-                db.commit()
-                logger.info(f"任务 {task_id} 软删除已复活（deleted_at 清空）")
+            # 任务已存在（未删除），直接返回，不重复插入
             return
         task = VideoTask(
             video_id=video_id,
@@ -103,13 +95,11 @@ def delete_task_by_id(task_id: str):
         db.close()
 
 
-# 获取所有任务（所有用户只看自己的笔记，过滤已软删除的）
+# 获取所有任务（所有用户只看自己的笔记）
 def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
     db = next(get_db())
     try:
-        query = db.query(VideoTask).filter(
-            VideoTask.deleted_at.is_(None)
-        ).order_by(VideoTask.created_at.desc())
+        query = db.query(VideoTask).order_by(VideoTask.created_at.desc())
         # 所有用户都只看自己的任务
         if user_id:
             query = query.filter_by(user_id=user_id)
@@ -338,75 +328,52 @@ def find_matching_note(video_id: str, platform: str, user_id: int,
         db.close()
 
 
-def soft_delete_task(task_id: str, user_id: int):
-    """软删除任务（标记 deleted_at，前端隐藏，数据保留）"""
-    from datetime import datetime
+def hard_delete_task_by_user(task_id: str, user_id: int) -> Optional[VideoTask]:
+    """物理删除任务记录（按 task_id + user_id），返回被删的 task 对象供调用方清理文件。
+
+    物理删除：直接 db.delete，记录从数据库消失。
+    返回被删的 task 对象（含 author_id/video_id/title 等字段），供调用方清理本地文件。
+    任务不存在时返回 None（幂等）；数据库故障时抛异常（让调用方区分"不存在"和"故障"）。
+    """
     db = next(get_db())
     try:
         task = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id).first()
-        if task:
-            task.deleted_at = datetime.now()
-            db.commit()
-            logger.info(f"任务已软删除: task_id={task_id}, user_id={user_id}")
-            return True
-        return False
+        if not task:
+            return None  # 任务不存在，幂等
+        # 先把需要的字段暂存（commit 后 session 里的对象会失效）
+        from app.db.models.video_tasks import VideoTask as VT
+        deleted = VT(
+            id=task.id, task_id=task.task_id, video_id=task.video_id,
+            platform=task.platform, video_url=task.video_url, user_id=task.user_id,
+            created_at=task.created_at, title=task.title, cover_url=task.cover_url,
+            duration=task.duration, author=task.author, description=task.description,
+            author_id=task.author_id, author_name=task.author_name,
+            tags=task.tags, source_task_id=task.source_task_id, note_style=task.note_style,
+        )
+        db.delete(task)
+        db.commit()
+        logger.info(f"任务已物理删除: task_id={task_id}, user_id={user_id}")
+        return deleted
     except Exception as e:
         db.rollback()
-        logger.error(f"软删除任务失败: {e}")
-        return False
+        logger.error(f"物理删除任务失败: {e}")
+        raise  # 抛异常让调用方区分"任务不存在"和"数据库故障"
     finally:
         db.close()
 
 
 def get_user_task_for_video(video_id: str, platform: str, user_id: int) -> Optional[VideoTask]:
-    """查找当前用户对指定视频的任务记录（未删除）"""
+    """查找当前用户对指定视频的任务记录"""
     db = next(get_db())
     try:
         task = db.query(VideoTask).filter_by(
             video_id=video_id, platform=platform, user_id=user_id
-        ).filter(VideoTask.deleted_at.is_(None)).order_by(
+        ).order_by(
             VideoTask.created_at.desc()
         ).first()
         return task
     except Exception as e:
         logger.error(f"查找用户任务失败: {e}")
         return None
-    finally:
-        db.close()
-
-
-def get_deleted_tasks(older_than_days: int = 30) -> list:
-    """获取已软删除超过指定天数的任务（管理员清理用）"""
-    from datetime import datetime, timedelta
-    db = next(get_db())
-    try:
-        cutoff = datetime.now() - timedelta(days=older_than_days)
-        tasks = db.query(VideoTask).filter(
-            VideoTask.deleted_at.isnot(None),
-            VideoTask.deleted_at < cutoff
-        ).all()
-        return tasks
-    except Exception as e:
-        logger.error(f"查询已删除任务失败: {e}")
-        return []
-    finally:
-        db.close()
-
-
-def hard_delete_task(task_id: str) -> bool:
-    """真正删除任务记录（管理员清理）"""
-    db = next(get_db())
-    try:
-        task = db.query(VideoTask).filter_by(task_id=task_id).first()
-        if task:
-            db.delete(task)
-            db.commit()
-            logger.info(f"任务已硬删除: task_id={task_id}")
-            return True
-        return False
-    except Exception as e:
-        db.rollback()
-        logger.error(f"硬删除任务失败: {e}")
-        return False
     finally:
         db.close()

@@ -1,11 +1,10 @@
 """多用户数据隔离 + 智能复用 API 单元测试
 
 测试场景：
-1. 软删除：用户删除笔记后前端隐藏
+1. 物理删除：用户删除笔记后数据库记录消失，本地文件清理
 2. 跨用户访问拒绝：403
-3. 任务列表过滤已删除任务
-4. 管理员清理接口
-5. 笔记文件命名验证
+3. 任务列表不含已删除任务
+4. 笔记文件命名验证
 """
 import json
 import os
@@ -70,11 +69,11 @@ def user_token(client):
 
 
 @pytest.mark.skipif(not _db_ok, reason="数据库或 bcrypt 不可用")
-class TestSoftDelete:
-    """TC05: 软删除测试"""
+class TestHardDelete:
+    """TC05: 物理删除测试"""
 
-    def test_soft_delete_marks_deleted_at(self, client, admin_token):
-        """删除笔记后，数据库记录的 deleted_at 被设置"""
+    def test_hard_delete_removes_record(self, client, admin_token):
+        """删除笔记后，数据库记录被物理删除（get_task_by_task_id 返回 None）"""
         if not admin_token:
             pytest.skip("admin 用户不可用")
         # 先获取一个任务
@@ -90,25 +89,23 @@ class TestSoftDelete:
                            headers={"Authorization": f"Bearer {admin_token}"})
         assert resp.json()["code"] == 0
 
-        # 验证数据库中 deleted_at 已设置
+        # 验证数据库中记录已被物理删除
         from app.db.video_task_dao import get_task_by_task_id
         task = get_task_by_task_id(task_id)
-        assert task is not None, "任务记录应保留"
-        assert task.deleted_at is not None, "deleted_at 应被设置"
+        assert task is None, "任务记录应已被物理删除"
 
-    def test_deleted_tasks_hidden_from_list(self, client, admin_token):
+    def test_deleted_task_not_in_list(self, client, admin_token):
         """已删除的任务不应出现在任务列表中"""
         if not admin_token:
             pytest.skip("admin 用户不可用")
         resp = client.get("/api/tasks?limit=100", headers={"Authorization": f"Bearer {admin_token}"})
         assert resp.json()["code"] == 0
         tasks = resp.json()["data"]["tasks"]
+        # 列表中所有任务都应能在数据库中查到（物理删除的不在表内）
+        from app.db.video_task_dao import get_task_by_task_id
         for task in tasks:
-            # 列表中不应有 deleted_at 不为空的任务
-            from app.db.video_task_dao import get_task_by_task_id
             db_task = get_task_by_task_id(task["task_id"])
-            if db_task:
-                assert db_task.deleted_at is None, f"任务 {task['task_id']} 已软删除但仍在列表中"
+            assert db_task is not None, f"任务 {task['task_id']} 在列表中但数据库查不到"
 
     def test_delete_other_user_task_denied(self, client, admin_token, user_token):
         """用户不能删除其他用户的任务"""
@@ -161,30 +158,6 @@ class TestCrossUserAccess:
         assert resp.status_code == 403
 
 
-@pytest.mark.skipif(not _db_ok, reason="数据库或 bcrypt 不可用")
-class TestAdminCleanup:
-    """TC07: 管理员清理过期数据"""
-
-    def test_cleanup_returns_success(self, client, admin_token):
-        """管理员清理接口应返回成功"""
-        if not admin_token:
-            pytest.skip("admin 用户不可用")
-        resp = client.post("/api/cleanup_deleted_tasks?older_than_days=30",
-                           headers={"Authorization": f"Bearer {admin_token}"})
-        assert resp.json()["code"] == 0
-        data = resp.json()["data"]
-        assert "cleaned" in data
-        assert "total" in data
-
-    def test_cleanup_denied_for_non_admin(self, client, user_token):
-        """非管理员不能调用清理接口"""
-        if not user_token:
-            pytest.skip("testuser 不可用")
-        resp = client.post("/api/cleanup_deleted_tasks?older_than_days=30",
-                           headers={"Authorization": f"Bearer {user_token}"})
-        assert resp.status_code == 403
-
-
 class TestNoteFileNaming:
     """TC09: 笔记文件命名验证"""
 
@@ -224,14 +197,16 @@ class TestNoteFileNaming:
 class TestDAOFunctions:
     """DAO 层函数验证"""
 
-    def test_get_all_tasks_filters_deleted(self):
-        """get_all_tasks 应过滤已软删除的任务"""
+    def test_get_all_tasks_no_soft_deleted(self):
+        """get_all_tasks 不应返回已物理删除的任务（物理删除后记录不在表内）"""
         from app.db.video_task_dao import get_all_tasks
         if not _db_ok:
             pytest.skip("数据库不可用")
         tasks = get_all_tasks(user_id=1, limit=100)
+        # 所有返回的任务都应能在数据库中查到
+        from app.db.video_task_dao import get_task_by_task_id
         for task in tasks:
-            assert task.deleted_at is None, f"任务 {task.task_id} 已软删除但仍被返回"
+            assert get_task_by_task_id(task.task_id) is not None, f"任务 {task.task_id} 在列表中但数据库查不到"
 
     def test_find_source_data_function_exists(self):
         """find_source_data 函数应可正常导入"""
@@ -243,10 +218,10 @@ class TestDAOFunctions:
         from app.db.video_task_dao import find_matching_note
         assert callable(find_matching_note)
 
-    def test_soft_delete_task_function_exists(self):
-        """soft_delete_task 函数应可正常导入"""
-        from app.db.video_task_dao import soft_delete_task
-        assert callable(soft_delete_task)
+    def test_hard_delete_task_by_user_function_exists(self):
+        """hard_delete_task_by_user 函数应可正常导入"""
+        from app.db.video_task_dao import hard_delete_task_by_user
+        assert callable(hard_delete_task_by_user)
 
     def test_get_user_task_for_video_function_exists(self):
         """get_user_task_for_video 函数应可正常导入"""

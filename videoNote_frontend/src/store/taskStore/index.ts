@@ -356,7 +356,8 @@ clearTasks: () => set({ tasks: [], currentTaskId: null }),
               }
             })
 
-            // 合并策略：后端已完成的状态权威，本地活跃任务保留更实时的数据
+            // 合并策略：后端状态权威，本地活跃任务（PROCESSING/QUEUED）保留更实时的数据
+            // 注意：本地 FAILED/PENDING 可能是过时缓存，不能覆盖后端的最新状态
             const localTaskMap = new Map(get().tasks.map(t => [t.id, t]))
             const mergedMap = new Map<string, Task>()
 
@@ -369,12 +370,18 @@ clearTasks: () => set({ tasks: [], currentTaskId: null }),
             for (const [id, lt] of localTaskMap) {
               const bt = mergedMap.get(id)
               if (bt) {
-                // 后端显示已完成 → 用后端数据（权威）
-                if (bt.status === 'SUCCESS' || bt.status === 'FAILED') continue
-                // 后端未完成 → 保留本地任务（轮询状态更实时）
-                mergedMap.set(id, lt)
+                // 后端有此任务：
+                // - 本地是活跃状态（PROCESSING/QUEUED/PENDING）且后端也是活跃态 -> 保留本地（轮询更实时）
+                // - 其他情况 -> 用后端（权威，避免本地过时 FAILED/PENDING 覆盖最新状态）
+                const localActive = ['PROCESSING', 'QUEUED', 'PENDING', 'PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(lt.status)
+                const backendActive = ['PROCESSING', 'QUEUED', 'PENDING', 'PARSING', 'DOWNLOADING', 'TRANSCRIBING', 'SUMMARIZING', 'FORMATTING', 'SAVING'].includes(bt.status)
+                if (localActive && backendActive) {
+                  // 两者都是活跃态，保留本地（更实时的轮询进度）
+                  mergedMap.set(id, lt)
+                }
+                // 否则用后端（已在 mergedMap 里，不覆盖）
               } else {
-                // 后端没有（刚创建），保留本地
+                // 后端没有（刚创建的本地任务），保留本地
                 mergedMap.set(id, lt)
               }
             }
