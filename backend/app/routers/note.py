@@ -666,6 +666,15 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
                     cloned = clone_task_to_user(matching_task.task_id, current_user.id, video_id, data.platform, data.video_url)
                     logger.info(f"智能复用（同风格）：用户 {current_user.id} 复用了视频 {video_id} 的笔记 "
                                 f"original={matching_task.task_id}, new={cloned.task_id}, style={data.style}")
+                    # 回写 feed_item task_id（让动态页"查看笔记"跳转到新 task_id）
+                    try:
+                        from app.db.subscription_dao import update_feed_item_task_by_content
+                        update_feed_item_task_by_content(
+                            content_id=video_id, platform=data.platform,
+                            user_id=current_user.id, task_id=cloned.task_id
+                        )
+                    except Exception as e:
+                        logger.warning(f"回写 feed_item task_id 失败: {e}")
                     return R.success({"task_id": cloned.task_id, "reused": True, "reuse_type": "note"})
                 except Exception as e:
                     logger.warning(f"克隆任务失败，继续检查源数据: {e}")
@@ -710,6 +719,15 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
                     cloned = clone_task_to_user(existing_task.task_id, current_user.id, video_id, data.platform, data.video_url)
                     logger.info(f"Fallback 复用: 用户 {current_user.id} 复用了视频 {video_id} 的笔记 "
                                 f"original={existing_task.task_id}, new={cloned.task_id}")
+                    # 回写 feed_item task_id
+                    try:
+                        from app.db.subscription_dao import update_feed_item_task_by_content
+                        update_feed_item_task_by_content(
+                            content_id=video_id, platform=data.platform,
+                            user_id=current_user.id, task_id=cloned.task_id
+                        )
+                    except Exception as e:
+                        logger.warning(f"回写 feed_item task_id 失败: {e}")
                     return R.success({"task_id": cloned.task_id, "reused": True, "reuse_type": "fallback"})
                 except Exception:
                     pass
