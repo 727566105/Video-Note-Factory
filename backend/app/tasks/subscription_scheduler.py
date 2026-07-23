@@ -349,6 +349,46 @@ class SubscriptionScheduler:
                 logger.info(f"[自动生成] 订阅 {subscription.id} 内容 {content_id} 已有笔记，跳过")
                 continue
 
+            # 跨用户复用：检查其他用户是否已解析过该视频
+            from app.db.video_task_dao import find_matching_note, find_completed_task_by_video, clone_task_to_user
+            from app.db.subscription_dao import update_feed_item_task_by_content
+            reused = False
+
+            # 复用 1: 同风格笔记（跨用户）
+            matching = find_matching_note(content_id, subscription.platform, subscription.user_id, style)
+            if matching:
+                try:
+                    cloned = clone_task_to_user(matching.task_id, subscription.user_id, content_id, subscription.platform, content_url)
+                    if item_id:
+                        update_feed_item_task(item_id, cloned.task_id)
+                    update_feed_item_task_by_content(content_id, subscription.platform, subscription.user_id, cloned.task_id)
+                    logger.info(f"[自动生成] 跨用户复用（同风格）: sub={subscription.id} content={content_id} "
+                                f"original={matching.task_id} new={cloned.task_id}")
+                    generated += 1
+                    reused = True
+                except Exception as e:
+                    logger.warning(f"[自动生成] 跨用户复用失败，继续检查: {e}")
+
+            # 复用 2: fallback 复用（无风格匹配，但已有其他用户的笔记）
+            if not reused:
+                completed = find_completed_task_by_video(content_id, subscription.platform)
+                if completed:
+                    try:
+                        cloned = clone_task_to_user(completed.task_id, subscription.user_id, content_id, subscription.platform, content_url)
+                        if item_id:
+                            update_feed_item_task(item_id, cloned.task_id)
+                        update_feed_item_task_by_content(content_id, subscription.platform, subscription.user_id, cloned.task_id)
+                        logger.info(f"[自动生成] 跨用户复用（fallback）: sub={subscription.id} content={content_id} "
+                                    f"original={completed.task_id} new={cloned.task_id}")
+                        generated += 1
+                        reused = True
+                    except Exception as e:
+                        logger.warning(f"[自动生成] fallback 复用失败，继续全流程: {e}")
+
+            if reused:
+                continue
+
+            # 无可复用数据，全流程生成
             task_id = str(uuid.uuid4())
             logger.info(f"[自动生成] 订阅 {subscription.id} 新内容 {content_id} -> task_id={task_id}")
 
