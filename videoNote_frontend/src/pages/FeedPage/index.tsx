@@ -74,7 +74,7 @@ export default function FeedPage() {
   }, [fetchFeed, sortOrder])
 
   const handleGenerate = useCallback(async (item: FeedItem) => {
-    if (item.content_type !== 'video' || !item.content_url) return
+    if (!item.content_url) return
     setGeneratingIds(prev => new Set(prev).add(String(item.id)))
     try {
       const payload = {
