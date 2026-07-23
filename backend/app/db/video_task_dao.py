@@ -300,13 +300,14 @@ def find_source_data(video_id: str, platform: str) -> Optional[VideoTask]:
                 logger.info(f"找到可复用源数据(transcript): video_id={video_id}, task_id={task.task_id}")
                 return task
             # 检查 2: 视频目录有已下载的媒体文件（图文/实况照片）
+            # 用 find_note_file(status) 定位目录（带自愈合），避免 author_name 不一致找不到
             try:
-                platform_dir = _get_platform_dir(platform)
-                author_folder = get_author_folder_name(task.author_id, task.author_name, platform)
-                video_folder = get_video_folder_name(task.video_id, task.title)
-                video_dir = VIDEO_DIR / platform_dir / author_folder / video_folder
-                if video_dir.exists():
-                    # 有覆盖图或图片即认为下载成功
+                status_path = find_note_file(
+                    task.task_id, task.author_id, task.author_name,
+                    task.video_id, task.title, "status", platform
+                )
+                if status_path and status_path.exists():
+                    video_dir = status_path.parent
                     has_media = any(video_dir.glob("cover.*")) or any(video_dir.glob("image_*.jpg"))
                     if has_media:
                         logger.info(f"找到可复用源数据(media): video_id={video_id}, task_id={task.task_id}")
