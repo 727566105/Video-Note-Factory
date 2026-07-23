@@ -384,6 +384,140 @@ class TestDAOFunctions:
 
 
 @pytest.mark.skipif(not _db_ok, reason="数据库或 bcrypt 不可用")
+class TestCrossUserReuse:
+    """跨用户复用逻辑测试"""
+
+    _PLATFORM = "bilibili"
+    _AUTHOR_ID = "TEST_REUSE_AUTH"
+    _AUTHOR_NAME = "复用测试作者"
+
+    def _make_task_with_note(self, video_id, title, task_id, user_id, style="detailed"):
+        """造一条带 note 文件的任务，返回 task_id"""
+        from app.db.video_task_dao import insert_video_task, update_task_metadata
+        from app.utils.path_helper import (
+            get_video_folder_name, get_author_folder_name, _get_platform_dir, VIDEO_DIR
+        )
+        insert_video_task(video_id, self._PLATFORM, task_id, "https://test.com",
+                          user_id=user_id, author_id=self._AUTHOR_ID,
+                          author_name=self._AUTHOR_NAME, note_style=style)
+        update_task_metadata(task_id=task_id, title=title, user_id=user_id)
+        # 造 note_{user_id}.json
+        platform_dir = _get_platform_dir(self._PLATFORM)
+        author_folder = get_author_folder_name(self._AUTHOR_ID, self._AUTHOR_NAME, self._PLATFORM)
+        video_folder = get_video_folder_name(video_id, title)
+        video_dir = VIDEO_DIR / platform_dir / author_folder / video_folder
+        video_dir.mkdir(parents=True, exist_ok=True)
+        import json as _json
+        (video_dir / f"note_{user_id}.json").write_text(
+            _json.dumps({"markdown": f"# {title}", "content_type": "video",
+                         "transcript": {}, "audio_meta": {}, "model_name": "test",
+                         "style": style, "versions": []})
+        )
+        (video_dir / "cover.jpg").write_text("fake")
+        (video_dir / "status.json").write_text('{"status":"SUCCESS"}')
+        return task_id
+
+    def _cleanup(self):
+        import shutil
+        from app.db.video_task_dao import get_db
+        from app.db.models.video_tasks import VideoTask
+        from app.utils.path_helper import (
+            get_author_folder_name, _get_platform_dir, VIDEO_DIR
+        )
+        author_dir = VIDEO_DIR / _get_platform_dir(self._PLATFORM) / get_author_folder_name(
+            self._AUTHOR_ID, self._AUTHOR_NAME, self._PLATFORM
+        )
+        if author_dir.exists():
+            shutil.rmtree(author_dir, ignore_errors=True)
+        db = next(get_db())
+        try:
+            db.query(VideoTask).filter(VideoTask.author_id == self._AUTHOR_ID).delete()
+            db.commit()
+        finally:
+            db.close()
+
+    def setup_method(self):
+        self._cleanup()
+
+    def teardown_method(self):
+        self._cleanup()
+
+    def test_clone_task_to_user_creates_new_task_id(self):
+        """clone_task_to_user 应生成新 task_id（不等于原始 task_id）"""
+        from app.db.video_task_dao import clone_task_to_user, get_task_by_task_id
+        self._make_task_with_note("REUSE_CLONE", "克隆测试", "reuse-clone-src", user_id=2)
+        cloned = clone_task_to_user("reuse-clone-src", 1, "REUSE_CLONE", self._PLATFORM)
+        assert cloned.task_id != "reuse-clone-src", "新 task_id 不应等于原始 task_id"
+        assert cloned.source_task_id == "reuse-clone-src", "source_task_id 应指向原始任务"
+        assert cloned.user_id == 1
+        # 原始任务仍在
+        assert get_task_by_task_id("reuse-clone-src") is not None
+
+    def test_clone_task_to_user_idempotent(self):
+        """同一用户重复 clone 应返回同一条记录（幂等）"""
+        from app.db.video_task_dao import clone_task_to_user
+        self._make_task_with_note("REUSE_IDEM", "幂等测试", "reuse-idem-src", user_id=2)
+        c1 = clone_task_to_user("reuse-idem-src", 1, "REUSE_IDEM", self._PLATFORM)
+        c2 = clone_task_to_user("reuse-idem-src", 1, "REUSE_IDEM", self._PLATFORM)
+        assert c1.task_id == c2.task_id, "重复 clone 应返回相同 task_id"
+
+    def test_find_matching_note_cross_user(self):
+        """find_matching_note 应能跨用户找到同风格笔记"""
+        from app.db.video_task_dao import find_matching_note
+        self._make_task_with_note("REUSE_MATCH", "匹配测试", "reuse-match-src", user_id=2, style="detailed")
+        # 用户 1 查找（应找到用户 2 的任务）
+        result = find_matching_note("REUSE_MATCH", self._PLATFORM, 1, "detailed")
+        assert result is not None, "应找到其他用户的同风格笔记"
+        assert result.task_id == "reuse-match-src"
+        assert result.user_id == 2
+
+    def test_find_matching_note_skips_own_task(self):
+        """find_matching_note 应跳过自己的任务"""
+        from app.db.video_task_dao import find_matching_note
+        self._make_task_with_note("REUSE_SKIP", "跳过测试", "reuse-skip-src", user_id=1, style="detailed")
+        # 用户 1 查找自己的任务应返回 None
+        result = find_matching_note("REUSE_SKIP", self._PLATFORM, 1, "detailed")
+        assert result is None, "不应返回自己的任务"
+
+    def test_find_matching_note_style_mismatch(self):
+        """风格不匹配时 find_matching_note 不应返回"""
+        from app.db.video_task_dao import find_matching_note
+        self._make_task_with_note("REUSE_STYLE", "风格测试", "reuse-style-src", user_id=2, style="detailed")
+        # 用 minimal 查找（源任务是 detailed）应返回 None
+        result = find_matching_note("REUSE_STYLE", self._PLATFORM, 1, "minimal")
+        assert result is None, "风格不匹配不应返回"
+
+    def test_find_completed_task_by_video_with_user_note(self):
+        """find_completed_task_by_video 应找到 note_{uid}.json 格式的笔记"""
+        from app.db.video_task_dao import find_completed_task_by_video
+        self._make_task_with_note("REUSE_COMPLETED", "完成测试", "reuse-completed-src", user_id=2)
+        result = find_completed_task_by_video("REUSE_COMPLETED", self._PLATFORM)
+        assert result is not None, "应找到其他用户已完成的任务"
+        assert result.task_id == "reuse-completed-src"
+
+    def test_find_source_data_detects_media(self):
+        """find_source_data 应检测到 cover.jpg 等媒体文件（图文笔记无 transcript）"""
+        from app.db.video_task_dao import find_source_data
+        self._make_task_with_note("REUSE_SOURCE", "源数据测试", "reuse-source-src", user_id=2)
+        result = find_source_data("REUSE_SOURCE", self._PLATFORM)
+        assert result is not None, "有 cover.jpg 应视为有可复用源数据"
+        assert result.task_id == "reuse-source-src"
+
+    def test_find_note_file_cross_user_glob(self):
+        """find_note_file 找不到本用户 note_{uid}.json 时应回退到任意 note_*.json"""
+        from app.utils.path_helper import find_note_file
+        self._make_task_with_note("REUSE_GLOB", "Glob测试", "reuse-glob-src", user_id=2)
+        # 用户 1 查找（没有 note_1.json，只有 note_2.json）
+        result = find_note_file(
+            "reuse-glob-src", self._AUTHOR_ID, self._AUTHOR_NAME,
+            "REUSE_GLOB", "Glob测试", "note", self._PLATFORM, user_id=1
+        )
+        assert result is not None, "应通过 glob 回退找到 note_2.json"
+        assert result.exists()
+        assert "note_2.json" in result.name
+
+
+@pytest.mark.skipif(not _db_ok, reason="数据库或 bcrypt 不可用")
 class TestGenerateNoteReuse:
     """TC01-TC04: 笔记生成 + 复用逻辑测试"""
 
@@ -391,17 +525,14 @@ class TestGenerateNoteReuse:
         """TC02: 用户重复提交相同URL应返回错误"""
         if not admin_token:
             pytest.skip("admin 用户不可用")
-        # 获取已有任务
-        resp = client.get("/api/tasks?limit=1", headers={"Authorization": f"Bearer {admin_token}"})
+        # 获取已有任务（找一条 SUCCESS 且有 video_url 的）
+        resp = client.get("/api/tasks?limit=50", headers={"Authorization": f"Bearer {admin_token}"})
         tasks = resp.json()["data"]["tasks"]
-        if not tasks:
-            pytest.skip("没有已有任务数据，需要先生成一篇笔记")
-
-        task = tasks[0]
+        task = next((t for t in tasks if t.get("video_url") and t.get("platform") and t.get("status") == "SUCCESS"), None)
+        if not task:
+            pytest.skip("没有可复用的 SUCCESS 任务数据")
         video_url = task.get("video_url")
         platform = task.get("platform")
-        if not video_url or not platform:
-            pytest.skip("任务缺少 video_url 或 platform")
 
         # 重复提交
         resp = client.post("/api/generate_note",
@@ -414,5 +545,6 @@ class TestGenerateNoteReuse:
                            },
                            headers={"Authorization": f"Bearer {admin_token}"})
         data = resp.json()
-        # 应返回错误或复用结果
-        assert data["code"] != 0 or data.get("data", {}).get("reused") is True or data.get("data", {}).get("reuse_type") is not None
+        # 应返回错误（已存在）或复用结果
+        data_inner = data.get("data") or {}
+        assert data["code"] != 0 or data_inner.get("reused") is True or data_inner.get("reuse_type") is not None
