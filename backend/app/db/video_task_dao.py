@@ -192,10 +192,10 @@ def find_completed_task_by_video(video_id: str, platform: str) -> Optional[Video
             video_id=video_id, platform=platform
         ).order_by(VideoTask.created_at.desc()).all()
         for task in tasks:
-            # 使用 find_note_file 查找笔记文件（不创建目录），支持多用户查找
+            # 使用 task 自己的 user_id 查找 note_{user_id}.json（新格式优先），找不到再回退 note.json（旧格式）
             note_path = find_note_file(task.task_id, task.author_id, task.author_name,
                                         task.video_id, task.title, "note", platform,
-                                        user_id=None)  # 复用查找时不限制用户
+                                        user_id=task.user_id)
             if note_path and note_path.exists():
                 logger.info(f"找到可复用笔记: video_id={video_id}, task_id={task.task_id}")
                 return task
@@ -209,22 +209,28 @@ def find_completed_task_by_video(video_id: str, platform: str) -> Optional[Video
 
 def clone_task_to_user(original_task_id: str, new_user_id: int,
                        video_id: str, platform: str, video_url: str = None) -> VideoTask:
-    """为新用户创建指向同一笔记的任务记录（用于复用）"""
+    """为新用户创建指向同一笔记的任务记录（用于复用）。
+
+    每个用户独立 task_id（UUID），通过 source_task_id 追踪原始任务的起源。
+    避免 UNIQUE(task_id) 约束冲突。
+    """
+    import uuid
     db = next(get_db())
     try:
-        # 避免同一用户重复创建
+        # 检查新用户是否已复用过该原始任务（通过 source_task_id 查找）
         existing = db.query(VideoTask).filter_by(
-            task_id=original_task_id, user_id=new_user_id
+            source_task_id=original_task_id, user_id=new_user_id
         ).first()
         if existing:
             return existing
 
         # 从原始任务复制元数据（包括标签）
         original = db.query(VideoTask).filter_by(task_id=original_task_id).first()
+        new_task_id = str(uuid.uuid4())
         task = VideoTask(
             video_id=video_id,
             platform=platform,
-            task_id=original_task_id,
+            task_id=new_task_id,
             video_url=video_url,
             user_id=new_user_id,
             title=original.title if original else None,
@@ -235,11 +241,12 @@ def clone_task_to_user(original_task_id: str, new_user_id: int,
             author_id=original.author_id if original else None,
             author_name=original.author_name if original else None,
             tags=original.tags if original else None,
+            source_task_id=original_task_id,  # 记录来源
         )
         db.add(task)
         db.commit()
         db.refresh(task)
-        logger.info(f"已为用户 {new_user_id} 复用笔记 task_id={original_task_id}")
+        logger.info(f"已为用户 {new_user_id} 复用笔记 original={original_task_id} -> new={new_task_id}")
         return task
     except Exception as e:
         db.rollback()
@@ -269,21 +276,43 @@ def batch_update_cover_url(video_id: str, platform: str, new_cover_url: str):
 
 
 def find_source_data(video_id: str, platform: str) -> Optional[VideoTask]:
-    """查找指定视频是否已有源数据（transcript.json），用于半流程复用"""
-    from app.utils.path_helper import find_note_file
+    """查找指定视频是否已有源数据，用于半流程复用。
+
+    源数据定义（任一满足即可）：
+    - transcript.json 存在（音频/视频类型）
+    - 视频目录存在且含已下载的媒体文件（图文/实况照片类型）
+    """
+    from app.utils.path_helper import find_note_file, get_video_folder_name, get_author_folder_name, _get_platform_dir, VIDEO_DIR
     db = next(get_db())
     try:
         tasks = db.query(VideoTask).filter_by(
             video_id=video_id, platform=platform
         ).order_by(VideoTask.created_at.desc()).all()
         for task in tasks:
+            if not task.author_id:
+                continue  # author_id 为空说明下载也没成功
+            # 检查 1: transcript.json（音频转写）
             transcript_path = find_note_file(
                 task.task_id, task.author_id, task.author_name,
                 task.video_id, task.title, "transcript", platform
             )
             if transcript_path and transcript_path.exists():
-                logger.info(f"找到可复用源数据: video_id={video_id}, task_id={task.task_id}")
+                logger.info(f"找到可复用源数据(transcript): video_id={video_id}, task_id={task.task_id}")
                 return task
+            # 检查 2: 视频目录有已下载的媒体文件（图文/实况照片）
+            try:
+                platform_dir = _get_platform_dir(platform)
+                author_folder = get_author_folder_name(task.author_id, task.author_name, platform)
+                video_folder = get_video_folder_name(task.video_id, task.title)
+                video_dir = VIDEO_DIR / platform_dir / author_folder / video_folder
+                if video_dir.exists():
+                    # 有覆盖图或图片即认为下载成功
+                    has_media = any(video_dir.glob("cover.*")) or any(video_dir.glob("image_*.jpg"))
+                    if has_media:
+                        logger.info(f"找到可复用源数据(media): video_id={video_id}, task_id={task.task_id}")
+                        return task
+            except Exception:
+                pass
         return None
     except Exception as e:
         logger.error(f"查找可复用源数据失败: {e}")

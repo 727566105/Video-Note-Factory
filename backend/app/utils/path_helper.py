@@ -403,11 +403,18 @@ def find_note_file(
         if four_level_path.exists():
             return four_level_path
 
-        # 1.1 note 类型：找不到 note_{user_id}.json 时，找 note.json（兼容）
+        # 1.1 note 类型：找不到 note_{user_id}.json 时，找 note.json（兼容），再找任意 note_*.json（跨用户复用）
         if file_type == "note" and user_id is not None:
             legacy_note_path = four_level_base / "note.json"
             if legacy_note_path.exists():
                 return legacy_note_path
+            # 跨用户复用回退：本用户无 note 文件时，复用目录下任意 note_*.json（如 note_2.json）
+            if four_level_base.exists():
+                try:
+                    for candidate in sorted(four_level_base.glob("note_*.json")):
+                        return candidate
+                except Exception:
+                    pass
 
         # 1.2 自愈合：精确目录不存在时，按前缀扫描已有目录
         # 两层自愈合：
@@ -449,6 +456,12 @@ def find_note_file(
                             legacy_candidate = existing / "note.json"
                             if legacy_candidate.exists():
                                 return legacy_candidate
+                            # 跨用户复用回退：找目录下任意 note_*.json
+                            try:
+                                for c in sorted(existing.glob("note_*.json")):
+                                    return c
+                            except Exception:
+                                pass
                 except Exception:
                     pass
 

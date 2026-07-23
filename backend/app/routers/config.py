@@ -192,6 +192,7 @@ def get_cookie(platform: str, current_user=Depends(require_admin)) -> dict:
 def update_cookie(data: CookieUpdateRequest, current_user=Depends(require_admin)) -> dict:
     try:
         cookie_manager.set(data.platform, data.cookie)
+        logger.info(f"Cookie updated: platform={data.platform}, user={current_user.username}({current_user.id})")
         return R.success()
     except ValueError as e:
         return R.error(msg=str(e))

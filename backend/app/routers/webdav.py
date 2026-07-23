@@ -27,7 +27,7 @@ from app.db.backup_history_dao import (
 )
 from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
-from app.auth.dependencies import get_current_user, get_current_user_flexible, require_admin
+from app.auth.dependencies import get_current_user, require_admin
 
 logger = get_logger(__name__)
 
@@ -325,7 +325,7 @@ def list_local_backups(current_user=Depends(get_current_user)) -> dict:
 
 
 @router.get("/backup/download/{filename}")
-def download_local_backup(filename: str, current_user=Depends(get_current_user_flexible)):
+def download_local_backup(filename: str, current_user=Depends(require_admin)):
     """下载本地整机包 zip（流式）"""
     # 防路径穿越：resolve 后必须仍在 LOCAL_BACKUP_DIR 内
     safe_name = _sanitize_backup_name(filename)

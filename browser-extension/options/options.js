@@ -181,7 +181,6 @@ function renderAuthSection(auth) {
         <span class="avatar">${auth.authUsername.charAt(0).toUpperCase()}</span>
         <span class="uname">${auth.authUsername}</span>
         <span class="role-tag ${isAdmin ? 'admin' : ''}">${isAdmin ? '管理员' : '普通用户'}</span>
-        ${!isAdmin ? '<span style="color:var(--muted);font-size:var(--text-xs)">（推 Cookie 需管理员）</span>' : ''}
         <a href="#" class="logout" id="logoutBtn" role="button">退出登录</a>
       </div>
     `;
@@ -212,7 +211,7 @@ function renderAuthSection(auth) {
           <button class="btn btn-primary" id="loginBtn">登录</button>
         </div>
         <div class="hint" style="margin-top:var(--space-3)">
-          登录后才能拉取模型列表、提交笔记任务；推送 Cookie 需要管理员账号。
+          登录后才能拉取模型列表、提交笔记任务。
           token 存于本地（chrome.storage.local），24 小时后自动续期。
         </div>
       </section>

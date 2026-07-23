@@ -663,10 +663,10 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
             matching_task = find_matching_note(video_id, data.platform, current_user.id, data.style)
             if matching_task:
                 try:
-                    clone_task_to_user(matching_task.task_id, current_user.id, video_id, data.platform, data.video_url)
+                    cloned = clone_task_to_user(matching_task.task_id, current_user.id, video_id, data.platform, data.video_url)
                     logger.info(f"智能复用（同风格）：用户 {current_user.id} 复用了视频 {video_id} 的笔记 "
-                                f"task_id={matching_task.task_id}, style={data.style}")
-                    return R.success({"task_id": matching_task.task_id, "reused": True, "reuse_type": "note"})
+                                f"original={matching_task.task_id}, new={cloned.task_id}, style={data.style}")
+                    return R.success({"task_id": cloned.task_id, "reused": True, "reuse_type": "note"})
                 except Exception as e:
                     logger.warning(f"克隆任务失败，继续检查源数据: {e}")
 
@@ -707,10 +707,10 @@ def generate_note(data: VideoRequest, background_tasks: BackgroundTasks, current
             existing_task = find_completed_task_by_video(video_id, data.platform)
             if existing_task:
                 try:
-                    clone_task_to_user(existing_task.task_id, current_user.id, video_id, data.platform, data.video_url)
+                    cloned = clone_task_to_user(existing_task.task_id, current_user.id, video_id, data.platform, data.video_url)
                     logger.info(f"Fallback 复用: 用户 {current_user.id} 复用了视频 {video_id} 的笔记 "
-                                f"task_id={existing_task.task_id}")
-                    return R.success({"task_id": existing_task.task_id, "reused": True, "reuse_type": "fallback"})
+                                f"original={existing_task.task_id}, new={cloned.task_id}")
+                    return R.success({"task_id": cloned.task_id, "reused": True, "reuse_type": "fallback"})
                 except Exception:
                     pass
 

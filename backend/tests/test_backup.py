@@ -134,8 +134,8 @@ def test_download_local_backup(tmp_path, monkeypatch):
     from app.routers import webdav as webdav_router
     app = FastAPI()
     app.include_router(webdav_router.router, prefix="/api/webdav")
-    from app.auth.dependencies import get_current_user_flexible
-    app.dependency_overrides[get_current_user_flexible] = lambda: {"id": 1}
+    from app.auth.dependencies import require_admin
+    app.dependency_overrides[require_admin] = lambda: {"id": 1, "username": "admin", "role": "admin"}
     client = TestClient(app)
 
     resp = client.get("/api/webdav/backup/download/videonote_backup_x.zip")

@@ -229,15 +229,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { await detectVideoUrl(); } catch (e) { /* chrome.scripting 不可用 */ }
   }
 
+  // 权限控制：Cookie 功能仅管理员可用，普通用户隐藏 Cookie Tab
+  applyCookiePermission(auth.authRole === 'admin');
+
   initCookieTab();
   initSubmitTab();
 
   // 恢复上次 Tab，默认快捷提交
   try {
     const last = localStorage.getItem('vn-helper-tab');
-    if (last === 'cookie') switchTab('cookie');
+    // 普通用户不允许恢复到 cookie tab（已被隐藏）
+    if (last === 'cookie' && auth.authRole === 'admin') switchTab('cookie');
   } catch (e) { /* ignore */ }
 });
+
+// ─── Cookie 功能权限控制 ──────────────────────────────────────────
+function applyCookiePermission(isAdmin) {
+  const cookieTab = document.querySelector('.tab[data-tab="cookie"]');
+  const cookiePane = document.getElementById('cookie-tab');
+  if (isAdmin) {
+    if (cookieTab) cookieTab.style.display = '';
+  } else {
+    // 普通用户：隐藏 Cookie Tab + Cookie 面板
+    if (cookieTab) cookieTab.style.display = 'none';
+    if (cookiePane) cookiePane.style.display = 'none';
+    // 确保切到快捷提交 Tab
+    switchTab('submit');
+  }
+}
 
 // ─── 登录遮罩 ─────────────────────────────────────────────────────
 function showAuthGate() {
