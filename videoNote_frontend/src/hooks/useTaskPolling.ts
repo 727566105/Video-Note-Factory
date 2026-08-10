@@ -35,7 +35,9 @@ export const useTaskPolling = (interval = 3000) => {
 
       for (const task of pendingTasks) {
         try {
-          const res = await get_task_status(task.id)
+          // 后台轮询用 silent：已删除/非当前用户任务返回 403 时，静默移除，
+          // 不再弹出误导性的"无权访问该任务" toast。
+          const res = await get_task_status(task.id, true)
           const { status } = res
 
           if (status && status !== task.status) {

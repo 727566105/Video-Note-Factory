@@ -535,6 +535,8 @@ export const NoteListPage: FC = () => {
   const handleDelete = async () => {
     try {
       await delete_task({ task_id: deleteTargetId })
+      // 立即从任务队列 store 移除，避免后台轮询继续查已删除任务触发 403 toast
+      useTaskStore.getState().dismissTask(deleteTargetId)
       toast.success('删除成功')
       fetchNotes()
     } catch (error) {
@@ -548,6 +550,10 @@ export const NoteListPage: FC = () => {
       await Promise.all(
         selectedRows.map(taskId => delete_task({ task_id: taskId }))
       )
+      // 批量删除成功后，立即从任务队列 store 移除，避免后台轮询已删除任务
+      selectedRows.forEach(taskId => {
+        useTaskStore.getState().dismissTask(taskId)
+      })
       toast.success(`成功删除 ${selectedRows.length} 条笔记`)
       setSelectedRows([])
       setBatchDeleteDialogOpen(false)

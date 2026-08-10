@@ -38,11 +38,13 @@ export const delete_task = async ({ task_id, video_id, platform }: { task_id?: s
   return res
 }
 
-export const get_task_status = async (task_id: string) => {
+export const get_task_status = async (task_id: string, silent: boolean = false) => {
   try {
-    // 成功提示
-
-    return await request.get('/task_status/' + task_id)
+    // 轮询等后台场景传 silent=true，避免 403/错误触发全局 toast
+    return await request.get(
+      '/task_status/' + task_id,
+      silent ? { headers: { 'X-Silent': '1' } } : undefined
+    )
   } catch (e) {
     throw e // 抛出错误以便调用方处理
   }
