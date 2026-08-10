@@ -42,6 +42,8 @@ class LoginRateLimiter:
     def record_failure(self, username: str, client_ip: str) -> None:
         key = self._key(username, client_ip)
         now = datetime.now(timezone.utc)
+        # 内存更新 + DB 写穿都在同一把锁内：并发时按序串行化，
+        # 保证 DB 最终值与内存一致（否则并发下 DB 是最后写入者，丢失更新）。
         with self._lock:
             count, locked_until = self._failures.get(key, (0, now))
             if locked_until <= now:
@@ -50,13 +52,13 @@ class LoginRateLimiter:
             locked_until = now + timedelta(seconds=self.lock_seconds)
             self._failures[key] = (count, locked_until)
 
-        if self.persist:
-            try:
-                from app.db.login_failure_dao import increment
+            if self.persist:
+                try:
+                    from app.db.login_failure_dao import increment
 
-                increment(username, client_ip, count, locked_until)
-            except Exception as e:
-                logger.error(f"登录失败记录写穿 DB 失败（仅内存生效）: {e}")
+                    increment(username, client_ip, count, locked_until)
+                except Exception as e:
+                    logger.error(f"登录失败记录写穿 DB 失败（仅内存生效）: {e}")
 
     def failure_count(self, username: str, client_ip: str) -> int:
         """返回当前失败次数（用于判断是否需图形验证码），0 表示无记录。"""
@@ -76,13 +78,13 @@ class LoginRateLimiter:
         with self._lock:
             self._failures.pop(self._key(username, client_ip), None)
 
-        if self.persist:
-            try:
-                from app.db.login_failure_dao import reset
+            if self.persist:
+                try:
+                    from app.db.login_failure_dao import reset
 
-                reset(username, client_ip)
-            except Exception as e:
-                logger.error(f"登录失败记录清零写穿 DB 失败: {e}")
+                    reset(username, client_ip)
+                except Exception as e:
+                    logger.error(f"登录失败记录清零写穿 DB 失败: {e}")
 
     def load_from_db(self) -> None:
         """从 DB 加载未过期失败记录（启动时调用，恢复上次进程的锁定状态）。"""

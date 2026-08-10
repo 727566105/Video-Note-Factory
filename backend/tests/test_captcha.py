@@ -81,3 +81,44 @@ def test_verify_missing_id_or_code():
     assert mgr.verify(None, "ABCD") is False
     assert mgr.verify("cid", "") is False
     assert mgr.verify("cid", None) is False
+
+
+def test_store_bounded_by_max_size():
+    """存储有上限：超限时淘汰最旧，内存不会无界增长（防内存 DoS）"""
+    mgr = _make_manager(ttl_seconds=300, max_size=5)
+    ids = []
+    for _ in range(10):
+        cid, _ = mgr.generate()
+        ids.append(cid)
+    # 存储大小被钳制在上限
+    assert len(mgr._store) <= 5
+    # 最新生成的仍然存在
+    assert ids[-1] in mgr._store
+    # 最旧的已被淘汰
+    assert ids[0] not in mgr._store
+    # 淘汰后仍能正常校验（新验证码可用）
+    cid = ids[-1]
+    answer = mgr._store[cid][0]
+    assert mgr.verify(cid, answer) is True
+
+
+def test_store_cap_does_not_break_evicted_refresh():
+    """达到上限淘汰旧码后，新生成的验证码可正常使用"""
+    mgr = _make_manager(ttl_seconds=300, max_size=2)
+    for _ in range(5):
+        mgr.generate()
+    cid, _ = mgr.generate()
+    assert len(mgr._store) == 2
+    assert cid in mgr._store
+    answer = mgr._store[cid][0]
+    assert mgr.verify(cid, answer) is True
+
+
+def test_max_size_zero_evicts_everything_but_still_usable():
+    """极端：max_size=0 时每次生成即淘汰旧码，但最新一个仍可校验"""
+    mgr = _make_manager(ttl_seconds=300, max_size=0)
+    cid, _ = mgr.generate()
+    # 插入后 len=1 > 0，会淘汰（此时是空则 break）；由于先判断空，最终保留刚插入的
+    assert cid in mgr._store
+    answer = mgr._store[cid][0]
+    assert mgr.verify(cid, answer) is True

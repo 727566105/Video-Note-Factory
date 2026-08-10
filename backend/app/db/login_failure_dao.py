@@ -7,6 +7,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple
 
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
 from app.db.engine import get_db
 from app.db.models.login_failure import LoginFailure
 from app.utils.logger import get_logger
@@ -66,19 +68,41 @@ def load_all(now: Optional[datetime] = None) -> FailureMap:
 
 
 def increment(username: str, client_ip: str, count: int, locked_until: datetime) -> None:
-    """upsert 一条失败记录（有则更新，无则插入）。"""
+    """原子 upsert 一条失败记录（有则更新，无则插入）。
+
+    SQLite 用 `INSERT ... ON CONFLICT DO UPDATE`，避免「先 SELECT 再
+    INSERT/UPDATE」在并发下丢失更新 + UNIQUE 冲突（见 test_login_failure_persistence）。
+    非 SQLite 方言回退到查改（并发窗口小，至少不崩）。
+    """
     db = next(get_db())
     try:
-        row = (
-            db.query(LoginFailure)
-            .filter_by(username=username, client_ip=client_ip)
-            .first()
-        )
-        if row is None:
-            row = LoginFailure(username=username, client_ip=client_ip)
-            db.add(row)
-        row.failure_count = count
-        row.locked_until = _to_naive_utc(locked_until)
+        naive = _to_naive_utc(locked_until)
+        if db.bind.dialect.name == "sqlite":
+            stmt = sqlite_insert(LoginFailure).values(
+                username=username,
+                client_ip=client_ip,
+                failure_count=count,
+                locked_until=naive,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[LoginFailure.username, LoginFailure.client_ip],
+                set_={
+                    LoginFailure.failure_count: count,
+                    LoginFailure.locked_until: naive,
+                },
+            )
+            db.execute(stmt)
+        else:
+            row = (
+                db.query(LoginFailure)
+                .filter_by(username=username, client_ip=client_ip)
+                .first()
+            )
+            if row is None:
+                row = LoginFailure(username=username, client_ip=client_ip)
+                db.add(row)
+            row.failure_count = count
+            row.locked_until = naive
         db.commit()
     except Exception as e:
         db.rollback()

@@ -27,6 +27,9 @@ _CODE_CHARS = "".join(dict.fromkeys(_CODE_CHARS))  # 去重
 # 连续失败达到该次数后要求验证码（渐进式）
 CAPTCHA_REQUIRED_FAILURES = 2
 
+# 内存中最多保留的未过期验证码数（防攻击者高频刷接口撑爆内存）
+CAPTCHA_MAX_SIZE = 10000
+
 _IMAGE_WIDTH = 140
 _IMAGE_HEIGHT = 48
 
@@ -34,8 +37,9 @@ _IMAGE_HEIGHT = 48
 class CaptchaManager:
     """图形验证码管理器（内存存储 + 锁保护）。"""
 
-    def __init__(self, ttl_seconds: int = CAPTCHA_TTL_SECONDS):
+    def __init__(self, ttl_seconds: int = CAPTCHA_TTL_SECONDS, max_size: int = CAPTCHA_MAX_SIZE):
         self._ttl_seconds = ttl_seconds
+        self._max_size = max_size
         self._store: Dict[str, Tuple[str, datetime]] = {}
         self._lock = Lock()
 
@@ -48,6 +52,13 @@ class CaptchaManager:
         now = datetime.now(timezone.utc)
         with self._lock:
             self._cleanup(now)
+            # 有界存储：超限时淘汰最旧项（dict 保持插入序，首个即最旧），
+            # 防止攻击者高频刷新导致未过期条目无限累积（内存 DoS）。
+            while len(self._store) >= self._max_size:
+                oldest = next(iter(self._store), None)
+                if oldest is None:
+                    break
+                self._store.pop(oldest, None)
             self._store[captcha_id] = (
                 code,
                 now + timedelta(seconds=self._ttl_seconds),

@@ -8,6 +8,7 @@
 - 默认 persist=False 不写 DB（保持纯内存单测语义）
 """
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -104,3 +105,17 @@ def test_load_from_db_ignored_when_not_persist():
     lim2 = LoginRateLimiter(max_failures=2)
     lim2.load_from_db()  # persist=False -> 直接 return
     assert lim2.failure_count("grace", "7.7.7.7") == 0
+
+
+def test_concurrent_increment_no_lost_update():
+    """并发 record_failure 后 DB 计数与内存一致（原子 upsert，无丢失更新/UNIQUE 冲突）"""
+    login_failure_dao.clear_all()
+    lim = LoginRateLimiter(max_failures=10000, persist=True)
+    n = 40
+    with ThreadPoolExecutor(max_workers=16) as ex:
+        list(ex.map(lambda _: lim.record_failure("conc", "9.9.9.9"), range(n)))
+    # 内存侧（权威）应等于 n
+    assert lim.failure_count("conc", "9.9.9.9") == n
+    # DB 侧也应等于 n（原子 upsert，无丢失更新）
+    records = login_failure_dao.load_all()
+    assert records.get(("conc", "9.9.9.9"))[0] == n
