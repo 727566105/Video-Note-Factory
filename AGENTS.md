@@ -159,7 +159,7 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **读取时校验 task_id 归属**：`/api/tasks`（`note.py` 的 `get_tasks`）和 `/api/task_status/{task_id}`（`note.py`）读 status.json 时，若 `file_task_id != current_task_id` 且状态为 FAILED，**忽略旧状态**（回退到 PENDING/实时队列/数据库推断）。
 - **只对 FAILED 状态生效**：现有 SUCCESS 任务的旧 status.json 无 task_id 字段，校验规则不能影响它们（否则会破坏所有成功任务的状态显示）。
 - **`find_note_file` 自愈合扫描的风险**：自愈合按 `video_id_` 前缀扫描，可能找到**其他 task_id 的旧 status.json**（比如 6-28 的失败任务遗留的 status.json 被 7-20 的新任务扫描到）。归属校验是兜底防护。
-- **前端轮询接口是 status.json 张冠李戴的真凶**：`useTaskPolling`（`hooks/useTaskPolling.ts`）每 3 秒调 `/api/task_status/{task_id}` 单查活跃任务状态。这个接口读 status.json 时也必须做归属校验，否则会用旧 status 覆盖 `loadTasksFromBackend` 返回的最新状态。
+- **前端轮询接口是 status.json 张冠李戴的真凶**：`useTaskPolling`（`hooks/useTaskPolling.ts`）每 3 秒调 `/api/task_status/{task_id}` 单查活跃任务状态。这个接口读 status.json 时也必须做归属校验，否则会用旧 status 覆盖 `loadTasksFromBackend` 返回的最新状态。⚠️ 轮询的 task_status 用 **silent**（`X-Silent` 头，`get_task_status(id, true)`）：已删除/非当前用户任务返回 403 时静默 `dismissTask`，**不再弹"无权访问该任务" toast**（否则删除/跨用户任务会在批量删除后 3s 内误弹误导性提示）。删除任务（`NoteListPage`）成功后也要立即 `dismissTask` 已删任务，避免被轮询再次命中。
 - **前端 taskStore 合并逻辑**：`loadTasksFromBackend`（`store/taskStore/index.ts`）的合并策略 - 本地过时 FAILED/PENDING **不能覆盖**后端最新状态。只有本地是活跃态（PROCESSING/QUEUED 等）且后端也是活跃态时才保留本地（轮询更实时）。
 
 ## 笔记保存的空 title bug（`save_note_to_file`）
