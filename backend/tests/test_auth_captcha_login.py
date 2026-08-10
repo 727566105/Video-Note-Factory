@@ -30,8 +30,8 @@ def _reset_rate_limiter():
     clear_all()
 
 
-def _wrong_login(client, **extra):
-    return client.post(
+def _wrong_login(tc, **extra):
+    return tc.post(
         "/api/auth/login",
         json={"username": "admin", "password": "wrong-pass", **extra},
     )
@@ -155,3 +155,49 @@ def test_captcha_and_429_lockout_coexist(client):
     assert login_rate_limiter.is_allowed(username, "testclient") is False
     resp = _wrong_login(client, captcha_id="x", captcha_code="y")
     assert resp.status_code == 429
+
+
+@_db_required
+def test_non_web_client_skips_captcha_after_threshold(client):
+    """非 web 客户端（插件/Android）失败超过阈值也不要求验证码（不锁死）"""
+    for _ in range(CAPTCHA_REQUIRED_FAILURES + 1):
+        resp = _wrong_login(client, client="android")
+        # 仍是凭据错误 401，而不是 428 验证码
+        assert resp.status_code == 401
+
+
+@_db_required
+def test_non_web_client_can_login_with_correct_password_after_threshold(client):
+    """非 web 客户端在阈值后仍可直接用正确密码登录（无需验证码）"""
+    username, password = "admin", "123456"
+    for _ in range(CAPTCHA_REQUIRED_FAILURES):
+        client.post(
+            "/api/auth/login",
+            json={"username": username, "password": "wrong-pass", "client": "extension"},
+        )
+    resp = client.post(
+        "/api/auth/login",
+        json={"username": username, "password": password, "client": "extension"},
+    )
+    body = resp.json()
+    assert body["code"] == 0
+    assert body["data"]["token"]
+
+
+@_db_required
+def test_shared_counter_web_locks_but_nonweb_can_retry(client):
+    """共享计数：web 失败触发验证码，但同一用户名用非 web 客户端仍可登录"""
+    username, password = "admin", "123456"
+    for _ in range(CAPTCHA_REQUIRED_FAILURES):
+        _wrong_login(client)  # 默认 web，累加计数
+
+    # web 端现在要求验证码
+    web_resp = _wrong_login(client)  # 默认 web
+    assert web_resp.json()["code"] == 428
+
+    # 但同一用户名通过非 web 客户端仍可直接登录（不锁死）
+    ok = client.post(
+        "/api/auth/login",
+        json={"username": username, "password": password, "client": "android"},
+    )
+    assert ok.json()["code"] == 0

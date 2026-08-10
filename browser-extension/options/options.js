@@ -253,7 +253,7 @@ async function onLogin() {
       data = await apiCall(`${url}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, remember_me: true })
+        body: JSON.stringify({ username, password, remember_me: true, client: 'extension' })
       });
     } catch (e) {
       // 登录失败：错误信息形如 "HTTP 401: 用户名或密码错误"

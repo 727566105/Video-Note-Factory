@@ -5,7 +5,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LoginRequest(
     val username: String,
-    val password: String
+    val password: String,
+    // 客户端来源，声明为非 web 以跳过图形验证码门（仍受 429 锁定保护）
+    val client: String = "web"
 )
 
 @Serializable

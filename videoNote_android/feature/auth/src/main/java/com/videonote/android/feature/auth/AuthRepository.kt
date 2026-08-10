@@ -17,7 +17,7 @@ class AuthRepository @Inject constructor(
     suspend fun login(serverUrl: String, username: String, password: String): Result<String> {
         return try {
             sessionManager.setServerUrl(serverUrl.trimEnd('/'))
-            val response = safeApiCall { authApi.login(LoginRequest(username, password)) }
+            val response = safeApiCall { authApi.login(LoginRequest(username, password, client = "android")) }
             val token = response.token
             sessionManager.setToken(token)
             dataStore.setServerUrl(serverUrl.trimEnd('/'))

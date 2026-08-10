@@ -25,9 +25,12 @@ class LoginRequest(BaseModel):
     username: str
     password: str
     remember_me: bool = False
-    # 图形验证码（连续失败达到阈值后必填）
+    # 图形验证码（连续失败达到阈值后，仅对能渲染验证码的 web 客户端强制）
     captcha_id: Optional[str] = None
     captcha_code: Optional[str] = None
+    # 客户端来源。默认 "web"（防御优先）；插件/Android 显式声明自身类型，
+    # 从而跳过验证码门（仍受 429 锁定保护，避免无法渲染验证码而被锁死）。
+    client: str = "web"
 
 
 class RefreshTokenRequest(BaseModel):
@@ -64,8 +67,11 @@ def login(req: LoginRequest, request: Request) -> dict:
     if not login_rate_limiter.is_allowed(req.username, client_ip):
         raise HTTPException(status_code=429, detail="登录失败次数过多，请稍后再试")
 
-    # 渐进式验证码：连续失败达到阈值后，必须先通过图形验证码
-    if login_rate_limiter.failure_count(req.username, client_ip) >= CAPTCHA_REQUIRED_FAILURES:
+    # 渐进式验证码：连续失败达到阈值后，仅对能渲染验证码的 web 客户端强制
+    if (
+        req.client == "web"
+        and login_rate_limiter.failure_count(req.username, client_ip) >= CAPTCHA_REQUIRED_FAILURES
+    ):
         if not captcha_manager.verify(req.captcha_id, req.captcha_code or ""):
             captcha_id, image = captcha_manager.generate()
             return R.error(
