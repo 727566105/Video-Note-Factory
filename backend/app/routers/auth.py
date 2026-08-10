@@ -4,6 +4,7 @@ from typing import Optional
 from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_refresh_token
 from app.auth.dependencies import get_current_user, require_admin
 from app.auth.rate_limiter import login_rate_limiter
+from app.auth.captcha import CAPTCHA_REQUIRED_FAILURES, captcha_manager
 from app.db.user_dao import (
     verify_password,
     get_user_by_username,
@@ -24,6 +25,9 @@ class LoginRequest(BaseModel):
     username: str
     password: str
     remember_me: bool = False
+    # 图形验证码（连续失败达到阈值后必填）
+    captcha_id: Optional[str] = None
+    captcha_code: Optional[str] = None
 
 
 class RefreshTokenRequest(BaseModel):
@@ -47,11 +51,28 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+@router.get("/captcha")
+def get_captcha() -> dict:
+    """生成一张图形验证码。返回 {captcha_id, image}，image 为 PNG base64。"""
+    captcha_id, image = captcha_manager.generate()
+    return R.success(data={"captcha_id": captcha_id, "image": image})
+
+
 @router.post("/login")
 def login(req: LoginRequest, request: Request) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     if not login_rate_limiter.is_allowed(req.username, client_ip):
         raise HTTPException(status_code=429, detail="登录失败次数过多，请稍后再试")
+
+    # 渐进式验证码：连续失败达到阈值后，必须先通过图形验证码
+    if login_rate_limiter.failure_count(req.username, client_ip) >= CAPTCHA_REQUIRED_FAILURES:
+        if not captcha_manager.verify(req.captcha_id, req.captcha_code or ""):
+            captcha_id, image = captcha_manager.generate()
+            return R.error(
+                msg="请输入图形验证码",
+                code=428,
+                data={"captcha_id": captcha_id, "image": image},
+            )
 
     user = get_user_by_username(req.username)
     if not user or not verify_password(req.password, user.password_hash):
@@ -99,7 +120,10 @@ def refresh_token(req: RefreshTokenRequest) -> dict:
         raise HTTPException(status_code=401, detail="用户不存在")
 
     # 检查密码是否已修改（与 access token 相同的吊销逻辑）
-    ensure_token_not_revoked(req.refresh_token, user)
+    try:
+        ensure_token_not_revoked(req.refresh_token, user)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="refresh token 已失效")
 
     new_token = create_access_token(
         {"user_id": user.id, "username": user.username, "role": user.role}

@@ -14,6 +14,7 @@ from app.db.models.model_usage_history import ModelUsageHistory
 from app.db.models.channel_video import ChannelVideo, ChannelFetchStatus
 from app.db.models.channel_video_seen import ChannelVideoSeen
 from app.db.models.collection import Collection, CollectionItem, CollectionSummary
+from app.db.models.login_failure import LoginFailure
 from app.db.engine import get_engine, Base, get_db
 from app.utils.logger import get_logger
 from sqlalchemy import text

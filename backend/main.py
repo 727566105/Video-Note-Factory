@@ -53,6 +53,10 @@ async def lifespan(app: FastAPI):
     init_db()
     seed_default_providers()
 
+    # 恢复上次进程遗留的登录失败锁定状态（跨重启防暴力破解）
+    from app.auth.rate_limiter import login_rate_limiter
+    login_rate_limiter.load_from_db()
+
     # 自愈重置：清除上次备份/恢复因进程崩溃残留的全局状态
     from app.services.webdav_backup import reset_stale_backup_state
     reset_stale_backup_state()

@@ -14,29 +14,78 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 
 const REMEMBERED_USERNAME_KEY = 'remembered-username'
+const REMEMBER_ME_KEY = 'remember-me'
+
+// localStorage 可能被禁用/抛 SecurityError（如隐私模式），读写需兜底，避免组件崩溃
+function safeLocalGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+function safeLocalSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* 存储不可用时静默降级 */
+  }
+}
+function safeLocalRemove(key: string) {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    /* 存储不可用时静默降级 */
+  }
+}
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
   // 从 localStorage 读取记住的用户名
-  const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_USERNAME_KEY) || '')
+  const [username, setUsername] = useState(() => safeLocalGet(REMEMBERED_USERNAME_KEY) || '')
   const [password, setPassword] = useState('')
-  const [rememberUser, setRememberUser] = useState(() => !!localStorage.getItem(REMEMBERED_USERNAME_KEY))
-  const [rememberMe, setRememberMe] = useState(false)
+  const [rememberUser, setRememberUser] = useState(() => !!safeLocalGet(REMEMBERED_USERNAME_KEY))
+  const [rememberMe, setRememberMe] = useState(() => safeLocalGet(REMEMBER_ME_KEY) === 'true')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // 图形验证码（连续失败达到阈值后后端要求）
+  const [showCaptcha, setShowCaptcha] = useState(false)
+  const [captchaId, setCaptchaId] = useState('')
+  const [captchaImage, setCaptchaImage] = useState('')
+  const [captchaCode, setCaptchaCode] = useState('')
   const navigate = useNavigate()
   const setAuth = useAuthStore(state => state.setAuth)
 
   // rememberUser 变化时同步 localStorage
   useEffect(() => {
     if (rememberUser && username) {
-      localStorage.setItem(REMEMBERED_USERNAME_KEY, username)
+      safeLocalSet(REMEMBERED_USERNAME_KEY, username)
     } else if (!rememberUser) {
-      localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+      safeLocalRemove(REMEMBERED_USERNAME_KEY)
     }
   }, [rememberUser, username])
+
+  // rememberMe 变化时同步 localStorage（保持"7天免登录"偏好）
+  useEffect(() => {
+    if (rememberMe) {
+      safeLocalSet(REMEMBER_ME_KEY, 'true')
+    } else {
+      safeLocalRemove(REMEMBER_ME_KEY)
+    }
+  }, [rememberMe])
+
+  // 拉取一张新验证码（用于"换一张"或首次出现时）
+  const refreshCaptcha = async () => {
+    try {
+      const data = await request.get<{ captcha_id: string; image: string }>('/auth/captcha')
+      setCaptchaId(data.captcha_id)
+      setCaptchaImage(data.image)
+    } catch {
+      // 验证码获取失败不阻塞登录，下次 428 会重新触发
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,18 +98,36 @@ export function LoginForm({
     try {
       // 登录前先存/清记住的用户名
       if (rememberUser) {
-        localStorage.setItem(REMEMBERED_USERNAME_KEY, username)
+        safeLocalSet(REMEMBERED_USERNAME_KEY, username)
       } else {
-        localStorage.removeItem(REMEMBERED_USERNAME_KEY)
+        safeLocalRemove(REMEMBERED_USERNAME_KEY)
       }
 
-      const res = await request.post<{ token: string; refresh_token?: string; user: { id: number; username: string; role: string } }>('/auth/login', { username, password, remember_me: rememberMe })
+      const payload: Record<string, unknown> = {
+        username,
+        password,
+        remember_me: rememberMe,
+      }
+      if (showCaptcha) {
+        payload.captcha_id = captchaId
+        payload.captcha_code = captchaCode
+      }
+      const res = await request.post<{ token: string; refresh_token?: string; user: { id: number; username: string; role: string } }>('/auth/login', payload)
       useTaskStore.getState().clearTasks()  // 清空前一个用户的残留任务
       setAuth(res.token, res.user, res.refresh_token || null)
       navigate('/', { replace: true })
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : (err as { msg?: string })?.msg || '登录失败'
-      setError(msg)
+      const e = err as { code?: number; msg?: string; data?: { captcha_id?: string; image?: string } }
+      // 428：需要图形验证码，展示并携带后端返回的新验证码
+      if (e?.code === 428 && e.data?.captcha_id) {
+        setShowCaptcha(true)
+        setCaptchaId(e.data.captcha_id)
+        setCaptchaImage(e.data.image || '')
+        setCaptchaCode('')
+        setError(e.msg || '请输入图形验证码')
+      } else {
+        setError(e?.msg || '登录失败')
+      }
     } finally {
       setLoading(false)
     }
@@ -122,6 +189,35 @@ export function LoginForm({
         </div>
         {error && (
           <p className="text-center text-sm text-destructive">{error}</p>
+        )}
+        {showCaptcha && captchaImage && (
+          <Field>
+            <div className="flex items-end gap-2">
+              <img
+                src={`data:image/png;base64,${captchaImage}`}
+                alt="图形验证码"
+                className="h-10 w-auto rounded border border-border"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-10 shrink-0"
+                onClick={refreshCaptcha}
+                disabled={loading}
+              >
+                换一张
+              </Button>
+            </div>
+            <Input
+              id="captcha"
+              type="text"
+              placeholder="请输入图形验证码"
+              value={captchaCode}
+              onChange={e => setCaptchaCode(e.target.value)}
+              autoComplete="off"
+            />
+          </Field>
         )}
         <Field>
           <Button type="submit" disabled={loading}>
