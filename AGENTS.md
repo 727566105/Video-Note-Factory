@@ -25,6 +25,7 @@ AI 视频笔记工具：导入音视频链接/文件，自动转写、总结、�
 
 - `backend/` — FastAPI + SQLAlchemy + SQLite，入口 `main.py`（uvicorn，端口 `BACKEND_PORT`，默认 8483）
   - `app/routers/` — API 路由层（REST，挂在 `/api` 下）
+  - `app/auth/` — 鉴权（`jwt_handler.py` JWT、`dependencies.py` 依赖注入/权限、`captcha.py` 图形验证码、`rate_limiter.py` 登录限流，见下方防护 gotcha）
   - `app/services/` — 业务逻辑（`task_queue.py` 任务队列、`config_export.py` 配置导入导出、`webdav_backup.py` 备份/恢复、`note_share.py` 笔记跨用户分享）
   - `app/db/` — 数据访问层（`engine.py` 引擎，`*_dao.py` 各 DAO）+ SQLAlchemy 模型 `app/models/`
   - `app/utils/path_helper.py` — **三级/四级目录命名 + 笔记文件查找（核心，见下方 gotcha）**
