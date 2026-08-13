@@ -147,3 +147,62 @@ def test_get_user_by_id_failure_degrades(video_dir, monkeypatch):
     save_note_to_file("task-7", note)
     # author_name 为空时目录为 {author_id} 前缀（如 local/1/...），DB 异常不得阻断落盘
     assert list(video_dir.glob("local/1*/demo_demo/note_1.json")), "DB 异常不得阻断结果落盘"
+
+
+def test_article_note_writes_formal_dir(video_dir):
+    """图集/实况照片：无 audio_meta，走 note.video_id 分支落正式目录（标题可空）"""
+    note = NoteResult(
+        markdown="# 图文笔记",
+        audio_meta=None,            # 图集没有 audio_meta
+        title="",                   # 标题可能为空（历史 bug 场景）
+        author_id="123",
+        author_name="某博主",
+        video_id="456",
+        platform="xiaohongshu",
+        user_id=1,
+    )
+    save_note_to_file("task-8", note)
+    # 空 title 时目录为 {video_id}/ 形态（无下划线后缀）
+    assert list(video_dir.glob("xiaohongshu/123_某博主/456*/note_1.json")), \
+        "图集笔记应落正式目录，不得写 _pending"
+
+
+def test_concurrent_same_video_id_cross_user(video_dir):
+    """两个用户并发保存同一 video_id 的笔记，互不覆盖"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def save(uid, task_id):
+        note = _make_note(user_id=uid)
+        save_note_to_file(task_id, note)
+
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        list(ex.map(save, [1, 2], ["task-c1", "task-c2"]))
+
+    assert list(video_dir.glob("local/1_*/demo_demo/note_1.json")), "user 1 笔记应落盘"
+    assert list(video_dir.glob("local/2_*/demo_demo/note_2.json")), "user 2 笔记应落盘"
+
+
+def test_find_note_file_heals_no_underscore_dir(video_dir):
+    """author_name 为空产生的 local/1/... 目录能被前缀自愈合扫描命中"""
+    from app.utils.path_helper import find_note_file
+
+    note = _make_note(user_id=1)
+    save_note_to_file("task-d", note)   # user_id 兜底产生目录
+    assert list(video_dir.glob("local/1*/demo_demo/note_1.json")), "前置：落盘成功"
+
+    # 用不同的 task_id 触发自愈合前缀扫描，应命中已存在的 note_1.json
+    found = find_note_file(
+        "other-task", "1", "", "demo", "demo", "note", "local_audio", user_id=1
+    )
+    assert found is not None and found.exists()
+
+
+def test_oversized_filename_does_not_crash(video_dir):
+    """超长中文文件名（>255 字节）不抛异常且能按字节截断落盘"""
+    long_id = "很长的中文标题" * 60   # 约 1080 字节，远超 Linux 255 字节上限
+    note = _make_note(note_author_id="1", note_author_name="admin")
+    note.video_id = long_id
+    note.audio_meta.video_id = long_id
+    note.title = long_id
+    save_note_to_file("task-e", note)   # 不抛异常
+    assert list(video_dir.glob("local/1_admin/*/note_1.json")), "超长标题应截断落盘"
