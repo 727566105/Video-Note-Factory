@@ -116,3 +116,34 @@ def test_cross_user_notes_isolated(video_dir):
     assert targets[0] != targets_b[0]
     assert _read_note(targets[0])["markdown"] == "# 测试笔记"
     assert _read_note(targets_b[0])["markdown"] == "# 测试笔记"
+
+
+def test_audio_meta_empty_string_author_falls_back(video_dir):
+    """audio_meta.author_id 为空字符串（falsy）时同样走兜底，不得写 _pending"""
+    note = _make_note(note_author_id="1", note_author_name="admin")
+    note.audio_meta.author_id = ""
+    save_note_to_file("task-5", note)
+    assert not (video_dir / "_pending" / "task-5" / "note_1.json").exists()
+    assert list(video_dir.glob("local/1_admin/demo_demo/note_1.json"))
+
+
+def test_no_user_id_degrades_to_pending(video_dir):
+    """audio_meta/顶层/兜底 2 都拿不到 author 时优雅降级到 _pending（不崩溃，行为与旧版一致）"""
+    note = _make_note(user_id=None)
+    save_note_to_file("task-6", note)
+    # 不崩溃且按旧逻辑落 _pending（note.json 兼容名；任务结束由 _cleanup_pending 处理）
+    pending_files = list((video_dir / "_pending" / "task-6").glob("note*.json"))
+    assert pending_files, "无 author 时降级写 _pending（旧行为）"
+    # 不得误写正式目录
+    assert not list(video_dir.glob("local/1_*/demo_demo/note_1.json"))
+
+
+def test_get_user_by_id_failure_degrades(video_dir, monkeypatch):
+    """兜底 2 查用户名失败时降级（author_name=""），不阻断保存"""
+    def _boom(user_id):
+        raise RuntimeError("db down")
+    monkeypatch.setattr("app.db.user_dao.get_user_by_id", _boom)
+    note = _make_note(user_id=1)
+    save_note_to_file("task-7", note)
+    # author_name 为空时目录为 {author_id} 前缀（如 local/1/...），DB 异常不得阻断落盘
+    assert list(video_dir.glob("local/1*/demo_demo/note_1.json")), "DB 异常不得阻断结果落盘"
