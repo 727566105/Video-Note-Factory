@@ -63,3 +63,9 @@ class LocalAudioDownloader(Downloader, ABC):
             author_id=author_id,
             author_name=author_name,
         )
+
+    def download_video(self, video_url: str, output_dir: str = None) -> Optional[str]:
+        """
+        本地音频没有视频文件，返回 None（调用方有 None 判断，不生成缩略图）
+        """
+        return None

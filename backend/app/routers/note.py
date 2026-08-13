@@ -149,6 +149,26 @@ def save_note_to_file(task_id: str, note):
                 author_name = note.audio_meta.raw_info.get("uploader", "")
             if not author_name:
                 author_name = note.audio_meta.raw_info.get("channel", "")
+        # 兜底 1：audio_meta 缺 author 时回退 NoteResult 顶层字段
+        #（本地下载器 audio_meta.author_id 恒为 None；视频分支组装时已补顶层字段）
+        if not author_id:
+            author_id = getattr(note, 'author_id', None)
+        if not author_name:
+            author_name = getattr(note, 'author_name', None)
+        # 兜底 2：local/local_audio 仍无 author 时用当前用户当作者
+        #（与 NoteGenerator.generate 主流程的本地文件特殊处理语义一致，
+        # 否则 get_note_file_path_v2 走 _pending 分支，结果文件被 _cleanup_pending 清理丢失）
+        if not author_id and platform in ("local", "local_audio"):
+            _user_id = getattr(note, 'user_id', None)
+            if _user_id:
+                author_id = str(_user_id)
+                if not author_name:
+                    try:
+                        from app.db.user_dao import get_user_by_id
+                        _user = get_user_by_id(_user_id)
+                        author_name = _user.username if _user else ""
+                    except Exception:
+                        author_name = ""
     # 图文类型：从 note 直接属性获取（video_id 是关键字段，title 可能为空）
     # 注意：旧逻辑用 `note.title` 判断，空标题时会跳过，导致 video_id/author_id 也拿不到，
     # 最终写到 _pending 目录被清理，note.json 丢失

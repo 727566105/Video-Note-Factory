@@ -16,6 +16,7 @@ class ProviderErrorEnum(enum.Enum):
 class NoteErrorEnum(enum.Enum):
     PLATFORM_NOT_SUPPORTED = (300101 ,"选择的平台不受支持")
     DOWNLOAD_FAILED = (300102, "下载失败")
+    DOWNLOADER_ERROR = (300103, "下载器初始化失败")
 
     def __init__(self, code, message):
         self.code = code

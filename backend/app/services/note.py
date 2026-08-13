@@ -672,6 +672,12 @@ class NoteGenerator:
                 model_name=model_name,
                 style=style,
                 user_id=user_id,
+                task_id=task_id,
+                title=_title,
+                author_id=author_id,
+                author_name=author_name,
+                video_id=video_id,
+                platform=platform,
             )
 
             # 智能优选模式下附加模型信息
