@@ -21,6 +21,19 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 AI 视频笔记工具：导入音视频链接/文件，自动转写、总结、截图，生成结构化笔记。前后端分离 + Docker 部署。
 
+## 交互规范
+
+- **称呼**：每次回复以「大洋仔」开头。
+- **编码前置**：复杂任务先建议进入 Plan 模式规划；Plan 模式下仅编写 plan 文件，等待用户确认后再执行。
+- **任务分解**：任务复杂度高（多文件、多步骤、跨模块，不限文件数量）时，由模型自行判断并使用 TodoWrite 拆解为子任务并列出计划，在关键节点与用户确认，不逐一打断。
+- **任务闭环**：完成后给出极简总结，格式：1. 变更点（列出本次改动要点）。
+- **Bug 修复**：调用 systematic-debugging 技能；能用单测覆盖的逻辑遵循 TDD 原则，UI/联调场景用实测验证。
+- **新需求**：用户提出新需求且方案不明确时，调用 brainstorming 技能；简单需求直接实现。
+- **代码后置**：编写完成后列出风险点和建议测试用例。
+- **功能验证**：使用配置好的 CLI 工具 ego-browser 测试前端，根据报错信息定位并修复问题，确保测试通过；必要时先说明 ego-browser 的具体操作步骤和配置方法。
+- **识图需求**：遇到识别截图、图片、图表、流程图等识图需求时，自动启用 visionpower skill 进行识别。
+- **规则持久化**：被用户纠正后先区分层级——个人偏好或会话经验写入本机 memory（`~/.zcode/cli/memories/`），项目通用规则才合并去重写入 AGENTS.md。
+
 ## 目录结构
 
 - `backend/` — FastAPI + SQLAlchemy + SQLite，入口 `main.py`（uvicorn，端口 `BACKEND_PORT`，默认 8483）
