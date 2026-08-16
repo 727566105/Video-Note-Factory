@@ -118,7 +118,8 @@ export function CollectionDetail() {
 
   const handleGenerate = async (mode?: string) => {
     if (!id) return
-    await generateSummary(id, localSettings.style, undefined, undefined, localSettings.extras, mode ?? localSettings.summaryMode)
+    // 合集总结与单条笔记生成独立：不传笔记风格，只按总结模式 + 备注生成
+    await generateSummary(id, undefined, undefined, undefined, localSettings.extras, mode ?? localSettings.summaryMode)
   }
 
   const handleSaveEdit = async () => {
@@ -589,6 +590,7 @@ export function CollectionDetail() {
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         mode="local"
+        variant="collection"
         localValues={localSettings}
         onLocalChange={setLocalSettings}
       />

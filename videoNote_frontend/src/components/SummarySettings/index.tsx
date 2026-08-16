@@ -44,6 +44,7 @@ interface SummarySettingsProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   mode?: 'global' | 'local'        // 默认 'global'
+  variant?: 'note' | 'collection'  // 默认 'note'；collection 只显示合集总结相关项
   localValues?: LocalSummaryValues  // 局部模式：外部传入的值
   onLocalChange?: (values: LocalSummaryValues) => void  // 局部模式：变更回调
 }
@@ -61,10 +62,12 @@ export function SummarySettings({
   open,
   onOpenChange,
   mode = 'global',
+  variant = 'note',
   localValues,
   onLocalChange
 }: SummarySettingsProps) {
   const [activeTab, setActiveTab] = useState<'default' | 'custom'>('default')
+  const isCollection = variant === 'collection'
 
   // 从全局 store 读取（仅 global 模式使用）
   const globalStore = useSummarySettingsStore()
@@ -229,64 +232,67 @@ export function SummarySettings({
                 </Select>
               </Field>
 
-              {/* 视频理解 */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-muted-foreground" />
-                    视频理解
-                  </Label>
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      checked={videoUnderstanding}
-                      onCheckedChange={setVideoUnderstanding}
-                      className="data-[state=checked]:bg-foreground"
-                    />
-                    <span className="text-sm text-muted-foreground">启用</span>
+              {/* 视频理解（仅单条笔记设置显示） */}
+              {!isCollection && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-muted-foreground" />
+                      视频理解
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={videoUnderstanding}
+                        onCheckedChange={setVideoUnderstanding}
+                        className="data-[state=checked]:bg-foreground"
+                      />
+                      <span className="text-sm text-muted-foreground">启用</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <Label>采样间隔（秒）</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={videoInterval}
+                        disabled={!videoUnderstanding}
+                        onChange={(e) => setVideoInterval(parseInt(e.target.value) || 4)}
+                      />
+                    </Field>
+                    <Field>
+                      <Label>拼图尺寸（列 × 行）</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={gridCols}
+                          disabled={!videoUnderstanding}
+                          onChange={(e) => setGridCols(parseInt(e.target.value) || 3)}
+                          className="w-16 text-center"
+                        />
+                        <span className="text-sm text-muted-foreground">×</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={gridRows}
+                          disabled={!videoUnderstanding}
+                          onChange={(e) => setGridRows(parseInt(e.target.value) || 3)}
+                          className="w-16 text-center"
+                        />
+                      </div>
+                    </Field>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field>
-                    <Label>采样间隔（秒）</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={videoInterval}
-                      disabled={!videoUnderstanding}
-                      onChange={(e) => setVideoInterval(parseInt(e.target.value) || 4)}
-                    />
-                  </Field>
-                  <Field>
-                    <Label>拼图尺寸（列 × 行）</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={gridCols}
-                        disabled={!videoUnderstanding}
-                        onChange={(e) => setGridCols(parseInt(e.target.value) || 3)}
-                        className="w-16 text-center"
-                      />
-                      <span className="text-sm text-muted-foreground">×</span>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={gridRows}
-                        disabled={!videoUnderstanding}
-                        onChange={(e) => setGridRows(parseInt(e.target.value) || 3)}
-                        className="w-16 text-center"
-                      />
-                    </div>
-                  </Field>
-                </div>
-              </div>
+              )}
 
-              {/* 笔记风格 + 输出语言 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field>
+              {/* 笔记风格 + 输出语言（仅单条笔记设置显示） */}
+              {!isCollection && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field>
                   <Label className="flex items-center gap-2">
                     <Palette className="w-4 h-4 text-muted-foreground" />
                     笔记风格
@@ -331,15 +337,17 @@ export function SummarySettings({
                   </Select>
                 </Field>
               </div>
+              )}
 
-              {/* 笔记格式 */}
-              <Field>
-                <Label className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  笔记格式
-                </Label>
-                <div className="flex flex-wrap gap-3">
-                  {noteFormats.map(({ label, value }) => (
+              {/* 笔记格式（仅单条笔记设置显示） */}
+              {!isCollection && (
+                <Field>
+                  <Label className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    笔记格式
+                  </Label>
+                  <div className="flex flex-wrap gap-3">
+                    {noteFormats.map(({ label, value }) => (
                     <label key={value} className="flex items-center gap-2 cursor-pointer">
                       <Checkbox
                         checked={selectedFormats.includes(value)}
@@ -354,10 +362,11 @@ export function SummarySettings({
                       <span className="text-sm">{label}</span>
                     </label>
                   ))}
-                </div>
-              </Field>
+                  </div>
+                </Field>
+              )}
 
-              {/* 备注 */}
+              {/* 备注（合集与笔记均生效） */}
               <Field>
                 <Label className="flex items-center gap-2">
                   <StickyNote className="w-4 h-4 text-muted-foreground" />
