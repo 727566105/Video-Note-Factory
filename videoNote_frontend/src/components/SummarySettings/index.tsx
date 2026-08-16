@@ -212,25 +212,27 @@ export function SummarySettings({
 
           {activeTab === 'default' ? (
             <FieldGroup>
-              {/* 总结模式 */}
-              <Field>
-                <Label className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-muted-foreground" />
-                  总结模式
-                </Label>
-                <Select value={summaryMode} onValueChange={setSummaryMode}>
-                  <SelectTrigger>
-                    <SelectValue>
-                      {summaryModes.find(m => m.value === summaryMode)?.label || '综合概述'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {summaryModes.map(({ label, value }) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+              {/* 总结模式（仅合集总结设置显示，笔记生成无模式概念） */}
+              {isCollection && (
+                <Field>
+                  <Label className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-muted-foreground" />
+                    总结模式
+                  </Label>
+                  <Select value={summaryMode} onValueChange={setSummaryMode}>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {summaryModes.find(m => m.value === summaryMode)?.label || '综合概述'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {summaryModes.map(({ label, value }) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
 
               {/* 视频理解（仅单条笔记设置显示） */}
               {!isCollection && (
