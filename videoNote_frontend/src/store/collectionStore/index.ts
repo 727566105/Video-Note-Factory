@@ -21,6 +21,7 @@ import {
 interface CollectionStore {
   collections: CollectionInfo[]
   currentDetail: CollectionDetail | null
+  detailViewId: string | null   // 用户当前正在查看的合集 id（页面级 fetchDetail 设置）
   loading: boolean
   generating: boolean
 
@@ -38,10 +39,15 @@ interface CollectionStore {
   clearDetail: () => void
 }
 
+// 详情请求序号：只有最新一次 fetchDetail 的响应允许写入状态，
+// 防止 A/B 合集快速切换或后台刷新时，迟到的旧响应覆盖当前页面详情
+let detailRequestSeq = 0
+
 export const useCollectionStore = create<CollectionStore>()(
   devtools((set, get) => ({
     collections: [],
     currentDetail: null,
+    detailViewId: null,
     loading: false,
     generating: false,
 
@@ -89,22 +95,30 @@ export const useCollectionStore = create<CollectionStore>()(
     },
 
     fetchDetail: async (id) => {
-      set({ loading: true })
+      const seq = ++detailRequestSeq
+      set({ detailViewId: id, loading: true })
       try {
         const data = await apiGetDetail(id)
-        set({ currentDetail: data })
+        if (seq === detailRequestSeq) set({ currentDetail: data })
       } catch {
-        toast.error('获取合集详情失败')
+        if (seq === detailRequestSeq) toast.error('获取合集详情失败')
       } finally {
-        set({ loading: false })
+        if (seq === detailRequestSeq) set({ loading: false })
       }
+    },
+
+    // 内部刷新辅助：仅当该合集仍是用户当前查看的合集时才刷新详情，
+    // 避免离开合集后后台任务（生成/增删条目）的详情刷新覆盖已切换的页面
+    refreshDetail: async (id) => {
+      if (id !== get().detailViewId) return
+      await get().fetchDetail(id)
     },
 
     addItems: async (collectionId, taskIds) => {
       try {
         const added = await apiAddItems(collectionId, taskIds)
         // 刷新详情
-        await get().fetchDetail(collectionId)
+        await get().refreshDetail(collectionId)
         // 刷新列表计数
         await get().fetchCollections()
         return added
@@ -117,7 +131,7 @@ export const useCollectionStore = create<CollectionStore>()(
     removeItem: async (collectionId, taskId) => {
       try {
         await apiRemoveItem(collectionId, taskId)
-        await get().fetchDetail(collectionId)
+        await get().refreshDetail(collectionId)
         await get().fetchCollections()
       } catch {
         toast.error('移除笔记失败')
@@ -135,7 +149,7 @@ export const useCollectionStore = create<CollectionStore>()(
           extras,
           mode: mode ?? 'overview',
         })
-        await get().fetchDetail(collectionId)
+        await get().refreshDetail(collectionId)
         return result
       } catch {
         toast.error('生成合集总结失败')
@@ -148,7 +162,7 @@ export const useCollectionStore = create<CollectionStore>()(
     editSummary: async (collectionId, content) => {
       try {
         await apiEditSummary(collectionId, content)
-        await get().fetchDetail(collectionId)
+        await get().refreshDetail(collectionId)
         toast.success('总结已保存')
       } catch {
         toast.error('保存失败')

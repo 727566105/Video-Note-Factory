@@ -84,15 +84,19 @@ export function CollectionDetail() {
     if (modelList.length === 0) loadEnabledModels()
   }, [])
 
+  // 详情归属校验：仅当 store 详情与当前路由 id 一致才渲染，
+  // 防止切换合集后迟到的旧详情请求把上一合集数据渲染到新 URL 下
+  const detail = currentDetail?.id === id ? currentDetail : null
+
   useEffect(() => {
-    if (currentDetail) {
-      setEditName(currentDetail.name)
-      setEditDesc(currentDetail.description || '')
+    if (detail) {
+      setEditName(detail.name)
+      setEditDesc(detail.description || '')
     }
-  }, [currentDetail])
+  }, [detail])
 
   // 当前总结的模式变化时，同步到「总结设置」弹窗（用户未重新生成前保留其选择）
-  const currentSummaryMode = currentDetail?.summary?.summary_mode
+  const currentSummaryMode = detail?.summary?.summary_mode
   useEffect(() => {
     if (currentSummaryMode && ['overview', 'comparison', 'timeline', 'mindmap', 'trajectory'].includes(currentSummaryMode)) {
       setLocalSettings(prev => ({ ...prev, summaryMode: currentSummaryMode }))
@@ -106,7 +110,7 @@ export function CollectionDetail() {
 
   const handleMoveItem = async (taskId: string, direction: 'up' | 'down') => {
     if (!id) return
-    const items = currentDetail?.items ?? []
+    const items = detail?.items ?? []
     const idx = items.findIndex(i => i.task_id === taskId)
     if (idx < 0) return
     const targetIdx = direction === 'up' ? idx - 1 : idx + 1
@@ -143,7 +147,7 @@ export function CollectionDetail() {
     }
   }, [editOpen])
 
-  const existingIds = new Set((currentDetail?.items ?? []).map(i => i.task_id))
+  const existingIds = new Set((detail?.items ?? []).map(i => i.task_id))
   const filteredTasks = (allTasks ?? []).filter(t =>
     !existingIds.has(t.task_id) &&
     (!addQuery.trim() || (t.title || '').toLowerCase().includes(addQuery.trim().toLowerCase()))
@@ -197,7 +201,7 @@ export function CollectionDetail() {
     window.addEventListener('pointerup', onUp)
   }
 
-  if (loading && !currentDetail) {
+  if (loading && !detail) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -205,7 +209,7 @@ export function CollectionDetail() {
     )
   }
 
-  if (!currentDetail) {
+  if (!detail) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
         <p className="text-muted-foreground">合集不存在</p>
@@ -214,7 +218,7 @@ export function CollectionDetail() {
     )
   }
 
-  const summary = currentDetail.summary
+  const summary = detail.summary
   const showStandaloneStats = !summary?.content || summary.summary_mode !== 'trajectory'
 
   return (
@@ -226,7 +230,7 @@ export function CollectionDetail() {
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate('/library')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <span className="font-medium text-base truncate">{currentDetail.name}</span>
+          <span className="font-medium text-base truncate">{detail.name}</span>
         </div>
 
         {/* 头部卡片 */}
@@ -237,7 +241,7 @@ export function CollectionDetail() {
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold truncate">{currentDetail.name}</h1>
+              <h1 className="text-xl font-semibold truncate">{detail.name}</h1>
               <Dialog open={editOpen} onOpenChange={setEditOpen}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground">
@@ -264,7 +268,7 @@ export function CollectionDetail() {
                     {/* 条目管理 */}
                     <div className="border-t pt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">合集内容（{currentDetail?.items.length ?? 0}）</span>
+                        <span className="text-sm font-medium">合集内容（{detail?.items.length ?? 0}）</span>
                         <div className="flex items-center gap-2">
                           {!addOpen && (
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAddOpen(true)}>
@@ -275,10 +279,10 @@ export function CollectionDetail() {
                         </div>
                       </div>
                       <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-                        {(currentDetail?.items ?? []).length === 0 ? (
+                        {(detail?.items ?? []).length === 0 ? (
                           <p className="text-center text-sm text-muted-foreground py-8">合集暂无内容</p>
                         ) : (
-                          (currentDetail?.items ?? []).map((item, idx, arr) => (
+                          (detail?.items ?? []).map((item, idx, arr) => (
                             <div
                               key={item.id}
                               className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
@@ -408,8 +412,8 @@ export function CollectionDetail() {
                 </DialogContent>
               </Dialog>
             </div>
-            {currentDetail.description && (
-              <p className="text-sm text-muted-foreground mt-1">{currentDetail.description}</p>
+            {detail.description && (
+              <p className="text-sm text-muted-foreground mt-1">{detail.description}</p>
             )}
           </div>
         </div>
@@ -456,7 +460,7 @@ export function CollectionDetail() {
       </div>
 
       {/* ====== 2. AI 总结区 ====== */}
-      {showStandaloneStats && <AuthorStatsBar items={currentDetail.items} />}
+      {showStandaloneStats && <AuthorStatsBar items={detail.items} />}
       <div className="rounded-xl border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -493,10 +497,10 @@ export function CollectionDetail() {
         </div>
 
         {/* 内容已变更提醒 */}
-        {currentDetail.summary_stale && summary?.content && !editingSummary && (
+        {detail.summary_stale && summary?.content && !editingSummary && (
           <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-500">
             <AlertCircle className="size-4 shrink-0" />
-            <span>合集内容已变更：总结基于 {summary.item_count_at_generation ?? '未知'} 条，当前有 {currentDetail.items.length} 条，建议重新总结</span>
+            <span>合集内容已变更：总结基于 {summary.item_count_at_generation ?? '未知'} 条，当前有 {detail.items.length} 条，建议重新总结</span>
             <Button
               variant="ghost"
               size="sm"
@@ -527,14 +531,14 @@ export function CollectionDetail() {
           summary.summary_mode === 'trajectory' ? (
             /* trajectory：左时间轴（可拖拽调宽）+ 右分析报告，大屏并排、小屏堆叠 */
             <div className="relative flex flex-col lg:flex-row gap-4 items-start">
-              {currentDetail.items.length > 0 && (
+              {detail.items.length > 0 && (
                 <div
                   ref={timelineRef}
                   className="relative w-full lg:w-[var(--tlw)] shrink-0 rounded-lg border border-border bg-card/50 p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto"
                   style={{ '--tlw': `${timelineWidth}px` } as React.CSSProperties}
                 >
                   <TrajectoryTimeline
-                    items={currentDetail.items}
+                    items={detail.items}
                     onSelect={(taskId) => navigate(`/notes/${taskId}`)}
                   />
                 </div>
@@ -555,7 +559,7 @@ export function CollectionDetail() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <TrajectorySummaryCard content={summary.content} items={currentDetail.items} />
+                <TrajectorySummaryCard content={summary.content} items={detail.items} />
               </div>
             </div>
           ) : (
@@ -575,7 +579,7 @@ export function CollectionDetail() {
                 <p className="text-sm mb-3">AI 将分析合集内所有视频内容，生成结构化总结</p>
                 <Button
                   onClick={() => handleGenerate()}
-                  disabled={currentDetail.items.length === 0}
+                  disabled={detail.items.length === 0}
                   className="bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 text-white"
                 >
                   <Sparkles className="w-4 h-4 mr-2" />
@@ -604,7 +608,7 @@ export function CollectionDetail() {
         onOpenChange={setExportOpen}
         selectedContent={summary?.content || ''}
         collectionId={id}
-        collectionTitle={currentDetail?.name || '合集总结'}
+        collectionTitle={detail?.name || '合集总结'}
       />
     </div>
   )
