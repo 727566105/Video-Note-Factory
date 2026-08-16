@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Trash2, GripVertical, Sparkles, Settings2, LoaderCircle, FolderOpen,
-  SquarePlus, Share2, Brain, Map, Pencil, ArrowUpDown, MoreHorizontal,
+  ArrowLeft, Trash2, Sparkles, Settings2, LoaderCircle, FolderOpen,
+  SquarePlus, Share2, Brain, Map, Pencil, MoreHorizontal,
   RotateCcw, SlidersHorizontal, Download, AlertCircle, ListVideo,
   ChevronUp, ChevronDown,
 } from 'lucide-react'
@@ -429,83 +429,6 @@ export function CollectionDetail() {
         collectionId={id}
         collectionTitle={currentDetail?.name || '合集总结'}
       />
-
-      {/* ====== 3. 内容统计栏 ====== */}
-      <div className="flex items-center justify-between gap-3 py-2 border-b">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium">
-            {currentDetail.items.length} 个内容
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
-            <ArrowUpDown className="w-3.5 h-3.5 mr-1" />排序
-          </Button>
-        </div>
-      </div>
-
-      {/* ====== 4. 条目列表 ====== */}
-      {currentDetail.items.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-muted-foreground">
-          <FolderOpen className="w-12 h-12 mb-3 opacity-30" />
-          <p className="text-sm font-medium">暂无视频</p>
-          <p className="text-xs mt-1">从笔记列表添加视频到合集</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {currentDetail.items.map(item => (
-            <div
-              key={item.id}
-              className={cn(
-                "flex items-start gap-3 p-3 rounded-xl border border-border bg-card",
-                "hover:bg-accent/40 transition-colors group"
-              )}
-            >
-              {/* 拖拽手柄 */}
-              <div className="pt-1 cursor-grab text-muted-foreground/40 hover:text-muted-foreground">
-                <GripVertical className="w-4 h-4" />
-              </div>
-
-              {/* 缩略图 */}
-              <div className="w-24 h-14 rounded-lg overflow-hidden bg-muted shrink-0 relative">
-                {item.cover_url ? (
-                  <img src={item.cover_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <FolderOpen className="w-5 h-5 text-muted-foreground/30" />
-                  </div>
-                )}
-                {/* 作者叠加 */}
-                {item.author && (
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-0.5">
-                    <span className="text-[10px] text-white truncate block">{item.author}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* 信息 */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate hover:text-blue-500 cursor-pointer transition-colors" onClick={() => navigate(`/notes/${item.task_id}`)}>{item.title || '无标题'}</p>
-                {item.platform && (
-                  <span className="inline-block mt-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                    {item.platform}
-                  </span>
-                )}
-              </div>
-
-              {/* 删除按钮 */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0 text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => handleRemoveItem(item.task_id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* ====== 编辑合集视频对话框 ====== */}
       <Dialog open={manageVideosOpen} onOpenChange={setManageVideosOpen}>
