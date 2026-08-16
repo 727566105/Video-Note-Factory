@@ -299,7 +299,12 @@ export function TrajectorySummaryCard({ content, items }: { content: string; ite
   const { mainTitle, preamble, sections, tags } = useMemo(() => parseTrajectory(content), [content])
 
   if (!mainTitle && sections.length === 0) {
-    return <MarkdownBlock content={content} className="rounded-lg bg-muted/30 p-4" />
+    return (
+      <div className="space-y-3.5">
+        {items && <AuthorStatsBar items={items} />}
+        <MarkdownBlock content={content} className="rounded-lg bg-muted/30 p-4" />
+      </div>
+    )
   }
 
   return (

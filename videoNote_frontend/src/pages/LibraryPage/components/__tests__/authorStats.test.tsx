@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { AuthorStatsBar, computeAuthorStats } from '../AuthorStatsBar'
-import { getSectionKind, parseTrajectory } from '../TrajectorySummaryCard'
+import { getSectionKind, parseTrajectory, TrajectorySummaryCard } from '../TrajectorySummaryCard'
 
 const item = (overrides: Record<string, unknown> = {}) => ({
   created_at: '2026-07-12T12:39:00',
@@ -19,6 +19,20 @@ describe('trajectory report parsing', () => {
       'style', 'preference', 'rhythm', 'persona', 'personality',
     ])
     expect(getSectionKind(parsed.sections[5].title)).toBe('profile')
+  })
+})
+
+describe('TrajectorySummaryCard', () => {
+  it('renders current stats when trajectory content has no parsed summary', () => {
+    render(<TrajectorySummaryCard content="暂时没有可用的画像总结" items={[item(), item({ title: '追加内容' })]} />)
+    expect(screen.getByText('共 2 条内容')).toBeInTheDocument()
+    expect(screen.getByText('暂时没有可用的画像总结')).toBeInTheDocument()
+  })
+
+  it('renders stats exactly once when a parsed summary exists', () => {
+    render(<TrajectorySummaryCard content={'# 博主画像\n## 风格特征\n内容风格'} items={[item()]} />)
+    expect(screen.getAllByText('共 1 条内容')).toHaveLength(1)
+    expect(screen.getByText('内容风格')).toBeInTheDocument()
   })
 })
 
