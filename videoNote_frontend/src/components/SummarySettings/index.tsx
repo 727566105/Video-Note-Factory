@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Sparkles, Eye, FileText, StickyNote, Check, Palette, Languages } from 'lucide-react'
+import { Sparkles, Eye, FileText, StickyNote, Check, Palette, Languages, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 
 // 局部模式的值类型（用于详情页，不修改全局 store）
 export interface LocalSummaryValues {
+  summaryMode?: string
   style?: string
   outputLanguage?: string
   videoUnderstanding?: boolean
@@ -47,6 +48,15 @@ interface SummarySettingsProps {
   onLocalChange?: (values: LocalSummaryValues) => void  // 局部模式：变更回调
 }
 
+// 合集总结模式（与后端 collection.py 的 mode_prompts 对应）
+const summaryModes = [
+  { value: 'overview', label: '综合概述' },
+  { value: 'comparison', label: '对比分析' },
+  { value: 'timeline', label: '时间线' },
+  { value: 'mindmap', label: '思维导图' },
+  { value: 'trajectory', label: '人生轨迹' },
+]
+
 export function SummarySettings({
   open,
   onOpenChange,
@@ -60,6 +70,7 @@ export function SummarySettings({
   const globalStore = useSummarySettingsStore()
 
   // 根据模式决定使用哪个数据源
+  const getSummaryMode = () => mode === 'local' ? (localValues?.summaryMode || 'overview') : globalStore.summaryMode
   const getStyle = () => mode === 'local' ? (localValues?.style || 'minimal') : globalStore.style
   const getOutputLanguage = () => mode === 'local' ? (localValues?.outputLanguage || 'zh') : globalStore.outputLanguage
   const getVideoUnderstanding = () => mode === 'local' ? (localValues?.videoUnderstanding ?? true) : globalStore.videoUnderstanding
@@ -70,6 +81,13 @@ export function SummarySettings({
   const getExtras = () => mode === 'local' ? (localValues?.extras || '') : globalStore.extras
 
   // 设置器：global 模式直接操作 store，local 模式调用回调
+  const setSummaryMode = (value: string) => {
+    if (mode === 'local') {
+      onLocalChange?.({ ...localValues, summaryMode: value })
+    } else {
+      globalStore.setSummaryMode(value)
+    }
+  }
   const setStyle = (value: string) => {
     if (mode === 'local') {
       onLocalChange?.({ ...localValues, style: value })
@@ -128,6 +146,7 @@ export function SummarySettings({
   }
 
   // 当前值（根据模式）
+  const summaryMode = getSummaryMode()
   const style = getStyle()
   const outputLanguage = getOutputLanguage()
   const videoUnderstanding = getVideoUnderstanding()
@@ -190,6 +209,26 @@ export function SummarySettings({
 
           {activeTab === 'default' ? (
             <FieldGroup>
+              {/* 总结模式 */}
+              <Field>
+                <Label className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-muted-foreground" />
+                  总结模式
+                </Label>
+                <Select value={summaryMode} onValueChange={setSummaryMode}>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {summaryModes.find(m => m.value === summaryMode)?.label || '综合概述'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {summaryModes.map(({ label, value }) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
               {/* 视频理解 */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">

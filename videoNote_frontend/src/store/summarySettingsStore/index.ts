@@ -2,6 +2,10 @@ import { create } from 'zustand'
 import { saveUserPreferences } from '@/services/userPreferences'
 
 export interface SummarySettingsState {
+  // 总结模式（overview/comparison/timeline/mindmap/trajectory）
+  summaryMode: string
+  setSummaryMode: (value: string) => void
+
   // 笔记风格
   style: string
   setStyle: (value: string) => void
@@ -37,6 +41,12 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
     style: 'minimal',
     setStyle: value => {
       set({ style: value })
+      saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
+    },
+
+    summaryMode: 'overview',
+    setSummaryMode: value => {
+      set({ summaryMode: value })
       saveUserPreferences({ summary: useSummarySettingsStore.getState().toServerData() })
     },
 
@@ -92,6 +102,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
 
     loadFromServer: (data: Record<string, any>) => {
       set({
+        summaryMode: data.summaryMode ?? 'overview',
         style: data.style ?? 'minimal',
         outputLanguage: data.outputLanguage ?? 'zh',
         videoUnderstanding: data.videoUnderstanding ?? true,
@@ -106,6 +117,7 @@ export const useSummarySettingsStore = create<SummarySettingsState>()(
     toServerData: () => {
       const s = useSummarySettingsStore.getState()
       return {
+        summaryMode: s.summaryMode,
         style: s.style,
         outputLanguage: s.outputLanguage,
         videoUnderstanding: s.videoUnderstanding,

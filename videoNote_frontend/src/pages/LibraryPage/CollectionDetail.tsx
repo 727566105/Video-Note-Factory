@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCollectionStore } from '@/store/collectionStore'
 import { shareCollection as apiShare, unshareCollection as apiUnshare, editCollectionSummary as apiEditSummary, updateItemsOrder as apiUpdateItemsOrder } from '@/services/collection'
 import { toast } from 'sonner'
@@ -52,6 +51,7 @@ export function CollectionDetail() {
   // 本地总结设置值（初始值从全局设置继承）
   const globalSettings = useSummarySettingsStore()
   const [localSettings, setLocalSettings] = useState<LocalSummaryValues>({
+    summaryMode: globalSettings.summaryMode,
     style: globalSettings.style,
     outputLanguage: globalSettings.outputLanguage,
     videoUnderstanding: globalSettings.videoUnderstanding,
@@ -70,8 +70,7 @@ export function CollectionDetail() {
   // 编辑视频（管理合集条目）
   const [manageVideosOpen, setManageVideosOpen] = useState(false)
 
-  // 总结模式 + 编辑总结
-  const [summaryMode, setSummaryMode] = useState('overview')
+  // 编辑总结
   const [editingSummary, setEditingSummary] = useState(false)
   const [editSummaryContent, setEditSummaryContent] = useState('')
 
@@ -92,6 +91,14 @@ export function CollectionDetail() {
     }
   }, [currentDetail])
 
+  // 当前总结的模式变化时，同步到「总结设置」弹窗（用户未重新生成前保留其选择）
+  const currentSummaryMode = currentDetail?.summary?.summary_mode
+  useEffect(() => {
+    if (currentSummaryMode && ['overview', 'comparison', 'timeline', 'mindmap', 'trajectory'].includes(currentSummaryMode)) {
+      setLocalSettings(prev => ({ ...prev, summaryMode: currentSummaryMode }))
+    }
+  }, [currentSummaryMode])
+
   const handleRemoveItem = async (taskId: string) => {
     if (!id) return
     await removeItem(id, taskId)
@@ -110,9 +117,9 @@ export function CollectionDetail() {
     await fetchDetail(id)
   }
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (mode?: string) => {
     if (!id) return
-    await generateSummary(id, localSettings.style, undefined, undefined, localSettings.extras, summaryMode)
+    await generateSummary(id, localSettings.style, undefined, undefined, localSettings.extras, mode ?? localSettings.summaryMode)
   }
 
   const handleSaveEdit = async () => {
@@ -248,9 +255,7 @@ export function CollectionDetail() {
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setExportOpen(true)}>
                 <Download className="w-3.5 h-3.5 mr-1" />导出
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => {
-                setSummaryMode('mindmap'); handleGenerate()
-              }} disabled={generating}>
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => handleGenerate('mindmap')} disabled={generating}>
                 <Map className="w-3.5 h-3.5 mr-1" />思维导图
               </Button>
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => {
@@ -272,23 +277,6 @@ export function CollectionDetail() {
               </Button>
             </div>
           )}
-        </div>
-
-        {/* 总结模式选择器 */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">总结模式：</span>
-          <Select value={summaryMode} onValueChange={(v) => setSummaryMode(v)}>
-            <SelectTrigger className="h-7 w-[120px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="overview">综合概述</SelectItem>
-              <SelectItem value="comparison">对比分析</SelectItem>
-              <SelectItem value="timeline">时间线</SelectItem>
-              <SelectItem value="mindmap">思维导图</SelectItem>
-              <SelectItem value="trajectory">人生轨迹</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* trajectory 模式：时间轴可视化 */}
