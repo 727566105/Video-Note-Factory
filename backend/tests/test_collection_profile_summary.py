@@ -1,0 +1,88 @@
+from datetime import datetime
+import json
+
+from app.services.collection import _build_author_stats
+
+
+def test_build_author_stats_uses_all_items_and_same_day_peak():
+    entries = [
+        {"title": "a", "platform": "douyin", "created_at": datetime(2026, 7, 12, 12, 39), "duration": None, "tags": [], "format": "图文/实况"},
+        {"title": "b", "platform": "douyin", "created_at": datetime(2026, 7, 12, 13, 0), "duration": 90, "tags": [], "format": "视频"},
+        {"title": "c", "platform": "bilibili", "created_at": datetime(2026, 7, 1, 8, 0), "duration": 30, "tags": [], "format": "视频"},
+        {"title": "unknown", "platform": "douyin", "created_at": None, "duration": None, "tags": [], "format": "图文/实况"},
+    ]
+    stats = _build_author_stats(entries)
+    assert stats["total"] == 4
+    assert stats["span_days"] == 11
+    assert stats["peak_day"] == {"date": "2026-07-12", "count": 2}
+    assert stats["active_days"] == 2
+    assert stats["time_buckets"]["下午(12-18)"] == 2
+    assert stats["time_buckets"]["上午(6-12)"] == 1
+    assert stats["platforms"] == {"抖音": 3, "B站": 1}
+    assert stats["formats"] == {"图文/实况": 2, "视频": 2}
+    assert stats["avg_duration_sec"] == 60
+
+
+def test_build_author_stats_single_item_frequency_and_missing_dates():
+    stats = _build_author_stats([
+        {"title": "a", "platform": "douyin", "created_at": datetime(2026, 1, 1, 0, 0), "duration": None, "tags": [], "format": "图文/实况"},
+    ])
+    assert stats["span_days"] == 0
+    assert stats["frequency_per_week"] == 7.0
+    assert stats["time_buckets"]["凌晨(0-6)"] == 1
+
+    missing = _build_author_stats([
+        {"title": "a", "platform": "douyin", "created_at": None, "duration": None, "tags": [], "format": "图文/实况"},
+    ])
+    assert missing["total"] == 1
+    assert missing["active_days"] == 0
+    assert missing["span_text"] == "未知"
+
+
+def test_trajectory_entry_metadata_is_parsed_into_prompt(monkeypatch, tmp_path):
+    from app.services import collection
+
+    created_at = datetime(2026, 7, 12, 12, 39)
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者", "created_at": created_at,
+        "duration": 90, "description": "描述", "tags": json.dumps({
+            "platform_tags": ["平台1", "平台2", "平台3", "平台4", "平台5", "平台6"],
+            "ai_tags": ["AI1", "AI2", "AI3", "AI4", "AI5", "AI6"],
+        }),
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    summary_calls = {}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "正文"}), encoding="utf-8")
+    monkeypatch.setattr(collection, "find_note_file", lambda **kwargs: note_path)
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: type("GPT", (), {"summarize": lambda self, source: summary_calls.setdefault("prompt", source.extras) or "result"})())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+    assert result is not None
+    prompt = summary_calls["prompt"]
+    assert "2026-07-12 12:39" in prompt
+    assert "视频" in prompt
+    assert "平台1、平台2、平台3、平台4、平台5" in prompt
+    assert "AI1、AI2、AI3、AI4、AI5" in prompt
+    assert "描述" in prompt

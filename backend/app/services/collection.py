@@ -24,6 +24,62 @@ from app.utils.path_helper import find_note_file
 logger = logging.getLogger(__name__)
 
 
+_PLATFORM_LABELS = {
+    "douyin": "抖音",
+    "bilibili": "B站",
+    "youtube": "YouTube",
+    "xiaohongshu": "小红书",
+    "kuaishou": "快手",
+    "cctv": "CCTV",
+}
+_TIME_BUCKETS = (
+    (0, 6, "凌晨(0-6)"),
+    (6, 12, "上午(6-12)"),
+    (12, 18, "下午(12-18)"),
+    (18, 24, "晚上(18-24)"),
+)
+
+
+def _build_author_stats(note_entries: list[dict]) -> dict:
+    """Build trajectory statistics from note metadata without database access."""
+    dated = [entry["created_at"] for entry in note_entries if entry.get("created_at")]
+    dates = [value.date() for value in dated]
+    day_counts = {}
+    for day in dates:
+        day_counts[day] = day_counts.get(day, 0) + 1
+    peak = max(day_counts.items(), key=lambda item: (item[1], item[0]), default=None)
+    durations = [entry["duration"] for entry in note_entries
+                 if isinstance(entry.get("duration"), (int, float))]
+    span_days = (max(dates) - min(dates)).days if dates else 0
+    frequency = len(note_entries) / max(span_days / 7, 1 / 7) if note_entries else 0.0
+    time_buckets = {label: 0 for _, _, label in _TIME_BUCKETS}
+    for value in dated:
+        for start, end, label in _TIME_BUCKETS:
+            if start <= value.hour < end:
+                time_buckets[label] += 1
+                break
+
+    def counts(key, mapper=lambda value: value):
+        result = {}
+        for entry in note_entries:
+            value = mapper(entry.get(key) or "")
+            result[value] = result.get(value, 0) + 1
+        return result
+
+    return {
+        "total": len(note_entries),
+        "span_days": span_days,
+        "span_text": f"{span_days}天" if dates else "未知",
+        "frequency_per_week": round(frequency, 1),
+        "peak_day": {"date": peak[0].isoformat(), "count": peak[1]} if peak else None,
+        "active_days": len(day_counts),
+        "time_buckets": time_buckets,
+        "platforms": counts("platform", lambda value: _PLATFORM_LABELS.get(value, value)),
+        "formats": counts("format"),
+        "avg_duration_sec": round(sum(durations) / len(durations)) if durations else None,
+    }
+
+
 def _uuid() -> str:
     """生成 UUID 字符串"""
     return str(uuid.uuid4())
@@ -463,13 +519,25 @@ def generate_collection_summary(
             # 单篇限长 2000 字，避免拼接后超 token
             if len(md_content) > 2000:
                 md_content = md_content[:2000] + "\n\n...(内容已截断)"
-            note_entries.append({
+            entry = {
                 "md": md_content,
                 "title": task.title or "无标题",
                 "platform": task.platform or "",
                 "author": task.author or task.author_name or "",
                 "created_at": task.created_at,
-            })
+            }
+            if mode == "trajectory":
+                try:
+                    tags = json.loads(task.tags or "{}") if isinstance(task.tags, str) else (task.tags or {})
+                except (TypeError, json.JSONDecodeError):
+                    tags = {}
+                entry.update({
+                    "duration": task.duration,
+                    "description": task.description or "",
+                    "tags": tags,
+                    "format": "视频" if task.duration is not None else "图文/实况",
+                })
+            note_entries.append(entry)
         except Exception as e:
             logger.warning(f"读取笔记失败: task_id={task.task_id}, error={e}")
 
@@ -486,8 +554,18 @@ def generate_collection_summary(
     markdowns = []
     for i, entry in enumerate(note_entries, 1):
         if mode == "trajectory":
-            date_str = entry["created_at"].strftime("%Y-%m-%d") if entry["created_at"] else "未知日期"
-            header = f"### 笔记 {i}/{total} | {date_str} | {entry['platform']} | {entry['author']}：{entry['title']}"
+            date_str = entry["created_at"].strftime("%Y-%m-%d %H:%M") if entry["created_at"] else "未知日期"
+            tags = entry.get("tags") or {}
+            if isinstance(tags, dict):
+                platform_tags = tags.get("platform_tags") or []
+                ai_tags = tags.get("ai_tags") or []
+            else:
+                platform_tags = ai_tags = []
+            tag_text = "、".join(str(tag) for tag in (list(platform_tags)[:5] + list(ai_tags)[:5]))
+            metadata = f" | 标签：{tag_text}" if tag_text else ""
+            description = entry.get("description") or ""
+            description_text = f" | 描述：{description}" if description else ""
+            header = f"### 笔记 {i}/{total} | {date_str} | {entry.get('platform', '')} | {entry.get('format', '')}{metadata} | {entry['author']}：{entry['title']}{description_text}"
         else:
             header = f"### 笔记 {i}/{total}：{entry['title']}"
         markdowns.append(f"{header}\n\n{entry['md']}")
