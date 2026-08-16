@@ -21,3 +21,26 @@
 
 - Pytest emits existing dependency/deprecation warnings (`pkg_resources` and MCP client API); no test failures.
 - An unrelated untracked file `videoNote_frontend/public/timeline-preview.html` was present and left untouched.
+
+## Task 2 Fix Report
+
+### Changes
+
+- Limited the batch metadata-preservation instruction to `trajectory` mode. Overview, comparison, timeline, and mindmap batch prompts retain their existing wording and behavior.
+- Added behavioral coverage that captures both trajectory and overview batch prompts and verifies the instruction is present only for trajectory.
+- Added final-prompt assertions proving trajectory author statistics and author name flow through `generate_collection_summary` into the GPT prompt.
+- Added coverage for the trajectory author fallback to the collection name when note author fields are unavailable.
+
+### Verification
+
+- `cd backend && ../.venv/bin/python -m pytest tests/test_collection_profile_summary.py -q`
+  - PASS: 7 passed, 1 warning.
+- `cd backend && ../.venv/bin/python -m pytest tests -q`
+  - PASS: 416 passed, 9 warnings in 34.03s.
+- `git diff --check`
+  - PASS.
+
+### Concerns
+
+- Existing `pkg_resources` and MCP client deprecation warnings remain; no test failures.
+- The unrelated untracked file `videoNote_frontend/public/timeline-preview.html` was not modified.

@@ -726,7 +726,7 @@ def _batch_summarize(
         batch = "\n\n---\n\n".join(parts[i:i + batch_size])
         batch_prompt = f"""请将以下 {min(batch_size, len(parts) - i)} 篇笔记分别压缩为简洁摘要。
 每篇只保留核心观点（每篇不超过 100 字），不要复述细节。
-必须让每篇摘要开头保留原笔记的元数据标记 `[YYYY-MM-DD HH | 平台 | 形式]`，不要改写、删除或猜测该标记。
+{"必须让每篇摘要开头保留原笔记的元数据标记 `[YYYY-MM-DD HH | 平台 | 形式]`，不要改写、删除或猜测该标记。" if mode == "trajectory" else ""}
 
 --- 笔记内容 ---
 

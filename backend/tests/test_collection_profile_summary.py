@@ -29,24 +29,33 @@ def test_non_trajectory_prompt_does_not_receive_profile_stats():
     assert "风格特征" not in prompt
 
 
-def test_batch_prompt_requires_metadata_prefix(monkeypatch):
+def test_batch_prompt_requires_metadata_prefix_only_for_trajectory(monkeypatch):
     from app.services import collection
 
     captured = {}
 
     class GPT:
         def summarize(self, source):
-            captured["prompt"] = source.extras
+            captured.setdefault("prompts", []).append(source.extras)
             return "summary"
 
     monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
-    result = collection._batch_summarize(
+    trajectory_result = collection._batch_summarize(
         "### 笔记 1/1 | [2026-07-12 12:39 | 抖音 | 图文/实况] | 作者：标题\n正文",
         1, None, None, "trajectory", None, None,
     )
-    assert result == "summary"
-    assert "必须让每篇摘要开头保留原笔记的元数据标记" in captured["prompt"]
-    assert "[YYYY-MM-DD HH | 平台 | 形式]" in captured["prompt"]
+    overview_result = collection._batch_summarize(
+        "### 笔记 1/1：标题\n正文",
+        1, None, None, "overview", None, None,
+    )
+
+    assert trajectory_result == "summary"
+    assert overview_result == "summary"
+    trajectory_prompt, overview_prompt = captured["prompts"]
+    assert "必须让每篇摘要开头保留原笔记的元数据标记" in trajectory_prompt
+    assert "[YYYY-MM-DD HH | 平台 | 形式]" in trajectory_prompt
+    assert "必须让每篇摘要开头保留原笔记的元数据标记" not in overview_prompt
+    assert "[YYYY-MM-DD HH | 平台 | 形式]" not in overview_prompt
 
 
 def test_build_author_stats_uses_all_items_and_same_day_peak():
@@ -131,3 +140,47 @@ def test_trajectory_entry_metadata_is_parsed_into_prompt(monkeypatch, tmp_path):
     assert "平台1、平台2、平台3、平台4、平台5" in prompt
     assert "AI1、AI2、AI3、AI4、AI5" in prompt
     assert "描述" in prompt
+    assert "博主「作者」" in prompt
+    assert '"total": 1' in prompt
+
+
+def test_trajectory_author_falls_back_to_collection_name(monkeypatch, tmp_path):
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "", "created_at": None,
+        "duration": None, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集作者名"})()
+    summary_calls = {}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "正文"}), encoding="utf-8")
+    monkeypatch.setattr(collection, "find_note_file", lambda **kwargs: note_path)
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: type(
+        "GPT", (), {"summarize": lambda self, source: summary_calls.setdefault("prompt", source.extras) or "result"}
+    )())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+    assert result is not None
+    assert "博主「合集作者名」" in summary_calls["prompt"]
