@@ -610,6 +610,7 @@ def _generate_collection_summary_inner(
                 except Exception as e:
                     logger.warning(f"读取转写失败: task_id={task.task_id}, error={e}")
         if not md_content:
+            logger.warning(f"笔记与转写均缺失: task_id={task.task_id}")
             continue
         # 单篇限长 2000 字，避免拼接后超 token（仅笔记；转写全文不截断）
         if source == "note" and len(md_content) > 2000:
@@ -868,7 +869,7 @@ def _batch_summarize(
         batches.append(current)
 
     summaries = []
-    for batch in batches:
+    for batch_index, batch in enumerate(batches, 1):
         batch_text = "\n\n---\n\n".join(batch)
         batch_prompt = f"""请将以下 {len(batch)} 篇笔记分别压缩为简洁摘要。
 每篇只保留核心观点（每篇不超过 100 字），不要复述细节。
@@ -890,7 +891,7 @@ def _batch_summarize(
                 from app.services.note import strip_code_fence
                 summaries.append(strip_code_fence(result))
         except Exception as e:
-            logger.warning(f"分批总结第 {len(summaries) + 1} 批失败: {e}")
+            logger.warning(f"分批总结第 {batch_index} 批失败: {e}")
 
     if not summaries:
         return None

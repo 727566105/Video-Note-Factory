@@ -593,6 +593,7 @@ def test_batch_summarize_long_entry_compression_failure_degrades(monkeypatch):
     # 截断后 8000+10 分隔符开销 > 8000，与短篇不能同批 → 2 批
     assert len(captured) == 2, f"期望 2 批（截断条目与短篇各一批），实际 {len(captured)} 批"
     assert "y" * 8000 in captured[0]
+    assert "y" * 8001 not in captured[0]
     assert "z" * 1000 in captured[1]
 
 
