@@ -4,6 +4,67 @@ import json
 from app.services.collection import _build_author_stats, _build_collection_summary_prompt
 
 
+def test_generate_summary_uses_full_item_count_for_stale_snapshot(monkeypatch, tmp_path):
+    from app.services import collection
+
+    tasks = [
+        type("Task", (), {
+            "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+            "title": "有内容", "platform": "douyin", "author": "作者", "created_at": datetime(2026, 7, 12),
+            "duration": None, "description": "", "tags": "{}",
+        })(),
+        type("Task", (), {
+            "task_id": "t2", "author_id": "a2", "author_name": "作者", "video_id": "v2",
+            "title": "无内容", "platform": "douyin", "author": "作者", "created_at": datetime(2026, 7, 13),
+            "duration": None, "description": "", "tags": "{}",
+        })(),
+    ]
+    items = [type("Item", (), {"task_id": task.task_id, "position": index})() for index, task in enumerate(tasks)]
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    captured = {}
+    task_index = {"value": 0}
+
+    class Query:
+        def __init__(self, model):
+            self.model = model
+        def filter(self, *args):
+            return self
+        def order_by(self, *args):
+            return self
+        def all(self):
+            return items if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                task = tasks[task_index["value"]]
+                task_index["value"] += 1
+                return task
+            return None
+
+    class DB:
+        def query(self, model):
+            return Query(model)
+        def add(self, obj):
+            self.saved = obj
+        def commit(self):
+            pass
+        def refresh(self, obj):
+            pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "正文"}), encoding="utf-8")
+    monkeypatch.setattr(collection, "find_note_file", lambda **kwargs: note_path if kwargs["task_id"] == "t1" else None)
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: type(
+        "GPT", (), {"summarize": lambda self, source: captured.setdefault("prompt", source.extras) or "result"}
+    )())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+
+    assert result["item_count_at_generation"] == 2
+    assert "根据以下 1 篇笔记内容" in captured["prompt"]
+
+
 def test_trajectory_prompt_requires_five_evidence_based_dimensions():
     prompt = _build_collection_summary_prompt(
         "### 笔记 1/2 | 2026-07-12 12:39 | 抖音 | 图文/实况 | 作者：a\ntext",

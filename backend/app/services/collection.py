@@ -499,6 +499,9 @@ def generate_collection_summary(
         logger.error(f"收藏集为空: collection_id={collection_id}")
         return None
 
+    # 保留合集完整条目数作为生成快照；可用素材数单独用于 prompt 和统计。
+    item_count_at_generation = len(items)
+
     # 2. 读取每条笔记的 markdown（带元信息 + 单篇限长）
     # trajectory 模式需要按 created_at 排序，先收集再排
     note_entries = []
@@ -560,7 +563,7 @@ def generate_collection_summary(
         note_entries.sort(key=lambda x: x["created_at"] or datetime.min)
 
     # 4. 拼接 markdown（带元信息标注）
-    total = len(note_entries)
+    available_material_count = len(note_entries)
     markdowns = []
     for i, entry in enumerate(note_entries, 1):
         if mode == "trajectory":
@@ -575,9 +578,9 @@ def generate_collection_summary(
             description = entry.get("description") or ""
             description_text = f" | 描述：{description}" if description else ""
             metadata = f" | 标签：{tag_text}" if tag_text else ""
-            header = f"### 笔记 {i}/{total} | [{date_str} | {entry.get('platform', '')} | {entry.get('format', '')}]{metadata} | {entry['author']}：{entry['title']}{description_text}"
+            header = f"### 笔记 {i}/{available_material_count} | [{date_str} | {entry.get('platform', '')} | {entry.get('format', '')}]{metadata} | {entry['author']}：{entry['title']}{description_text}"
         else:
-            header = f"### 笔记 {i}/{total}：{entry['title']}"
+            header = f"### 笔记 {i}/{available_material_count}：{entry['title']}"
         markdowns.append(f"{header}\n\n{entry['md']}")
 
     combined_text = "\n\n---\n\n".join(markdowns)
@@ -586,7 +589,7 @@ def generate_collection_summary(
     MAX_CHARS = 12000
     if len(combined_text) > MAX_CHARS:
         logger.info(f"合集内容过长({len(combined_text)}字)，启动分批总结模式")
-        combined_text = _batch_summarize(combined_text, total, style, extras, mode, model_name, provider_id)
+        combined_text = _batch_summarize(combined_text, available_material_count, style, extras, mode, model_name, provider_id)
         if not combined_text:
             logger.error("分批总结失败")
             return None
@@ -604,7 +607,7 @@ def generate_collection_summary(
 
     # 7. 构建 prompt 并调用 GPT
     prompt = _build_collection_summary_prompt(
-        combined_text, total, style, extras, mode=mode, stats=stats, author_name=author_name,
+        combined_text, available_material_count, style, extras, mode=mode, stats=stats, author_name=author_name,
     )
 
     try:
@@ -645,7 +648,7 @@ def generate_collection_summary(
         existing.model_name = model_name
         existing.provider_id = provider_id
         existing.extras = extras
-        existing.item_count_at_generation = total
+        existing.item_count_at_generation = item_count_at_generation
     else:
         existing = CollectionSummary(
             id=_uuid(),
@@ -656,7 +659,7 @@ def generate_collection_summary(
             model_name=model_name,
             provider_id=provider_id,
             extras=extras,
-            item_count_at_generation=total,
+            item_count_at_generation=item_count_at_generation,
         )
         db.add(existing)
 

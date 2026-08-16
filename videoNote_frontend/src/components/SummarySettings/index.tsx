@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Sparkles, Eye, FileText, StickyNote, Check, Palette, Languages, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -68,6 +68,12 @@ export function SummarySettings({
 }: SummarySettingsProps) {
   const [activeTab, setActiveTab] = useState<'default' | 'custom'>('default')
   const isCollection = variant === 'collection'
+
+  useEffect(() => {
+    if (isCollection && activeTab === 'custom') {
+      setActiveTab('default')
+    }
+  }, [activeTab, isCollection])
 
   // 从全局 store 读取（仅 global 模式使用）
   const globalStore = useSummarySettingsStore()
@@ -197,17 +203,19 @@ export function SummarySettings({
             >
               默认配置
             </button>
-            <button
-              onClick={() => setActiveTab('custom')}
-              className={cn(
-                "flex-1 h-full rounded-md text-sm font-medium transition-all",
-                activeTab === 'custom'
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              自定义总结
-            </button>
+            {!isCollection && (
+              <button
+                onClick={() => setActiveTab('custom')}
+                className={cn(
+                  "flex-1 h-full rounded-md text-sm font-medium transition-all",
+                  activeTab === 'custom'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                自定义总结
+              </button>
+            )}
           </div>
 
           {activeTab === 'default' ? (
