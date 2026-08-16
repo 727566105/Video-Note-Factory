@@ -319,6 +319,10 @@ export function CollectionDetail() {
             <Share2 className="w-4 h-4 mr-1.5" />
             分享合集
           </Button>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => setSettingsOpen(true)}>
+            <SlidersHorizontal className="w-4 h-4 mr-1.5" />
+            总结设置
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-8 w-8">
@@ -472,21 +476,7 @@ export function CollectionDetail() {
           </div>
         )}
 
-        {/* 总结设置按钮 */}
-        <div className="pt-3 border-t">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <SlidersHorizontal className="w-4 h-4 mr-2" />
-            总结设置
-          </Button>
-        </div>
-      </div>
-
-      {/* 总结设置对话框 */}
+        {/* 总结设置对话框 */}
       <SummarySettings
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
