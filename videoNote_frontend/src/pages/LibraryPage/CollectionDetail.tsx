@@ -36,6 +36,7 @@ import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { ExportDialog } from '@/components/ExportDialog'
 import { TrajectoryTimeline } from './components/TrajectoryTimeline'
 import { TrajectorySummaryCard } from './components/TrajectorySummaryCard'
+import { AuthorStatsBar } from './components/AuthorStatsBar'
 
 export function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -454,6 +455,7 @@ export function CollectionDetail() {
       </div>
 
       {/* ====== 2. AI 总结区 ====== */}
+      <AuthorStatsBar items={currentDetail.items} />
       <div className="rounded-xl border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
