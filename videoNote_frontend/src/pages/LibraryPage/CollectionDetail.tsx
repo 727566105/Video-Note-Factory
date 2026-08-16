@@ -476,7 +476,9 @@ export function CollectionDetail() {
           </div>
         )}
 
-        {/* 总结设置对话框 */}
+      </div>
+
+      {/* 总结设置对话框 */}
       <SummarySettings
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
