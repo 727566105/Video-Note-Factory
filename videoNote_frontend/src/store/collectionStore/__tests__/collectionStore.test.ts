@@ -71,8 +71,9 @@ beforeEach(() => {
   useCollectionStore.setState({
     collections: [],
     currentDetail: null,
+    detailViewId: null,
     loading: false,
-    generating: false,
+    generatingIds: {},
   })
 })
 
@@ -134,5 +135,55 @@ describe('collectionStore 请求乱序防护', () => {
     // A 的生成刷新不得把详情改成 A
     expect(useCollectionStore.getState().currentDetail?.id).toBe('B')
     expect(mockedApiGetDetail).not.toHaveBeenCalledWith('A')
+  })
+
+  it('合集 A 生成中时，合集 B 不受影响（生成状态按合集隔离）', async () => {
+    const genA = deferred<CollectionSummary>()
+    mockedApiGenSummary.mockImplementationOnce(() => genA.promise)
+
+    const requestGenA = useCollectionStore.getState().generateSummary('A')
+    // A 生成中：仅 A 标记生成中，B 不应受影响
+    expect(useCollectionStore.getState().generatingIds['A']).toBe(true)
+    expect(useCollectionStore.getState().generatingIds['B']).toBeFalsy()
+
+    genA.resolve(makeSummary())
+    await requestGenA
+    // A 生成完成后清理 A 的状态
+    expect(useCollectionStore.getState().generatingIds['A']).toBeFalsy()
+  })
+
+  it('合集 A 生成完成时，不清除正在生成中的合集 B 的状态', async () => {
+    const genA = deferred<CollectionSummary>()
+    const genB = deferred<CollectionSummary>()
+    mockedApiGenSummary.mockImplementationOnce(() => genA.promise)
+    mockedApiGenSummary.mockImplementationOnce(() => genB.promise)
+
+    const requestGenA = useCollectionStore.getState().generateSummary('A')
+    const requestGenB = useCollectionStore.getState().generateSummary('B')
+
+    // A 先完成
+    genA.resolve(makeSummary())
+    await requestGenA
+    expect(useCollectionStore.getState().generatingIds['A']).toBeFalsy()
+    // B 仍在生成中，状态不能被 A 的 finally 误清
+    expect(useCollectionStore.getState().generatingIds['B']).toBe(true)
+
+    genB.resolve(makeSummary())
+    await requestGenB
+    expect(useCollectionStore.getState().generatingIds['B']).toBeFalsy()
+  })
+
+  it('同一合集重复生成时只发起一次请求（single-flight）', async () => {
+    const genA = deferred<CollectionSummary>()
+    mockedApiGenSummary.mockImplementationOnce(() => genA.promise)
+
+    const request1 = useCollectionStore.getState().generateSummary('A')
+    const request2 = useCollectionStore.getState().generateSummary('A')
+
+    expect(mockedApiGenSummary).toHaveBeenCalledTimes(1)
+
+    genA.resolve(makeSummary())
+    await Promise.all([request1, request2])
+    expect(mockedApiGenSummary).toHaveBeenCalledTimes(1)
   })
 })

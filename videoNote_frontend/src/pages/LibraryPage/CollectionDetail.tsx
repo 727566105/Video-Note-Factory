@@ -41,7 +41,9 @@ import { AuthorStatsBar } from './components/AuthorStatsBar'
 export function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { currentDetail, loading, generating, fetchDetail, removeItem, generateSummary, updateCollection } = useCollectionStore()
+  const { currentDetail, loading, generatingIds, fetchDetail, removeItem, generateSummary, updateCollection } = useCollectionStore()
+  // 生成状态按合集隔离：仅当前路由合集生成中才显示「生成中」
+  const generating = !!generatingIds[id ?? '']
   const { provider: providers, fetchProviderList } = useProviderStore()
   const { modelList, loadEnabledModels } = useModelStore()
 

@@ -23,7 +23,7 @@ interface CollectionStore {
   currentDetail: CollectionDetail | null
   detailViewId: string | null   // 用户当前正在查看的合集 id（页面级 fetchDetail 设置）
   loading: boolean
-  generating: boolean
+  generatingIds: Record<string, boolean>   // 按合集隔离的生成状态（A 生成中不影响 B）
 
   fetchCollections: () => Promise<void>
   createCollection: (name: string, description?: string, category?: string, taskIds?: string[]) => Promise<CollectionInfo | null>
@@ -49,7 +49,7 @@ export const useCollectionStore = create<CollectionStore>()(
     currentDetail: null,
     detailViewId: null,
     loading: false,
-    generating: false,
+    generatingIds: {},
 
     fetchCollections: async () => {
       set({ loading: true })
@@ -139,7 +139,9 @@ export const useCollectionStore = create<CollectionStore>()(
     },
 
     generateSummary: async (collectionId, style, modelName, providerId, extras, mode) => {
-      set({ generating: true })
+      // 同合集防重：已在生成中直接返回，不重复发起请求
+      if (get().generatingIds[collectionId]) return null
+      set(state => ({ generatingIds: { ...state.generatingIds, [collectionId]: true } }))
       try {
         const result = await apiGenSummary({
           collectionId,
@@ -155,7 +157,12 @@ export const useCollectionStore = create<CollectionStore>()(
         toast.error('生成合集总结失败')
         return null
       } finally {
-        set({ generating: false })
+        // 只清理本合集的生成状态，不影响其他合集的进行中状态
+        set(state => {
+          const next = { ...state.generatingIds }
+          delete next[collectionId]
+          return { generatingIds: next }
+        })
       }
     },
 
