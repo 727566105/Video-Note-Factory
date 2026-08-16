@@ -6,7 +6,10 @@
 生成期间其他请求必须保持响应。
 """
 import asyncio
+import json
+import threading
 import time
+from datetime import datetime
 
 import pytest
 from fastapi import FastAPI
@@ -22,7 +25,7 @@ class _FakeUser:
     id = 1
 
 
-def _build_app(monkeypatch) -> FastAPI:
+def _build_app(monkeypatch, generate_impl=None) -> FastAPI:
     """构造只含合集路由的 app，service 替换为可控制慢速的实现，绕开真实 DB/鉴权"""
     app = FastAPI()
     # router 已自带 prefix="/api/collections"，不要再加前缀
@@ -36,7 +39,7 @@ def _build_app(monkeypatch) -> FastAPI:
     def fast_detail(db, collection_id, user_id):
         return {"id": collection_id, "name": "合集", "items": []}
 
-    monkeypatch.setattr(collection_svc, "generate_collection_summary", slow_generate)
+    monkeypatch.setattr(collection_svc, "generate_collection_summary", generate_impl or slow_generate)
     monkeypatch.setattr(collection_svc, "get_collection_detail", fast_detail)
 
     class _FakeDB:
@@ -73,3 +76,100 @@ def test_generate_summary_does_not_block_detail_request(monkeypatch):
     assert status == 200
     # 详情必须在生成（1s）完成前返回：事件循环未被阻塞
     assert elapsed < 0.5, f"详情请求被生成阻塞了 {elapsed:.2f}s"
+
+
+def test_generate_summary_returns_400_when_service_has_no_material(monkeypatch):
+    """service 返回 None（合集为空/无可用笔记/LLM 降级失败）→ 路由 400 用户提示"""
+    app = _build_app(monkeypatch, generate_impl=lambda db, cid, uid, **kw: None)
+
+    async def scenario():
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            return await ac.post("/api/collections/c1/generate_summary", json={"mode": "overview"})
+
+    resp = asyncio.run(scenario())
+    assert resp.status_code == 400
+    assert "生成总结失败" in resp.json()["detail"]
+
+
+def test_generate_summary_returns_500_on_unexpected_service_error(monkeypatch):
+    """service 抛未预期异常（如 DB 故障）→ 路由 500，不误报 400"""
+    def boom(db, collection_id, user_id, **kwargs):
+        raise RuntimeError("db exploded")
+
+    app = _build_app(monkeypatch, generate_impl=boom)
+
+    async def scenario():
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            return await ac.post("/api/collections/c1/generate_summary", json={"mode": "overview"})
+
+    resp = asyncio.run(scenario())
+    assert resp.status_code == 500
+    assert "db exploded" in resp.json()["detail"]
+
+
+def test_generate_summary_single_flight_runs_llm_once(monkeypatch, tmp_path):
+    """同一合集并发两次生成：LLM 只调用一次，两个请求拿到相同结果（single-flight）"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者", "created_at": datetime(2026, 7, 12),
+        "duration": None, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "正文"}), encoding="utf-8")
+    monkeypatch.setattr(collection, "find_note_file", lambda **kwargs: note_path)
+
+    calls = {"n": 0}
+    calls_lock = threading.Lock()
+
+    class GPT:
+        def summarize(self, source):
+            with calls_lock:
+                calls["n"] += 1
+            time.sleep(0.3)
+            return "# 总结"
+
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    results = []
+
+    def worker():
+        results.append(collection.generate_collection_summary(DB(), "c1", 1, mode="overview"))
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    try:
+        assert calls["n"] == 1, f"LLM 被调用了 {calls['n']} 次，期望 1 次"
+        assert results[0] is not None and results[1] is not None
+        assert results[0]["content"] == results[1]["content"] == "# 总结"
+    finally:
+        # 清理模块级 single-flight 状态，避免残留影响其他测试
+        collection._generation_inflight.clear()

@@ -187,6 +187,150 @@ def test_build_author_stats_ignores_non_finite_duration_values():
         {"created_at": None, "duration": -1, "format": "视频", "platform": "local"},
     ])
     assert stats["avg_duration_sec"] == 0
+
+
+def test_build_author_stats_empty_entries_returns_safe_defaults():
+    """空 entries：全部字段返回安全默认值，不抛异常（前端空合集统计卡片依赖此契约）"""
+    stats = _build_author_stats([])
+    assert stats["total"] == 0
+    assert stats["span_days"] == 0
+    assert stats["span_text"] == "未知"
+    assert stats["frequency_per_week"] == 0.0
+    assert stats["peak_day"] is None
+    assert stats["active_days"] == 0
+    assert stats["time_buckets"] == {"凌晨(0-6)": 0, "上午(6-12)": 0, "下午(12-18)": 0, "晚上(18-24)": 0}
+    assert stats["platforms"] == {}
+    assert stats["formats"] == {}
+    assert stats["avg_duration_sec"] is None
+
+
+def test_build_author_stats_time_bucket_23_59_goes_to_night():
+    """时段半开区间边界：23:59 与 18:00 属于晚上，6:00 是上午起点"""
+    stats = _build_author_stats([
+        {"created_at": datetime(2026, 1, 1, 23, 59), "platform": "douyin", "duration": None, "format": "图文/实况"},
+        {"created_at": datetime(2026, 1, 2, 18, 0), "platform": "douyin", "duration": None, "format": "图文/实况"},
+        {"created_at": datetime(2026, 1, 3, 6, 0), "platform": "douyin", "duration": None, "format": "图文/实况"},
+        {"created_at": datetime(2026, 1, 4, 0, 0), "platform": "douyin", "duration": None, "format": "图文/实况"},
+    ])
+    assert stats["time_buckets"]["晚上(18-24)"] == 2
+    assert stats["time_buckets"]["上午(6-12)"] == 1
+    assert stats["time_buckets"]["凌晨(0-6)"] == 1
+    assert stats["time_buckets"]["下午(12-18)"] == 0
+
+
+def test_generate_summary_gpt_exception_degrades_to_none(monkeypatch, tmp_path):
+    """LLM 调用抛异常：service 捕获后返回 None（路由层映射为 400 用户提示），不冒泡成 500"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者", "created_at": datetime(2026, 7, 12),
+        "duration": None, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    task_index = {"value": 0}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                task_index["value"] += 1
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "正文"}), encoding="utf-8")
+    monkeypatch.setattr(collection, "find_note_file", lambda **kwargs: note_path)
+
+    class GPT:
+        def summarize(self, source):
+            raise RuntimeError("llm down")
+
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+    assert result is None
+
+
+def test_batch_mode_full_flow_preserves_metadata_and_stats(monkeypatch, tmp_path):
+    """分批模式完整链路：>12000 字触发分批，批次摘要保留元信息前缀，最终 prompt 含系统统计"""
+    from app.services import collection
+
+    tasks = []
+    for i in range(7):
+        tasks.append(type("Task", (), {
+            "task_id": f"t{i}", "author_id": "a1", "author_name": "作者", "video_id": f"v{i}",
+            "title": f"标题{i}", "platform": "douyin", "author": "作者",
+            "created_at": datetime(2026, 7, 12, 10, i), "duration": 60, "description": "",
+            "tags": "{}",
+        })())
+    items = [type("Item", (), {"task_id": t.task_id, "position": idx})() for idx, t in enumerate(tasks)]
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    captured = {"batch_prompts": [], "final_prompt": None}
+    task_index = {"value": 0}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return items if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                task = tasks[task_index["value"]]
+                task_index["value"] += 1
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "正" * 2000}), encoding="utf-8")
+    monkeypatch.setattr(collection, "find_note_file", lambda **kwargs: note_path)
+
+    class GPT:
+        def summarize(self, source):
+            if source.title == "batch":
+                captured["batch_prompts"].append(source.extras)
+                # 模拟批次阶段输出：开头保留元数据标记
+                return "### 摘要 1\n[2026-07-12 10:00 | douyin | 视频] 批次要点"
+            captured["final_prompt"] = source.extras
+            return "# 最终总结"
+
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+
+    assert result is not None
+    # 7 篇（每篇 2000 字截断）拼接超 12000 → 3 批
+    assert len(captured["batch_prompts"]) == 3
+    for prompt in captured["batch_prompts"]:
+        assert "必须让每篇摘要开头保留原笔记的元数据标记" in prompt
+        assert "[YYYY-MM-DD HH | 平台 | 形式]" in prompt
+    final = captured["final_prompt"]
+    assert "系统统计" in final
+    assert "禁止自行数数" in final
+    assert "--- 以下是 7 篇笔记内容（或其摘要） ---" in final
+    # 元信息前缀经批次保留后仍出现在最终 prompt 的内容区
+    assert "[2026-07-12 10:00 | douyin | 视频]" in final
+    assert '"total": 7' in final
 def test_trajectory_entry_metadata_is_parsed_into_prompt(monkeypatch, tmp_path):
     from app.services import collection
 

@@ -20,12 +20,15 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 import {
   getCollectionDetail as apiGetDetail,
   generateCollectionSummary as apiGenSummary,
+  editCollectionSummary as apiEditSummary,
   type CollectionDetail,
   type CollectionSummary,
 } from '@/services/collection'
+import { toast } from 'sonner'
 
 const mockedApiGetDetail = vi.mocked(apiGetDetail)
 const mockedApiGenSummary = vi.mocked(apiGenSummary)
+const mockedApiEditSummary = vi.mocked(apiEditSummary)
 
 function deferred<T>() {
   let resolve!: (v: T) => void
@@ -185,5 +188,74 @@ describe('collectionStore 请求乱序防护', () => {
     genA.resolve(makeSummary())
     await Promise.all([request1, request2])
     expect(mockedApiGenSummary).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('collectionStore 失败路径', () => {
+  it('generateSummary 失败时 toast 提示且生成状态被清理', async () => {
+    mockedApiGenSummary.mockRejectedValueOnce(new Error('network down'))
+
+    const result = await useCollectionStore.getState().generateSummary('A')
+
+    expect(result).toBeNull()
+    expect(toast.error).toHaveBeenCalledWith('生成合集总结失败')
+    expect(useCollectionStore.getState().generatingIds['A']).toBeFalsy()
+    expect(useCollectionStore.getState().currentDetail).toBeNull()
+  })
+
+  it('fetchDetail 失败时 toast 提示且 loading 被清理', async () => {
+    mockedApiGetDetail.mockRejectedValueOnce(new Error('network down'))
+
+    await useCollectionStore.getState().fetchDetail('A')
+
+    expect(toast.error).toHaveBeenCalledWith('获取合集详情失败')
+    expect(useCollectionStore.getState().loading).toBe(false)
+    expect(useCollectionStore.getState().currentDetail).toBeNull()
+  })
+
+  it('fetchDetail 失败不影响仍在进行中的新请求的 loading 态', async () => {
+    const b = deferred<CollectionDetail>()
+    mockedApiGetDetail.mockRejectedValueOnce(new Error('A fails'))
+    mockedApiGetDetail.mockImplementationOnce(() => b.promise)
+
+    const requestA = useCollectionStore.getState().fetchDetail('A')
+    const requestB = useCollectionStore.getState().fetchDetail('B')
+    await requestA
+    // A 失败清理了旧 loading，但 B 仍在请求中
+    expect(useCollectionStore.getState().loading).toBe(true)
+
+    b.resolve(makeDetail('B'))
+    await requestB
+    expect(useCollectionStore.getState().loading).toBe(false)
+    expect(useCollectionStore.getState().currentDetail?.id).toBe('B')
+  })
+})
+
+describe('collectionStore editSummary 刷新归属', () => {
+  it('用户在合集 A 时编辑 A 的总结，保存后刷新 A 详情', async () => {
+    mockedApiGetDetail.mockResolvedValueOnce(makeDetail('A'))
+    await useCollectionStore.getState().fetchDetail('A')
+
+    mockedApiEditSummary.mockResolvedValueOnce({} as never)
+    mockedApiGetDetail.mockResolvedValueOnce(makeDetail('A'))
+
+    await useCollectionStore.getState().editSummary('A', '新内容')
+
+    expect(mockedApiEditSummary).toHaveBeenCalledWith('A', '新内容')
+    expect(mockedApiGetDetail).toHaveBeenCalledTimes(2)
+    expect(useCollectionStore.getState().currentDetail?.id).toBe('A')
+    expect(toast.success).toHaveBeenCalledWith('总结已保存')
+  })
+
+  it('用户在合集 B 时编辑 A 的总结，保存后不把详情刷新回 A', async () => {
+    mockedApiGetDetail.mockResolvedValueOnce(makeDetail('B'))
+    await useCollectionStore.getState().fetchDetail('B')
+
+    mockedApiEditSummary.mockResolvedValueOnce({} as never)
+    await useCollectionStore.getState().editSummary('A', '新内容')
+
+    expect(mockedApiGetDetail).toHaveBeenCalledTimes(1)
+    expect(mockedApiGetDetail).not.toHaveBeenCalledWith('A')
+    expect(useCollectionStore.getState().currentDetail?.id).toBe('B')
   })
 })

@@ -5,8 +5,9 @@
 """
 import json
 import logging
-import re
 import math
+import re
+import threading
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -39,6 +40,12 @@ _TIME_BUCKETS = (
     (12, 18, "下午(12-18)"),
     (18, 24, "晚上(18-24)"),
 )
+
+# single-flight：同一合集并发生成总结时只执行一次 LLM 调用。
+# _generation_inflight[collection_id] = (Event, slot)，slot 存首个请求的结果/异常，
+# 后续等待者复用其结果，避免重复计费与结果互相覆盖。
+_generation_inflight: dict[str, tuple[threading.Event, dict]] = {}
+_generation_guard = threading.Lock()
 
 
 def _build_author_stats(note_entries: list[dict]) -> dict:
@@ -469,7 +476,53 @@ def generate_collection_summary(
     mode: str = "overview",
 ) -> Optional[dict]:
     """
-    生成收藏集总结
+    生成收藏集总结（single-flight 编排）。
+
+    同一合集并发生成时只执行一次 LLM 调用：首个请求负责生成并缓存结果，
+    后续等待者复用其结果（成功返回结果，失败同样返回 None / 异常），
+    避免重复计费与结果互相覆盖。
+    """
+    with _generation_guard:
+        inflight = _generation_inflight.get(collection_id)
+        if inflight is None:
+            slot: dict = {}
+            event = threading.Event()
+            _generation_inflight[collection_id] = (event, slot)
+    if inflight is not None:
+        event, slot = inflight
+        event.wait(timeout=600)
+        if "error" in slot:
+            raise slot["error"]
+        return slot.get("result")
+    try:
+        result = _generate_collection_summary_inner(
+            db, collection_id, user_id,
+            style=style, model_name=model_name, provider_id=provider_id,
+            extras=extras, mode=mode,
+        )
+        slot["result"] = result
+        return result
+    except Exception as e:
+        slot["error"] = e
+        raise
+    finally:
+        event.set()
+        with _generation_guard:
+            _generation_inflight.pop(collection_id, None)
+
+
+def _generate_collection_summary_inner(
+    db: Session,
+    collection_id: str,
+    user_id: int,
+    style: str = "minimal",
+    model_name: str = None,
+    provider_id: str = None,
+    extras: str = None,
+    mode: str = "overview",
+) -> Optional[dict]:
+    """
+    生成收藏集总结（无并发防护的原始逻辑）
 
     流程：
     1. 获取收藏集下所有笔记的 task_id
