@@ -55,7 +55,7 @@ const summaryModes = [
   { value: 'comparison', label: '对比分析' },
   { value: 'timeline', label: '时间线' },
   { value: 'mindmap', label: '思维导图' },
-  { value: 'trajectory', label: '人生轨迹' },
+  { value: 'trajectory', label: '博主画像' },
 ]
 
 export function SummarySettings({

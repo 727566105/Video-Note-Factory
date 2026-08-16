@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { AuthorStatsBar, computeAuthorStats } from '../AuthorStatsBar'
+import { getSectionKind, parseTrajectory } from '../TrajectorySummaryCard'
 
 const item = (overrides: Record<string, unknown> = {}) => ({
   created_at: '2026-07-12T12:39:00',
@@ -8,6 +9,17 @@ const item = (overrides: Record<string, unknown> = {}) => ({
   duration: null,
   title: '测试内容',
   ...overrides,
+})
+
+describe('trajectory report parsing', () => {
+  it('keeps five new dimensions and legacy headings parseable', () => {
+    const parsed = parseTrajectory('# title\n## 风格特征\n结论\n## 内容偏好\n结论\n## 发布规律\n结论\n## 人设定位\n结论\n## 个人特质\n结论\n## 博主画像分析\n旧内容')
+    expect(parsed.sections).toHaveLength(6)
+    expect(parsed.sections.slice(0, 5).map(section => getSectionKind(section.title))).toEqual([
+      'style', 'preference', 'rhythm', 'persona', 'personality',
+    ])
+    expect(getSectionKind(parsed.sections[5].title)).toBe('profile')
+  })
 })
 
 describe('computeAuthorStats', () => {

@@ -36,7 +36,6 @@ import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { ExportDialog } from '@/components/ExportDialog'
 import { TrajectoryTimeline } from './components/TrajectoryTimeline'
 import { TrajectorySummaryCard } from './components/TrajectorySummaryCard'
-import { AuthorStatsBar } from './components/AuthorStatsBar'
 
 export function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -455,7 +454,6 @@ export function CollectionDetail() {
       </div>
 
       {/* ====== 2. AI 总结区 ====== */}
-      <AuthorStatsBar items={currentDetail.items} />
       <div className="rounded-xl border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -495,7 +493,7 @@ export function CollectionDetail() {
         {currentDetail.summary_stale && summary?.content && !editingSummary && (
           <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-500">
             <AlertCircle className="size-4 shrink-0" />
-            <span>合集内容已变更（新增/删除了笔记），当前总结可能已过时</span>
+            <span>合集内容已变更：总结基于 {summary.item_count_at_generation ?? '未知'} 条，当前有 {currentDetail.items.length} 条，建议重新总结</span>
             <Button
               variant="ghost"
               size="sm"
@@ -554,7 +552,7 @@ export function CollectionDetail() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <TrajectorySummaryCard content={summary.content} />
+                <TrajectorySummaryCard content={summary.content} items={currentDetail.items} />
               </div>
             </div>
           ) : (

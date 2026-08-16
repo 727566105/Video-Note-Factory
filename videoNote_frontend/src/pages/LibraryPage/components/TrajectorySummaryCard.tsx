@@ -2,8 +2,10 @@ import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import {
   User, Users, Compass, Star, Palette, Heart, MessageCircle, Eye,
-  TrendingUp, Activity, GitCompareArrows, Route, Tag,
+  TrendingUp, Activity, GitCompareArrows, Route, Tag, Brush, ListFilter,
+  CalendarClock, Badge, Sparkles, ListChecks,
 } from 'lucide-react'
+import { AuthorStatsBar, type AuthorStatsItem } from './AuthorStatsBar'
 import { cn } from '@/lib/utils'
 
 /* ---------- 类型 ---------- */
@@ -22,6 +24,12 @@ type SectionKind =
   | 'recent'     // 最近动态
   | 'compare'    // 跨平台对比
   | 'theme'      // 内容主题演变
+  | 'style'
+  | 'preference'
+  | 'rhythm'
+  | 'persona'
+  | 'personality'
+  | 'timeline-support'
   | 'generic'
 
 /* ---------- 解析 ---------- */
@@ -75,7 +83,14 @@ function parseLabeledItems(body: string): LabeledItem[] {
   return items
 }
 
-function getSectionKind(title: string): SectionKind {
+export function getSectionKind(title: string): SectionKind {
+  // Match the evidence-based profile headings before broad legacy matches.
+  if (title.includes('风格')) return 'style'
+  if (title.includes('偏好')) return 'preference'
+  if (title.includes('发布规律') || title.includes('节奏')) return 'rhythm'
+  if (title.includes('人设') || title.includes('定位')) return 'persona'
+  if (title.includes('特质')) return 'personality'
+  if (title.includes('轨迹要点')) return 'timeline-support'
   if (title.includes('画像')) return 'profile'
   if (title.includes('喜好') || title.includes('特点')) return 'traits'
   if (title.includes('演变分析')) return 'evolution'
@@ -113,6 +128,12 @@ const KIND_HEADER_META: Record<SectionKind, Meta> = {
   recent: { icon: Activity, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
   compare: { icon: GitCompareArrows, color: 'text-blue-500', bg: 'bg-blue-500/10' },
   theme: { icon: Route, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+  style: { icon: Brush, color: 'text-pink-500', bg: 'bg-pink-500/10' },
+  preference: { icon: ListFilter, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  rhythm: { icon: CalendarClock, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  persona: { icon: Badge, color: 'text-violet-500', bg: 'bg-violet-500/10' },
+  personality: { icon: Sparkles, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+  'timeline-support': { icon: ListChecks, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
   generic: { icon: Star, color: 'text-muted-foreground', bg: 'bg-muted' },
 }
 
@@ -227,6 +248,19 @@ function TraitsCard({ section }: { section: Section }) {
   )
 }
 
+/** Five-dimension report section with a consistent evidence conclusion/body layout. */
+function DimensionCard({ section, kind }: { section: Section; kind: SectionKind }) {
+  const meta = KIND_HEADER_META[kind]
+  return (
+    <div className="rounded-xl border bg-card p-4 md:p-5">
+      <SectionHeader meta={meta} title={section.title} />
+      <div className="mt-2 border-l-2 border-border/70 pl-3">
+        <MarkdownBlock content={section.body} />
+      </div>
+    </div>
+  )
+}
+
 /** 通用板块卡片（演变分析/最近动态/跨平台对比/主题演变/未知板块） */
 function GenericSectionCard({ section, kind }: { section: Section; kind: SectionKind }) {
   const meta = KIND_HEADER_META[kind]
@@ -261,7 +295,7 @@ function TagsCloud({ tags }: { tags: string[] }) {
 }
 
 /* ---------- 主组件 ---------- */
-export function TrajectorySummaryCard({ content }: { content: string }) {
+export function TrajectorySummaryCard({ content, items }: { content: string; items?: AuthorStatsItem[] }) {
   const { mainTitle, preamble, sections, tags } = useMemo(() => parseTrajectory(content), [content])
 
   if (!mainTitle && sections.length === 0) {
@@ -276,12 +310,16 @@ export function TrajectorySummaryCard({ content }: { content: string }) {
           <h3 className="text-base font-semibold">{mainTitle}</h3>
         </div>
       )}
+      {items && <AuthorStatsBar items={items} />}
       {preamble && <MarkdownBlock content={preamble} className="px-1" />}
 
       {sections.map((section, idx) => {
         const kind = getSectionKind(section.title)
         if (kind === 'profile') return <ProfileCard key={idx} section={section} />
         if (kind === 'traits') return <TraitsCard key={idx} section={section} />
+        if (['style', 'preference', 'rhythm', 'persona', 'personality', 'timeline-support'].includes(kind)) {
+          return <DimensionCard key={idx} section={section} kind={kind} />
+        }
         return <GenericSectionCard key={idx} section={section} kind={kind} />
       })}
 
