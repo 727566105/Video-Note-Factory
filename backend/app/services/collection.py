@@ -41,6 +41,11 @@ _TIME_BUCKETS = (
     (18, 24, "晚上(18-24)"),
 )
 
+# 分批总结参数（转写全文不截断后，固定 3 篇一批会撑爆上下文，改为按字符数动态分批）
+MAX_BATCH_CHARS = 8000          # 每批累计字符上限
+LONG_ENTRY_CHARS = 8000         # 单篇超长阈值（超过需先单独压缩）
+LONG_ENTRY_SUMMARY_LEN = 1000   # 超长篇压缩摘要上限
+
 # single-flight：同一合集并发生成总结时只执行一次 LLM 调用。
 # _generation_inflight[collection_id] = (Event, slot)，slot 存首个请求的结果/异常，
 # 后续等待者复用其结果，避免重复计费与结果互相覆盖。
@@ -803,24 +808,75 @@ def _get_gpt(model_name: str = None, provider_id: str = None):
     return GPTFactory().from_config(config)
 
 
+def _summarize_long_entry(
+    part: str, style: str, extras: str, mode: str,
+    model_name: str, provider_id: str,
+) -> Optional[str]:
+    """超长单篇先单独压缩成摘要，避免单批 prompt 撑爆上下文"""
+    entry_prompt = f"""请将以下单篇笔记压缩为简洁摘要，不超过 {LONG_ENTRY_SUMMARY_LEN} 字。
+只保留核心观点，不要复述细节。
+{"必须让摘要开头保留原笔记的元数据标记 `[YYYY-MM-DD HH | 平台 | 形式]`，不要改写、删除或猜测该标记。" if mode == "trajectory" else ""}
+
+--- 笔记内容 ---
+
+{part}
+
+--- 笔记内容结束 ---
+
+直接输出摘要。"""
+    try:
+        gpt = _get_gpt(model_name, provider_id)
+        from app.models.gpt_model import GPTSource
+        source = GPTSource(segment=[], title="long-entry", tags="", style=style, extras=entry_prompt)
+        result = gpt.summarize(source)
+        if result:
+            from app.services.note import strip_code_fence
+            return strip_code_fence(result)
+    except Exception as e:
+        logger.warning(f"超长笔记压缩失败: {e}")
+    return None
+
+
 def _batch_summarize(
     combined_text: str, total: int, style: str, extras: str,
     mode: str, model_name: str, provider_id: str,
 ) -> Optional[str]:
     """内容过长时分批生成摘要，再拼接为浓缩版供最终总结使用"""
     parts = combined_text.split("\n\n---\n\n")
-    batch_size = 3
-    summaries = []
+    # 1. 超长单篇先单独压缩（压缩失败降级为截断参与批次，不丢条目）
+    processed = []
+    for part in parts:
+        if len(part) > LONG_ENTRY_CHARS:
+            summary = _summarize_long_entry(part, style, extras, mode, model_name, provider_id)
+            processed.append(summary if summary else part[:LONG_ENTRY_CHARS])
+        else:
+            processed.append(part)
 
-    for i in range(0, len(parts), batch_size):
-        batch = "\n\n---\n\n".join(parts[i:i + batch_size])
-        batch_prompt = f"""请将以下 {min(batch_size, len(parts) - i)} 篇笔记分别压缩为简洁摘要。
+    # 2. 动态分批：每批累计字符 ≤ MAX_BATCH_CHARS，整篇不跨批
+    batches: list[list[str]] = []
+    current: list[str] = []
+    current_len = 0
+    for part in processed:
+        part_len = len(part) + 10  # 分隔符开销
+        if current and current_len + part_len > MAX_BATCH_CHARS:
+            batches.append(current)
+            current = []
+            current_len = 0
+        current.append(part)
+        current_len += part_len
+    if current:
+        batches.append(current)
+
+    summaries = []
+    for batch in batches:
+        batch_text = "\n\n---\n\n".join(batch)
+        batch_prompt = f"""请将以下 {len(batch)} 篇笔记分别压缩为简洁摘要。
 每篇只保留核心观点（每篇不超过 100 字），不要复述细节。
 {"必须让每篇摘要开头保留原笔记的元数据标记 `[YYYY-MM-DD HH | 平台 | 形式]`，不要改写、删除或猜测该标记。" if mode == "trajectory" else ""}
 
 --- 笔记内容 ---
 
-{batch}
+{batch_text}
 
 --- 笔记内容结束 ---
 
@@ -834,7 +890,7 @@ def _batch_summarize(
                 from app.services.note import strip_code_fence
                 summaries.append(strip_code_fence(result))
         except Exception as e:
-            logger.warning(f"分批总结第 {i // batch_size + 1} 批失败: {e}")
+            logger.warning(f"分批总结第 {len(summaries) + 1} 批失败: {e}")
 
     if not summaries:
         return None

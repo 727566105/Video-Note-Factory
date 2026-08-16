@@ -522,3 +522,75 @@ def test_transcript_not_read_when_note_present(monkeypatch, tmp_path):
     assert "笔记正文内容" in summary_calls["prompt"]
     assert "transcript" not in requested_file_types
     assert "[转写原文]" not in summary_calls["prompt"]
+
+
+def test_batch_summarize_dynamic_batching_groups_by_chars(monkeypatch):
+    """每批累计 ≤ 8000 字：9 篇 × 3000 字 → 每批 2 篇 → 5 批（最后一批 1 篇）"""
+    from app.services import collection
+
+    captured = []
+    class GPT:
+        def summarize(self, source):
+            captured.append(source.extras)
+            return "### 摘要\n要点"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    parts = "\n\n---\n\n".join(["x" * 3000] * 9)
+    result = collection._batch_summarize(parts, 9, None, None, "overview", None, None)
+
+    assert result is not None
+    assert len(captured) == 5, f"期望 5 批（每批 2 篇，最后一批 1 篇），实际 {len(captured)} 批"
+    for prompt in captured[:4]:
+        assert "请将以下 2 篇笔记" in prompt
+    assert "请将以下 1 篇笔记" in captured[4]
+
+
+def test_batch_summarize_long_entry_compressed_first(monkeypatch):
+    """单篇 > 8000 字：先单独压缩（title=long-entry），再参与批次；trajectory 保留元数据指令"""
+    from app.services import collection
+
+    calls = []
+    prompts = []
+    class GPT:
+        def summarize(self, source):
+            calls.append(source.title)
+            prompts.append(source.extras)
+            if source.title == "long-entry":
+                assert "不超过 1000 字" in source.extras
+                assert "必须让摘要开头保留原笔记的元数据标记" in source.extras
+                return "### 摘要\n[2026-07-12 10:00 | douyin | 视频] 压缩后的要点"
+            return "### 摘要\n批次要点"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    long_part = "y" * 10000
+    short_part = "z" * 1000
+    parts = "\n\n---\n\n".join([long_part, short_part])
+    result = collection._batch_summarize(parts, 2, None, None, "trajectory", None, None)
+
+    assert calls == ["long-entry", "batch"], f"调用序列异常: {calls}"
+    assert result is not None
+    # 压缩摘要作为批次输入参与后续总结（最终 result 是批次 GPT 的输出）
+    assert "压缩后的要点" in prompts[1]
+
+
+def test_batch_summarize_long_entry_compression_failure_degrades(monkeypatch):
+    """超长单篇压缩失败 → 截断到 8000 字直接参与批次，不丢条目"""
+    from app.services import collection
+
+    captured = []
+    class GPT:
+        def summarize(self, source):
+            if source.title == "long-entry":
+                raise RuntimeError("compression failed")
+            captured.append(source.extras)
+            return "### 摘要\n批次要点"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    parts = "\n\n---\n\n".join(["y" * 10000, "z" * 1000])
+    result = collection._batch_summarize(parts, 2, None, None, "overview", None, None)
+
+    assert result is not None
+    # 截断后 8000+10 分隔符开销 > 8000，与短篇不能同批 → 2 批
+    assert len(captured) == 2, f"期望 2 批（截断条目与短篇各一批），实际 {len(captured)} 批"
+    assert "y" * 8000 in captured[0]
+    assert "z" * 1000 in captured[1]
