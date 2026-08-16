@@ -279,17 +279,7 @@ export function CollectionDetail() {
           )}
         </div>
 
-        {/* trajectory 模式：时间轴可视化 */}
-        {summary?.summary_mode === 'trajectory' && currentDetail.items.length > 0 && (
-          <div className="rounded-lg border border-border bg-card/50 p-4 mb-3">
-            <TrajectoryTimeline
-              items={currentDetail.items}
-              onSelect={(taskId) => navigate(`/notes/${taskId}`)}
-            />
-          </div>
-        )}
-
-        {/* 总结内容 */}
+        {/* 内容已变更提醒 */}
         {currentDetail.summary_stale && summary?.content && !editingSummary && (
           <div className="flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-500">
             <AlertCircle className="size-4 shrink-0" />
@@ -305,6 +295,7 @@ export function CollectionDetail() {
             </Button>
           </div>
         )}
+
         {editingSummary ? (
           <div className="space-y-2">
             <Textarea value={editSummaryContent} onChange={e => setEditSummaryContent(e.target.value)} className="min-h-[200px]" />
@@ -321,7 +312,18 @@ export function CollectionDetail() {
           </div>
         ) : summary?.content ? (
           summary.summary_mode === 'trajectory' ? (
-            <TrajectorySummaryCard content={summary.content} />
+            /* trajectory：左时间轴 + 右分析报告，大屏并排、小屏堆叠 */
+            <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-4 items-start">
+              {currentDetail.items.length > 0 && (
+                <div className="rounded-lg border border-border bg-card/50 p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
+                  <TrajectoryTimeline
+                    items={currentDetail.items}
+                    onSelect={(taskId) => navigate(`/notes/${taskId}`)}
+                  />
+                </div>
+              )}
+              <TrajectorySummaryCard content={summary.content} />
+            </div>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none rounded-lg bg-muted/30 p-4">
               <ReactMarkdown>{summary.content}</ReactMarkdown>
