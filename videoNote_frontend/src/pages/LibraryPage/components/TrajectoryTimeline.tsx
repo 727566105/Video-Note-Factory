@@ -151,13 +151,13 @@ export function TrajectoryTimeline({ items, onSelect }: TrajectoryTimelineProps)
                         className="group flex gap-3 cursor-pointer rounded-lg border border-border bg-card overflow-hidden hover:border-primary/40 hover:shadow-md transition-all"
                         onClick={() => onSelect?.(item.task_id)}
                       >
-                        {/* 封面 */}
-                        <div className="relative w-[72px] h-[54px] shrink-0 bg-muted">
+                        {/* 封面（高度跟随内容，与卡片一致） */}
+                        <div className="relative w-[72px] shrink-0 self-stretch min-h-[54px] bg-muted">
                           {item.cover_url ? (
                             <img
                               src={item.cover_url}
                               alt={item.title || ''}
-                              className="w-full h-full object-cover"
+                              className="absolute inset-0 w-full h-full object-cover"
                               loading="lazy"
                             />
                           ) : (
