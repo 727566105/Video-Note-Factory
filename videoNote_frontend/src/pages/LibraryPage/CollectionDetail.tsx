@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Trash2, GripVertical, Sparkles, Settings2, LoaderCircle, FolderOpen,
@@ -127,6 +127,31 @@ export function CollectionDetail() {
     await updateCollection(id, { name: editName, description: editDesc })
     setEditOpen(false)
     fetchDetail(id)
+  }
+
+  // 时间轴列宽拖拽调整（trajectory 左右布局）
+  const timelineRef = useRef<HTMLDivElement>(null)
+  const [timelineWidth, setTimelineWidth] = useState(360)
+  const [isResizing, setIsResizing] = useState(false)
+
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const container = timelineRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    setIsResizing(true)
+    document.body.style.userSelect = 'none'
+    const onMove = (ev: PointerEvent) => {
+      setTimelineWidth(Math.min(560, Math.max(260, ev.clientX - rect.left)))
+    }
+    const onUp = () => {
+      setIsResizing(false)
+      document.body.style.userSelect = ''
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
   }
 
   if (loading && !currentDetail) {
@@ -312,17 +337,38 @@ export function CollectionDetail() {
           </div>
         ) : summary?.content ? (
           summary.summary_mode === 'trajectory' ? (
-            /* trajectory：左时间轴 + 右分析报告，大屏并排、小屏堆叠 */
-            <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-4 items-start">
+            /* trajectory：左时间轴（可拖拽调宽）+ 右分析报告，大屏并排、小屏堆叠 */
+            <div className="relative flex flex-col lg:flex-row gap-4 items-start">
               {currentDetail.items.length > 0 && (
-                <div className="rounded-lg border border-border bg-card/50 p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
+                <div
+                  ref={timelineRef}
+                  className="relative w-full lg:w-[var(--tlw)] shrink-0 rounded-lg border border-border bg-card/50 p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto"
+                  style={{ '--tlw': `${timelineWidth}px` } as React.CSSProperties}
+                >
                   <TrajectoryTimeline
                     items={currentDetail.items}
                     onSelect={(taskId) => navigate(`/notes/${taskId}`)}
                   />
                 </div>
               )}
-              <TrajectorySummaryCard content={summary.content} />
+              {/* 拖拽分隔条（跟随左列右缘，双击复位） */}
+              <div
+                className="absolute hidden lg:block z-10 w-[14px] cursor-col-resize"
+                style={{ left: `calc(${timelineWidth}px - 7px)` }}
+                onPointerDown={startResize}
+                onDoubleClick={() => setTimelineWidth(360)}
+                title="拖动调整时间轴宽度，双击复位"
+              >
+                <div
+                  className={cn(
+                    "absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-[2px] bg-border/70 transition-colors",
+                    isResizing ? "bg-primary/60" : "hover:bg-primary/40"
+                  )}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <TrajectorySummaryCard content={summary.content} />
+              </div>
             </div>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none rounded-lg bg-muted/30 p-4">
