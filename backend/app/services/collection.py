@@ -5,7 +5,9 @@
 """
 import json
 import logging
+import re
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import func
@@ -25,6 +27,59 @@ logger = logging.getLogger(__name__)
 def _uuid() -> str:
     """生成 UUID 字符串"""
     return str(uuid.uuid4())
+
+
+def _extract_note_summary(md_content: str, max_len: int = 200) -> str:
+    """从笔记 markdown 中提取摘要（优先取 AI Summary，否则清理正文前段）"""
+    # 优先提取 AI Summary 部分（笔记生成时自动产出的精华总结）
+    ai_match = re.search(
+        r'#{2,3}\s*(?:AI\s*Summary|AI\s*总结|AI总结)\s*\n+(.*?)(?=\n\s*#{1,3}\s|\n<!--|\Z)',
+        md_content,
+        re.S | re.I,
+    )
+    if ai_match:
+        text = re.sub(r'[#>*`|]', '', ai_match.group(1))
+        text = re.sub(r'\s+', ' ', text).strip()
+        if len(text) > max_len:
+            return text[:max_len] + '...'
+        return text
+
+    # 回退：清理正文前段（跳过标题/目录/图片/代码块/列表）
+    text = re.sub(r'!\[.*?\]\(.*?\)', '', md_content, flags=re.S)
+    text = re.sub(r'```.*?```', '', text, flags=re.S)
+    text = re.sub(r'\[.*?\]\(.*?\)', '', text)
+    text = re.sub(r'[#>*`|]', '', text)
+    text = re.sub(r'[-–—]\s+', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    if len(text) > max_len:
+        return text[:max_len] + '...'
+    return text
+
+
+def _read_note_summary(db: Session, task, user_id: int, max_len: int = 200) -> Optional[str]:
+    """读取单条笔记的 markdown 并提取摘要"""
+    try:
+        note_path = find_note_file(
+            task_id=task.task_id,
+            author_id=task.author_id,
+            author_name=task.author_name,
+            video_id=task.video_id,
+            title=task.title,
+            file_type="note",
+            platform=task.platform,
+            user_id=user_id,
+        )
+        if not note_path or not note_path.exists():
+            return None
+        note_data = json.loads(note_path.read_text(encoding="utf-8"))
+        md_content = note_data.get("markdown", "")
+        if not md_content:
+            return None
+        summary = _extract_note_summary(md_content, max_len)
+        return summary if summary else None
+    except Exception as e:
+        logger.warning(f"读取笔记摘要失败: task_id={getattr(task, 'task_id', '?')}, error={e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -295,10 +350,13 @@ def get_collection_detail(db: Session, collection_id: str, user_id: int) -> Opti
             item_dict["author_id"] = task.author_id
             item_dict["video_id"] = task.video_id
             item_dict["duration"] = task.duration
+            item_dict["created_at"] = task.created_at.isoformat() if task.created_at else None
+            note_summary = _read_note_summary(db, task, user_id)
+            if note_summary:
+                item_dict["note_summary"] = note_summary
         item_list.append(item_dict)
 
     result = _serialize_collection(collection)
-    result["items"] = item_list
 
     # 获取最新总结
     summary = (
@@ -308,6 +366,12 @@ def get_collection_detail(db: Session, collection_id: str, user_id: int) -> Opti
     )
     if summary:
         result["summary"] = _serialize_summary(summary)
+        # 检测总结是否过期（当前条目数 != 生成时条目数）
+        gen_count = getattr(summary, 'item_count_at_generation', None)
+        result["summary_stale"] = gen_count is not None and gen_count != len(item_list)
+
+    # items 始终按 position 返回（用户手动排序），时间轴组件内部自行按时间排序
+    result["items"] = item_list
 
     return result
 
@@ -343,10 +407,11 @@ def generate_collection_summary(
 
     流程：
     1. 获取收藏集下所有笔记的 task_id
-    2. 读取每条笔记的 markdown 内容
-    3. 拼接所有 markdown 并构建 prompt
-    4. 调用 GPT 生成总结
-    5. 保存到 collection_summaries 表
+    2. 读取每条笔记的 markdown 内容（单篇限长 + 标注元信息）
+    3. 按 mode 决定排序方式（trajectory 按时间，其余按 position）
+    4. 内容过长时分批生成摘要再汇总
+    5. 调用 GPT 生成总结
+    6. 保存到 collection_summaries 表（含 item_count_at_generation）
     """
     # 1. 获取收藏集及条目
     collection = (
@@ -368,8 +433,9 @@ def generate_collection_summary(
         logger.error(f"收藏集为空: collection_id={collection_id}")
         return None
 
-    # 2. 读取每条笔记的 markdown
-    markdowns = []
+    # 2. 读取每条笔记的 markdown（带元信息 + 单篇限长）
+    # trajectory 模式需要按 created_at 排序，先收集再排
+    note_entries = []
     for item in items:
         task = db.query(VideoTask).filter(VideoTask.task_id == item.task_id).first()
         if not task:
@@ -392,21 +458,54 @@ def generate_collection_summary(
         try:
             note_data = json.loads(note_path.read_text(encoding="utf-8"))
             md_content = note_data.get("markdown", "")
-            if md_content:
-                title = task.title or "无标题"
-                markdowns.append(f"## {title}\n\n{md_content}")
+            if not md_content:
+                continue
+            # 单篇限长 2000 字，避免拼接后超 token
+            if len(md_content) > 2000:
+                md_content = md_content[:2000] + "\n\n...(内容已截断)"
+            note_entries.append({
+                "md": md_content,
+                "title": task.title or "无标题",
+                "platform": task.platform or "",
+                "author": task.author or task.author_name or "",
+                "created_at": task.created_at,
+            })
         except Exception as e:
             logger.warning(f"读取笔记失败: task_id={task.task_id}, error={e}")
 
-    if not markdowns:
+    if not note_entries:
         logger.error(f"收藏集没有可用的笔记内容: collection_id={collection_id}")
         return None
 
-    # 3. 拼接 markdown 并构建 prompt
-    combined_text = "\n\n---\n\n".join(markdowns)
-    prompt = _build_collection_summary_prompt(combined_text, style, extras, mode=mode)
+    # 3. trajectory 模式按笔记创建时间排序，其余按 position
+    if mode == "trajectory":
+        note_entries.sort(key=lambda x: x["created_at"] or datetime.min)
 
-    # 4. 调用 GPT
+    # 4. 拼接 markdown（带元信息标注）
+    total = len(note_entries)
+    markdowns = []
+    for i, entry in enumerate(note_entries, 1):
+        if mode == "trajectory":
+            date_str = entry["created_at"].strftime("%Y-%m-%d") if entry["created_at"] else "未知日期"
+            header = f"### 笔记 {i}/{total} | {date_str} | {entry['platform']} | {entry['author']}：{entry['title']}"
+        else:
+            header = f"### 笔记 {i}/{total}：{entry['title']}"
+        markdowns.append(f"{header}\n\n{entry['md']}")
+
+    combined_text = "\n\n---\n\n".join(markdowns)
+
+    # 5. 内容过长时分批生成摘要再汇总
+    MAX_CHARS = 12000
+    if len(combined_text) > MAX_CHARS:
+        logger.info(f"合集内容过长({len(combined_text)}字)，启动分批总结模式")
+        combined_text = _batch_summarize(combined_text, total, style, extras, mode, model_name, provider_id)
+        if not combined_text:
+            logger.error("分批总结失败")
+            return None
+
+    # 6. 构建 prompt 并调用 GPT
+    prompt = _build_collection_summary_prompt(combined_text, total, style, extras, mode=mode)
+
     try:
         gpt = _get_gpt(model_name, provider_id)
         from app.models.gpt_model import GPTSource
@@ -431,7 +530,7 @@ def generate_collection_summary(
     from app.services.note import strip_code_fence
     result_md = strip_code_fence(result_md)
 
-    # 5. 保存到 collection_summaries 表
+    # 7. 保存到 collection_summaries 表
     existing = (
         db.query(CollectionSummary)
         .filter(CollectionSummary.collection_id == collection_id)
@@ -445,6 +544,7 @@ def generate_collection_summary(
         existing.model_name = model_name
         existing.provider_id = provider_id
         existing.extras = extras
+        existing.item_count_at_generation = total
     else:
         existing = CollectionSummary(
             id=_uuid(),
@@ -455,6 +555,7 @@ def generate_collection_summary(
             model_name=model_name,
             provider_id=provider_id,
             extras=extras,
+            item_count_at_generation=total,
         )
         db.add(existing)
 
@@ -521,35 +622,94 @@ def _get_gpt(model_name: str = None, provider_id: str = None):
     return GPTFactory().from_config(config)
 
 
-def _build_collection_summary_prompt(combined_text: str, style: str, extras: str = None,
-                                     mode: str = "overview") -> str:
-    """构建收藏集总结的 prompt（支持多模式）"""
+def _batch_summarize(
+    combined_text: str, total: int, style: str, extras: str,
+    mode: str, model_name: str, provider_id: str,
+) -> Optional[str]:
+    """内容过长时分批生成摘要，再拼接为浓缩版供最终总结使用"""
+    parts = combined_text.split("\n\n---\n\n")
+    batch_size = 3
+    summaries = []
+
+    for i in range(0, len(parts), batch_size):
+        batch = "\n\n---\n\n".join(parts[i:i + batch_size])
+        batch_prompt = f"""请将以下 {min(batch_size, len(parts) - i)} 篇笔记压缩为简洁摘要，
+每篇只保留核心观点（每篇不超过 100 字），不要复述细节。
+
+--- 笔记内容 ---
+
+{batch}
+
+--- 笔记内容结束 ---
+
+直接输出各篇摘要，用 `### 摘要 N` 标注序号。"""
+        try:
+            gpt = _get_gpt(model_name, provider_id)
+            from app.models.gpt_model import GPTSource
+            source = GPTSource(segment=[], title="batch", tags="", style=style, extras=batch_prompt)
+            result = gpt.summarize(source)
+            if result:
+                from app.services.note import strip_code_fence
+                summaries.append(strip_code_fence(result))
+        except Exception as e:
+            logger.warning(f"分批总结第 {i // batch_size + 1} 批失败: {e}")
+
+    if not summaries:
+        return None
+    return "\n\n---\n\n".join(summaries)
+
+
+def _build_collection_summary_prompt(
+    combined_text: str, note_count: int, style: str, extras: str = None,
+    mode: str = "overview",
+) -> str:
+    """构建收藏集总结的 prompt（支持多模式，强化重点提炼）"""
     mode_prompts = {
-        "overview": """你是一个专业的内容分析师。请根据以下多篇笔记内容，生成一份综合总结。
-要求：
-1. 提炼所有笔记的核心主题和关键观点
-2. 发现笔记之间的关联和共同主题
-3. 生成一份结构清晰的综合总结
-4. 使用 Markdown 格式输出""",
-        "comparison": """你是一个专业的对比分析师。请根据以下多篇笔记内容，生成一份对比分析报告。
-要求：
+        "overview": f"""你是一个专业的内容分析师。请根据以下 {note_count} 篇笔记内容，生成一份高质量的综合总结。
+
+**核心要求：提炼重点，不要逐篇复述内容。**
+
+1. 横跨所有笔记提炼 3-5 个核心主题，每个主题用 1-2 句话概括关键观点
+2. 发现笔记之间的关联、共同点和分歧
+3. 忽略细节和案例，只保留信息密度最高的观点
+4. 总结不超过 800 字，使用 Markdown 格式输出""",
+        "comparison": f"""你是一个专业的对比分析师。请根据以下 {note_count} 篇笔记内容，生成一份对比分析报告。
+
+**核心要求：只对比关键差异，不展开细节。**
+
 1. 找出各篇笔记讨论的对象/方法/观点
-2. 用 Markdown 表格对比它们的异同（优缺点、适用场景、核心差异等）
-3. 表格后附一段综合分析说明
+2. 用 Markdown 表格对比它们的关键差异（优缺点、适用场景、核心区别）
+3. 表格后附一段综合分析（不超过 300 字）
 4. 使用 Markdown 格式输出""",
-        "timeline": """你是一个专业的时间线分析师。请根据以下多篇笔记内容，按时间顺序生成一份时间线总结。
-要求：
+        "timeline": f"""你是一个专业的时间线分析师。请根据以下 {note_count} 篇笔记内容，按时间顺序生成一份时间线总结。
+
+**核心要求：只列关键时间节点，不展开背景。**
+
 1. 按内容涉及的时间节点排列关键信息
-2. 每个时间节点标注：时间 -> 关键事件/观点 -> 来源笔记标题
-3. 最后附一段趋势分析
+2. 每个节点标注：时间 -> 关键事件/观点 -> 来源笔记标题
+3. 最后附一段趋势分析（不超过 200 字）
 4. 使用 Markdown 格式输出""",
-        "mindmap": """你是一个专业的知识架构师。请根据以下多篇笔记内容，生成一份思维导图（Markdown 树状结构）。
-要求：
+        "mindmap": f"""你是一个专业的知识架构师。请根据以下 {note_count} 篇笔记内容，生成一份思维导图（Markdown 树状结构）。
+
+**核心要求：每个节点只放关键词，不超过 10 字。**
+
 1. 以合集主题为根节点
-2. 一级分支为核心主题（3-6个）
+2. 一级分支为核心主题（3-6 个）
 3. 二级分支为该主题下的关键点
 4. 用 Markdown 列表格式（- / -- / ---）表示层级
-5. 每个节点简洁明了（不超过15字）""",
+5. 总节点数不超过 30 个""",
+        "trajectory": f"""你是一个专业的个人内容轨迹分析师。请根据以下 {note_count} 篇按时间顺序排列的笔记内容，生成这位博主的「人生轨迹」总结。
+
+**核心要求：按时间线展示博主的内容演变，提炼成长脉络。**
+
+1. 按笔记时间排列，每个时间节点标注：日期 -> 平台 -> 博主发了什么 -> 一句话内容摘要
+2. 跨平台对比：同一时期不同平台的内容是否有关联或呼应
+3. 提炼博主内容主题的演变（早期关注什么 -> 中期转向什么 -> 近期聚焦什么）
+4. 最后附「最近动态」— 列出最近 2-3 条内容摘要
+5. 附「内容演变分析」— 总结这位博主的创作方向变化（不超过 300 字）
+6. 附「博主画像分析」— 基于笔记内容推断博主的身份定位、内容领域、目标受众与人设特征（不超过 200 字，仅基于内容推断，不编造数据）
+7. 附「博主喜好与特点」— 提炼博主的创作风格偏好、主题偏好、表达习惯与视觉风格（不超过 200 字）
+8. 使用 Markdown 格式输出""",
     }
     prompt = mode_prompts.get(mode, mode_prompts["overview"])
     style_desc = get_style_format(style)
@@ -560,13 +720,13 @@ def _build_collection_summary_prompt(combined_text: str, style: str, extras: str
         prompt += f"\n额外要求：{extras}\n"
 
     prompt += f"""
---- 以下是 {len(combined_text.split('---'))} 篇笔记内容 ---
+--- 以下是 {note_count} 篇笔记内容（或其摘要） ---
 
 {combined_text}
 
 --- 笔记内容结束 ---
 
-请生成综合总结。
+请生成总结。
 
 **重要**：直接以 Markdown 标题（`#` 或 `##`）开头输出内容，**绝对不要**将输出包裹在 ```` ```markdown ```` 或 ```` ``` ```` 代码块中。"""
 
@@ -601,6 +761,7 @@ def _serialize_summary(s: CollectionSummary) -> dict:
         "model_name": s.model_name,
         "provider_id": s.provider_id,
         "extras": s.extras,
+        "item_count_at_generation": getattr(s, 'item_count_at_generation', None),
         "created_at": s.created_at.isoformat() if s.created_at else None,
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }

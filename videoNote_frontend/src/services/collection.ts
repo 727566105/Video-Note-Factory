@@ -29,6 +29,8 @@ export interface CollectionItem {
   author_id?: string
   video_id?: string
   duration?: number
+  created_at?: string | null
+  note_summary?: string | null
 }
 
 export interface CollectionSummary {
@@ -40,6 +42,7 @@ export interface CollectionSummary {
   model_name: string | null
   provider_id: string | null
   extras: string | null
+  item_count_at_generation?: number | null
   created_at: string | null
   updated_at: string | null
 }
@@ -47,6 +50,7 @@ export interface CollectionSummary {
 export interface CollectionDetail extends CollectionInfo {
   items: CollectionItem[]
   summary?: CollectionSummary
+  summary_stale?: boolean
 }
 
 // 注意：request.ts 拦截器在 code===0 时已直接返回 res.data（实际数据）

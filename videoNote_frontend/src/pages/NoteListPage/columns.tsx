@@ -256,6 +256,7 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
       accessorKey: 'title',
       header: ({ column }: HeaderContext<NoteItem, unknown>) => (
         <button
+          type="button"
           className="flex items-center gap-1 hover:text-foreground transition-colors"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         >
@@ -313,13 +314,19 @@ export function getColumns(props: ColumnProps): ColumnDef<NoteItem>[] {
         return (
           <div className="flex items-center justify-end gap-1">
             {(status === 'FAILED' || status === 'UNKNOWN') && (
-              <button className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                onClick={(e) => { e.stopPropagation(); props.onRegenerate(item) }}>
+              <button
+                type="button"
+                className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                onClick={(e) => { e.stopPropagation(); props.onRegenerate(item) }}
+              >
                 <RotateCw className="w-4 h-4 text-primary" />
               </button>
             )}
-            <button className="p-1.5 hover:bg-accent rounded-md transition-colors"
-              onClick={(e) => { e.stopPropagation(); props.onDelete(item.task_id) }}>
+            <button
+              type="button"
+              className="p-1.5 hover:bg-accent rounded-md transition-colors"
+              onClick={(e) => { e.stopPropagation(); props.onDelete(item.task_id) }}
+            >
               <Trash2 className="w-4 h-4 text-destructive" />
             </button>
           </div>

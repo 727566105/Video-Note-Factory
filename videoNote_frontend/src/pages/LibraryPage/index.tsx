@@ -352,7 +352,12 @@ function MyCollectionsTab({
       </div>
 
       {/* 卡片网格 */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      <div className={cn(
+        "grid gap-4",
+        collections.length <= 4
+          ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4"
+      )}>
         {collections.map(c => (
           <div
             key={c.id}
@@ -362,7 +367,7 @@ function MyCollectionsTab({
               "hover:shadow-md hover:border-primary/30 transition-all"
             )}
           >
-            <div className="aspect-video bg-muted relative overflow-hidden">
+            <div className="aspect-[4/3] bg-muted relative overflow-hidden">
               {c.cover_url ? (
                 <img src={c.cover_url} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
               ) : (
@@ -396,11 +401,18 @@ function MyCollectionsTab({
               {c.description && (
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.description}</p>
               )}
-              {c.category && (
-                <span className="inline-block mt-1.5 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                  {c.category}
-                </span>
-              )}
+              <div className="flex items-center gap-2 mt-1.5">
+                {c.category && (
+                  <span className="inline-block text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                    {c.category}
+                  </span>
+                )}
+                {c.created_at && (
+                  <span className="text-[10px] text-muted-foreground/60">
+                    {new Date(c.created_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         ))}

@@ -46,10 +46,11 @@ class CollectionSummary(Base):
     collection_id = Column(String, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=True)
     style = Column(String, nullable=True)
-    summary_mode = Column(String, default="overview")  # overview/comparison/timeline/mindmap
+    summary_mode = Column(String, default="overview")  # overview/comparison/timeline/mindmap/trajectory
     model_name = Column(String, nullable=True)
     provider_id = Column(String, nullable=True)
     extras = Column(Text, nullable=True)
+    item_count_at_generation = Column(Integer, nullable=True)  # 生成总结时的条目数，用于检测 stale
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

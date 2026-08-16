@@ -426,7 +426,7 @@ def migrate_channel_videos_content_type():
 
 
 def migrate_collection_share_and_summary_mode():
-    """迁移：collections 加 share_token/is_shared，collection_summaries 加 summary_mode"""
+    """迁移：collections 加 share_token/is_shared，collection_summaries 加 summary_mode/item_count_at_generation"""
     db = next(get_db())
     try:
         # collections 表加列
@@ -446,6 +446,9 @@ def migrate_collection_share_and_summary_mode():
         if "summary_mode" not in columns:
             db.execute(text("ALTER TABLE collection_summaries ADD COLUMN summary_mode VARCHAR DEFAULT 'overview'"))
             logger.info("collection_summaries: summary_mode 列添加成功")
+        if "item_count_at_generation" not in columns:
+            db.execute(text("ALTER TABLE collection_summaries ADD COLUMN item_count_at_generation INTEGER"))
+            logger.info("collection_summaries: item_count_at_generation 列添加成功")
         db.commit()
     except Exception as e:
         logger.error(f"collection 迁移失败: {e}")
