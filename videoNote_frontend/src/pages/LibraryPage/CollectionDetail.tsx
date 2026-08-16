@@ -131,7 +131,7 @@ export function CollectionDetail() {
 
   // 时间轴列宽拖拽调整（trajectory 左右布局）
   const timelineRef = useRef<HTMLDivElement>(null)
-  const [timelineWidth, setTimelineWidth] = useState(360)
+  const [timelineWidth, setTimelineWidth] = useState(420)
   const [isResizing, setIsResizing] = useState(false)
 
   const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -142,7 +142,7 @@ export function CollectionDetail() {
     setIsResizing(true)
     document.body.style.userSelect = 'none'
     const onMove = (ev: PointerEvent) => {
-      setTimelineWidth(Math.min(560, Math.max(260, ev.clientX - rect.left)))
+      setTimelineWidth(Math.min(640, Math.max(260, ev.clientX - rect.left)))
     }
     const onUp = () => {
       setIsResizing(false)
@@ -356,7 +356,7 @@ export function CollectionDetail() {
                 className="absolute hidden lg:block z-10 w-[14px] cursor-col-resize"
                 style={{ left: `calc(${timelineWidth}px - 7px)` }}
                 onPointerDown={startResize}
-                onDoubleClick={() => setTimelineWidth(360)}
+                onDoubleClick={() => setTimelineWidth(420)}
                 title="拖动调整时间轴宽度，双击复位"
               >
                 <div
