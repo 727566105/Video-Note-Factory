@@ -93,6 +93,39 @@ def test_build_author_stats_single_item_frequency_and_missing_dates():
     assert missing["span_text"] == "未知"
 
 
+def test_build_author_stats_parity_fixture_covers_all_fields_and_edge_values():
+    stats = _build_author_stats([
+        {"created_at": datetime(2026, 7, 1, 0, 0), "platform": "cctv", "duration": "90", "format": "视频"},
+        {"created_at": datetime(2026, 7, 2, 6, 0), "platform": "local", "duration": "", "format": "视频"},
+        {"created_at": datetime(2026, 7, 3, 12, 0), "platform": "mystery", "duration": "bad", "format": "视频"},
+        {"created_at": datetime(2026, 7, 4, 18, 0), "platform": None, "duration": 0, "format": "视频"},
+        {"created_at": datetime(2026, 7, 1, 1, 0), "platform": "cctv", "duration": -30, "format": "视频"},
+        {"created_at": None, "platform": "local", "duration": None, "format": "图文/实况"},
+    ])
+    assert stats == {
+        "total": 6,
+        "span_days": 3,
+        "span_text": "3天",
+        "frequency_per_week": 14.0,
+        "peak_day": {"date": "2026-07-01", "count": 2},
+        "active_days": 4,
+        "time_buckets": {"凌晨(0-6)": 2, "上午(6-12)": 1, "下午(12-18)": 1, "晚上(18-24)": 1},
+        "platforms": {"CCTV": 2, "local": 2, "mystery": 1, "": 1},
+        "formats": {"视频": 5, "图文/实况": 1},
+        "avg_duration_sec": 20,
+    }
+
+
+def test_build_author_stats_ignores_non_finite_duration_values():
+    stats = _build_author_stats([
+        {"created_at": None, "duration": "bad", "format": "视频", "platform": "local"},
+        {"created_at": None, "duration": "", "format": "视频", "platform": "local"},
+        {"created_at": None, "duration": float("nan"), "format": "视频", "platform": "local"},
+        {"created_at": None, "duration": float("inf"), "format": "视频", "platform": "local"},
+        {"created_at": None, "duration": 0, "format": "视频", "platform": "local"},
+        {"created_at": None, "duration": -1, "format": "视频", "platform": "local"},
+    ])
+    assert stats["avg_duration_sec"] == 0
 def test_trajectory_entry_metadata_is_parsed_into_prompt(monkeypatch, tmp_path):
     from app.services import collection
 

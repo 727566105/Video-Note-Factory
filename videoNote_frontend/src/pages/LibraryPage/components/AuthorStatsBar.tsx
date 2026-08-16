@@ -28,7 +28,7 @@ const TIME_BUCKETS = [
   [0, 6, '凌晨(0-6)'],
   [6, 12, '上午(6-12)'],
   [12, 18, '下午(12-18)'],
-  [18, 24, '晚间(18-24)'],
+  [18, 24, '晚上(18-24)'],
 ] as const
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -37,8 +37,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   youtube: 'YouTube',
   xiaohongshu: '小红书',
   kuaishou: '快手',
-  cctv: '央视',
-  local: '本地',
+  cctv: 'CCTV',
 }
 
 function parseDate(value: unknown): Date | null {
@@ -90,6 +89,8 @@ export function computeAuthorStats(items: AuthorStatsItem[]): AuthorStats {
     return counts
   }
 
+  const formats = countBy(safeItems.map(item => item?.format ?? (item?.duration !== null && item?.duration !== undefined ? '视频' : '图文/实况')), value => String(value ?? ''))
+
   return {
     total: safeItems.length,
     spanDays,
@@ -99,8 +100,8 @@ export function computeAuthorStats(items: AuthorStatsItem[]): AuthorStats {
     activeDays: dayCounts.size,
     timeBuckets,
     platforms: countBy(safeItems.map(item => item?.platform), value => PLATFORM_LABELS[String(value ?? '')] ?? String(value ?? '')),
-    formats: countBy(safeItems.map(item => item?.format ?? (finiteDuration(item?.duration) === null ? '图文/实况' : '视频')), value => String(value ?? '')),
-    avgDurationSec: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null,
+    formats,
+    avgDurationSec: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) || 0 : null,
   }
 }
 

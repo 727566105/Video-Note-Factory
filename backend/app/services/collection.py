@@ -6,6 +6,7 @@
 import json
 import logging
 import re
+import math
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -47,9 +48,18 @@ def _build_author_stats(note_entries: list[dict]) -> dict:
     day_counts = {}
     for day in dates:
         day_counts[day] = day_counts.get(day, 0) + 1
-    peak = max(day_counts.items(), key=lambda item: (item[1], item[0]), default=None)
-    durations = [entry["duration"] for entry in note_entries
-                 if isinstance(entry.get("duration"), (int, float))]
+    peak = min(day_counts.items(), key=lambda item: (-item[1], item[0]), default=None)
+    durations = []
+    for entry in note_entries:
+        value = entry.get("duration")
+        if isinstance(value, bool):
+            continue
+        try:
+            parsed = float(value) if isinstance(value, (int, float, str)) and str(value).strip() else None
+        except (TypeError, ValueError):
+            parsed = None
+        if parsed is not None and math.isfinite(parsed):
+            durations.append(parsed)
     span_days = (max(dates) - min(dates)).days if dates else 0
     frequency = len(note_entries) / max(span_days / 7, 1 / 7) if note_entries else 0.0
     time_buckets = {label: 0 for _, _, label in _TIME_BUCKETS}
