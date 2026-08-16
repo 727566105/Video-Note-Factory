@@ -422,3 +422,103 @@ def test_trajectory_author_falls_back_to_collection_name(monkeypatch, tmp_path):
     result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
     assert result is not None
     assert "博主「合集作者名」" in summary_calls["prompt"]
+
+
+def test_transcript_fallback_used_when_note_missing(monkeypatch, tmp_path):
+    """笔记缺失 → 用 transcript.json 的 full_text 兜底，header 标注 [转写原文]"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者",
+        "created_at": datetime(2026, 7, 12, 12, 39), "duration": 90, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    summary_calls = {}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(json.dumps({"full_text": "这是转写全文的原文内容，没有标点也保留"}, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(
+        collection, "find_note_file",
+        lambda **kwargs: None if kwargs["file_type"] == "note" else transcript_path,
+    )
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: type(
+        "GPT", (), {"summarize": lambda self, source: summary_calls.setdefault("prompt", source.extras) or "result"}
+    )())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+    assert result is not None
+    prompt = summary_calls["prompt"]
+    assert "这是转写全文的原文内容" in prompt
+    assert "[转写原文]" in prompt
+    # 元信息头仍完整（来自任务表，不依赖笔记）
+    assert "2026-07-12 12:39" in prompt
+    assert "视频" in prompt
+
+
+def test_transcript_not_read_when_note_present(monkeypatch, tmp_path):
+    """笔记存在 → 不读 transcript（零额外文件访问）"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者", "created_at": datetime(2026, 7, 12),
+        "duration": None, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    summary_calls = {}
+    requested_file_types = []
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "笔记正文内容"}, ensure_ascii=False), encoding="utf-8")
+    def fake_find_note_file(**kwargs):
+        requested_file_types.append(kwargs["file_type"])
+        return note_path if kwargs["file_type"] == "note" else None
+    monkeypatch.setattr(collection, "find_note_file", fake_find_note_file)
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: type(
+        "GPT", (), {"summarize": lambda self, source: summary_calls.setdefault("prompt", source.extras) or "result"}
+    )())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+    assert result is not None
+    assert "笔记正文内容" in summary_calls["prompt"]
+    assert "transcript" not in requested_file_types
+    assert "[转写原文]" not in summary_calls["prompt"]

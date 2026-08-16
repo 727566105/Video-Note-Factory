@@ -555,7 +555,7 @@ def _generate_collection_summary_inner(
     # 保留合集完整条目数作为生成快照；可用素材数单独用于 prompt 和统计。
     item_count_at_generation = len(items)
 
-    # 2. 读取每条笔记的 markdown（带元信息 + 单篇限长）
+    # 2. 读取每条笔记的 markdown（带元信息 + 单篇限长）；笔记缺失/为空时用转写全文兜底
     # trajectory 模式需要按 created_at 排序，先收集再排
     note_entries = []
     for item in items:
@@ -573,39 +573,62 @@ def _generate_collection_summary_inner(
             platform=task.platform,
             user_id=user_id,
         )
-        if not note_path or not note_path.exists():
-            logger.warning(f"笔记文件不存在: task_id={task.task_id}")
-            continue
-
-        try:
-            note_data = json.loads(note_path.read_text(encoding="utf-8"))
-            md_content = note_data.get("markdown", "")
-            if not md_content:
-                continue
-            # 单篇限长 2000 字，避免拼接后超 token
-            if len(md_content) > 2000:
-                md_content = md_content[:2000] + "\n\n...(内容已截断)"
-            entry = {
-                "md": md_content,
-                "title": task.title or "无标题",
-                "platform": task.platform or "",
-                "author": task.author or task.author_name or "",
-                "created_at": task.created_at,
-            }
-            if mode == "trajectory":
+        source = "note"
+        md_content = ""
+        if note_path and note_path.exists():
+            try:
+                note_data = json.loads(note_path.read_text(encoding="utf-8"))
+                md_content = note_data.get("markdown", "") or ""
+            except Exception as e:
+                logger.warning(f"读取笔记失败: task_id={task.task_id}, error={e}")
+        if not md_content:
+            # 转写兜底：笔记缺失/为空时用音频转写全文（不截断）
+            transcript_path = find_note_file(
+                task_id=task.task_id,
+                author_id=task.author_id,
+                author_name=task.author_name,
+                video_id=task.video_id,
+                title=task.title,
+                file_type="transcript",
+                platform=task.platform,
+                user_id=user_id,
+            )
+            if transcript_path and transcript_path.exists():
                 try:
-                    tags = json.loads(task.tags or "{}") if isinstance(task.tags, str) else (task.tags or {})
-                except (TypeError, json.JSONDecodeError):
-                    tags = {}
-                entry.update({
-                    "duration": task.duration,
-                    "description": task.description or "",
-                    "tags": tags,
-                    "format": "视频" if task.duration is not None else "图文/实况",
-                })
-            note_entries.append(entry)
-        except Exception as e:
-            logger.warning(f"读取笔记失败: task_id={task.task_id}, error={e}")
+                    transcript_data = json.loads(transcript_path.read_text(encoding="utf-8"))
+                    md_content = transcript_data.get("full_text") or ""
+                    if not md_content:
+                        segments = transcript_data.get("segments") or []
+                        md_content = "".join(seg.get("text", "") for seg in segments if isinstance(seg, dict))
+                    if md_content:
+                        source = "transcript"
+                except Exception as e:
+                    logger.warning(f"读取转写失败: task_id={task.task_id}, error={e}")
+        if not md_content:
+            continue
+        # 单篇限长 2000 字，避免拼接后超 token（仅笔记；转写全文不截断）
+        if source == "note" and len(md_content) > 2000:
+            md_content = md_content[:2000] + "\n\n...(内容已截断)"
+        entry = {
+            "md": md_content,
+            "title": task.title or "无标题",
+            "platform": task.platform or "",
+            "author": task.author or task.author_name or "",
+            "created_at": task.created_at,
+            "source": source,
+        }
+        if mode == "trajectory":
+            try:
+                tags = json.loads(task.tags or "{}") if isinstance(task.tags, str) else (task.tags or {})
+            except (TypeError, json.JSONDecodeError):
+                tags = {}
+            entry.update({
+                "duration": task.duration,
+                "description": task.description or "",
+                "tags": tags,
+                "format": "视频" if task.duration is not None else "图文/实况",
+            })
+        note_entries.append(entry)
 
     if not note_entries:
         logger.error(f"收藏集没有可用的笔记内容: collection_id={collection_id}")
@@ -619,6 +642,7 @@ def _generate_collection_summary_inner(
     available_material_count = len(note_entries)
     markdowns = []
     for i, entry in enumerate(note_entries, 1):
+        source_suffix = " [转写原文]" if entry.get("source") == "transcript" else ""
         if mode == "trajectory":
             date_str = entry["created_at"].strftime("%Y-%m-%d %H:%M") if entry["created_at"] else "未知日期"
             tags = entry.get("tags") or {}
@@ -631,9 +655,9 @@ def _generate_collection_summary_inner(
             description = entry.get("description") or ""
             description_text = f" | 描述：{description}" if description else ""
             metadata = f" | 标签：{tag_text}" if tag_text else ""
-            header = f"### 笔记 {i}/{available_material_count} | [{date_str} | {entry.get('platform', '')} | {entry.get('format', '')}]{metadata} | {entry['author']}：{entry['title']}{description_text}"
+            header = f"### 笔记 {i}/{available_material_count} | [{date_str} | {entry.get('platform', '')} | {entry.get('format', '')}]{metadata} | {entry['author']}：{entry['title']}{description_text}{source_suffix}"
         else:
-            header = f"### 笔记 {i}/{available_material_count}：{entry['title']}"
+            header = f"### 笔记 {i}/{available_material_count}：{entry['title']}{source_suffix}"
         markdowns.append(f"{header}\n\n{entry['md']}")
 
     combined_text = "\n\n---\n\n".join(markdowns)
