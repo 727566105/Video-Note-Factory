@@ -479,7 +479,7 @@ export function CollectionDetail() {
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs text-muted-foreground"
-                onClick={handleGenerate}
+                onClick={() => handleGenerate()}
                 disabled={generating}
               >
                 <RotateCcw className="w-3.5 h-3.5 mr-1" />
@@ -498,7 +498,7 @@ export function CollectionDetail() {
               variant="ghost"
               size="sm"
               className="h-6 px-2 text-xs text-yellow-600 hover:text-yellow-700 dark:text-yellow-500"
-              onClick={handleGenerate}
+              onClick={() => handleGenerate()}
               disabled={generating}
             >
               重新生成
@@ -571,7 +571,7 @@ export function CollectionDetail() {
               <>
                 <p className="text-sm mb-3">AI 将分析合集内所有视频内容，生成结构化总结</p>
                 <Button
-                  onClick={handleGenerate}
+                  onClick={() => handleGenerate()}
                   disabled={currentDetail.items.length === 0}
                   className="bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 text-white"
                 >
