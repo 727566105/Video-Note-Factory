@@ -146,6 +146,11 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **合集页布局**：`TrajectoryTimeline`（日期分组：M月D日节点 + 今天/昨天高亮 + 数量徽章 + 时刻红色）是合集内容的**唯一展示载体**（底部条目列表已删除）。trajectory 模式为左右布局：左时间轴可拖拽调宽（默认 420，范围 260-640，双击复位），右 `TrajectorySummaryCard` 分析报告。
 - **编辑入口统一**：更多菜单「编辑合集」+ 标题旁 ⚙ 打开同一对话框 = 名称/描述 + 条目管理（↑↓ 排序/删除）+ 内嵌批量添加（`getTasks(100)` 拉笔记，过滤已存在项，勾选「添加选中」后 `addItems` 自动刷新即时出现）。无独立「批量添加」按钮/跳转。
 - **⚠️ React 事件坑（P0 教训）**：`handleGenerate(mode?)` 这类带参 handler 绑定 `onClick` **必须用箭头函数 `() => handleGenerate()`**；直接 `onClick={handleGenerate}` 会把 MouseEvent 当 mode 参数传入，`generateSummary` 序列化 event 抛错 → 生成永远失败且只弹 toast（曾因此「重新总结/重新生成/立即总结」全失效）。
+- **⚠️ generate_summary 事件循环坑（P0 教训）**：`POST /api/collections/{id}/generate_summary` 路由**必须用同步 `def`**（`routers/collection.py`）——service 内部是同步 LLM 网络调用（`gpt.summarize()` 阻塞 30-60s），若写成 `async def` 会阻塞整个 FastAPI 事件循环，**生成期间所有其他请求（任何合集的详情/列表）全部排队不响应**，前端表现为打开其他合集一直转圈。同步 def 由 FastAPI 放到线程池执行，事件循环保持空闲。回归测试 `tests/test_collection_blocking.py`（并发断言详情请求不被生成阻塞）。
+- **collectionStore 并发防护架构（改此 store 必须保持）**：`collectionStore/index.ts` 三层机制防「全局详情被迟到请求污染」——① `detailRequestSeq` 递增序号，只有最新一次 `fetchDetail` 的响应能写 `currentDetail`/`loading`（乱序请求旧响应直接丢弃）；② `detailViewId` 记录用户当前查看的合集，内部刷新统一走 `refreshDetail(id)`，仅当 `id === detailViewId` 才刷新（生成/增删条目后后台刷新不会覆盖已切换的页面）；③ `generatingIds: Record<string, boolean>` 按合集隔离生成状态（A 生成中不影响 B 的按钮/文案），同合集入口 single-flight 防重复请求。页面侧 `CollectionDetail` 用 `detail = currentDetail?.id === id ? currentDetail : null` 做归属校验，切换合集加载期间只显示 loading。
+- **博主画像统计口径 parity（改统计必看）**：后端 `_build_author_stats`（`services/collection.py`）与前端 `computeAuthorStats`（`components/AuthorStatsBar.tsx`）必须**同口径**（有 parity fixture 测试锁定）：时段桶半开区间 `凌晨(0-6)/上午(6-12)/下午(12-18)/晚上(18-24)`（注意是「晚上」不是「晚间」）；平台映射 `douyin→抖音/bilibili→B站/youtube→YouTube/xiaohongshu→小红书/kuaishou→快手/cctv→CCTV`（local 及未知保原值）；峰值日并列取**最早**日期；`duration` 非空即「视频」否则「图文/实况」；`created_at` 缺失计入 total 但跳过日期/时段统计；频率 `total / max(span_days/7, 1/7)` 保留 1 位小数。
+- **快照与实时语义分层**：`item_count_at_generation` = **生成时完整合集条目数**（stale 提示「生成时 N 条，当前 M 条」用），而 prompt 统计基于**可用素材数**（有笔记文件的条目）——两者不同是正常设计，勿改同一。统计卡片条始终基于当前合集 items 实时计算（前端），LLM 文字结论是生成时快照。
+- **trajectory 模式 = 博主画像分析**（五维：风格特征/内容偏好/发布规律/人设定位/个人特质，每维「1 句结论 + 2~4 条依据」+ 附创作轨迹要点；时间线降级为支撑素材）。旧 7 节人生轨迹总结兼容渲染：`TrajectorySummaryCard` 的 `getSectionKind` 新关键词（风格/偏好/发布规律/人设/特质/轨迹要点）**在前匹配**、旧关键词（画像/喜好/演变/最近动态/跨平台/主题演变）保留，改映射顺序不得破坏旧总结。
 
 ## 敏感区域改动前必读
 
@@ -153,6 +158,7 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - 改备份/恢复 → 看 `tests/test_backup_import.py` + `tests/test_webdav_cleanup.py` + `tests/test_webdav_hardening.py`（含 zip-slip 安全回归）
 - 改笔记分享 → 看 `tests/test_note_share.py`（跨用户权限 + 冲突解决）
 - 改 `SettingLayout.tsx` 分组结构 → 需同步检查 `App.tsx` 路由是否存在
+- 改 `collectionStore` / 合集生成链路 → 保持并发防护三层机制（seq/detailViewId/generatingIds），看 `test_collection_blocking.py` + `collectionStore.test.ts` + `test_collection_profile_summary.py`（统计 parity）
 - 改 Android DTO（`core/network/dto/*.kt`）→ 先用 curl 拉对应后端 API 真实返回，逐字段对照类型/字段名/是否缺失。无默认值的非空字段是高危（后端不返回就崩）。
 - 改 Android 底部导航（`AppNavHost.kt` 的 `XaiBottomBar`）→ 注意 type-safe 路由必须用 `qualifiedName` 比较，带参路由不能用作 tab。
 - `openspec/` — 架构/重大变更走 OpenSpec 提案流程（见文件顶部 managed block）
