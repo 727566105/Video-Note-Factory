@@ -140,6 +140,13 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **重新编译 DTO 改动**：增量构建偶尔不识别 DTO 变化，改完 DTO/Serializer 跑 `./gradlew :app:assembleDebug --rerun-tasks` 强制重编译。
 - **暗色主题是唯一主题**：`VideoNoteTheme` 的 SYSTEM/LIGHT 都映射到暗色 `XaiColorScheme`。零圆角（`RoundedCornerShape(0.dp)`，不用 `RectangleShape` - M3 Shapes 不接受）。平台色点是唯一允许的彩色，其余走白/灰透明度色阶。
 
+## 合集（Library）模块
+
+- **合集总结与单条笔记完全独立**：`SummarySettings` 组件按 `variant` 区分——`note`（笔记详情/快捷添加，全量：风格/语言/视频理解/格式/备注）vs `collection`（合集，**只显示「总结模式 + 备注」**）。总结模式（overview/comparison/timeline/mindmap/trajectory）是合集专属，后端对应 `collection.py` 的 `mode_prompts`（5 套不同结构的 prompt），笔记生成没有模式概念。新增模式枚举需同步：`SummarySettings` 的 `summaryModes` 数组 + `CollectionDetail` 的 mode 白名单 + `collection.py` 的 `mode_prompts`。
+- **合集页布局**：`TrajectoryTimeline`（日期分组：M月D日节点 + 今天/昨天高亮 + 数量徽章 + 时刻红色）是合集内容的**唯一展示载体**（底部条目列表已删除）。trajectory 模式为左右布局：左时间轴可拖拽调宽（默认 420，范围 260-640，双击复位），右 `TrajectorySummaryCard` 分析报告。
+- **编辑入口统一**：更多菜单「编辑合集」+ 标题旁 ⚙ 打开同一对话框 = 名称/描述 + 条目管理（↑↓ 排序/删除）+ 内嵌批量添加（`getTasks(100)` 拉笔记，过滤已存在项，勾选「添加选中」后 `addItems` 自动刷新即时出现）。无独立「批量添加」按钮/跳转。
+- **⚠️ React 事件坑（P0 教训）**：`handleGenerate(mode?)` 这类带参 handler 绑定 `onClick` **必须用箭头函数 `() => handleGenerate()`**；直接 `onClick={handleGenerate}` 会把 MouseEvent 当 mode 参数传入，`generateSummary` 序列化 event 抛错 → 生成永远失败且只弹 toast（曾因此「重新总结/重新生成/立即总结」全失效）。
+
 ## 敏感区域改动前必读
 
 - 改 `path_helper.py` 目录命名/查找逻辑 → 影响所有笔记媒体定位，先看现有自愈合测试
