@@ -115,6 +115,8 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **自愈合查找**：`find_note_file` / `get_video_folder` 在精确目录不存在时，按 `{video_id}_` / `{author_id}_` 前缀扫描已有目录复用（兼容旧整机包截断点不一致）。新增路径查找逻辑要保留这层兜底。
 - **导入整机包**：`_safe_extract_all` 逐文件解压 + 超长路径段截断 + zip-slip 防护（拒绝 `..`/绝对路径 + resolve 校验）。不要换回 `zipfile.extractall`。
 - **备份/恢复全局状态**：`_restore_in_progress` 等模块级变量，`main.py` lifespan 启动时调 `reset_stale_backup_state()` 自愈重置（防进程被 kill 卡死）。
+- **备份锁由调用方管理（防再犯导出 100% 失败 bug）**：`acquire_backup_lock`/`release_backup_lock`（`webdav_backup.py`，双标志 `_backup_in_progress`/`_restore_in_progress` 原子检查+置位）由**调用方**负责获取/释放--路由层 `_run_backup_async` 的 finally 释放、定时任务 `backup_job` 也要 acquire/release。`create_backup` 内部**不做**锁自检也不清锁标志（曾因冗余自检与锁标志冲突导致「导出整机包」100% 失败）。
+- **备份下载仅管理员**：`GET /api/webdav/backup/download/{filename}` 用 `require_admin`--整机包内含 `downloader.json`（cookie 明文值），不能让普通用户下载提取。相关测试 `test_backup.py` 的 dependency_overrides 需覆盖 `require_admin` 而非 `get_current_user_flexible`。
 - **配置导入**：`_is_placeholder` 只认 `********`（导出脱敏占位符）为假值；`sk-test` 是系统内置 provider 默认 key，应忠实导入，不要当占位符跳过。
 - **前端单测（vitest + jsdom）**：组件测试用 `vitest.config.ts`（jsdom 环境），**必须配 `environmentOptions.jsdom.url`**，否则 `window.localStorage` 为 undefined。`src/test/setup.ts` 里 polyfill 了 localStorage/ResizeObserver —— 原因是 **Node 26 实验性 `localStorage`（未传 `--localstorage-file` 时为 undefined）会遮蔽 jsdom 的**，组件/测试直接读 `localStorage` 会静默失败。新增组件测试若报 `localStorage is not defined`/`ResizeObserver is not defined`，先在 setup.ts 兜底。login-form 的 localStorage 读写走 `safeLocalGet/Set/Remove`（try/catch，隐私模式不崩溃）。
 - **登录/7天免登录鉴权链路**：勾选「7天免登录」→ 前端 `request.post('/auth/login', {remember_me:true})` → 后端才签发 **7 天有效 refresh_token**（不勾选则无）；access token 24h 过期后，`request.ts` 响应拦截器对 401 自动调 `/auth/refresh` 换新 access token（带并发锁，多请求只刷新一次），refresh_token 失效则登出跳 `/login`。改密码后旧 refresh token 被 `ensure_token_not_revoked` 吊销 → `/auth/refresh` 返回 **401**（务必 catch `JWTError`，否则变 500）。后端相关测试见 `tests/test_auth_refresh.py` / `test_auth_ratelimit.py`。
@@ -155,6 +157,7 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 ## 敏感区域改动前必读
 
 - 改 `path_helper.py` 目录命名/查找逻辑 → 影响所有笔记媒体定位，先看现有自愈合测试
+- 改 `clone_task_to_user` / `find_note_file` glob 回退 / `find_source_data` / 删除清理 → 看 `tests/test_multiuser_isolation.py`（`TestCrossUserReuse` / `TestGenerateNoteReuse` / `TestHardDelete` / `TestCleanupTaskFiles`，含幂等、跨用户隔离、引用计数回归）
 - 改备份/恢复 → 看 `tests/test_backup_import.py` + `tests/test_webdav_cleanup.py` + `tests/test_webdav_hardening.py`（含 zip-slip 安全回归）
 - 改笔记分享 → 看 `tests/test_note_share.py`（跨用户权限 + 冲突解决）
 - 改 `SettingLayout.tsx` 分组结构 → 需同步检查 `App.tsx` 路由是否存在
@@ -180,6 +183,16 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **已移除的接口/字段**：`cleanup_deleted_tasks` 管理员清理接口（`config.py`）、`deleted_at` 字段（`video_tasks` 模型 + init_db 迁移）、`soft_delete_task`/`get_deleted_tasks`/`hard_delete_task` DAO 函数、前端"清理过期数据"按钮（`TaskQueue.tsx`）。旧库的 `deleted_at` 列保留但代码不再读写。
 - **MCP 删除接口**：`mcp_server.py` 的 `delete_task` 也是物理删除，复用 `_cleanup_task_files` + `_cleanup_task_relations`。
 
+## 跨用户复用（视频解析结果）
+
+- **复用链路**（`generate_note` 路由 + `subscription_scheduler._auto_generate_notes`）：`find_matching_note`（同 video_id+platform，排除本人 + style 匹配）→ `find_completed_task_by_video` → `find_source_data` → 任一命中即 `clone_task_to_user` 复制任务给新用户，**不再重新下载/转写**，直接用已有媒体文件生成自己的笔记。
+- **`clone_task_to_user` 必须生成新 UUID task_id**：`video_tasks.task_id` 是 UNIQUE 约束，多用户共享同一 task_id 会冲突。原 task_id 存 `source_task_id` 字段追踪起源；幂等（`source_task_id+user_id` 已存在则直接返回）。
+- **`find_source_data` 的源数据定义**：transcript.json（音频/视频类型）**或** 视频目录含已下载媒体文件（图文/实况照片没有 transcript）——用 `find_note_file(status)` 定位目录（带自愈合），避免 author_name 不一致找不到。
+- **`find_note_file` 跨用户 glob 回退**：四级目录和自愈合扫描两条路径，在 `note_{user_id}.json` 和 `note.json` 都缺失时，找目录下任意 `note_*.json`（如 note_2.json）复用展示。
+- **复用后必须回写 feed_items.task_id**：`update_feed_item_task_by_content(content_id, platform, user_id, cloned.task_id)`，否则动态页「查看笔记」跳到已删除/不存在的旧 task_id。订阅自动生成（`subscription_scheduler.py`）复用后同样回写。
+- **跨用户复用的删除语义**：多用户共享同一 video_id 时，`_cleanup_task_relations` 必须带 user_id 过滤（collection_items join collections、feed_items 自带 user_id），防误删他人关联数据。
+- **平台无关**：所有平台（douyin/xiaohongshu/bilibili/youtube/kuaishou/cctv）都走同一链路，无平台分支；B 站图文同样有 article 类型。
+
 ## status.json 归属校验（防张冠李戴）
 
 - **写 status.json 时必带 task_id**：`NoteGenerator._update_status`（`services/note.py`）写入时带 `task_id` 字段，供读取时做归属校验。
@@ -188,6 +201,7 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **`find_note_file` 自愈合扫描的风险**：自愈合按 `video_id_` 前缀扫描，可能找到**其他 task_id 的旧 status.json**（比如 6-28 的失败任务遗留的 status.json 被 7-20 的新任务扫描到）。归属校验是兜底防护。
 - **前端轮询接口是 status.json 张冠李戴的真凶**：`useTaskPolling`（`hooks/useTaskPolling.ts`）每 3 秒调 `/api/task_status/{task_id}` 单查活跃任务状态。这个接口读 status.json 时也必须做归属校验，否则会用旧 status 覆盖 `loadTasksFromBackend` 返回的最新状态。⚠️ 轮询的 task_status 用 **silent**（`X-Silent` 头，`get_task_status(id, true)`）：已删除/非当前用户任务返回 403 时静默 `dismissTask`，**不再弹"无权访问该任务" toast**（否则删除/跨用户任务会在批量删除后 3s 内误弹误导性提示）。删除任务（`NoteListPage`）成功后也要立即 `dismissTask` 已删任务，避免被轮询再次命中。
 - **前端 taskStore 合并逻辑**：`loadTasksFromBackend`（`store/taskStore/index.ts`）的合并策略 - 本地过时 FAILED/PENDING **不能覆盖**后端最新状态。只有本地是活跃态（PROCESSING/QUEUED 等）且后端也是活跃态时才保留本地（轮询更实时）。
+- **原作品删除但本地有笔记 → 仍显示**：`NoteDetailPage` 对 FAILED + 有本地内容（note 文件）的任务，照常渲染笔记 + 黄色 `StaleNoteBanner` 提示条（"原作品已被删除"），并**总是**调 `loadTasksFromBackend` 刷新（不依赖 localStorage 缓存，`useEffect` 依赖只留 `[id, loadTasksFromBackend]`）。
 
 ## 笔记保存的空 title bug（`save_note_to_file`）
 
@@ -224,6 +238,7 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **Message 全局提示**：`showMessage(state, opts)` 浮在 popup 顶部（`position:absolute` + `z-index:50`），不进文档流不占位。`.message` 默认 `display:none`，`.show` 时 `display:flex`；显示需 `void el.offsetWidth` reflow 后加 `.show` class 触发 transition；消失需先移除 `.show` 触发淡出，200ms 后清 inline display。
 - **打包**：改完代码用 `cd browser-extension && zip -rq ../videonote-helper-vX.Y.Z.zip manifest.json background/ popup/ options/ icons/`。zip 在仓库根，被 .gitignore（不入仓库）。
 - **版本号**：`manifest.json` 的 `version` 字段，每次改动递增（用户重载插件能识别更新）。
+- **Cookie 功能是管理员专属（三层防御，勿放开）**：后端 `update_downloader_cookie` / `test_downloader_cookie` / `get_downloader_cookie/{platform}`（`config.py`）均 `require_admin`（未登录 401、普通用户 403）；插件 `popup.js` 三层防御——`applyCookiePermission()` 隐藏非管理员的 Cookie Tab、localStorage 恢复 Tab 需 `authRole==='admin'`、`onPush()` 运行时独立 `getAuth()` 二次校验（`authRole` 缺失按非管理员 fail-closed）。**UI 不显示"推 Cookie 需管理员"类提示文案**（用户明确要求移除，普通用户直接看不到 Cookie 功能即可）；**登录前文案也不得提及 Cookie**（登录遮罩只说"提交笔记任务"，authGate 阶段无法区分角色，提及即向普通用户泄露功能存在）。`update_downloader_cookie` 有审计日志（记录 username/id/platform）。权限矩阵测试见 `tests/test_cookie_endpoint_auth.py`（401/403/200 + 输入边界）。
 
 ## 抖音 URL 解析（关键 gotcha）
 
@@ -231,6 +246,7 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **`url_parser.py` 抖音分支**：先匹配 `/(?:video|note)/(\d+)`，匹配不到再兜底 `r'[?&]modal_id=(\d+)'`。
 - **`douyin_downloader.extract_video_id`**：同样有 modal_id 兜底。**注意 `find_url` 正则不含 `?&=` 字符，会截断查询参数**，所以必须保留 `original_url`，head 请求失败时用原始 URL 兜底匹配 patterns。
 - **video_id 兜底**：`generate_note` 路由在 URL 解析失败时用 `task_id` 作为 `effective_video_id`（避免 DB 记录创建失败），但这会导致复用检查失效（不同任务的 video_id 都是各自 UUID）。
+- **原作品被删/私密/审核中**：抖音 API 返回 `aweme_detail: null`（伴 `filter_detail` 字段）。`douyin_downloader.fetch_video_info` 优先读 `filter_detail` 的 `filter_reason/detail_msg/notice` 生成友好错误消息（不要暴露"缺少 aweme_detail"原始错误）。本地已有该视频笔记时，前端仍展示笔记 + 黄条提示原作品已删除（见 status.json 归属校验节）。
 
 ## LLM 错误归一化（`_normalize_error_message`）
 
