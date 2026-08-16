@@ -50,11 +50,12 @@ interface SummarySettingsProps {
 }
 
 // 合集总结模式（与后端 collection.py 的 mode_prompts 对应）
+// 注意：mindmap（思维导图）不在此列——它是页面上独立的快捷生成按钮
+// （CollectionDetail 的 handleGenerate('mindmap')），不属于「总结模式」选择范畴
 const summaryModes = [
   { value: 'overview', label: '综合概述' },
   { value: 'comparison', label: '对比分析' },
   { value: 'timeline', label: '时间线' },
-  { value: 'mindmap', label: '思维导图' },
   { value: 'trajectory', label: '博主画像' },
 ]
 

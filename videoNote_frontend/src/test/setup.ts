@@ -55,3 +55,11 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     writable: true,
   })
 }
+
+// Radix Select 的 pointerdown 处理器会调用 target.hasPointerCapture/setPointerCapture，
+// jsdom 的 Element 原型缺这些方法（React 事件系统包装后 target 上不存在），补 no-op 兜底
+if (typeof Element !== 'undefined' && typeof Element.prototype.hasPointerCapture !== 'function') {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
+}

@@ -61,4 +61,26 @@ describe('SummarySettings collection variant', () => {
     expect(screen.getByText('总结模式')).toBeInTheDocument()
     expect(screen.queryByText('提示词内容')).not.toBeInTheDocument()
   })
+
+  it('summary mode options exclude mindmap (it is a standalone quick-action, not a summary mode)', () => {
+    render(
+      <SummarySettings
+        open
+        onOpenChange={vi.fn()}
+        mode="local"
+        variant="collection"
+        localValues={{ summaryMode: 'overview', extras: '' }}
+        onLocalChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.pointerDown(screen.getByRole('combobox'))
+    fireEvent.click(screen.getByRole('combobox'))
+
+    expect(screen.getByRole('option', { name: '综合概述' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '对比分析' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '时间线' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '博主画像' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: '思维导图' })).not.toBeInTheDocument()
+  })
 })

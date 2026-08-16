@@ -98,9 +98,10 @@ export function CollectionDetail() {
   }, [detail])
 
   // 当前总结的模式变化时，同步到「总结设置」弹窗（用户未重新生成前保留其选择）
+  // mindmap 不在白名单：思维导图是页面独立按钮，不属于「总结模式」选项（SummarySettings.summaryModes）
   const currentSummaryMode = detail?.summary?.summary_mode
   useEffect(() => {
-    if (currentSummaryMode && ['overview', 'comparison', 'timeline', 'mindmap', 'trajectory'].includes(currentSummaryMode)) {
+    if (currentSummaryMode && ['overview', 'comparison', 'timeline', 'trajectory'].includes(currentSummaryMode)) {
       setLocalSettings(prev => ({ ...prev, summaryMode: currentSummaryMode }))
     }
   }, [currentSummaryMode])
