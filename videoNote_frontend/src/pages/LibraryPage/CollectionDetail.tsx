@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Trash2, Sparkles, Settings2, LoaderCircle, FolderOpen,
   SquarePlus, Share2, Brain, Map, Pencil, MoreHorizontal,
-  RotateCcw, SlidersHorizontal, Download, AlertCircle, ListVideo,
+  RotateCcw, SlidersHorizontal, Download, AlertCircle,
   ChevronUp, ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -62,13 +62,10 @@ export function CollectionDetail() {
     extras: globalSettings.extras,
   })
 
-  // 编辑信息
+  // 编辑合集（名称/描述 + 条目管理，一个对话框）
   const [editOpen, setEditOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
-
-  // 编辑视频（管理合集条目）
-  const [manageVideosOpen, setManageVideosOpen] = useState(false)
 
   // 编辑总结
   const [editingSummary, setEditingSummary] = useState(false)
@@ -200,20 +197,100 @@ export function CollectionDetail() {
                     <Settings2 className="w-4 h-4" />
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>编辑合集</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-2">
-                    <div>
-                      <label className="text-sm font-medium">名称</label>
-                      <Input value={editName} onChange={e => setEditName(e.target.value)} className="mt-1.5" />
+                    {/* 名称 + 描述 */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium">名称</label>
+                        <Input value={editName} onChange={e => setEditName(e.target.value)} className="mt-1.5" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">描述</label>
+                        <Input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="mt-1.5" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium">描述</label>
-                      <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} className="mt-1.5" rows={3} />
+
+                    {/* 条目管理 */}
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">合集内容（{currentDetail?.items.length ?? 0}）</span>
+                        <span className="text-xs text-muted-foreground">可用 ↑↓ 调整顺序</span>
+                      </div>
+                      <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                        {(currentDetail?.items ?? []).length === 0 ? (
+                          <p className="text-center text-sm text-muted-foreground py-8">合集暂无内容</p>
+                        ) : (
+                          (currentDetail?.items ?? []).map((item, idx, arr) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
+                            >
+                              <div className="w-16 h-10 rounded-md overflow-hidden bg-muted shrink-0">
+                                {item.cover_url ? (
+                                  <img src={item.cover_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <FolderOpen className="w-4 h-4 text-muted-foreground/30" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{item.title || '无标题'}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {item.platform && (
+                                    <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                      {item.platform}
+                                    </span>
+                                  )}
+                                  {item.created_at && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {new Date(item.created_at).toLocaleDateString('zh-CN')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground/50"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveItem(item.task_id, 'up')}
+                                >
+                                  <ChevronUp className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground/50"
+                                  disabled={idx === arr.length - 1}
+                                  onClick={() => handleMoveItem(item.task_id, 'down')}
+                                >
+                                  <ChevronDown className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground/40 hover:text-destructive"
+                                  onClick={() => handleRemoveItem(item.task_id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                    <Button onClick={handleSaveEdit} className="w-full">保存</Button>
+
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button>
+                      <Button onClick={handleSaveEdit}>保存</Button>
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -250,10 +327,7 @@ export function CollectionDetail() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                <Pencil className="w-4 h-4 mr-2" />编辑信息
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setManageVideosOpen(true)}>
-                <ListVideo className="w-4 h-4 mr-2" />编辑视频
+                <Pencil className="w-4 h-4 mr-2" />编辑合集
               </DropdownMenuItem>
               <DropdownMenuItem className="text-destructive" onClick={async () => {
                 if (!id) return
@@ -429,86 +503,6 @@ export function CollectionDetail() {
         collectionId={id}
         collectionTitle={currentDetail?.name || '合集总结'}
       />
-
-      {/* ====== 编辑合集视频对话框 ====== */}
-      <Dialog open={manageVideosOpen} onOpenChange={setManageVideosOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>编辑合集视频</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 pt-2 max-h-[420px] overflow-y-auto">
-            {(currentDetail?.items ?? []).length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-8">合集暂无视频</p>
-            ) : (
-              (currentDetail?.items ?? []).map((item, idx, arr) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
-                >
-                  <div className="w-16 h-10 rounded-md overflow-hidden bg-muted shrink-0">
-                    {item.cover_url ? (
-                      <img src={item.cover_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <FolderOpen className="w-4 h-4 text-muted-foreground/30" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.title || '无标题'}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {item.platform && (
-                        <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                          {item.platform}
-                        </span>
-                      )}
-                      {item.created_at && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {new Date(item.created_at).toLocaleDateString('zh-CN')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground/50"
-                      disabled={idx === 0}
-                      onClick={() => handleMoveItem(item.task_id, 'up')}
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground/50"
-                      disabled={idx === arr.length - 1}
-                      onClick={() => handleMoveItem(item.task_id, 'down')}
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground/40 hover:text-destructive"
-                      onClick={() => handleRemoveItem(item.task_id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-xs text-muted-foreground">
-              {currentDetail?.items.length ?? 0} 个视频 · 可用↑↓调整顺序
-            </span>
-            <Button size="sm" onClick={() => setManageVideosOpen(false)}>完成</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
