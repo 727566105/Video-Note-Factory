@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Trash2, Sparkles, Settings2, LoaderCircle, FolderOpen,
-  SquarePlus, Share2, Brain, Map, Pencil, MoreHorizontal,
-  RotateCcw, SlidersHorizontal, Download, AlertCircle,
-  ChevronUp, ChevronDown,
+  Share2, Brain, Map, Pencil, MoreHorizontal,
+  RotateCcw, SlidersHorizontal, Download, AlertCircle, Plus,
+  ChevronUp, ChevronDown, Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,8 +21,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { useCollectionStore } from '@/store/collectionStore'
+import { getTasks } from '@/services/note'
 import { shareCollection as apiShare, unshareCollection as apiUnshare, editCollectionSummary as apiEditSummary, updateItemsOrder as apiUpdateItemsOrder } from '@/services/collection'
 import { toast } from 'sonner'
 import { useModelStore } from '@/store/modelStore'
@@ -126,6 +128,48 @@ export function CollectionDetail() {
     fetchDetail(id)
   }
 
+  // 批量添加内容（内嵌在编辑合集对话框里）
+  const [addOpen, setAddOpen] = useState(false)
+  const [addQuery, setAddQuery] = useState('')
+  const [allTasks, setAllTasks] = useState<Record<string, any>[] | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [adding, setAdding] = useState(false)
+
+  useEffect(() => {
+    if (editOpen && allTasks === null) {
+      getTasks(100).then(res => setAllTasks(res?.tasks ?? [])).catch(() => {})
+    }
+  }, [editOpen])
+
+  const existingIds = new Set((currentDetail?.items ?? []).map(i => i.task_id))
+  const filteredTasks = (allTasks ?? []).filter(t =>
+    !existingIds.has(t.task_id) &&
+    (!addQuery.trim() || (t.title || '').toLowerCase().includes(addQuery.trim().toLowerCase()))
+  )
+
+  const toggleSelect = (taskId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
+  const handleAddSelected = async () => {
+    if (!id || selectedIds.size === 0) return
+    setAdding(true)
+    try {
+      const added = await useCollectionStore.getState().addItems(id, [...selectedIds])
+      if (added > 0) {
+        toast.success(`已添加 ${added} 条内容`)
+        setSelectedIds(new Set())
+      }
+    } finally {
+      setAdding(false)
+    }
+  }
+
   // 时间轴列宽拖拽调整（trajectory 左右布局）
   const timelineRef = useRef<HTMLDivElement>(null)
   const [timelineWidth, setTimelineWidth] = useState(420)
@@ -218,7 +262,14 @@ export function CollectionDetail() {
                     <div className="border-t pt-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">合集内容（{currentDetail?.items.length ?? 0}）</span>
-                        <span className="text-xs text-muted-foreground">可用 ↑↓ 调整顺序</span>
+                        <div className="flex items-center gap-2">
+                          {!addOpen && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAddOpen(true)}>
+                              <Plus className="w-3.5 h-3.5 mr-1" />添加内容
+                            </Button>
+                          )}
+                          <span className="text-xs text-muted-foreground">可用 ↑↓ 调整顺序</span>
+                        </div>
                       </div>
                       <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
                         {(currentDetail?.items ?? []).length === 0 ? (
@@ -285,6 +336,65 @@ export function CollectionDetail() {
                           ))
                         )}
                       </div>
+
+                      {/* 添加内容面板 */}
+                      {addOpen && (
+                        <div className="mt-3 rounded-lg border border-border bg-muted/20 p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Input
+                              value={addQuery}
+                              onChange={e => setAddQuery(e.target.value)}
+                              placeholder="搜索笔记标题…"
+                              className="h-8 text-sm"
+                            />
+                            <Button size="sm" variant="ghost" className="h-8 text-xs shrink-0" onClick={() => setAddOpen(false)}>
+                              收起
+                            </Button>
+                          </div>
+                          <div className="space-y-1 max-h-[240px] overflow-y-auto pr-1">
+                            {filteredTasks.map(t => (
+                              <label
+                                key={t.task_id}
+                                className={cn(
+                                  "flex items-center gap-2.5 rounded-md px-2 py-1.5 cursor-pointer hover:bg-accent/60 transition-colors",
+                                )}
+                              >
+                                <Checkbox
+                                  checked={selectedIds.has(t.task_id)}
+                                  onCheckedChange={() => toggleSelect(t.task_id)}
+                                />
+                                <div className="w-9 h-7 rounded overflow-hidden bg-muted shrink-0">
+                                  {t.cover_url ? (
+                                    <img src={t.cover_url} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <FolderOpen className="w-3 h-3 text-muted-foreground/40" />
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-xs truncate flex-1">{t.title || '无标题'}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">{t.platform || 'unknown'}</span>
+                              </label>
+                            ))}
+                            {filteredTasks.length === 0 && (
+                              <p className="text-center text-xs text-muted-foreground py-4">
+                                {allTasks === null ? '加载中…' : '没有可添加的笔记'}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex justify-end mt-2">
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={selectedIds.size === 0 || adding}
+                              onClick={handleAddSelected}
+                            >
+                              {adding ? <LoaderCircle className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1" />}
+                              添加选中（{selectedIds.size}）
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-end gap-2">
@@ -303,10 +413,6 @@ export function CollectionDetail() {
 
         {/* 操作按钮行 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="h-8" onClick={() => navigate('/notes')}>
-            <SquarePlus className="w-4 h-4 mr-1.5" />
-            批量添加
-          </Button>
           <Button variant="outline" size="sm" className="h-8" onClick={async () => {
             if (!id) return
             const token = await useCollectionStore.getState().shareCollection(id)
