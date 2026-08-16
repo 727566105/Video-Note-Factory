@@ -197,7 +197,7 @@ export function CollectionDetail() {
                     <Settings2 className="w-4 h-4" />
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>编辑合集</DialogTitle>
                   </DialogHeader>
