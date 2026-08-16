@@ -173,7 +173,10 @@ async def get_summary(collection_id: str, user=Depends(get_current_user)):
 
 
 @router.post("/{collection_id}/generate_summary")
-async def generate_summary(collection_id: str, req: GenerateSummaryRequest, user=Depends(get_current_user)):
+def generate_summary(collection_id: str, req: GenerateSummaryRequest, user=Depends(get_current_user)):
+    # 注意：必须用同步 def——service 内部是同步 LLM 网络调用（gpt.summarize 阻塞数秒），
+    # async def 会阻塞整个事件循环，导致生成期间其他合集请求全部排队不响应。
+    # 同步 def 由 FastAPI 放到线程池执行，事件循环保持空闲。
     db = next(get_db())
     try:
         result = collection_svc.generate_collection_summary(
