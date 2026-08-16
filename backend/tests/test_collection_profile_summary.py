@@ -594,3 +594,65 @@ def test_batch_summarize_long_entry_compression_failure_degrades(monkeypatch):
     assert len(captured) == 2, f"期望 2 批（截断条目与短篇各一批），实际 {len(captured)} 批"
     assert "y" * 8000 in captured[0]
     assert "z" * 1000 in captured[1]
+
+
+def test_corrupt_transcript_skips_entry_without_crashing(monkeypatch, tmp_path):
+    """转写 JSON 损坏 → 该条目跳过，其余条目正常生成，不抛异常"""
+    from app.services import collection
+
+    tasks = [
+        type("Task", (), {
+            "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+            "title": "正常笔记", "platform": "douyin", "author": "作者",
+            "created_at": datetime(2026, 7, 12), "duration": None, "description": "", "tags": "{}",
+        })(),
+        type("Task", (), {
+            "task_id": "t2", "author_id": "a2", "author_name": "作者", "video_id": "v2",
+            "title": "坏转写", "platform": "bilibili", "author": "作者",
+            "created_at": datetime(2026, 7, 13), "duration": None, "description": "", "tags": "{}",
+        })(),
+    ]
+    items = [type("Item", (), {"task_id": t.task_id, "position": index})() for index, t in enumerate(tasks)]
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    summary_calls = {}
+    task_index = {"value": 0}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return items if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                task = tasks[task_index["value"]]
+                task_index["value"] += 1
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "正常笔记正文"}, ensure_ascii=False), encoding="utf-8")
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text("{ 这不是合法JSON", encoding="utf-8")
+    def fake_find_note_file(**kwargs):
+        if kwargs["file_type"] == "note":
+            return note_path if kwargs["task_id"] == "t1" else None
+        return transcript_path if kwargs["task_id"] == "t2" else None
+    monkeypatch.setattr(collection, "find_note_file", fake_find_note_file)
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: type(
+        "GPT", (), {"summarize": lambda self, source: summary_calls.setdefault("prompt", source.extras) or "result"}
+    )())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+    assert result is not None
+    prompt = summary_calls["prompt"]
+    assert "正常笔记正文" in prompt
+    assert "坏转写" not in prompt
+    assert '"total": 1' in prompt
