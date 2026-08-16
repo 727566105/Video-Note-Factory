@@ -562,10 +562,10 @@ def generate_collection_summary(
             else:
                 platform_tags = ai_tags = []
             tag_text = "、".join(str(tag) for tag in (list(platform_tags)[:5] + list(ai_tags)[:5]))
-            metadata = f" | 标签：{tag_text}" if tag_text else ""
             description = entry.get("description") or ""
             description_text = f" | 描述：{description}" if description else ""
-            header = f"### 笔记 {i}/{total} | {date_str} | {entry.get('platform', '')} | {entry.get('format', '')}{metadata} | {entry['author']}：{entry['title']}{description_text}"
+            metadata = f" | 标签：{tag_text}" if tag_text else ""
+            header = f"### 笔记 {i}/{total} | [{date_str} | {entry.get('platform', '')} | {entry.get('format', '')}]{metadata} | {entry['author']}：{entry['title']}{description_text}"
         else:
             header = f"### 笔记 {i}/{total}：{entry['title']}"
         markdowns.append(f"{header}\n\n{entry['md']}")
@@ -581,8 +581,21 @@ def generate_collection_summary(
             logger.error("分批总结失败")
             return None
 
-    # 6. 构建 prompt 并调用 GPT
-    prompt = _build_collection_summary_prompt(combined_text, total, style, extras, mode=mode)
+    # 6. trajectory 使用生成时完整条目快照构建画像统计。
+    stats = _build_author_stats(note_entries) if mode == "trajectory" else None
+    author_name = None
+    if mode == "trajectory":
+        author_counts = {}
+        for entry in note_entries:
+            name = (entry.get("author") or "").strip()
+            if name:
+                author_counts[name] = author_counts.get(name, 0) + 1
+        author_name = max(author_counts, key=author_counts.get) if author_counts else collection.name
+
+    # 7. 构建 prompt 并调用 GPT
+    prompt = _build_collection_summary_prompt(
+        combined_text, total, style, extras, mode=mode, stats=stats, author_name=author_name,
+    )
 
     try:
         gpt = _get_gpt(model_name, provider_id)
@@ -711,8 +724,9 @@ def _batch_summarize(
 
     for i in range(0, len(parts), batch_size):
         batch = "\n\n---\n\n".join(parts[i:i + batch_size])
-        batch_prompt = f"""请将以下 {min(batch_size, len(parts) - i)} 篇笔记压缩为简洁摘要，
+        batch_prompt = f"""请将以下 {min(batch_size, len(parts) - i)} 篇笔记分别压缩为简洁摘要。
 每篇只保留核心观点（每篇不超过 100 字），不要复述细节。
+必须让每篇摘要开头保留原笔记的元数据标记 `[YYYY-MM-DD HH | 平台 | 形式]`，不要改写、删除或猜测该标记。
 
 --- 笔记内容 ---
 
@@ -739,7 +753,7 @@ def _batch_summarize(
 
 def _build_collection_summary_prompt(
     combined_text: str, note_count: int, style: str, extras: str = None,
-    mode: str = "overview",
+    mode: str = "overview", stats: dict = None, author_name: str = None,
 ) -> str:
     """构建收藏集总结的 prompt（支持多模式，强化重点提炼）"""
     mode_prompts = {
@@ -776,18 +790,24 @@ def _build_collection_summary_prompt(
 3. 二级分支为该主题下的关键点
 4. 用 Markdown 列表格式（- / -- / ---）表示层级
 5. 总节点数不超过 30 个""",
-        "trajectory": f"""你是一个专业的个人内容轨迹分析师。请根据以下 {note_count} 篇按时间顺序排列的笔记内容，生成这位博主的「人生轨迹」总结。
+        "trajectory": f"""你是专业的博主内容画像分析师。请根据以下 {note_count} 篇按创建时间排序的笔记，为博主「{author_name or '未知'}」生成一份证据驱动的画像分析。
 
-**核心要求：按时间线展示博主的内容演变，提炼成长脉络。**
+# 博主「{author_name or '未知'}」画像分析
 
-1. 按笔记时间排列，每个时间节点标注：日期 -> 平台 -> 博主发了什么 -> 一句话内容摘要
-2. 跨平台对比：同一时期不同平台的内容是否有关联或呼应
-3. 提炼博主内容主题的演变（早期关注什么 -> 中期转向什么 -> 近期聚焦什么）
-4. 最后附「最近动态」— 列出最近 2-3 条内容摘要
-5. 附「内容演变分析」— 总结这位博主的创作方向变化（不超过 300 字）
-6. 附「博主画像分析」— 基于笔记内容推断博主的身份定位、内容领域、目标受众与人设特征（不超过 200 字，仅基于内容推断，不编造数据）
-7. 附「博主喜好与特点」— 提炼博主的创作风格偏好、主题偏好、表达习惯与视觉风格（不超过 200 字）
-8. 使用 Markdown 格式输出""",
+先用一段简短摘要概括博主的内容方向与创作轨迹。随后必须严格包含以下五个维度，并为每个维度给出一个明确结论，以及 2-4 条以「依据」开头的要点。依据必须引用输入中的具体标题、日期、标签、平台、形式或系统统计值，不得只写抽象判断：
+
+## 风格特征
+## 内容偏好
+## 发布规律
+## 人设定位
+## 个人特质
+
+最后附上「## 创作轨迹要点」，用简短时间线说明内容变化，并只基于输入证据。注意：`created_at` 是笔记记录时间戳，不一定是实际发布时间；证据不可用时必须明确报告「暂无证据」，不得推断或编造。系统统计仅供参考，禁止自行数数、重新统计或发明统计值。对于输入未提供的粉丝、点赞等数据不要分析。
+
+**系统统计（由程序计算，禁止自行数数）**
+{json.dumps(stats or {}, ensure_ascii=False, indent=2)}
+
+使用 Markdown 格式输出，不超过 1200 字。""",
     }
     prompt = mode_prompts.get(mode, mode_prompts["overview"])
     style_desc = get_style_format(style)

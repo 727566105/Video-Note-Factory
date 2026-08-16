@@ -1,7 +1,52 @@
 from datetime import datetime
 import json
 
-from app.services.collection import _build_author_stats
+from app.services.collection import _build_author_stats, _build_collection_summary_prompt
+
+
+def test_trajectory_prompt_requires_five_evidence_based_dimensions():
+    prompt = _build_collection_summary_prompt(
+        "### 笔记 1/2 | 2026-07-12 12:39 | 抖音 | 图文/实况 | 作者：a\ntext",
+        2,
+        None,
+        mode="trajectory",
+        author_name="Hiii",
+        stats={"total": 2, "span_days": 0, "span_text": "2026-07-12", "frequency_per_week": 14.0,
+               "peak_day": {"date": "2026-07-12", "count": 2}, "active_days": 1,
+               "time_buckets": {"凌晨(0-6)": 0, "上午(6-12)": 0, "下午(12-18)": 2, "晚间(18-24)": 0},
+               "platforms": {"抖音": 2}, "formats": {"图文/实况": 2}, "avg_duration_sec": None},
+    )
+    for heading in ("风格特征", "内容偏好", "发布规律", "人设定位", "个人特质", "创作轨迹要点"):
+        assert heading in prompt
+    assert "系统统计" in prompt
+    assert "禁止自行数数" in prompt
+    assert "互动" not in prompt
+
+
+def test_non_trajectory_prompt_does_not_receive_profile_stats():
+    prompt = _build_collection_summary_prompt("text", 1, None, mode="overview", stats={"total": 1})
+    assert "系统统计" not in prompt
+    assert "风格特征" not in prompt
+
+
+def test_batch_prompt_requires_metadata_prefix(monkeypatch):
+    from app.services import collection
+
+    captured = {}
+
+    class GPT:
+        def summarize(self, source):
+            captured["prompt"] = source.extras
+            return "summary"
+
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+    result = collection._batch_summarize(
+        "### 笔记 1/1 | [2026-07-12 12:39 | 抖音 | 图文/实况] | 作者：标题\n正文",
+        1, None, None, "trajectory", None, None,
+    )
+    assert result == "summary"
+    assert "必须让每篇摘要开头保留原笔记的元数据标记" in captured["prompt"]
+    assert "[YYYY-MM-DD HH | 平台 | 形式]" in captured["prompt"]
 
 
 def test_build_author_stats_uses_all_items_and_same_day_peak():
