@@ -657,3 +657,370 @@ def test_corrupt_transcript_skips_entry_without_crashing(monkeypatch, tmp_path):
     assert "正常笔记正文" in prompt
     assert "坏转写" not in prompt
     assert '"total": 1' in prompt
+
+
+def test_transcript_segments_used_when_full_text_empty_or_missing(monkeypatch, tmp_path):
+    """转写 full_text 为空字符串/缺失 → 拼接 segments[].text 兜底，header 标注 [转写原文]"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者",
+        "created_at": datetime(2026, 7, 12, 12, 39), "duration": 90, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    prompts = []
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    transcript_path = tmp_path / "transcript.json"
+    monkeypatch.setattr(
+        collection, "find_note_file",
+        lambda **kwargs: None if kwargs["file_type"] == "note" else transcript_path,
+    )
+
+    class GPT:
+        def summarize(self, source):
+            prompts.append(source.extras)
+            return "result"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    # 情况 A：full_text 为空字符串 → 走 segments 拼接
+    transcript_path.write_text(
+        json.dumps({"full_text": "", "segments": [{"text": "第一段"}, {"text": "第二段"}]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+    assert result is not None
+    assert "第一段第二段" in prompts[-1]
+    assert "[转写原文]" in prompts[-1]
+
+    # 情况 B：无 full_text key → 走 segments 拼接
+    transcript_path.write_text(json.dumps({"segments": [{"text": "仅段"}]}, ensure_ascii=False), encoding="utf-8")
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+    assert result is not None
+    assert "仅段" in prompts[-1]
+
+
+def test_mixed_note_and_transcript_entries(monkeypatch, tmp_path):
+    """混合合集：t1 有笔记用原文、t2 无笔记用转写，[转写原文] 标注隔离不串扰"""
+    from app.services import collection
+
+    tasks = [
+        type("Task", (), {
+            "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+            "title": "有笔记", "platform": "douyin", "author": "作者",
+            "created_at": datetime(2026, 7, 12, 12, 39), "duration": 90, "description": "", "tags": "{}",
+        })(),
+        type("Task", (), {
+            "task_id": "t2", "author_id": "a2", "author_name": "作者", "video_id": "v2",
+            "title": "用转写", "platform": "bilibili", "author": "作者",
+            "created_at": datetime(2026, 7, 13, 12, 39), "duration": 60, "description": "", "tags": "{}",
+        })(),
+    ]
+    items = [type("Item", (), {"task_id": t.task_id, "position": index})() for index, t in enumerate(tasks)]
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    prompts = []
+    task_index = {"value": 0}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return items if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                task = tasks[task_index["value"]]
+                task_index["value"] += 1
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "笔记正文A"}, ensure_ascii=False), encoding="utf-8")
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(json.dumps({"full_text": "转写正文B"}, ensure_ascii=False), encoding="utf-8")
+
+    def fake_find_note_file(**kwargs):
+        if kwargs["file_type"] == "note":
+            return note_path if kwargs["task_id"] == "t1" else None
+        return transcript_path if kwargs["task_id"] == "t2" else None
+    monkeypatch.setattr(collection, "find_note_file", fake_find_note_file)
+
+    class GPT:
+        def summarize(self, source):
+            prompts.append(source.extras)
+            return "result"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+    assert result is not None
+    prompt = prompts[-1]
+    assert '"total": 2' in prompt
+    assert "笔记正文A" in prompt
+    assert "转写正文B" in prompt
+    # 转写条目标注 [转写原文]，笔记条目不标注
+    assert "用转写 [转写原文]" in prompt
+    assert "有笔记 [转写原文]" not in prompt
+
+
+def test_transcript_suffix_in_overview_mode(monkeypatch, tmp_path):
+    """overview 模式：转写兜底条目标题后同样带 [转写原文] 标注"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题X", "platform": "douyin", "author": "作者",
+        "created_at": datetime(2026, 7, 12, 12, 39), "duration": 90, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    prompts = []
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(json.dumps({"full_text": "转写内容Y"}, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(
+        collection, "find_note_file",
+        lambda **kwargs: None if kwargs["file_type"] == "note" else transcript_path,
+    )
+
+    class GPT:
+        def summarize(self, source):
+            prompts.append(source.extras)
+            return "result"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+    assert result is not None
+    prompt = prompts[-1]
+    assert "标题X [转写原文]" in prompt
+    assert "转写内容Y" in prompt
+
+
+def test_multiple_long_transcripts_each_compressed(monkeypatch, tmp_path):
+    """多篇超长转写（各 >8000 字）→ 每篇各自先单独压缩（long-entry），再参与批次"""
+    from app.services import collection
+
+    tasks = [
+        type("Task", (), {
+            "task_id": f"t{i}", "author_id": f"a{i}", "author_name": "作者", "video_id": f"v{i}",
+            "title": f"标题{i}", "platform": "douyin", "author": "作者",
+            "created_at": datetime(2026, 7, 12, 10, i), "duration": 60, "description": "", "tags": "{}",
+        })() for i in range(2)
+    ]
+    items = [type("Item", (), {"task_id": t.task_id, "position": idx})() for idx, t in enumerate(tasks)]
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    captured = {"long": [], "batch": []}
+    task_index = {"value": 0}
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return items if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                task = tasks[task_index["value"]]
+                task_index["value"] += 1
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(json.dumps({"full_text": "长" * 9000}, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(
+        collection, "find_note_file",
+        lambda **kwargs: None if kwargs["file_type"] == "note" else transcript_path,
+    )
+
+    class GPT:
+        def summarize(self, source):
+            if source.title == "long-entry":
+                captured["long"].append(source.extras)
+                return "### 摘要\n压缩要点"
+            if source.title == "batch":
+                captured["batch"].append(source.extras)
+                return "### 摘要\n批次要点"
+            return "# 最终总结"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+    assert result is not None
+    assert len(captured["long"]) == 2, f"期望 2 次超长单篇压缩，实际 {len(captured['long'])}"
+    assert any("压缩要点" in p for p in captured["batch"])
+
+
+def test_batch_summarize_char_boundary_two_plus_one(monkeypatch):
+    """8000 字动态分批边界：3×2660+30=8010>8000 → 每批 2 篇 → 2 批（2+1）"""
+    from app.services import collection
+
+    captured = []
+
+    class GPT:
+        def summarize(self, source):
+            captured.append(source.extras)
+            return "### 摘要\n要点"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection._batch_summarize(
+        "\n\n---\n\n".join(["x" * 2660] * 3), 3, None, None, "overview", None, None,
+    )
+    assert result is not None
+    assert len(captured) == 2, f"期望 2 批（2+1），实际 {len(captured)} 批"
+    assert "请将以下 2 篇笔记" in captured[0]
+    assert "请将以下 1 篇笔记" in captured[1]
+
+
+def test_transcript_full_text_non_string_falls_back_to_segments(monkeypatch, tmp_path):
+    """full_text 异常类型（int）→ 防御回退 segments，不再把非 str 值塞进 prompt"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者",
+        "created_at": datetime(2026, 7, 12, 12, 39), "duration": 90, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    prompts = []
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(
+        json.dumps({"full_text": 123, "segments": [{"text": "段内容"}]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        collection, "find_note_file",
+        lambda **kwargs: None if kwargs["file_type"] == "note" else transcript_path,
+    )
+
+    class GPT:
+        def summarize(self, source):
+            prompts.append(source.extras)
+            return "result"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+    assert result is not None
+    prompt = prompts[-1]
+    assert "段内容" in prompt
+    assert "123" not in prompt
+
+
+def test_transcript_segments_skip_non_dict_entries(monkeypatch, tmp_path):
+    """segments 含非 dict 元素（str/int）→ isinstance 守卫跳过，生成不抛异常"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者",
+        "created_at": datetime(2026, 7, 12, 12, 39), "duration": 90, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    prompts = []
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(
+        json.dumps({"segments": [{"text": "好段"}, "坏", 123]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        collection, "find_note_file",
+        lambda **kwargs: None if kwargs["file_type"] == "note" else transcript_path,
+    )
+
+    class GPT:
+        def summarize(self, source):
+            prompts.append(source.extras)
+            return "result"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
+    assert result is not None
+    assert "好段" in prompts[-1]

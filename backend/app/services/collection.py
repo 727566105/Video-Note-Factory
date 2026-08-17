@@ -601,7 +601,8 @@ def _generate_collection_summary_inner(
             if transcript_path and transcript_path.exists():
                 try:
                     transcript_data = json.loads(transcript_path.read_text(encoding="utf-8"))
-                    md_content = transcript_data.get("full_text") or ""
+                    raw_full_text = transcript_data.get("full_text")
+                    md_content = raw_full_text if isinstance(raw_full_text, str) else ""
                     if not md_content:
                         segments = transcript_data.get("segments") or []
                         md_content = "".join(seg.get("text", "") for seg in segments if isinstance(seg, dict))
