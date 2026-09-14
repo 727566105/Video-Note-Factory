@@ -101,6 +101,7 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 ## 架构边界
 
 - **路由层只编排**：参数校验 + 调 service + 用 `ResponseWrapper`（`app/utils/response.py`）返回 `{code,msg,data}`。业务逻辑放 service/DAO。
+- **宽松鉴权仅限白名单路由**：`get_current_user_flexible`（支持 `?token=` query 传参）目前只应挂在 `note_share.py` 的分享包下载等无 cookie/敏感数据路由。新增路由**禁止**用它对 cookie/配置/备份等敏感数据放行——grep `get_current_user_flexible` 做审计（本次已把 `/backup/download` 从它改为 `require_admin`）。
 - **DAO 层不返回 JSON**：返回 ORM 对象或原始数据，序列化在路由层。
 - **路径管理统一走 `path_helper.py`**：不要在业务代码里手拼 `data/video/...` 路径，用 `get_video_folder` / `find_note_file` / `sanitize_path_name` 等。
 - **数据库替换 SQLite 文件前必须 `engine.dispose()`**（释放连接池），否则 Windows/文件锁导致写入失败。
@@ -239,6 +240,8 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **打包**：改完代码用 `cd browser-extension && zip -rq ../videonote-helper-vX.Y.Z.zip manifest.json background/ popup/ options/ icons/`。zip 在仓库根，被 .gitignore（不入仓库）。
 - **版本号**：`manifest.json` 的 `version` 字段，每次改动递增（用户重载插件能识别更新）。
 - **Cookie 功能是管理员专属（三层防御，勿放开）**：后端 `update_downloader_cookie` / `test_downloader_cookie` / `get_downloader_cookie/{platform}`（`config.py`）均 `require_admin`（未登录 401、普通用户 403）；插件 `popup.js` 三层防御——`applyCookiePermission()` 隐藏非管理员的 Cookie Tab、localStorage 恢复 Tab 需 `authRole==='admin'`、`onPush()` 运行时独立 `getAuth()` 二次校验（`authRole` 缺失按非管理员 fail-closed）。**UI 不显示"推 Cookie 需管理员"类提示文案**（用户明确要求移除，普通用户直接看不到 Cookie 功能即可）；**登录前文案也不得提及 Cookie**（登录遮罩只说"提交笔记任务"，authGate 阶段无法区分角色，提及即向普通用户泄露功能存在）。`update_downloader_cookie` 有审计日志（记录 username/id/platform）。权限矩阵测试见 `tests/test_cookie_endpoint_auth.py`（401/403/200 + 输入边界）。
+
+- **生产环境判活与控制台分诊**：生产站点 `https://videonote.yangzai.fun:16666`。判活探针：`/api/sys_health` 返回 200 且 `/api/tasks` 返回 401（后端活着在鉴权）= 后端正常；503/502 = 后端瞬时不可用。控制台出现「生成笔记失败」+ 503 时先探测当前状态——可能是 DevTools「Preserve log」累积的历史残留，未必是当前故障。autocomplete 警告 / `LanguageDetector` / `bootstrap-autofill-overlay.js`（Bitwarden 扩展）postMessage 报错均为无害噪音，不要误当 bug 排查。
 
 ## 抖音 URL 解析（关键 gotcha）
 
