@@ -1024,3 +1024,56 @@ def test_transcript_segments_skip_non_dict_entries(monkeypatch, tmp_path):
     result = collection.generate_collection_summary(DB(), "c1", 1, mode="overview")
     assert result is not None
     assert "好段" in prompts[-1]
+
+
+def test_blank_note_markdown_falls_back_to_transcript(monkeypatch, tmp_path):
+    """笔记 markdown 为纯空白时视为无内容，触发转写兜底（strip 判断）"""
+    from app.services import collection
+
+    task = type("Task", (), {
+        "task_id": "t1", "author_id": "a1", "author_name": "作者", "video_id": "v1",
+        "title": "标题", "platform": "douyin", "author": "作者",
+        "created_at": datetime(2026, 7, 12, 12, 39), "duration": 90, "description": "", "tags": "{}",
+    })()
+    item = type("Item", (), {"task_id": "t1", "position": 1})()
+    collection_obj = type("Collection", (), {"id": "c1", "user_id": 1, "name": "合集"})()
+    prompts = []
+
+    class Query:
+        def __init__(self, model): self.model = model
+        def filter(self, *args): return self
+        def order_by(self, *args): return self
+        def all(self): return [item] if self.model is collection.CollectionItem else []
+        def first(self):
+            if self.model is collection.Collection:
+                return collection_obj
+            if self.model is collection.VideoTask:
+                return task
+            return None
+
+    class DB:
+        def query(self, model): return Query(model)
+        def add(self, obj): pass
+        def commit(self): pass
+        def refresh(self, obj): pass
+
+    note_path = tmp_path / "note.json"
+    note_path.write_text(json.dumps({"markdown": "   \n  "}, ensure_ascii=False), encoding="utf-8")
+    transcript_path = tmp_path / "transcript.json"
+    transcript_path.write_text(json.dumps({"full_text": "转写正文C"}, ensure_ascii=False), encoding="utf-8")
+
+    def fake_find_note_file(**kwargs):
+        return note_path if kwargs["file_type"] == "note" else transcript_path
+    monkeypatch.setattr(collection, "find_note_file", fake_find_note_file)
+
+    class GPT:
+        def summarize(self, source):
+            prompts.append(source.extras)
+            return "result"
+    monkeypatch.setattr(collection, "_get_gpt", lambda *args: GPT())
+
+    result = collection.generate_collection_summary(DB(), "c1", 1, mode="trajectory")
+    assert result is not None
+    prompt = prompts[-1]
+    assert "转写正文C" in prompt
+    assert "[转写原文]" in prompt

@@ -586,8 +586,8 @@ def _generate_collection_summary_inner(
                 md_content = note_data.get("markdown", "") or ""
             except Exception as e:
                 logger.warning(f"读取笔记失败: task_id={task.task_id}, error={e}")
-        if not md_content:
-            # 转写兜底：笔记缺失/为空时用音频转写全文（不截断）
+        if not md_content.strip():
+            # 转写兜底：笔记缺失/为空（含纯空白）时用音频转写全文（不截断）
             transcript_path = find_note_file(
                 task_id=task.task_id,
                 author_id=task.author_id,
@@ -610,7 +610,7 @@ def _generate_collection_summary_inner(
                         source = "transcript"
                 except Exception as e:
                     logger.warning(f"读取转写失败: task_id={task.task_id}, error={e}")
-        if not md_content:
+        if not md_content.strip():
             logger.warning(f"笔记与转写均缺失: task_id={task.task_id}")
             continue
         # 单篇限长 2000 字，避免拼接后超 token（仅笔记；转写全文不截断）
