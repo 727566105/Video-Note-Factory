@@ -591,6 +591,24 @@ export function QuickAdd({ className }: QuickAddProps) {
           </div>
         </div>
 
+        {/* 操作栏：总结设置 + 选择模型（与链接 Tab 一致） */}
+        <div className="flex w-full items-center gap-1.5 flex-wrap px-1">
+          <button
+            className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>总结设置</span>
+          </button>
+          <button
+            className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={() => setModelSelectOpen(true)}
+          >
+            <Sparkles className="w-4 h-4" />
+            {selectedModelName}
+          </button>
+        </div>
+
         {/* 已选文件列表 */}
         {selectedFiles.length > 0 && (
           <div className="w-full flex flex-col gap-2">
