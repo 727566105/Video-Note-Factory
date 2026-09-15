@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2, FileBox, X } from 'lucide-react'
+import { Sparkles, Link, SlidersHorizontal, Upload, Clipboard, Zap, Loader2, Wand2, X, UploadCloud } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useHomeGuide } from '@/hooks/useHomeGuide'
@@ -557,18 +557,10 @@ export function QuickAdd({ className }: QuickAddProps) {
 
       {/* 上传标签页 */}
       {activeTab === 'upload' && (
-      <div className="flex w-full max-w-[820px] flex-col items-center gap-4">
-        {/* 上传区域 */}
-        <div
-          className="app-surface flex w-full cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-input px-4 py-8 transition-[border-color,box-shadow,transform] hover:border-primary/45"
-          onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
-          onDrop={handleDrop}
-          onClick={pickFiles}
-        >
-          <FileBox className="w-8 h-8 text-muted-foreground -mb-2" />
-
-          {/* 视觉化总结开关 */}
-          <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/60 px-4 py-2">
+      <div className="flex w-full max-w-[820px] flex-col items-stretch gap-4">
+        {/* 顶部工具栏：视觉化总结（左）+ 模型/总结设置（右） */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2.5 shadow-xs">
+          <div className="flex items-center gap-2.5">
             <Label htmlFor="visual-summary" className="text-sm font-medium cursor-pointer">视觉化总结</Label>
             <Switch
               id="visual-summary"
@@ -577,36 +569,41 @@ export function QuickAdd({ className }: QuickAddProps) {
               className="data-[state=checked]:bg-primary"
             />
           </div>
-
-          <Button variant="default" className="mb-2" type="button">选择音视频文件</Button>
-
-          <div className="text-center px-2">
-            <p className="text-sm text-foreground/50">
-              <span className="font-semibold">点击上传或拖拽至此处</span>
-              <span className="pl-1">可同时选择多个文件 (单个文件大小 ≤2G)</span>
-            </p>
-            <span className="text-xs text-foreground/40">
-              支持格式：mp3, mp4, mov, m4a, wav, webm, avi, mkv, aac, flac, ogg, wma, wmv, flv 等
-            </span>
+          <div className="flex items-center gap-1">
+            <button
+              className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              onClick={() => setModelSelectOpen(true)}
+            >
+              <Sparkles className="w-4 h-4" />
+              {selectedModelName}
+            </button>
+            <button
+              className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span className="hidden sm:inline">总结设置</span>
+              <span className="sm:hidden">设置</span>
+            </button>
           </div>
         </div>
 
-        {/* 操作栏：总结设置 + 选择模型（与链接 Tab 一致） */}
-        <div className="flex w-full items-center gap-1.5 flex-wrap px-1">
-          <button
-            className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            <span>总结设置</span>
-          </button>
-          <button
-            className="interactive-lift flex h-8 items-center justify-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            onClick={() => setModelSelectOpen(true)}
-          >
-            <Sparkles className="w-4 h-4" />
-            {selectedModelName}
-          </button>
+        {/* 拖放主区 */}
+        <div
+          className="app-surface flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-input px-4 py-14 transition-[border-color,box-shadow,transform] hover:border-primary/60"
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+          onDrop={handleDrop}
+          onClick={pickFiles}
+        >
+          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-light text-primary">
+            <UploadCloud className="h-8 w-8" />
+          </div>
+          <p className="text-base font-semibold text-foreground">拖拽音视频文件到此处</p>
+          <p className="text-sm text-muted-foreground">或点击选择文件</p>
+          <Button variant="default" className="mt-3" type="button">选择音视频文件</Button>
+          <p className="mt-4 text-xs text-muted-foreground/50">
+            支持 mp3 · mp4 · mov · m4a · wav · webm · avi · mkv · flac 等
+          </p>
         </div>
 
         {/* 已选文件列表 */}
@@ -632,48 +629,50 @@ export function QuickAdd({ className }: QuickAddProps) {
           </div>
         )}
 
-        {/* 多文件处理选项 */}
-        {selectedFiles.length > 1 && (
-          <div className="w-full flex items-center gap-2 px-1">
-            <span className="text-sm text-muted-foreground">多文件处理：</span>
-            <button
-              className={cn(
-                "px-3 py-1 rounded-md text-sm transition-colors",
-                multiFileMode === 'separate'
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              )}
-              onClick={() => setMultiFileMode('separate')}
-            >
-              每个独立任务
-            </button>
-            <button
-              className={cn(
-                "px-3 py-1 rounded-md text-sm transition-colors",
-                multiFileMode === 'merge'
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              )}
-              onClick={() => setMultiFileMode('merge')}
-            >
-              合并为一个任务
-            </button>
+        {/* 底部操作条：多文件模式（左）+ 提交（右） */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2.5 shadow-xs">
+          <div className="flex items-center gap-2">
+            {selectedFiles.length > 1 && (
+              <>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">多文件处理</span>
+                <button
+                  className={cn(
+                    "px-3 py-1 rounded-md text-sm transition-colors",
+                    multiFileMode === 'separate'
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setMultiFileMode('separate')}
+                >
+                  独立任务
+                </button>
+                <button
+                  className={cn(
+                    "px-3 py-1 rounded-md text-sm transition-colors",
+                    multiFileMode === 'merge'
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setMultiFileMode('merge')}
+                >
+                  合并
+                </button>
+              </>
+            )}
           </div>
-        )}
-
-        {/* 提交按钮 */}
-        <Button
-          className="flex h-12 w-[280px] items-center gap-2 rounded-xl text-base font-semibold"
-          onClick={handleUploadGenerate}
-          disabled={selectedFiles.length === 0 || isGenerating}
-        >
-          {isGenerating ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <Sparkles className="w-5 h-5" />
-          )}
-          {isGenerating ? '提交中...' : `生成笔记 (${selectedFiles.length})`}
-        </Button>
+          <Button
+            className="flex h-10 items-center gap-2 rounded-lg px-6 text-sm font-semibold"
+            onClick={handleUploadGenerate}
+            disabled={selectedFiles.length === 0 || isGenerating}
+          >
+            {isGenerating ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {isGenerating ? '提交中...' : `生成笔记 (${selectedFiles.length})`}
+          </Button>
+        </div>
       </div>
       )}
 
