@@ -1,7 +1,8 @@
 from typing import List
 from app.gpt.base import GPT
 from openai import OpenAI
-from app.gpt.prompt import BASE_PROMPT, AI_SUM, SCREENSHOT
+from app.gpt.prompt import AI_SUM, SCREENSHOT
+from app.gpt.prompt_builder import generate_base_prompt
 from app.gpt.utils import fix_markdown
 from app.models.gpt_model import GPTSource
 from app.models.transcriber_model import TranscriptSegment
@@ -33,11 +34,12 @@ class DeepSeekGPT(GPT):
             for seg in segments
         ]
 
-    def create_messages(self, segments: List[TranscriptSegment], title: str,tags:str):
-        content = BASE_PROMPT.format(
-            video_title=title,
+    def create_messages(self, segments: List[TranscriptSegment], title: str, tags: str, output_language: str = None):
+        content = generate_base_prompt(
+            title=title,
             segment_text=self._build_segment_text(segments),
-            tags=tags
+            tags=tags,
+            output_language=output_language,
         )
         if self.screenshot:
             print(":需要截图")
@@ -48,7 +50,7 @@ class DeepSeekGPT(GPT):
     def summarize(self, source: GPTSource) -> str:
         self.screenshot = source.screenshot
         source.segment = self.ensure_segments_type(source.segment)
-        messages = self.create_messages(source.segment, source.title,source.tags)
+        messages = self.create_messages(source.segment, source.title, source.tags, source.output_language)
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,

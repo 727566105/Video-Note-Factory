@@ -1,0 +1,100 @@
+name: Test
+
+on:
+  push:
+    branches: [main, dev3.0]
+  pull_request:
+    branches: [main, dev3.0]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Create .env for backend
+        run: |
+          echo "JWT_SECRET_KEY=ci-test-secret" >> .env
+          echo "BACKEND_PORT=8483" >> .env
+          echo "WEBDAV_ENCRYPTION_KEY=oBAjxywnvDe7gAz4AtZ4swgwC0RTIfro4JVFBveMkPg=" >> .env
+          echo "DEFAULT_ADMIN_PASSWORD=123456" >> .env
+      - name: Run backend tests
+        run: |
+          cd backend
+          python3 -c "from passlib.context import CryptContext; ctx = CryptContext(schemes=['bcrypt'], deprecated='auto'); h = ctx.hash('test123'); print(f'hash ok: {ctx.verify(\"test123\", h)}')"
+          python3 -m pytest tests/ -v
+
+  frontend-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0  # 与 package.json 的 packageManager 声明保持一致（pnpm 11 需 Node ≥22.13）
+      - name: Install frontend dependencies
+        run: |
+          cd videoNote_frontend
+          pnpm install
+      - name: Run Vitest tests
+        run: |
+          cd videoNote_frontend
+          pnpm test
+
+  frontend-e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Create .env for backend
+        run: |
+          echo "JWT_SECRET_KEY=ci-test-secret" >> .env
+          echo "BACKEND_PORT=8483" >> .env
+          echo "WEBDAV_ENCRYPTION_KEY=oBAjxywnvDe7gAz4AtZ4swgwC0RTIfro4JVFBveMkPg=" >> .env
+          echo "DEFAULT_ADMIN_PASSWORD=123456" >> .env
+      - name: Test backend login API
+        run: |
+          cd backend
+          python3 main.py &
+          sleep 15
+          curl -s -X POST http://127.0.0.1:8483/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"123456"}' || echo "LOGIN_FAILED"
+          kill %1 2>/dev/null || true
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0  # 与 package.json 的 packageManager 声明保持一致（pnpm 11 需 Node ≥22.13）
+      - name: Install frontend dependencies
+        run: |
+          cd videoNote_frontend
+          pnpm install
+      - name: Install Playwright browsers
+        run: |
+          cd videoNote_frontend
+          npx playwright install chromium
+      - name: Run Playwright tests
+        run: |
+          cd videoNote_frontend
+          pnpm test:e2e

@@ -13,8 +13,7 @@ export interface ProviderUpdateData {
 }
 
 export interface ConnectionTestData {
-  base_url: string
-  api_key: string
+  id: string
 }
 
 export const getProviderList = async () => {

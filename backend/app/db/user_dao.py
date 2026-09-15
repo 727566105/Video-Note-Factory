@@ -1,3 +1,8 @@
+import os
+import secrets
+import hashlib
+import re
+from datetime import datetime, timezone
 from app.db.models.users import User
 from app.db.engine import get_db
 from app.utils.logger import get_logger
@@ -6,6 +11,15 @@ from passlib.context import CryptContext
 logger = get_logger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+INSECURE_DEFAULT_ADMIN_PASSWORDS = {"", "123456", "admin", "password", "change_me_on_first_login"}
+
+
+def is_insecure_default_admin_password(password: str | None) -> bool:
+    return (password or "").strip() in INSECURE_DEFAULT_ADMIN_PASSWORDS
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def hash_password(password: str) -> str:
@@ -26,6 +40,7 @@ def create_user(username: str, password: str, role: str = "user") -> User:
             username=username,
             password_hash=hash_password(password),
             role=role,
+            password_changed_at=_now_utc(),
         )
         db.add(user)
         db.commit()
@@ -86,6 +101,7 @@ def update_user(user_id: int, username: str = None, password: str = None, role: 
             user.username = username
         if password:
             user.password_hash = hash_password(password)
+            user.password_changed_at = _now_utc()
         if role:
             user.role = role
         db.commit()
@@ -125,17 +141,128 @@ def seed_default_user():
     db = next(get_db())
     try:
         existing = db.query(User).filter_by(username="admin").first()
-        if not existing:
-            user = User(
-                username="admin",
-                password_hash=hash_password("123456"),
-                role="admin",
-            )
-            db.add(user)
-            db.commit()
-            logger.info("默认管理员账号已创建: admin/123456")
+        if existing:
+            return
+
+        default_password = os.getenv("DEFAULT_ADMIN_PASSWORD")
+        env = os.getenv("ENV", "development").lower()
+
+        if env == "production" and is_insecure_default_admin_password(default_password):
+            raise RuntimeError("生产环境必须设置安全的 DEFAULT_ADMIN_PASSWORD，且不能使用默认弱口令")
+
+        if not default_password:
+            default_password = "dev_admin_change_me"
+
+        user = User(
+            username="admin",
+            password_hash=hash_password(default_password),
+            role="admin",
+            password_changed_at=_now_utc(),
+        )
+        db.add(user)
+        db.commit()
+        logger.info("默认管理员账号已创建: admin")
+        logger.warning("请立即修改默认管理员密码！")
     except Exception as e:
         db.rollback()
         logger.error(f"种子默认用户失败: {e}")
+        raise
+    finally:
+        db.close()
+
+
+def generate_api_key(user_id: int) -> str:
+    """生成并保存 API Key（格式：vn_ + 32位随机hex），用于 MCP 鉴权。
+    数据库存哈希值，明文仅返回一次。"""
+    from datetime import datetime
+    db = next(get_db())
+    try:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user:
+            raise ValueError("用户不存在")
+        api_key = f"vn_{secrets.token_hex(16)}"
+        user.api_key = api_key  # 保留明文用于前端展示脱敏（仅前8后4）
+        user.api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+        user.api_key_created_at = datetime.now()
+        user.api_key_last_used_at = None
+        db.commit()
+        logger.info(f"用户 {user.username} 的 API Key 已生成/重置")
+        return api_key
+    except Exception as e:
+        db.rollback()
+        logger.error(f"生成 API Key 失败: {e}")
+        raise
+    finally:
+        db.close()
+
+
+# API Key 格式：vn_ + 32 位 hex（共 35 字符）
+_API_KEY_PATTERN = re.compile(r"^vn_[a-f0-9]{32}$")
+
+
+def get_user_by_api_key(api_key: str):
+    """通过 API Key 查用户（MCP 鉴权用）。
+    先格式校验，再哈希后按 hash 查询，避免明文比对和注入风险。
+    认证成功后异步更新 last_used_at（失败静默忽略，不影响请求）。"""
+    if not api_key or not _API_KEY_PATTERN.match(api_key):
+        return None
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    db = next(get_db())
+    try:
+        user = db.query(User).filter_by(api_key_hash=key_hash).first()
+        if user:
+            # 非阻塞更新最后使用时间（失败不影响鉴权）
+            try:
+                from datetime import datetime
+                # 先 expunge 让对象脱离 session（变为 detached），再直接 UPDATE 避免 expire 问题
+                db.expunge(user)
+                db.query(User).filter_by(id=user.id).update(
+                    {"api_key_last_used_at": datetime.now()}
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+        return user
+    finally:
+        db.close()
+
+
+def clear_api_key(user_id: int) -> bool:
+    """清除用户的 API Key"""
+    db = next(get_db())
+    try:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user:
+            return False
+        user.api_key = None
+        user.api_key_hash = None
+        user.api_key_created_at = None
+        user.api_key_last_used_at = None
+        db.commit()
+        logger.info(f"用户 {user.username} 的 API Key 已清除")
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"清除 API Key 失败: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def get_api_key_info(user_id: int) -> dict:
+    """获取用户的 API Key 信息（脱敏，不返回明文）"""
+    db = next(get_db())
+    try:
+        user = db.query(User).filter_by(id=user_id).first()
+        if not user or not user.api_key:
+            return {"exists": False, "masked": None}
+        key = user.api_key
+        masked = key[:8] + "*" * (len(key) - 12) + key[-4:] if len(key) > 12 else "****"
+        return {
+            "exists": True,
+            "masked": masked,
+            "created_at": user.api_key_created_at.isoformat() if user.api_key_created_at else None,
+            "last_used_at": user.api_key_last_used_at.isoformat() if user.api_key_last_used_at else None,
+        }
     finally:
         db.close()

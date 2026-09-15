@@ -6,6 +6,12 @@ import { Download, FileImage, Maximize, Minimize } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import 'markmap-toolbar/dist/style.css'
 
+function stripImages(md: string): string {
+  return md
+    .replace(/<img[^>]*>/gi, '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+}
+
 export interface MarkmapEditorProps {
   /** 要渲染的 Markdown 文本 */
   value: string
@@ -65,7 +71,7 @@ export default function MarkmapEditor({
   // 导出HTML思维导图
   const exportHtml = () => {
     try {
-      const { root } = transformer.transform(value)
+      const { root } = transformer.transform(stripImages(value))
       const data = JSON.stringify(root)
       
       // 创建HTML内容
@@ -114,7 +120,6 @@ export default function MarkmapEditor({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('导出HTML失败:', error);
     }
   };
 
@@ -193,24 +198,20 @@ export default function MarkmapEditor({
               document.body.removeChild(a);
               URL.revokeObjectURL(url);
             } else {
-              console.error('无法创建Blob对象');
             }
           }, 'image/png');
         } catch (err) {
-          console.error('Canvas处理失败:', err);
         }
       };
       
       // 设置图片加载错误处理
       img.onerror = (error) => {
-        console.error('导出PNG失败（图片加载错误）:', error);
       };
       
       // 开始加载SVG图像 (使用Data URI而不是Blob URL)
       img.src = dataUri;
       
     } catch (error) {
-      console.error('导出PNG失败:', error);
     }
   };
 
@@ -234,7 +235,7 @@ export default function MarkmapEditor({
   useEffect(() => {
     const mm = mmRef.current
     if (!mm) return
-    const { root } = transformer.transform(value)
+    const { root } = transformer.transform(stripImages(value))
     mm.setData(root).then(() => mm.fit())
   }, [value])
 
@@ -244,7 +245,7 @@ export default function MarkmapEditor({
   // }
 
   return (
-    <div className="relative flex h-full flex-col bg-white">
+    <div className="relative flex h-full flex-col bg-background">
       {/* 全屏/退出全屏 按钮 */}
       <TooltipProvider>
         <div className="absolute top-2 right-2 z-20 flex space-x-2">
@@ -253,7 +254,7 @@ export default function MarkmapEditor({
             <TooltipTrigger asChild>
               <button
                 onClick={exportPng}
-                className="rounded p-1 hover:bg-gray-200"
+                className="rounded p-1 hover:bg-muted"
               >
                 <Download className="h-5 w-5" />
               </button>
@@ -268,7 +269,7 @@ export default function MarkmapEditor({
             <TooltipTrigger asChild>
               <button
                 onClick={exportHtml}
-                className="rounded p-1 hover:bg-gray-200"
+                className="rounded p-1 hover:bg-muted"
               >
                 <FileImage className="h-5 w-5" />
               </button>
@@ -283,7 +284,7 @@ export default function MarkmapEditor({
             <TooltipTrigger asChild>
               <button
                 onClick={isFullscreen ? exitFullscreen : enterFullscreen}
-                className="rounded p-1 hover:bg-gray-200"
+                className="rounded p-1 hover:bg-muted"
               >
                 {isFullscreen ? (
                   <Minimize className="h-5 w-5" />

@@ -12,8 +12,9 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 
-import { Info, Loader2, Plus } from 'lucide-react'
-import { message, Alert } from 'antd'
+import { Info, Loader2, Plus, X, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
+import { Alert, AlertDescription } from '@/components/ui/alert.tsx'
 import { generateNote } from '@/services/note.ts'
 import { uploadFile } from '@/services/upload.ts'
 import { useTaskStore } from '@/store/taskStore'
@@ -39,6 +40,7 @@ import { Input } from '@/components/ui/input.tsx'
 import { ClearableInput } from '@/components/ui/clearable-input.tsx'
 import { Textarea } from '@/components/ui/textarea.tsx'
 import { noteStyles, noteFormats, videoPlatforms } from '@/constant/note.ts'
+import { useSummarySettingsStore } from '@/store/summarySettingsStore'
 import { fetchModels } from '@/services/model.ts'
 import { useNavigate } from 'react-router-dom'
 
@@ -60,6 +62,7 @@ const formSchema = z
       .tuple([z.coerce.number().min(1).max(10), z.coerce.number().min(1).max(10)])
       .default([3, 3])
       .optional(),
+    output_language: z.string().optional(),
   })
   .superRefine(({ video_url, platform }, ctx) => {
     if (platform === 'local' || platform === 'local_audio') {
@@ -133,13 +136,20 @@ const NoteForm = () => {
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [showHint, setShowHint] = useState(true)
+  const [hintVisible, setHintVisible] = useState(true)
+
+  const dismissHint = () => {
+    setHintVisible(false)
+    setTimeout(() => setShowHint(false), 300)
+  }
   /* ---- 全局状态 ---- */
   const { addPendingTask, currentTaskId, setCurrentTask, retryTask } = useTaskStore()
   const currentTask = useTaskStore(state => {
     const task = state.tasks.find(t => t.id === state.currentTaskId)
     return task || null
   })
-  const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint } = useModelStore()
+  const { loadEnabledModels, modelList, smartSelectionEnabled } = useModelStore()
   const providers = useProviderStore(state => state.provider)
   const fetchProviderList = useProviderStore(state => state.fetchProviderList)
 
@@ -150,7 +160,7 @@ const NoteForm = () => {
       platform: 'bilibili',
       video_url: '',
       quality: 'medium',
-      model_name: modelList[0] ? String(modelList[0].id) : '',
+      model_name: smartSelectionEnabled ? 'smart_auto' : (modelList[0] ? String(modelList[0].id) : ''),
       style: 'minimal',
       video_interval: 4,
       grid_size: [3, 3],
@@ -170,16 +180,30 @@ const NoteForm = () => {
   useEffect(() => {
     loadEnabledModels()
     fetchProviderList()
+    const timer = setTimeout(dismissHint, 5000)
+    return () => clearTimeout(timer)
   }, [])
+  // 从总结设置 store 同步默认风格到表单（新建模式）
+  const summaryStyle = useSummarySettingsStore(s => s.style)
+  const outputLanguage = useSummarySettingsStore(s => s.outputLanguage)
+  useEffect(() => {
+    if (!currentTaskId && summaryStyle) {
+      form.setValue('style', summaryStyle, { shouldValidate: true })
+    }
+  }, [summaryStyle, currentTaskId])
   // 模型列表加载完后，同步 model_name 到表单（新建模式）
   useEffect(() => {
-    if (modelList.length > 0 && !currentTaskId) {
-      const current = form.getValues('model_name')
-      if (!current) {
-        form.setValue('model_name', String(modelList[0].id), { shouldValidate: true })
+    if (!currentTaskId) {
+      if (smartSelectionEnabled) {
+        form.setValue('model_name', 'smart_auto', { shouldValidate: true })
+      } else if (modelList.length > 0) {
+        const current = form.getValues('model_name')
+        if (!current || current === 'smart_auto') {
+          form.setValue('model_name', String(modelList[0].id), { shouldValidate: true })
+        }
       }
     }
-  }, [modelList.length, currentTaskId])
+  }, [modelList.length, currentTaskId, smartSelectionEnabled])
   useEffect(() => {
     if (!currentTask) return
     const { formData } = currentTask
@@ -203,10 +227,10 @@ const NoteForm = () => {
       extras: formData.extras || '',
       screenshot: formData.screenshot ?? false,
       link: formData.link ?? false,
-      video_understanding: formData.video_understanding ?? false,
+      video_understanding: formData.video_understanding ?? true,
       video_interval: formData.video_interval ?? 4,
       grid_size: formData.grid_size ?? [3, 3],
-      format: formData.format ?? [],
+      format: formData.format ?? ['toc', 'link', 'screenshot', 'summary'],
     })
   }, [
     // 当下面任意一个变了，就重新 reset
@@ -239,8 +263,7 @@ const NoteForm = () => {
       cb(data.url)
       setUploadSuccess(true)
     } catch (err) {
-      console.error('上传失败:', err)
-      message.error('上传失败，请重试')
+      toast.error('上传失败，请重试')
     } finally {
       setIsUploading(false)
     }
@@ -254,35 +277,36 @@ const NoteForm = () => {
     }
     const effectiveTaskId = currentTask ? currentTaskId : null
 
-    const selectedModel = modelList.find(m => String(m.id) === values.model_name)
-    const payload: NoteFormValues = {
+    const isSmartMode = values.model_name === 'smart_auto'
+    const selectedModel = isSmartMode ? null : modelList.find(m => String(m.id) === values.model_name)
+    const payload: Record<string, any> = {
       ...values,
-      model_name: selectedModel?.model_name || values.model_name,
-      provider_id: selectedModel?.provider_id || '',
+      smart_mode: isSmartMode,
+      model_name: isSmartMode ? '' : (selectedModel?.model_name || values.model_name),
+      provider_id: isSmartMode ? '' : (selectedModel?.provider_id || ''),
       task_id: effectiveTaskId || '',
+      output_language: outputLanguage,
     }
 
     // 编辑模式下校验 video_url
     if (effectiveTaskId) {
       if (!payload.video_url) {
-        message.error('该任务缺少视频链接，无法重新生成')
+        toast.error('该任务缺少视频链接，无法重新生成')
         return
       }
       retryTask(effectiveTaskId, payload)
       return
     }
 
-    // message.success('已提交任务')
     const data = await generateNote(payload)
     addPendingTask(data.task_id, values.platform, payload)
     } catch (err) {
-      console.error('提交失败:', err)
     }
   }
   const onInvalid = (errors: FieldErrors<NoteFormValues>) => {
     const firstError = Object.values(errors)[0]
     if (firstError?.message) {
-      message.error(firstError.message as string)
+      toast.error(firstError.message as string)
     }
   }
   const handleCreateNew = () => {
@@ -291,14 +315,14 @@ const NoteForm = () => {
       platform: 'bilibili',
       video_url: '',
       quality: 'medium',
-      model_name: modelList[0] ? String(modelList[0].id) : '',
+      model_name: smartSelectionEnabled ? 'smart_auto' : (modelList[0] ? String(modelList[0].id) : ''),
       style: 'minimal',
       video_interval: 4,
       grid_size: [3, 3],
-      format: [],
+      format: ['toc', 'link', 'screenshot', 'summary'],
       screenshot: false,
       link: false,
-      video_understanding: false,
+      video_understanding: true,
     })
   }
   const FormButton = () => {
@@ -401,7 +425,7 @@ const NoteForm = () => {
                 {platform === 'local' && (
                   <>
                     <div
-                      className="hover:border-primary mt-2 flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 transition-colors"
+                      className="hover:border-primary mt-2 flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-input transition-colors"
                       onDragOver={e => {
                         e.preventDefault()
                         e.stopPropagation()
@@ -423,13 +447,13 @@ const NoteForm = () => {
                       }}
                     >
                       {isUploading ? (
-                        <p className="text-center text-sm text-blue-500">上传中，请稍候…</p>
+                        <p className="text-center text-sm text-primary">上传中，请稍候…</p>
                       ) : uploadSuccess ? (
                         <p className="text-center text-sm text-green-500">上传成功！</p>
                       ) : (
-                        <p className="text-center text-sm text-gray-500">
+                        <p className="text-center text-sm text-muted-foreground">
                           拖拽视频文件到这里上传 <br />
-                          <span className="text-xs text-gray-400">或点击选择文件</span>
+                          <span className="text-xs text-muted-foreground">或点击选择文件</span>
                         </p>
                       )}
                     </div>
@@ -438,7 +462,7 @@ const NoteForm = () => {
                 {platform === 'local_audio' && (
                   <>
                     <div
-                      className="hover:border-primary mt-2 flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-gray-300 transition-colors"
+                      className="hover:border-primary mt-2 flex h-24 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-input transition-colors"
                       onDragOver={e => {
                         e.preventDefault()
                         e.stopPropagation()
@@ -460,13 +484,13 @@ const NoteForm = () => {
                       }}
                     >
                       {isUploading ? (
-                        <p className="text-center text-sm text-blue-500">上传中，请稍候…</p>
+                        <p className="text-center text-sm text-primary">上传中，请稍候…</p>
                       ) : uploadSuccess ? (
                         <p className="text-center text-sm text-green-500">上传成功！</p>
                       ) : (
-                        <p className="text-center text-sm text-gray-500">
+                        <p className="text-center text-sm text-muted-foreground">
                           拖拽音频文件到这里上传 <br />
-                          <span className="text-xs text-gray-400">支持 mp3、wav、aac、flac 等格式</span>
+                          <span className="text-xs text-muted-foreground">支持 mp3、wav、aac、flac 等格式</span>
                         </p>
                       )}
                     </div>
@@ -499,6 +523,17 @@ const NoteForm = () => {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      {/* 智能优选选项（第一项） */}
+                      <SelectItem key="smart_auto" value="smart_auto">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <span className="font-medium">智能优选</span>
+                          <span className="text-xs text-muted-foreground">
+                            自动选择最佳模型
+                          </span>
+                        </div>
+                      </SelectItem>
+                      {/* 真实模型列表 */}
                       {modelList.map(m => {
                         const provider = providers.find(p => p.id === m.provider_id)
                         const displayName = provider ? `${provider.name}/${m.model_name}` : m.model_name
@@ -613,17 +648,20 @@ const NoteForm = () => {
                 )}
               />
             </div>
-            <Alert
-              closable
-              type="error"
-              message={
-                <div>
-                  <strong>提示：</strong>
-                  <p>视频理解功能必须使用多模态模型。</p>
-                </div>
-              }
-              className="text-sm"
-            />
+            {showHint && (
+              <Alert variant="destructive" className={`relative transition-all duration-300 ease-out ${hintVisible ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0 -mt-2 overflow-hidden'}`}>
+                <AlertDescription>
+                  <strong>提示：</strong>视频理解功能必须使用多模态模型。
+                </AlertDescription>
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                  onClick={dismissHint}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </Alert>
+            )}
           </div>
 
           {/* 笔记格式 */}

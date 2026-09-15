@@ -1,14 +1,16 @@
 import base64
 import os
 import re
+import shutil
 import subprocess
 import ffmpeg
 from PIL import Image, ImageDraw, ImageFont
 
 from app.utils.logger import get_logger
-from app.utils.path_helper import get_app_dir
 
 logger = get_logger(__name__)
+
+
 class VideoReader:
     def __init__(self,
                  video_path: str,
@@ -17,18 +19,17 @@ class VideoReader:
                  unit_width=960,
                  unit_height=540,
                  save_quality=90,
-                 font_path="fonts/arial.ttf",
-                 frame_dir=None,
-                 grid_dir=None):
+                 font_path="fonts/arial.ttf"):
         self.video_path = video_path
         self.grid_size = grid_size
         self.frame_interval = frame_interval
         self.unit_width = unit_width
         self.unit_height = unit_height
         self.save_quality = save_quality
-        self.frame_dir = frame_dir or get_app_dir("output_frames")
-        self.grid_dir = grid_dir or get_app_dir("grid_output")
-        print(f"视频路径：{video_path}",self.frame_dir,self.grid_dir)
+        video_dir = os.path.dirname(video_path)
+        self._temp_dir = os.path.join(video_dir, "_temp")
+        self.frame_dir = os.path.join(self._temp_dir, "frames")
+        self.grid_dir = os.path.join(self._temp_dir, "grids")
         self.font_path = font_path
 
     def format_time(self, seconds: float) -> str:
@@ -103,40 +104,36 @@ class VideoReader:
                 base64_images.append(f"data:image/jpeg;base64,{encoded_string}")
         return base64_images
 
-    def run(self)->list[str]:
+    def run(self) -> list[str]:
         logger.info("开始提取视频帧...")
         try:
-            # 确保目录存在
-            print(self.frame_dir,self.grid_dir)
             os.makedirs(self.frame_dir, exist_ok=True)
             os.makedirs(self.grid_dir, exist_ok=True)
-            #清空帧文件夹
-            for file in os.listdir(self.frame_dir):
-                if file.startswith("frame_"):
-                    os.remove(os.path.join(self.frame_dir, file))
-            print(self.frame_dir,self.grid_dir)
-            #清空网格文件夹
-            for file in os.listdir(self.grid_dir):
-                if file.startswith("grid_"):
-                    os.remove(os.path.join(self.grid_dir, file))
-            print(self.frame_dir,self.grid_dir)
             self.extract_frames()
-            print("2#3",self.frame_dir,self.grid_dir)
             logger.info("开始拼接网格图...")
             image_paths = []
             groups = self.group_images()
             for idx, group in enumerate(groups, start=1):
                 if len(group) < self.grid_size[0] * self.grid_size[1]:
-                    logger.warning(f"⚠️ 跳过第 {idx} 组，图片不足 {self.grid_size[0] * self.grid_size[1]} 张")
+                    logger.warning(f"跳过第 {idx} 组，图片不足 {self.grid_size[0] * self.grid_size[1]} 张")
                     continue
                 out_path = self.concat_images(group, f"grid_{idx}")
                 image_paths.append(out_path)
 
-            logger.info("📤 开始编码图像...")
+            logger.info("开始编码图像...")
             urls = self.encode_images_to_base64(image_paths)
+
+            # 清理临时目录
+            if os.path.exists(self._temp_dir):
+                shutil.rmtree(self._temp_dir)
+                logger.info(f"已清理临时目录: {self._temp_dir}")
+
             return urls
         except Exception as e:
             logger.error(f"发生错误：{str(e)}")
+            # 失败时也清理临时目录
+            if os.path.exists(self._temp_dir):
+                shutil.rmtree(self._temp_dir)
             raise ValueError("视频处理失败")
 
 

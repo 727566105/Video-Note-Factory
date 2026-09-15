@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- 不备份 EncryptedSharedPreferences（包含 JWT token），安全考虑 -->
+    <exclude domain="sharedpref" path="videonote_secure_prefs.xml"/>
+</full-backup-content>

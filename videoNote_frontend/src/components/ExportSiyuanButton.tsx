@@ -1,5 +1,5 @@
 import { useState, forwardRef } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { BookOpen, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSiyuanStore } from '@/store/siyuanStore'
@@ -38,7 +38,6 @@ export const ExportSiyuanButton = forwardRef<HTMLButtonElement, ExportSiyuanButt
       await exportNote(taskId)
       toast.success('导出成功！笔记已保存到思源笔记')
     } catch (error) {
-      console.error('思源笔记导出失败:', error)
       const errorMessage =
         error instanceof Error ? error.message : '导出失败，请检查配置'
       toast.error(errorMessage)

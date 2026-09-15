@@ -12,12 +12,16 @@ export const exportConfigs = async () => {
 /**
  * 导出配置为 JSON 文件下载
  */
-export const exportConfigsFile = async () => {
-  // 获取 baseURL
-  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+import { getApiBaseURL } from '@/utils/api'
+import { useAuthStore } from '@/store/authStore'
 
-  const response = await fetch(`${baseURL}/configs/export/file`, {
+export const exportConfigsFile = async () => {
+  // 后端 /configs/export/file 受 require_admin 保护（HTTPBearer），
+  // 这里用原生 fetch 下载 blob，必须显式带 Authorization，否则 401。
+  const token = useAuthStore.getState().token
+  const response = await fetch(`${getApiBaseURL()}/configs/export/file`, {
     method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
 
   if (!response.ok) {
@@ -42,44 +46,70 @@ export const exportConfigsFile = async () => {
  * 预览配置导入文件
  * @param file 配置文件
  */
-export const previewImport = async (file: File) => {
+export const previewImport = async (file: File): Promise<ConfigPreviewResponse> => {
   const formData = new FormData()
   formData.append('file', file)
 
-  return await request.post('/configs/import/preview', formData, {
+  // request 响应拦截器成功时已剥掉 {code,msg,data} 外壳，直接返回 data（即 preview 对象）
+  return request.post('/configs/import/preview', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-  })
+  }) as unknown as Promise<ConfigPreviewResponse>
 }
 
 /**
  * 预览配置导入（JSON 数据）
  * @param configData 已解析的配置数据
  */
-export const previewImportJson = async (configData: any) => {
+export const previewImportJson = async (configData: ConfigData) => {
   return await request.post('/configs/import/preview/json', { config_data: configData })
 }
 
 /**
  * 执行配置导入
  * @param configData 配置数据
- * @param selectedItems 用户选择的配置项
- * @param credentials 敏感信息凭证
+ * @param selectedItems 用户选择的配置项（可选，空则后端自动全导入）
+ * @param credentials 敏感信息凭证（可选，空则用文件自带值）
  */
 export const executeImport = async (
-  configData: any,
-  selectedItems: string[],
+  configData: ConfigData,
+  selectedItems?: string[],
   credentials?: Record<string, Record<string, string>>
-) => {
-  return await request.post('/configs/import/execute', {
+): Promise<ImportExecuteResponse> => {
+  // request 响应拦截器成功时已剥掉 {code,msg,data} 外壳，直接返回 data（即导入结果）
+  const payload: Record<string, unknown> = {
     config_data: configData,
-    selected_items: selectedItems,
-    credentials: credentials || {},
-  })
+  }
+  if (selectedItems && selectedItems.length > 0) {
+    payload.selected_items = selectedItems
+  }
+  if (credentials) {
+    payload.credentials = credentials
+  }
+  return request.post('/configs/import/execute', payload) as unknown as Promise<ImportExecuteResponse>
 }
 
 // ==================== 类型定义 ====================
+
+/**
+ * 配置数据接口
+ */
+export interface ConfigData {
+  providers?: unknown[]
+  models?: unknown[]
+  configs?: {
+    providers?: unknown[]
+    siyuan_config?: Record<string, unknown>
+    webdav_config?: Record<string, unknown>
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+/**
+ * 导出当前配置为 JSON
+ */
 
 /**
  * 配置预览项

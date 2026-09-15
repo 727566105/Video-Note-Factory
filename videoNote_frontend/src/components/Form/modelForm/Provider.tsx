@@ -1,11 +1,15 @@
 import ProviderCard from '@/components/Form/modelForm/components/providerCard.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { useProviderStore } from '@/store/providerStore'
+import { CardSkeleton } from '@/components/Skeletons'
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 const Provider = () => {
+  const isMobile = useIsMobile()
   const providers = useProviderStore(state => state.provider)
+  const loading = useProviderStore(state => state.loading)
   const navigate = useNavigate()
   const handleClick = () => {
     navigate(`/settings/model/new`, { state: { reset: true } })
@@ -19,23 +23,32 @@ const Provider = () => {
   })
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className={cn(
+      "flex h-full flex-col gap-4",
+      isMobile ? "p-4" : ""
+    )}>
       <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-gray-700">模型供应商</h3>
+        {/* 标题 - 仅桌面端显示 */}
+        {!isMobile && (
+          <h3 className="text-sm font-semibold text-foreground">模型供应商</h3>
+        )}
         <Button
           type="button"
           onClick={handleClick}
+          size={isMobile ? 'sm' : 'default'}
           className="w-full gap-2"
         >
           <Plus className="h-4 w-4" />
           添加供应商
         </Button>
       </div>
-      
+
       <div className="flex flex-col gap-2">
-        <div className="text-xs font-medium text-gray-500">已添加的供应商</div>
+        <div className="text-xs font-medium text-muted-foreground">已添加的供应商</div>
         <div className="flex flex-col gap-1">
-          {sortedProviders && sortedProviders.length > 0 ? (
+          {loading ? (
+            <CardSkeleton count={3} />
+          ) : sortedProviders && sortedProviders.length > 0 ? (
             sortedProviders.map((provider, index) => (
               <ProviderCard
                 key={index}
@@ -48,8 +61,8 @@ const Provider = () => {
               />
             ))
           ) : (
-            <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 p-4 text-center">
-              <p className="text-xs text-gray-500">暂无供应商</p>
+            <div className="rounded-lg border-2 border-dashed border-border bg-muted p-4 text-center">
+              <p className="text-xs text-muted-foreground">暂无供应商</p>
             </div>
           )}
         </div>
@@ -57,4 +70,9 @@ const Provider = () => {
     </div>
   )
 }
+
+function cn(...args: (string | boolean | undefined)[]) {
+  return args.filter(Boolean).join(' ')
+}
+
 export default Provider

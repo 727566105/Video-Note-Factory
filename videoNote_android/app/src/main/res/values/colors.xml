@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="vn_primary">#FF006A6A</color>
+    <color name="vn_primary_dark">#FF004F4F</color>
+    <color name="vn_background">#FFFAFDFC</color>
+    <color name="vn_surface">#FFFAFDFC</color>
+    <color name="vn_error">#FFBA1A1A</color>
+</resources>

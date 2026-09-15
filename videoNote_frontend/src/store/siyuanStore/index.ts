@@ -110,7 +110,6 @@ export const useSiyuanStore = create<SiyuanStore>()(
             }
           }
         } catch (error) {
-          console.error('加载思源笔记配置失败:', error)
         }
       },
 
@@ -121,7 +120,6 @@ export const useSiyuanStore = create<SiyuanStore>()(
           // 保存成功后，使用用户输入的完整配置（不使用后端返回的脱敏配置）
           set({ config: config, isConfigured: true })
         } catch (error) {
-          console.error('保存思源笔记配置失败:', error)
           throw error
         }
       },
@@ -133,7 +131,6 @@ export const useSiyuanStore = create<SiyuanStore>()(
           // 更新成功后，使用用户输入的完整配置（不使用后端返回的脱敏配置）
           set({ config: config, isConfigured: true })
         } catch (error) {
-          console.error('更新思源笔记配置失败:', error)
           throw error
         }
       },
@@ -156,7 +153,6 @@ export const useSiyuanStore = create<SiyuanStore>()(
           )
           set({ notebooks: data || [], isLoadingNotebooks: false })
         } catch (error) {
-          console.error('加载笔记本列表失败:', error)
           set({ notebooks: [], isLoadingNotebooks: false })
           throw error
         }
@@ -189,7 +185,6 @@ export const useSiyuanStore = create<SiyuanStore>()(
           await exportToSiyuan(taskId)
           await get().loadExportHistory()
         } catch (error) {
-          console.error('导出笔记失败:', error)
           throw error
         } finally {
           set({ isExporting: false })
@@ -202,7 +197,6 @@ export const useSiyuanStore = create<SiyuanStore>()(
           const data = await getExportHistory()
           set({ exportHistory: data || [] })
         } catch (error) {
-          console.error('加载导出历史失败:', error)
         }
       },
 

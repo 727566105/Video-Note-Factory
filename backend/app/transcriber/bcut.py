@@ -9,6 +9,7 @@ from app.decorators.timeit import timeit
 from app.models.transcriber_model import TranscriptSegment, TranscriptResult
 from app.transcriber.base import Transcriber
 from app.utils.logger import get_logger
+from app.utils.chinese_converter import to_simplified
 from events import transcription_finished
 
 __version__ = "0.0.3"
@@ -208,28 +209,28 @@ class BcutTranscriber(Transcriber):
             # 解析结果
             logger.info("转录成功，处理结果...")
             result_json = json.loads(task_resp["result"])
-            
+
             # 提取分段数据
             segments = []
             full_text = ""
-            
+
             for u in result_json.get("utterances", []):
-                text = u.get("transcript", "").strip()
+                text = to_simplified(u.get("transcript", "").strip())
                 # B站ASR返回的时间戳是毫秒，需要转换为秒
                 start_time = float(u.get("start_time", 0)) / 1000.0
                 end_time = float(u.get("end_time", 0)) / 1000.0
-                
+
                 full_text += text + " "
                 segments.append(TranscriptSegment(
                     start=start_time,
                     end=end_time,
                     text=text
                 ))
-            
+
             # 创建结果对象
             result = TranscriptResult(
                 language=result_json.get("language", "zh"),
-                full_text=full_text.strip(),
+                full_text=to_simplified(full_text.strip()),
                 segments=segments,
                 raw=result_json
             )

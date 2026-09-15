@@ -6,6 +6,7 @@ from app.transcriber.base import Transcriber
 from app.utils.env_checker import is_cuda_available, is_torch_installed
 from app.utils.logger import get_logger
 from app.utils.path_helper import get_model_dir
+from app.utils.chinese_converter import to_simplified
 
 from events import transcription_finished
 from pathlib import Path
@@ -31,14 +32,17 @@ MODEL_MAP={
 }
 
 class WhisperTranscriber(Transcriber):
-    # TODO:修改为可配置
     def __init__(
             self,
             model_size: str = "base",
             device: str = 'cpu',
             compute_type: str = None,
-            cpu_threads: int = 1,
+            cpu_threads: int = None,
     ):
+        # 从环境变量读取 CPU 线程数（低配服务器优化）
+        if cpu_threads is None:
+            cpu_threads = int(os.getenv("WHISPER_CPU_THREADS", "2"))
+
         if device == 'cpu' or device is None:
             self.device = 'cpu'
         else:
@@ -60,10 +64,13 @@ class WhisperTranscriber(Transcriber):
             )
             logger.info("模型下载完成")
 
+        logger.info(f"Whisper 配置: device={self.device}, compute_type={self.compute_type}, cpu_threads={cpu_threads}")
+
         self.model = WhisperModel(
             model_size_or_path=model_path,
             device=self.device,
             compute_type=self.compute_type,
+            cpu_threads=cpu_threads,
             download_root=model_dir
         )
     @staticmethod
@@ -101,6 +108,8 @@ class WhisperTranscriber(Transcriber):
 
             for seg in segments_raw:
                 text = seg.text.strip()
+                # 繁体转简体
+                text = to_simplified(text)
                 full_text += text + " "
                 segments.append(TranscriptSegment(
                     start=seg.start,
@@ -110,7 +119,7 @@ class WhisperTranscriber(Transcriber):
 
             result= TranscriptResult(
                 language=info.language,
-                full_text=full_text.strip(),
+                full_text=to_simplified(full_text.strip()),
                 segments=segments,
                 raw=info
             )
@@ -118,6 +127,7 @@ class WhisperTranscriber(Transcriber):
             return result
         except Exception as e:
             logger.error(f"转写失败：{e}")
+            raise
 
 
     def on_finish(self,video_path:str,result: TranscriptResult)->None:

@@ -55,7 +55,6 @@ const LazyImage: FC<LazyImageProps> = ({
             }, 500) // 500ms 后重试
         } else {
             // 超过重试次数，显示占位图
-            console.error('图片加载失败，已达到最大重试次数:', src)
             setError(true)
             setImgSrc(placeholder)
         }

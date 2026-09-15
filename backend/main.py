@@ -5,8 +5,12 @@ from pathlib import Path
 
 # 最先加载 .env（必须在任何 app import 之前）
 from dotenv import load_dotenv
-_root_env = Path(__file__).parent.parent / ".env"
-if _root_env.exists():
+_project_root = Path(__file__).parent.parent
+_local_env = _project_root / ".env.local"
+_root_env = _project_root / ".env"
+if _local_env.exists():
+    load_dotenv(_local_env, override=True)
+elif _root_env.exists():
     load_dotenv(_root_env)
 else:
     load_dotenv()
@@ -49,59 +53,115 @@ async def lifespan(app: FastAPI):
     init_db()
     seed_default_providers()
 
+    # 恢复上次进程遗留的登录失败锁定状态（跨重启防暴力破解）
+    from app.auth.rate_limiter import login_rate_limiter
+    login_rate_limiter.load_from_db()
+
+    # 自愈重置：清除上次备份/恢复因进程崩溃残留的全局状态
+    from app.services.webdav_backup import reset_stale_backup_state
+    reset_stale_backup_state()
+
+    # 自动迁移旧数据到四级目录
+    from app.utils.path_helper import migrate_to_platform_structure, cleanup_stale_pending
+    migrate_to_platform_structure()
+    cleanup_stale_pending()
+
     # 启动定时任务调度器
     from app.tasks.scheduler import start_scheduler
     start_scheduler()
 
-    # 异步预热转写器（不阻塞应用启动）
+    # 阻塞式预热转写器：确保模型加载完成后才接受用户请求，
+    # 防止多用户在预热未完成时并发提交任务导致重复加载模型（OOM 风险）。
     transcriber_type = os.getenv("TRANSCRIBER_TYPE", "fast-whisper")
-    logger.info(f"应用启动中，转写器类型: {transcriber_type}")
-    asyncio.create_task(warm_up_transcriber_async(transcriber_type))
+    logger.info(f"应用启动中，开始预热转写器: {transcriber_type}")
+    try:
+        await warm_up_transcriber_async(transcriber_type)
+    except Exception as e:
+        # 预热失败不阻塞服务启动，首次任务会懒加载（已有 _transcriber_lock 保护）
+        logger.warning(f"转写器预热失败（服务仍可启动，首次任务将懒加载）: {e}")
+    logger.info("转写器预热流程结束，开始接受请求")
 
-    yield
+    # 启动 MCP Server session manager
+    from app.mcp_server import mcp
+    mcp_app = mcp.streamable_http_app()
+    async with mcp.session_manager.run():
+        yield
 
     # 关闭定时任务调度器
     from app.tasks.scheduler import shutdown_scheduler
     shutdown_scheduler()
+
+    # 关闭 MCP 后台线程池
+    from app.mcp_server import shutdown_background_executor
+    shutdown_background_executor()
 
     # 输出预热最终状态
     status = get_warm_up_status()
     logger.info(f"应用关闭，转写器预热状态: {status}")
 
 app = create_app(lifespan=lifespan)
-origins = [
+
+dev_origins = [
     "http://localhost",
     "http://127.0.0.1",
     "http://localhost:3000",
     "http://localhost:3015",
+    "http://localhost:3016",
+    "http://localhost:3017",
     "http://localhost:3018",
+    "http://localhost:33015",
     "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3015",
+    "http://127.0.0.1:3016",
+    "http://127.0.0.1:3017",
     "http://127.0.0.1:3018",
+    "http://127.0.0.1:33015",
     "http://127.0.0.1:5173",
 ]
 
 env_mode = os.getenv("ENV", "development")
+
+# CORS 允许的方法和头（收紧到实际需要的范围）
+cors_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+cors_headers = [
+    "Authorization",
+    "Content-Type",
+    "Accept",
+    "X-Requested-With",
+]
+
 if env_mode == "production":
     allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
     if allowed_origins:
         origins = [o.strip() for o in allowed_origins.split(",") if o.strip()]
+        logger.info(f"CORS origins (production): {origins}")
+    else:
+        # 生产环境未配置 ALLOWED_ORIGINS -> fail-closed，不允许任何跨域
+        origins = []
+        logger.warning("生产环境未设置 ALLOWED_ORIGINS，CORS 已禁用跨域请求")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=cors_methods,
+        allow_headers=cors_headers,
     )
 else:
+    origins = list(dev_origins)
+    extra_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if extra_origins:
+        origins.extend([o.strip() for o in extra_origins.split(",") if o.strip()])
+    logger.info(f"CORS origins (dev): {origins}")
+    logger.info(f"ENV mode: {env_mode}")
+    # dev 模式额外放行所有 chrome-extension://（联调用，生产模式不受影响）
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
+        allow_origin_regex=r"^chrome-extension://[a-z0-9]+$",
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        allow_origin_regex=r"https?://.*|chrome-extension://.*",
+        allow_methods=cors_methods,
+        allow_headers=cors_headers,
     )
 register_exception_handlers(app)
 app.mount(static_path, StaticFiles(directory=static_dir), name="static")
@@ -110,6 +170,15 @@ app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 if __name__ == "__main__":
     port = int(os.getenv("BACKEND_PORT", 8483))
-    host = os.getenv("BACKEND_HOST", "0.0.0.0")
-    logger.info(f"Starting server on {host}:{port}")
-    uvicorn.run(app, host=host, port=port, reload=False)
+    # Docker 容器内 nginx 反代到 127.0.0.1，不直接暴露后端端口
+    host = os.getenv("BACKEND_HOST", "127.0.0.1")
+    # 本地开发热重载：设 BACKEND_RELOAD=true 自动监听文件变更重启
+    reload = os.getenv("BACKEND_RELOAD", "false").lower() == "true"
+    logger.info(f"Starting server on {host}:{port} (reload={reload})")
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        reload_dirs=["app"] if reload else None,
+    )

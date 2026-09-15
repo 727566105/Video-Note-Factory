@@ -1,10 +1,49 @@
-from fastapi import Depends, HTTPException
+from datetime import datetime, timezone
+from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.auth.jwt_handler import decode_token
+from app.auth.jwt_handler import decode_token, decode_payload
 from app.db.user_dao import get_user_by_id
 from jose import JWTError
 
 security = HTTPBearer(auto_error=False)
+
+
+def _as_aware_utc(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def ensure_token_not_revoked(token: str, user) -> None:
+    """
+    检查 token 是否因密码修改而失效。
+    直接用 jose 解析 payload（不走 decode_payload 的类型检查，
+    因为 refresh token 也需要走这个检查）。
+    """
+    from jose import jwt as _jwt
+    from app.auth.jwt_handler import SECRET_KEY, ALGORITHM
+    try:
+        payload = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except Exception:
+        return  # 解析失败不在这里报，让调用方的 decode 处理
+    issued_at = payload.get("iat")
+    password_changed_at = _as_aware_utc(getattr(user, "password_changed_at", None))
+    if password_changed_at:
+        password_changed_at = password_changed_at.replace(microsecond=0)
+    if not issued_at or not password_changed_at:
+        return
+
+    if isinstance(issued_at, (int, float)):
+        issued_at_dt = datetime.fromtimestamp(issued_at, tz=timezone.utc)
+    elif isinstance(issued_at, str):
+        issued_at_dt = datetime.fromisoformat(issued_at.replace("Z", "+00:00"))
+    else:
+        return
+
+    if issued_at_dt < password_changed_at:
+        raise JWTError("token 已因密码修改失效")
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -17,6 +56,32 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user = get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在")
+    try:
+        ensure_token_not_revoked(credentials.credentials, user)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="token 无效或已过期")
+    return user
+
+
+async def get_current_user_flexible(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str = Query(default=None),
+):
+    """支持 Header Bearer 或 query ?token= 的鉴权（用于浏览器原生下载大文件）"""
+    raw = credentials.credentials if credentials else token
+    if not raw:
+        raise HTTPException(status_code=401, detail="未提供认证凭证")
+    try:
+        user_id = decode_token(raw)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="token 无效或已过期")
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    try:
+        ensure_token_not_revoked(raw, user)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="token 无效或已过期")
     return user
 
 

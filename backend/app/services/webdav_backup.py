@@ -1,7 +1,10 @@
 """WebDAV 备份服务"""
 import os
+import stat
+import json
 import zipfile
 import shutil
+import threading
 from pathlib import Path
 from datetime import datetime
 from typing import Iterator, Callable
@@ -14,19 +17,60 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 笔记输出目录
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
-# 数据库文件
-DB_FILE = Path(__file__).parent.parent.parent / "videonote.db"
+# 使用统一的路径管理工具
+from app.utils.path_helper import NOTE_OUTPUT_DIR, VIDEO_DIR, DATA_DIR, PROJECT_ROOT, sanitize_path_name
+
+# 数据库路径与 engine.py 完全一致
+# 修复：原默认值 video_note.db 与 engine 的 data/video_note.db 不一致，
+# 导致 DB_FILE 指向不存在的文件，备份会漏掉整个数据库
+from app.db.engine import DATABASE_URL
+if DATABASE_URL.startswith("sqlite:///"):
+    DB_FILE = Path(DATABASE_URL.replace("sqlite:///", ""))
+    DB_FILENAME = DB_FILE.name
+else:
+    DB_FILE = None
+    DB_FILENAME = None
 # 临时备份目录
-BACKUP_TEMP_DIR = Path(__file__).parent.parent.parent / ".backup_temp"
+BACKUP_TEMP_DIR = PROJECT_ROOT / ".backup_temp"
+# 本地导出 zip 存放目录
+LOCAL_BACKUP_DIR = DATA_DIR / "backups"
+# 平台 Cookie 配置文件（B站/抖音等，明文 JSON，整机迁移必须一起搬）
+COOKIE_CONFIG_FILE = PROJECT_ROOT / "config" / "downloader.json"
+# ZIP 内归档名（恢复时按此名取回）
+COOKIE_ARCNAME = "config/downloader.json"
 
 # 全局状态，用于并发控制
+_backup_lock = threading.Lock()
 _backup_in_progress = False
 _restore_in_progress = False
 _current_operation = None
 _current_progress = 0
 _current_message = ""
+# 恢复时被跳过的文件（文件名超长等 OSError），供 /backup/status 透传给前端
+_current_skipped_files: list[str] = []
+
+
+def acquire_backup_lock() -> bool:
+    """原子地检查并获取备份/恢复锁（防止 TOCTOU 竞态）。
+
+    成功返回 True（已置位 _backup_in_progress 或 _restore_in_progress），
+    失败返回 False（已有任务在执行）。
+    """
+    global _backup_in_progress, _restore_in_progress
+    with _backup_lock:
+        if _backup_in_progress or _restore_in_progress:
+            return False
+        _backup_in_progress = True
+        _restore_in_progress = True
+        return True
+
+
+def release_backup_lock():
+    """释放备份/恢复锁"""
+    global _backup_in_progress, _restore_in_progress
+    with _backup_lock:
+        _backup_in_progress = False
+        _restore_in_progress = False
 
 
 class BackupProgress:
@@ -65,7 +109,8 @@ class WebDAVBackup:
         return Client({
             'webdav_hostname': url,
             'webdav_login': self.config.username,
-            'webdav_password': password
+            'webdav_password': password,
+            'webdav_timeout': 60
         })
 
     def test_connection(self) -> tuple[bool, str]:
@@ -113,36 +158,64 @@ class WebDAVBackup:
             _current_message = ""
             _current_progress = 0
 
-    def _collect_backup_files(self, progress: BackupProgress = None) -> list[Path]:
-        """收集需要备份的文件"""
+    @staticmethod
+    def _replace_dir(src: Path, dest: Path):
+        """用 src 目录整体替换 dest 目录（清空 dest 后复制 src 内容）"""
+        if dest.exists():
+            shutil.rmtree(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        for item in src.iterdir():
+            target = dest / item.name
+            if item.is_dir():
+                shutil.copytree(item, target)
+            else:
+                shutil.copy2(item, target)
+
+    def _collect_backup_files(self, progress: BackupProgress = None, backup_mode: str = "full") -> list[Path]:
+        """收集需要备份的文件
+
+        Args:
+            backup_mode: "full" 收集全部（含 video/ 媒体）；"quick" 只收集 DB（跳过大媒体文件）
+        """
         files = []
 
         if progress:
             progress.update(10, "正在收集备份文件...")
 
-        # 收集 note_results 目录
-        if NOTE_OUTPUT_DIR.exists():
-            for file_path in NOTE_OUTPUT_DIR.rglob("*"):
-                if file_path.is_file():
-                    files.append(file_path)
+        # full 模式：收集 data/video 目录（笔记正文、封面、截图、音视频）
+        # quick 模式：跳过 video/（只备份数据库 + configs + Cookie，秒级完成）
+        if backup_mode != "quick" and VIDEO_DIR.exists():
+            for file_path in VIDEO_DIR.rglob("*"):
+                if not file_path.is_file():
+                    continue
+                # 排除 _pending 临时任务目录
+                if "_pending" in file_path.parts:
+                    continue
+                files.append(file_path)
 
         # 添加数据库文件
-        if DB_FILE.exists():
+        if DB_FILE and DB_FILE.exists():
             files.append(DB_FILE)
 
         if progress:
-            progress.update(30, f"已收集 {len(files)} 个文件")
+            label = "配置" if backup_mode == "quick" else "文件"
+            progress.update(30, f"已收集 {len(files)} 个{label}")
 
         return files
 
-    def _create_zip_archive(self, files: list[Path], progress: BackupProgress = None) -> Path:
-        """创建 ZIP 压缩包"""
+    def _create_zip_archive(self, files: list[Path], progress: BackupProgress = None, backup_mode: str = "full") -> Path:
+        """创建 ZIP 压缩包
+
+        Args:
+            backup_mode: "full" -> 文件名前缀 videonote_backup_；"quick" -> 前缀 videonote_quick_
+        """
         # 确保临时目录存在
         BACKUP_TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-        # 生成文件名
+        # 生成文件名（full/quick 前缀区分）
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_filename = f"videonote_backup_{timestamp}.zip"
+        prefix = "videonote_quick_" if backup_mode == "quick" else "videonote_backup_"
+        zip_filename = f"{prefix}{timestamp}.zip"
         zip_path = BACKUP_TEMP_DIR / zip_filename
 
         if progress:
@@ -163,11 +236,11 @@ class WebDAVBackup:
             for i, file_path in enumerate(files):
                 # 计算相对路径
                 if file_path == DB_FILE:
-                    arcname = f"videonote.db"
+                    arcname = DB_FILENAME
                 else:
                     try:
-                        rel_path = file_path.relative_to(NOTE_OUTPUT_DIR)
-                        arcname = f"note_results/{rel_path}"
+                        rel_path = file_path.relative_to(VIDEO_DIR)
+                        arcname = f"video/{rel_path}"
                     except ValueError:
                         arcname = file_path.name
 
@@ -183,6 +256,11 @@ class WebDAVBackup:
                 logger.info("Added configs.json to backup archive")
                 # 清理临时配置文件
                 os.unlink(configs_json_path)
+
+            # 添加平台 Cookie 配置文件（整机迁移必备）
+            if COOKIE_CONFIG_FILE.exists():
+                zipf.write(COOKIE_CONFIG_FILE, COOKIE_ARCNAME)
+                logger.info(f"Added {COOKIE_ARCNAME} to backup archive")
 
         if progress:
             progress.update(70, "压缩包创建完成")
@@ -229,49 +307,58 @@ class WebDAVBackup:
 
         return remote_path
 
-    def create_backup(self, backup_type: str = "manual", progress_callback: Callable = None) -> dict:
+    def create_backup(self, backup_type: str = "manual", target: str = "webdav", progress_callback: Callable = None, backup_mode: str = "full") -> dict:
         """
         创建备份
 
         Args:
             backup_type: 备份类型 (manual/auto)
+            target: 备份目标 (webdav/local)
+            backup_mode: 备份模式 (full=全部含媒体 / quick=仅配置不含媒体)
             progress_callback: 进度回调函数
 
         Returns:
             dict: 备份结果
+
+        注意：
+            锁的获取/释放由调用方负责（路由层 acquire_backup_lock / release_backup_lock）。
+            调用方必须已持有锁，本方法不再做冗余自检（避免与 acquire_backup_lock 的置位逻辑冲突）。
         """
-        global _backup_in_progress, _current_operation, _current_progress, _current_message
+        global _current_operation, _current_progress, _current_message
 
-        if _backup_in_progress:
-            raise Exception("备份操作正在执行中")
-
-        _backup_in_progress = True
         _current_operation = "backup"
         _current_progress = 0
-        _current_message = "开始备份..."
+        mode_label = "快速备份" if backup_mode == "quick" else "全部备份"
+        _current_message = f"开始{mode_label}..."
 
         progress = BackupProgress()
 
         try:
             # 1. 收集文件
-            files = self._collect_backup_files(progress)
+            files = self._collect_backup_files(progress, backup_mode=backup_mode)
             if not files:
                 raise Exception("没有找到需要备份的文件")
 
             # 2. 创建压缩包
-            zip_path = self._create_zip_archive(files, progress)
+            zip_path = self._create_zip_archive(files, progress, backup_mode=backup_mode)
 
-            # 3. 上传到 WebDAV
-            remote_path = self._upload_to_webdav(zip_path, progress)
-
-            # 4. 获取文件信息
+            # 3. 获取文件信息（在移动/删除前计算）
             file_size = zip_path.stat().st_size
             file_count = len(files)
 
-            # 5. 清理临时文件
-            zip_path.unlink()
+            # 4. 根据目标处理 zip
+            if target == "local":
+                # 本地导出：保留到 LOCAL_BACKUP_DIR，不上传
+                LOCAL_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+                local_dest = LOCAL_BACKUP_DIR / zip_path.name
+                shutil.move(str(zip_path), str(local_dest))
+                remote_path = None
+            else:
+                # WebDAV：上传后清理临时 zip
+                remote_path = self._upload_to_webdav(zip_path, progress)
+                zip_path.unlink()
 
-            # 6. 记录备份历史
+            # 5. 记录备份历史
             add_backup_record(
                 type=backup_type,
                 status="success",
@@ -279,19 +366,21 @@ class WebDAVBackup:
                 file_count=file_count
             )
 
-            # 更新最后备份时间
-            from app.db.webdav_config_dao import update_last_backup_time
-            update_last_backup_time()
+            # 更新最后备份时间（仅 WebDAV 模式）
+            if target == "webdav":
+                from app.db.webdav_config_dao import update_last_backup_time
+                update_last_backup_time()
 
             if progress:
-                progress.update(100, "备份完成")
+                progress.update(100, "导出完成" if target == "local" else "备份完成")
 
             result = {
                 "success": True,
                 "remote_path": remote_path,
+                "filename": zip_path.name,
                 "file_size": file_size,
                 "file_count": file_count,
-                "message": "备份成功"
+                "message": "导出成功" if target == "local" else "备份成功"
             }
 
             _current_message = "备份成功"
@@ -313,7 +402,9 @@ class WebDAVBackup:
 
             raise
         finally:
-            _backup_in_progress = False
+            # 注意：锁由调用方（_run_backup_async 的 finally）负责释放，
+            # 这里只清理进度状态和临时目录，不能动 _backup_in_progress
+            # （否则会在备份过程中提前释放锁，破坏互斥）
             _current_operation = None
             # 清理临时目录
             if BACKUP_TEMP_DIR.exists():
@@ -355,7 +446,8 @@ class WebDAVBackup:
                     backups.append({
                         "name": item,
                         "path": file_path,
-                        "size": file_size
+                        "size": file_size,
+                        "mode": "quick" if item.startswith("videonote_quick_") else "full"
                     })
 
             # 按名称倒序排列（时间戳）
@@ -371,7 +463,7 @@ class WebDAVBackup:
 
     def restore_backup(self, backup_name: str, progress_callback: Callable = None) -> dict:
         """
-        从备份恢复
+        从 WebDAV 远端备份恢复（与 restore_from_local_file 一致的完整流程）
 
         Args:
             backup_name: 备份文件名
@@ -380,7 +472,7 @@ class WebDAVBackup:
         Returns:
             dict: 恢复结果
         """
-        global _restore_in_progress, _current_operation, _current_progress, _current_message
+        global _restore_in_progress, _current_operation, _current_progress, _current_message, _current_skipped_files
 
         if _restore_in_progress:
             raise Exception("恢复操作正在执行中")
@@ -389,18 +481,19 @@ class WebDAVBackup:
         _current_operation = "restore"
         _current_progress = 0
         _current_message = "开始恢复..."
+        _current_skipped_files = []
 
-        progress = BackupProgress()
-
-        # 临时恢复目录
         restore_temp_dir = BACKUP_TEMP_DIR / "restore"
         restore_temp_dir.mkdir(parents=True, exist_ok=True)
+        pre_restore_backup_dir = None
 
         try:
             if not self.client:
                 self.client = self._get_webdav_client()
 
-            # 1. 下载备份文件（使用相对路径）
+            # 1. 下载备份文件
+            _set_restore_progress(10, "正在下载备份文件...", progress_callback)
+
             if self.config.path == '/':
                 backup_path = f"videonote_backups/{backup_name}"
             else:
@@ -408,84 +501,120 @@ class WebDAVBackup:
                 backup_path = f"{user_path}/videonote_backups/{backup_name}"
             local_zip_path = restore_temp_dir / backup_name
 
-            if progress:
-                progress.update(10, "正在下载备份文件...")
-
-            with open(local_zip_path, 'wb') as f:
-                self.client.download_sync(backup_path, f)
-
-            if progress:
-                progress.update(30, "下载完成，正在验证备份...")
+            # 修复：download_sync 需要文件路径字符串，不是文件对象
+            self.client.download_sync(backup_path, str(local_zip_path))
 
             # 2. 验证备份文件
+            _set_restore_progress(30, "下载完成，正在验证备份文件...", progress_callback)
+
             if not zipfile.is_zipfile(local_zip_path):
                 raise Exception("备份文件已损坏")
 
-            if progress:
-                progress.update(40, "正在解压备份文件...")
+            # 3. 解压备份（容错：跳过文件名超长等条目）
+            _set_restore_progress(40, "正在解压备份文件...", progress_callback)
 
-            # 3. 解压备份
-            with zipfile.ZipFile(local_zip_path, 'wb') as zipf:
-                zipf.extractall(restore_temp_dir)
+            skipped = _safe_extract_all(local_zip_path, restore_temp_dir)
+            if skipped:
+                _current_skipped_files = skipped
+                logger.warning(f"恢复时跳过 {len(skipped)} 个文件（文件名过长等）: {skipped}")
 
-            if progress:
-                progress.update(60, "正在恢复数据库...")
+            # 4. 验证备份内容
+            extracted_db = restore_temp_dir / DB_FILENAME
+            if not extracted_db.exists() or not DB_FILE:
+                raise Exception("备份文件中缺少数据库文件或数据库配置不支持恢复")
 
-            # 4. 恢复数据库
-            restored_db = restore_temp_dir / "videonote.db"
-            if restored_db.exists():
-                # 备份当前数据库
-                if DB_FILE.exists():
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    backup_db_path = DB_FILE.parent / f"videonote_pre_restore_{timestamp}.db"
-                    shutil.copy2(DB_FILE, backup_db_path)
+            # 5. 备份当前数据（pre_restore 快照，用于失败回滚）
+            _set_restore_progress(50, "正在备份当前数据...", progress_callback)
 
-                # 替换数据库
-                shutil.copy2(restored_db, DB_FILE)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            pre_restore_backup_dir = BACKUP_TEMP_DIR / f"pre_restore_{timestamp}"
+            if pre_restore_backup_dir.exists():
+                shutil.rmtree(pre_restore_backup_dir, ignore_errors=True)
+            pre_restore_backup_dir.mkdir(parents=True, exist_ok=True)
 
-            if progress:
-                progress.update(80, "正在恢复笔记文件...")
+            if DB_FILE and DB_FILE.exists():
+                shutil.copy2(DB_FILE, pre_restore_backup_dir / DB_FILENAME)
+            if VIDEO_DIR.exists():
+                shutil.copytree(VIDEO_DIR, pre_restore_backup_dir / "video")
+            if NOTE_OUTPUT_DIR.exists():
+                shutil.copytree(NOTE_OUTPUT_DIR, pre_restore_backup_dir / "note_results")
+            if COOKIE_CONFIG_FILE.exists():
+                shutil.copy2(COOKIE_CONFIG_FILE, pre_restore_backup_dir / "downloader.json")
 
-            # 5. 恢复笔记文件
-            restored_notes = restore_temp_dir / "note_results"
-            if restored_notes.exists():
-                # 清理现有 note_results 目录
-                if NOTE_OUTPUT_DIR.exists():
-                    shutil.rmtree(NOTE_OUTPUT_DIR)
-                NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            _cleanup_old_pre_restore_snapshots(keep=pre_restore_backup_dir)
 
-                # 复制恢复的文件
-                for item in restored_notes.iterdir():
-                    dest = NOTE_OUTPUT_DIR / item.name
-                    if item.is_dir():
-                        shutil.copytree(item, dest)
-                    else:
-                        shutil.copy2(item, dest)
+            # 6. 恢复数据库（释放连接池后替换文件）
+            _set_restore_progress(60, "正在恢复数据库...", progress_callback)
 
-            if progress:
-                progress.update(100, "恢复完成")
+            from app.db.engine import engine
+            engine.dispose()
+            shutil.copy2(extracted_db, DB_FILE)
 
-            result = {
-                "success": True,
-                "message": "恢复成功",
-                "backup_name": backup_name
-            }
+            # 7. 恢复笔记/媒体文件
+            _set_restore_progress(75, "正在恢复笔记文件...", progress_callback)
 
-            _current_message = "恢复成功"
+            extracted_video = restore_temp_dir / "video"
+            if extracted_video.exists():
+                WebDAVBackup._replace_dir(extracted_video, VIDEO_DIR)
+            else:
+                extracted_notes = restore_temp_dir / "note_results"
+                if extracted_notes.exists():
+                    if not NOTE_OUTPUT_DIR.exists():
+                        NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                    WebDAVBackup._replace_dir(extracted_notes, NOTE_OUTPUT_DIR)
+
+            # 8. 恢复配置文件
+            _set_restore_progress(85, "正在恢复配置...", progress_callback)
+
+            extracted_config = restore_temp_dir / "configs.json"
+            if extracted_config.exists():
+                _restore_configs_from_backup(extracted_config)
+
+            # 9. 恢复平台 Cookie 配置文件（校验 JSON 合法性）
+            extracted_cookie = restore_temp_dir / COOKIE_ARCNAME
+            if extracted_cookie.exists():
+                try:
+                    import json as _json
+                    _json.loads(extracted_cookie.read_text(encoding="utf-8"))
+                    COOKIE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(extracted_cookie, COOKIE_CONFIG_FILE)
+                    logger.info(f"从备份中恢复了平台 Cookie 配置: {COOKIE_ARCNAME}")
+                except (json.JSONDecodeError, Exception) as e:
+                    logger.warning(f"备份包中的 Cookie 文件格式非法，跳过恢复: {e}")
+
+            _set_restore_progress(100, "恢复完成", progress_callback)
+
+            skipped_count = len(_current_skipped_files)
+            if skipped_count > 0:
+                message = f"恢复成功（跳过 {skipped_count} 个文件名超长的文件）"
+            else:
+                message = "恢复成功"
+
+            _current_message = message
             _current_progress = 100
 
-            return result
+            return {
+                "success": True,
+                "pre_restore_backup": str(pre_restore_backup_dir) if pre_restore_backup_dir else None,
+                "message": message,
+                "backup_name": backup_name,
+                "skipped_count": skipped_count,
+                "skipped_files": _format_skipped_files(_current_skipped_files),
+            }
 
         except Exception as e:
-            logger.error(f"Restore failed: {e}")
+            logger.error(f"远端恢复失败: {e}")
             _current_message = f"恢复失败: {str(e)}"
+            _current_skipped_files = []
+            # 恢复失败时回滚（与 restore_from_local_file 一致）
+            if pre_restore_backup_dir and pre_restore_backup_dir.exists():
+                _rollback_restore(pre_restore_backup_dir)
             raise
         finally:
             _restore_in_progress = False
             _current_operation = None
-            # 清理临时目录
-            if BACKUP_TEMP_DIR.exists():
-                shutil.rmtree(BACKUP_TEMP_DIR, ignore_errors=True)
+            if restore_temp_dir.exists():
+                shutil.rmtree(restore_temp_dir, ignore_errors=True)
 
     def delete_backup(self, backup_name: str) -> bool:
         """删除备份文件"""
@@ -514,8 +643,107 @@ def get_backup_status() -> dict:
         "is_busy": _backup_in_progress or _restore_in_progress,
         "current_operation": _current_operation,
         "progress": _current_progress,
-        "message": _current_message
+        "message": _current_message,
+        "skipped_files": list(_current_skipped_files),
     }
+
+
+def reset_stale_backup_state():
+    """启动时自愈重置：清除上次进程被 kill 中断残留的全局状态。
+
+    若上一次备份/恢复操作因进程崩溃未走到 finally，_restore_in_progress 会卡在 True，
+    导致后续操作永久报「恢复操作正在执行中」。应用启动时强制重置。
+    """
+    global _backup_in_progress, _restore_in_progress
+    global _current_operation, _current_progress, _current_message, _current_skipped_files
+    if _backup_in_progress or _restore_in_progress:
+        logger.warning("检测到上次备份/恢复状态残留（进程可能异常退出），已重置")
+    _backup_in_progress = False
+    _restore_in_progress = False
+    _current_operation = None
+    _current_progress = 0
+    _current_message = ""
+    _current_skipped_files = []
+
+
+def _safe_extract_all(zip_path: Path, dest: Path) -> list[str]:
+    """逐文件解压 zip，跳过因文件名过长等 OSError 失败的条目。
+
+    Args:
+        zip_path: 待解压的 zip 文件路径
+        dest: 解压目标目录
+
+    Returns:
+        被跳过的条目名列表（供结果展示）
+
+    Raises:
+        Exception: 当被跳过的条目是数据库文件时（无库则恢复无意义）
+    """
+    skipped: list[str] = []
+    dest_resolved = dest.resolve()
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        for member in zip_ref.infolist():
+            # zip-slip 防护：拒绝 ..、绝对路径等逃逸条目，确保解压落在 dest 内
+            member_name = member.filename
+            if member_name.startswith('/') or '..' in member_name.split('/'):
+                logger.warning(f"解压跳过可疑路径（zip-slip）: {member_name}")
+                if DB_FILENAME and os.path.basename(member_name) == DB_FILENAME:
+                    raise Exception(f"数据库文件路径非法，无法继续恢复: {member_name}")
+                skipped.append(member_name)
+                continue
+            # 符号链接防护：跳过 zip 中的 symlink 条目（防指向 /etc/passwd 等敏感文件）
+            if stat.S_ISLNK(member.external_attr >> 16):
+                logger.warning(f"解压跳过符号链接条目: {member_name}")
+                skipped.append(member_name)
+                continue
+            # 拆分原路径，仅对超过 200 字节的段按 sanitize_path_name 截断
+            # （旧机器/旧代码打包的整机包可能含 >255 字节的目录段，照原路径解压会触发 Errno 36）
+            parts = member.filename.split('/')
+            safe_parts = [
+                sanitize_path_name(p) if len(p.encode('utf-8')) > 200 else p
+                for p in parts
+            ]
+            target = dest.joinpath(*safe_parts)
+            # 二次防护：resolve 后必须仍在 dest 内
+            if dest_resolved not in target.resolve().parents and target.resolve() != dest_resolved:
+                logger.warning(f"解压跳过逃逸路径: {member_name}")
+                skipped.append(member_name)
+                continue
+            try:
+                if member.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with zip_ref.open(member) as src, open(target, 'wb') as out:
+                        shutil.copyfileobj(src, out)
+            except OSError as e:
+                logger.warning(f"解压跳过条目（{e}）: {member_name}")
+                # 数据库文件失败视为致命错误（无库则恢复无意义）
+                if DB_FILENAME and os.path.basename(member_name) == DB_FILENAME:
+                    raise Exception(f"数据库文件解压失败，无法继续恢复: {member_name} ({e})")
+                skipped.append(member_name)
+    return skipped
+
+
+def _format_skipped_files(skipped: list[str]) -> list[str]:
+    """格式化跳过列表用于展示：单条截断到 80 字符，列表上限 20 条。"""
+    result = []
+    for name in skipped[:20]:
+        if len(name) > 80:
+            result.append(name[:80] + "…")
+        else:
+            result.append(name)
+    return result
+
+
+def _set_restore_progress(progress: int, message: str, callback: Callable = None):
+    """更新恢复全局进度状态（供 /backup/status 轮询），并转发给可选的 callback"""
+    global _current_progress, _current_message
+    _current_progress = progress
+    _current_message = message
+    logger.info(f"Restore progress: {progress}% - {message}")
+    if callback:
+        callback(progress, message)
 
 
 def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) -> dict:
@@ -529,7 +757,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
     Returns:
         dict: 恢复结果
     """
-    global _restore_in_progress, _current_operation, _current_progress, _current_message
+    global _restore_in_progress, _current_operation, _current_progress, _current_message, _current_skipped_files
 
     if _restore_in_progress:
         raise Exception("恢复操作正在执行中")
@@ -538,6 +766,7 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
     _current_operation = "restore"
     _current_progress = 0
     _current_message = "开始恢复..."
+    _current_skipped_files = []
 
     restore_temp_dir = BACKUP_TEMP_DIR / "restore"
     restore_temp_dir.mkdir(parents=True, exist_ok=True)
@@ -547,93 +776,118 @@ def restore_from_local_file(zip_path: Path, progress_callback: Callable = None) 
         # 1. 验证并解压备份文件
         progress = BackupProgress()
 
-        if progress_callback:
-            progress_callback(10, "正在验证备份文件...")
+        _set_restore_progress(10, "正在验证备份文件...", progress_callback)
 
         if not zipfile.is_zipfile(zip_path):
             raise Exception("备份文件已损坏")
 
-        # 解压到临时目录
-        if progress_callback:
-            progress_callback(20, "正在解压备份文件...")
+        # 解压到临时目录（容错：跳过文件名超长等条目，避免一个失败导致全军覆没）
+        _set_restore_progress(20, "正在解压备份文件...", progress_callback)
 
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(restore_temp_dir)
+        skipped = _safe_extract_all(zip_path, restore_temp_dir)
+        if skipped:
+            _current_skipped_files = skipped
+            logger.warning(f"恢复时跳过 {len(skipped)} 个文件（文件名过长等）: {skipped}")
 
         # 2. 验证备份内容
-        extracted_db = restore_temp_dir / "videonote.db"
-        if not extracted_db.exists():
-            raise Exception("备份文件中缺少数据库文件")
+        extracted_db = restore_temp_dir / DB_FILENAME
+        if not extracted_db.exists() or not DB_FILE:
+            raise Exception("备份文件中缺少数据库文件或数据库配置不支持恢复")
 
         # 3. 备份当前数据
-        if progress_callback:
-            progress_callback(40, "正在备份当前数据...")
+        _set_restore_progress(40, "正在备份当前数据...", progress_callback)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         pre_restore_backup_dir = BACKUP_TEMP_DIR / f"pre_restore_{timestamp}"
+        # 同秒内重复导入时该目录可能已存在（成功后不清理），先清空再建，避免 copytree 冲突
+        if pre_restore_backup_dir.exists():
+            shutil.rmtree(pre_restore_backup_dir, ignore_errors=True)
         pre_restore_backup_dir.mkdir(parents=True, exist_ok=True)
 
         # 备份当前数据库
-        if DB_FILE.exists():
-            shutil.copy2(DB_FILE, pre_restore_backup_dir / "videonote.db")
+        if DB_FILE and DB_FILE.exists():
+            shutil.copy2(DB_FILE, pre_restore_backup_dir / DB_FILENAME)
 
-        # 备份当前笔记目录
+        # 备份当前媒体目录
+        if VIDEO_DIR.exists():
+            shutil.copytree(VIDEO_DIR, pre_restore_backup_dir / "video")
         if NOTE_OUTPUT_DIR.exists():
             shutil.copytree(NOTE_OUTPUT_DIR, pre_restore_backup_dir / "note_results")
 
-        # 4. 恢复数据库
-        if progress_callback:
-            progress_callback(60, "正在恢复数据库...")
+        # 备份当前平台 Cookie 配置文件（整机迁移必备，回滚时还原）
+        if COOKIE_CONFIG_FILE.exists():
+            pre_restore_backup_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(COOKIE_CONFIG_FILE, pre_restore_backup_dir / "downloader.json")
 
-        # 关闭数据库连接
-        from app.db.database import SessionLocal
-        SessionLocal.remove()
+        # 只保留最新 pre_restore 快照，清理旧的（避免磁盘无限累积）
+        _cleanup_old_pre_restore_snapshots(keep=pre_restore_backup_dir)
+
+        # 4. 恢复数据库
+        _set_restore_progress(60, "正在恢复数据库...", progress_callback)
+
+        # 释放连接池，确保 SQLite 文件可被替换
+        # （SessionLocal 是 sessionmaker，无 remove()；用 engine.dispose() 释放池连接）
+        from app.db.engine import engine
+        engine.dispose()
 
         # 替换数据库文件
         shutil.copy2(extracted_db, DB_FILE)
 
         # 5. 恢复笔记文件
-        if progress_callback:
-            progress_callback(80, "正在恢复笔记文件...")
+        _set_restore_progress(80, "正在恢复笔记文件...", progress_callback)
 
-        extracted_notes = restore_temp_dir / "note_results"
-        if extracted_notes.exists():
-            # 备份并替换笔记目录
-            if NOTE_OUTPUT_DIR.exists():
-                shutil.rmtree(NOTE_OUTPUT_DIR)
-            NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-            # 复制恢复的文件
-            for item in extracted_notes.iterdir():
-                dest = NOTE_OUTPUT_DIR / item.name
-                if item.is_dir():
-                    shutil.copytree(item, dest)
-                else:
-                    shutil.copy2(item, dest)
+        # 恢复媒体文件（video/ 优先，note_results/ 兼容旧包）
+        extracted_video = restore_temp_dir / "video"
+        if extracted_video.exists():
+            WebDAVBackup._replace_dir(extracted_video, VIDEO_DIR)
+        else:
+            extracted_notes = restore_temp_dir / "note_results"
+            if extracted_notes.exists():
+                if not NOTE_OUTPUT_DIR.exists():
+                    NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                WebDAVBackup._replace_dir(extracted_notes, NOTE_OUTPUT_DIR)
 
         # 6. 恢复配置文件（如果存在）
-        if progress_callback:
-            progress_callback(90, "正在恢复配置...")
+        _set_restore_progress(90, "正在恢复配置...", progress_callback)
 
         extracted_config = restore_temp_dir / "configs.json"
         if extracted_config.exists():
             _restore_configs_from_backup(extracted_config)
 
-        if progress_callback:
-            progress_callback(100, "恢复完成")
+        # 7. 恢复平台 Cookie 配置文件（校验 JSON 合法性，整机迁移必备）
+        extracted_cookie = restore_temp_dir / COOKIE_ARCNAME
+        if extracted_cookie.exists():
+            try:
+                json.loads(extracted_cookie.read_text(encoding="utf-8"))
+                COOKIE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(extracted_cookie, COOKIE_CONFIG_FILE)
+                logger.info(f"从备份中恢复了平台 Cookie 配置: {COOKIE_ARCNAME}")
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"备份包中的 Cookie 文件格式非法，跳过恢复: {e}")
 
-        _current_message = "恢复成功"
+        _set_restore_progress(100, "恢复完成", progress_callback)
+
+        skipped_count = len(_current_skipped_files)
+        if skipped_count > 0:
+            message = f"数据恢复成功（跳过 {skipped_count} 个文件名超长的文件）"
+        else:
+            message = "数据恢复成功"
+
+        _current_message = message
         _current_progress = 100
 
         return {
             "success": True,
             "pre_restore_backup": str(pre_restore_backup_dir),
-            "message": "数据恢复成功"
+            "message": message,
+            "skipped_count": skipped_count,
+            "skipped_files": _format_skipped_files(_current_skipped_files),
         }
 
     except Exception as e:
         logger.error(f"从本地文件恢复失败: {e}")
         _current_message = f"恢复失败: {str(e)}"
+        _current_skipped_files = []
         # 恢复失败时回滚
         if pre_restore_backup_dir and pre_restore_backup_dir.exists():
             _rollback_restore(pre_restore_backup_dir)
@@ -750,8 +1004,50 @@ def _restore_configs_from_backup(config_path: Path):
             if restored_count > 0:
                 logger.info(f"从备份中恢复了 {restored_count} 个 AI 模型配置（包含 API Key）")
 
+        # 恢复 Obsidian 配置
+        obsidian_config = configs.get("obsidian_config")
+        if obsidian_config:
+            export_mode = obsidian_config.get("export_mode", "local")
+            api_key = obsidian_config.get("api_key", "")
+            # local 模式不需要 api_key；api 模式需要且不能是占位符
+            if export_mode == "api" and (not api_key or api_key == "********"):
+                logger.warning("Obsidian API Key 为占位符，跳过恢复")
+            else:
+                try:
+                    from app.db.obsidian_config_dao import upsert_config as obsidian_upsert
+                    obsidian_upsert(
+                        export_mode=export_mode,
+                        vault_path=obsidian_config.get("vault_path", ""),
+                        folder_path=obsidian_config.get("folder_path", "videoNote/"),
+                        attachments_folder=obsidian_config.get("attachments_folder", "attachments/"),
+                        api_url=obsidian_config.get("api_url", ""),
+                        api_key=api_key if export_mode == "api" else None,
+                        enabled=obsidian_config.get("enabled", 1)
+                    )
+                    logger.info("从备份中恢复了 Obsidian 配置")
+                except Exception as e:
+                    logger.error(f"恢复 Obsidian 配置失败: {e}")
+
     except Exception as e:
         logger.error(f"恢复配置失败: {e}")
+
+
+def _cleanup_old_pre_restore_snapshots(keep: Path):
+    """只保留最新的 pre_restore 快照，清理其余旧的。
+
+    每次成功导入都留一个完整数据快照（DB+video+notes），不清理会导致磁盘无限累积。
+    Args:
+        keep: 本次新建的快照目录，保留它；其余 pre_restore_* 删除。
+    """
+    try:
+        if not BACKUP_TEMP_DIR.exists():
+            return
+        for d in BACKUP_TEMP_DIR.glob("pre_restore_*"):
+            if d.is_dir() and d != keep:
+                shutil.rmtree(d, ignore_errors=True)
+                logger.info(f"已清理旧 pre_restore 快照: {d.name}")
+    except Exception as e:
+        logger.warning(f"清理旧 pre_restore 快照失败（不影响恢复）: {e}")
 
 
 def _rollback_restore(backup_dir: Path):
@@ -761,20 +1057,28 @@ def _rollback_restore(backup_dir: Path):
             return
 
         # 恢复数据库
-        backup_db = backup_dir / "videonote.db"
-        if backup_db.exists():
-            # 关闭数据库连接
-            from app.db.database import SessionLocal
-            SessionLocal.remove()
+        backup_db = backup_dir / DB_FILENAME
+        if backup_db.exists() and DB_FILE:
+            # 释放连接池，确保 SQLite 文件可被替换
+            from app.db.engine import engine
+            engine.dispose()
             shutil.copy2(backup_db, DB_FILE)
 
-        # 恢复笔记目录
+        # 恢复媒体目录（video 优先，note_results 兼容旧包）
+        backup_video = backup_dir / "video"
+        if backup_video.exists():
+            WebDAVBackup._replace_dir(backup_video, VIDEO_DIR)
         backup_notes = backup_dir / "note_results"
         if backup_notes.exists():
-            if NOTE_OUTPUT_DIR.exists():
-                shutil.rmtree(NOTE_OUTPUT_DIR)
-            NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(backup_notes, NOTE_OUTPUT_DIR)
+            if not NOTE_OUTPUT_DIR.exists():
+                NOTE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            WebDAVBackup._replace_dir(backup_notes, NOTE_OUTPUT_DIR)
+
+        # 恢复平台 Cookie 配置文件
+        backup_cookie = backup_dir / "downloader.json"
+        if backup_cookie.exists():
+            COOKIE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(backup_cookie, COOKIE_CONFIG_FILE)
 
         logger.info(f"已回滚到恢复前状态: {backup_dir}")
 

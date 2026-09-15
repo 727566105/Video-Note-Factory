@@ -16,6 +16,7 @@ const PLATFORM_LABEL_MAP: Record<string, string> = {
   local_audio: '本地音频',
   kuaishou: '快手',
   youtube: 'YouTube',
+  xiaohongshu: '小红书',
 }
 
 interface ExportImageDialogProps {
@@ -52,8 +53,23 @@ const ExportImageDialog = ({
     return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
+  // HTML 转义，防止 XSS
+  const escapeHtml = (text: string): string => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
+
   // 构建 iframe 内容 HTML
   const buildHTML = useCallback(() => {
+    const safeTitle = escapeHtml(title || '')
+    const safePlatformLabel = escapeHtml(platformLabel || '')
+    const safeModelName = escapeHtml(modelName || '')
+    const safeCoverUrl = escapeHtml(coverUrl || '')
+    const safeCreatedAt = createdAt ? escapeHtml(formatDate(createdAt)) : ''
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -98,13 +114,13 @@ const ExportImageDialog = ({
 </style>
 </head>
 <body>
-  ${coverUrl ? `<div class="cover"><img src="${coverUrl}" crossorigin="anonymous" /></div>` : ''}
-  <div class="content${coverUrl ? '' : ' no-cover'}">
-    <div class="title">${title}</div>
+  ${safeCoverUrl ? `<div class="cover"><img src="${safeCoverUrl}" crossorigin="anonymous" /></div>` : ''}
+  <div class="content${safeCoverUrl ? '' : ' no-cover'}">
+    <div class="title">${safeTitle}</div>
     <div class="meta">
-      <span>${platformLabel}</span>
-      <span class="tag">${modelName}</span>
-      ${createdAt ? `<span>${formatDate(createdAt)}</span>` : ''}
+      <span>${safePlatformLabel}</span>
+      <span class="tag">${safeModelName}</span>
+      ${safeCreatedAt ? `<span>${safeCreatedAt}</span>` : ''}
     </div>
     <div class="divider"></div>
     <div class="markdown" id="md-content"></div>
@@ -162,7 +178,6 @@ const ExportImageDialog = ({
         const url = canvas.toDataURL('image/png', 1.0)
         setImageUrl(url)
       } catch (err) {
-        console.error('生成图片失败:', err)
         setError(err instanceof Error ? err.message : '生成图片失败')
       } finally {
         setLoading(false)

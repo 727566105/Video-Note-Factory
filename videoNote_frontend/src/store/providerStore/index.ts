@@ -12,20 +12,31 @@ import {
 
 interface ProviderStore {
   provider: IProvider[]
+  loading: boolean
   setProvider: (provider: IProvider) => void
   setAllProviders: (providers: IProvider[]) => void
   getProviderById: (id: number) => IProvider | undefined
   getProviderList: () => IProvider[]
   fetchProviderList: () => Promise<void>
-  loadProviderById: (id: string) => Promise<void>
+  loadProviderById: (id: string) => Promise<IProvider>
   addNewProvider: (provider: IProvider) => Promise<void>
   addNewProviderWithModels: (provider: IProvider, models: string[]) => Promise<string>
   updateProvider: (provider: IProvider) => Promise<void>
   deleteProvider: (id: string) => Promise<void>
 }
 
+interface ProviderPayload {
+  provider_id?: number
+  provider_name?: string
+  provider_type?: string
+  api_key?: string
+  base_url?: string
+  [key: string]: unknown
+}
+
 export const useProviderStore = create<ProviderStore>((set, get) => ({
   provider: [],
+  loading: false,
 
   // 添加或更新一个 provider
   setProvider: newProvider =>
@@ -59,7 +70,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
 
   },
   addNewProvider: async (provider: IProvider) => {
-    const payload: any = {
+    const payload: ProviderPayload = {
       ...provider,
       api_key: provider.api_key ?? provider.apiKey,
       base_url: provider.base_url ?? provider.baseUrl,
@@ -67,25 +78,24 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
     delete payload.apiKey
     delete payload.baseUrl
     try {
-      const data = await addProvider(payload)
+      const data = await addProvider(payload as Parameters<typeof addProvider>[0])
       const item = data
       await get().fetchProviderList()
       return item.id || item
     } catch (error) {
-      console.error('Error adding provider:', error)
       throw error
     }
   },
   // 一气呵成：保存供应商 + 批量添加模型
   addNewProviderWithModels: async (provider: IProvider, modelNames: string[]) => {
-    const payload: any = {
+    const payload: ProviderPayload = {
       ...provider,
       api_key: provider.api_key ?? provider.apiKey,
       base_url: provider.base_url ?? provider.baseUrl,
     }
     delete payload.apiKey
     delete payload.baseUrl
-    const data = await addProvider(payload)
+    const data = await addProvider(payload as Parameters<typeof addProvider>[0])
     const newId = data.id || data
 
     if (modelNames.length > 0) {
@@ -103,7 +113,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
   getProviderById: id => get().provider.find(p => p.id === id),
   updateProvider: async (provider: IProvider) => {
     try {
-      const data: any = {
+      const data: ProviderPayload = {
         id: provider.id,
       }
       
@@ -120,7 +130,6 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       await get().fetchProviderList()
       return res
     } catch (error) {
-      console.error('Error updating provider:', error)
       throw error
     }
   },
@@ -129,16 +138,17 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
       await deleteProvider(id)
       await get().fetchProviderList()
     } catch (error) {
-      console.error('Error deleting provider:', error)
       throw error
     }
   },
   getProviderList: () => get().provider,
   fetchProviderList: async () => {
     try {
+      set({ loading: true })
       const res  = await getProviderList()
 
         set({
+          loading: false,
           provider: res.map(
             (item: {
               id: string
@@ -164,7 +174,7 @@ export const useProviderStore = create<ProviderStore>((set, get) => ({
           ),
         })
     } catch (error) {
-      console.error('Error fetching provider list:', error)
+      set({ loading: false })
     }
   },
 }))

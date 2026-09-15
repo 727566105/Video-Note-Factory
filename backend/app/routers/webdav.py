@@ -1,10 +1,17 @@
 """WebDAV 备份 API 路由"""
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, Depends
-from pydantic import BaseModel, HttpUrl
+import os
+import re
+import threading
+from fastapi import APIRouter, BackgroundTasks, UploadFile, Depends
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from pathlib import Path
 
-from app.services.webdav_backup import WebDAVBackup, get_backup_status, restore_from_local_file
+from app.services.webdav_backup import (
+    WebDAVBackup, get_backup_status, restore_from_local_file,
+    LOCAL_BACKUP_DIR, acquire_backup_lock, release_backup_lock,
+)
 from app.db.webdav_config_dao import (
     get_config as dao_get_config,
     upsert_config,
@@ -32,14 +39,71 @@ def _is_masked_password(password: str) -> bool:
     return password.endswith('...') or password == '********'
 
 
+def _sanitize_backup_name(name: str) -> str | None:
+    """净化备份文件名：只取 basename，拒绝路径穿越，只允许安全字符 + .zip 后缀"""
+    basename = os.path.basename(name)
+    if not basename or basename in (".", ".."):
+        return None
+    if ".." in basename:
+        return None
+    # 只允许字母、数字、下划线、连字符、点
+    if not re.match(r'^[A-Za-z0-9_.\-]+$', basename):
+        return None
+    if not basename.endswith('.zip'):
+        return None
+    return basename
+
+
+def _validate_cron(expr: str) -> bool:
+    """校验 5 段 Cron 表达式是否合法"""
+    parts = expr.strip().split()
+    if len(parts) != 5:
+        return False
+    try:
+        from apscheduler.triggers.cron import CronTrigger
+        CronTrigger.from_crontab(expr)
+        return True
+    except Exception:
+        return False
+
+
 class WebDAVConfigRequest(BaseModel):
     """WebDAV 配置请求"""
     url: str
     username: str
     password: str
     path: Optional[str] = "/"
+    default_backup_mode: Optional[str] = "full"
     auto_backup_enabled: Optional[int] = 0
     auto_backup_schedule: Optional[str] = "0 2 * * *"
+
+    @field_validator("default_backup_mode")
+    @classmethod
+    def validate_backup_mode(cls, v):
+        if v not in ("full", "quick"):
+            raise ValueError("备份方式必须为 full 或 quick")
+        return v
+
+    @field_validator("path")
+    @classmethod
+    def validate_path(cls, v):
+        if v is None:
+            return "/"
+        v = v.strip()
+        if ".." in v:
+            raise ValueError("路径不能包含 ..")
+        if v.startswith("/"):
+            v = v.lstrip("/") or "/"
+        if not re.match(r'^[A-Za-z0-9_/.-]*$', v):
+            raise ValueError("路径包含非法字符")
+        return v or "/"
+
+    @field_validator("auto_backup_schedule")
+    @classmethod
+    def validate_cron_expr(cls, v):
+        if v and not _validate_cron(v):
+            raise ValueError(f"Cron 表达式格式无效: {v}（需要 5 段标准 Cron）")
+        return v
 
 
 class TestConnectionRequest(BaseModel):
@@ -54,11 +118,18 @@ class UpdateScheduleRequest(BaseModel):
     auto_backup_enabled: int
     auto_backup_schedule: str
 
+    @field_validator("auto_backup_schedule")
+    @classmethod
+    def validate_cron_expr(cls, v):
+        if v and not _validate_cron(v):
+            raise ValueError(f"Cron 表达式格式无效: {v}（需要 5 段标准 Cron）")
+        return v
+
 
 # ==================== 配置管理 ====================
 
 @router.get("/config")
-def get_config(current_user=Depends(get_current_user)):
+def get_config(current_user=Depends(get_current_user)) -> dict:
     """获取 WebDAV 配置"""
     try:
         config = dao_get_config()
@@ -76,6 +147,7 @@ def get_config(current_user=Depends(get_current_user)):
             "username": config.username,
             "password": "********",
             "path": config.path,
+            "default_backup_mode": config.default_backup_mode or "full",
             "auto_backup_enabled": config.auto_backup_enabled == 1,
             "auto_backup_schedule": config.auto_backup_schedule,
             "last_backup_at": config.last_backup_at.isoformat() if config.last_backup_at else None,
@@ -84,11 +156,11 @@ def get_config(current_user=Depends(get_current_user)):
         })
     except Exception as e:
         logger.error(f"获取 WebDAV 配置失败: {e}")
-        return R.error(msg=f"获取配置失败: {str(e)}")
+        return R.error(msg="获取配置失败")
 
 
 @router.post("/config")
-def save_config(data: WebDAVConfigRequest, current_user=Depends(get_current_user)):
+def save_config(data: WebDAVConfigRequest, current_user=Depends(require_admin)) -> dict:
     """保存 WebDAV 配置"""
     try:
         config_id = upsert_config(
@@ -96,17 +168,18 @@ def save_config(data: WebDAVConfigRequest, current_user=Depends(get_current_user
             username=data.username,
             password=data.password,
             path=data.path,
+            default_backup_mode=data.default_backup_mode,
             auto_backup_enabled=data.auto_backup_enabled,
             auto_backup_schedule=data.auto_backup_schedule
         )
         return R.success(data={"id": config_id}, msg="WebDAV 配置保存成功")
     except Exception as e:
         logger.error(f"保存 WebDAV 配置失败: {e}")
-        return R.error(msg=f"保存配置失败: {str(e)}")
+        return R.error(msg="保存配置失败，请检查输入")
 
 
 @router.put("/config")
-def update_config(data: WebDAVConfigRequest, current_user=Depends(get_current_user)):
+def update_config(data: WebDAVConfigRequest, current_user=Depends(require_admin)) -> dict:
     """更新 WebDAV 配置"""
     try:
         # 检查是否为脱敏密码，是则保留原密码
@@ -123,17 +196,18 @@ def update_config(data: WebDAVConfigRequest, current_user=Depends(get_current_us
             username=data.username,
             password=actual_password,
             path=data.path,
+            default_backup_mode=data.default_backup_mode,
             auto_backup_enabled=data.auto_backup_enabled,
             auto_backup_schedule=data.auto_backup_schedule
         )
         return R.success(data={"id": config_id}, msg="WebDAV 配置更新成功")
     except Exception as e:
         logger.error(f"更新 WebDAV 配置失败: {e}")
-        return R.error(msg=f"更新配置失败: {str(e)}")
+        return R.error(msg="更新配置失败，请检查输入")
 
 
 @router.delete("/config")
-def delete_config(current_user=Depends(get_current_user)):
+def delete_config(current_user=Depends(require_admin)) -> dict:
     """删除 WebDAV 配置"""
     try:
         success = dao_delete_config()
@@ -142,13 +216,13 @@ def delete_config(current_user=Depends(get_current_user)):
         return R.error(msg="配置不存在")
     except Exception as e:
         logger.error(f"删除 WebDAV 配置失败: {e}")
-        return R.error(msg=f"删除配置失败: {str(e)}")
+        return R.error(msg="删除配置失败")
 
 
 @router.post("/test")
-def test_connection(data: TestConnectionRequest, current_user=Depends(get_current_user)):
+def test_connection(data: TestConnectionRequest, current_user=Depends(get_current_user)) -> dict:
     """测试 WebDAV 连接"""
-    logger.info(f"收到测试连接请求: url={data.url}, username={data.username}")
+    logger.info("收到测试连接请求")
     try:
         success, message = dao_test_connection(
             url=data.url,
@@ -164,44 +238,124 @@ def test_connection(data: TestConnectionRequest, current_user=Depends(get_curren
 
 # ==================== 备份操作 ====================
 
-@router.post("/backup")
-def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual", current_user=Depends(get_current_user)):
-    """手动触发备份"""
+def _run_backup_async(backup_type: str, target: str, backup_mode: str = "full"):
+    """后台线程执行备份，捕获异常避免线程静默退出"""
     try:
+        if target == "local":
+            svc = WebDAVBackup.__new__(WebDAVBackup)
+            svc.config = None
+            svc.client = None
+        else:
+            svc = WebDAVBackup()
+        svc.create_backup(backup_type=backup_type, target=target, backup_mode=backup_mode)
+    except Exception as e:
+        logger.error(f"后台备份失败: {e}")
+    finally:
+        release_backup_lock()
+
+
+def _run_restore_async(zip_path: Path):
+    """后台线程执行整机包恢复，捕获异常避免线程静默退出。
+    zip 文件清理由 restore_from_local_file 的 finally（rmtree 整个 restore_temp_dir）完成。"""
+    try:
+        restore_from_local_file(zip_path)
+    except Exception as e:
+        logger.error(f"后台恢复失败: {e}")
+    finally:
+        release_backup_lock()
+
+
+@router.post("/backup")
+def create_backup(background_tasks: BackgroundTasks, backup_type: str = "manual", backup_mode: str = "full", current_user=Depends(require_admin)) -> dict:
+    """手动触发备份（异步，上传到 WebDAV）
+
+    Args:
+        backup_mode: full=全部备份(含媒体) / quick=快速备份(仅配置)
+    """
+    try:
+        if not acquire_backup_lock():
+            status = get_backup_status()
+            return R.error(msg=f"备份操作正在执行中: {status['message']}")
         config = dao_get_config()
         if not config:
+            release_backup_lock()
             return R.error(msg="请先配置 WebDAV 连接")
-
-        # 检查状态
-        status = get_backup_status()
-        if status["is_busy"]:
-            return R.error(msg=f"备份操作正在执行中: {status['message']}")
-
-        # 创建备份服务
-        backup_service = WebDAVBackup(config)
-
-        # 执行备份（同步执行，便于获取结果）
-        result = backup_service.create_backup(backup_type=backup_type)
-        return R.success(data=result, msg="备份成功")
-
+        # backup_mode 未指定时使用配置的默认值
+        if backup_mode == "full" and config.default_backup_mode:
+            backup_mode = config.default_backup_mode
+        threading.Thread(target=_run_backup_async, args=(backup_type, "webdav", backup_mode), daemon=True).start()
+        return R.success(data={"started": True}, msg="备份已开始，请查看进度")
     except Exception as e:
-        logger.error(f"备份失败: {e}")
-        return R.error(msg=f"备份失败: {str(e)}")
+        logger.error(f"启动备份失败: {e}")
+        release_backup_lock()
+        return R.error(msg="启动备份失败")
+
+
+@router.post("/backup/local")
+def create_local_backup(background_tasks: BackgroundTasks, backup_mode: str = "full", current_user=Depends(require_admin)) -> dict:
+    """导出整机包到本地（异步，不依赖 WebDAV）
+
+    Args:
+        backup_mode: full=全部备份(含媒体) / quick=快速备份(仅配置)
+    """
+    try:
+        if not acquire_backup_lock():
+            status = get_backup_status()
+            return R.error(msg=f"操作正在执行中: {status['message']}")
+        # 读配置的默认备份方式
+        config = dao_get_config()
+        if backup_mode == "full" and config and config.default_backup_mode:
+            backup_mode = config.default_backup_mode
+        threading.Thread(target=_run_backup_async, args=("manual", "local", backup_mode), daemon=True).start()
+        return R.success(data={"started": True}, msg="导出已开始，请查看进度")
+    except Exception as e:
+        logger.error(f"启动本地导出失败: {e}")
+        release_backup_lock()
+        return R.error(msg="启动导出失败")
+
+
+@router.get("/backup/local")
+def list_local_backups(current_user=Depends(get_current_user)) -> dict:
+    """列出本地导出的整机包"""
+    backups = []
+    if LOCAL_BACKUP_DIR.exists():
+        for f in sorted(LOCAL_BACKUP_DIR.glob("*.zip"), key=lambda x: x.name, reverse=True):
+            backups.append({"name": f.name, "size": f.stat().st_size})
+    return R.success(data={"backups": backups, "total": len(backups)})
+
+
+@router.get("/backup/download/{filename}")
+def download_local_backup(filename: str, current_user=Depends(require_admin)):
+    """下载本地整机包 zip（流式）"""
+    # 防路径穿越：resolve 后必须仍在 LOCAL_BACKUP_DIR 内
+    safe_name = _sanitize_backup_name(filename)
+    if not safe_name:
+        return R.error(msg="非法文件名")
+    try:
+        target = (LOCAL_BACKUP_DIR / safe_name).resolve()
+        local_dir = LOCAL_BACKUP_DIR.resolve()
+        if not target.is_relative_to(local_dir):
+            return R.error(msg="非法文件名")
+    except Exception:
+        return R.error(msg="非法文件名")
+    if not target.exists() or not target.is_file():
+        return R.error(msg="文件不存在")
+    return FileResponse(str(target), filename=safe_name, media_type="application/zip")
 
 
 @router.get("/backup/status")
-def get_status(current_user=Depends(get_current_user)):
+def get_status(current_user=Depends(get_current_user)) -> dict:
     """获取备份状态"""
     try:
         status = get_backup_status()
         return R.success(data=status)
     except Exception as e:
         logger.error(f"获取备份状态失败: {e}")
-        return R.error(msg=f"获取状态失败: {str(e)}")
+        return R.error(msg="获取状态失败")
 
 
 @router.get("/backups")
-def list_backups(current_user=Depends(get_current_user)):
+def list_backups(current_user=Depends(get_current_user)) -> dict:
     """获取备份列表"""
     try:
         config = dao_get_config()
@@ -225,12 +379,15 @@ def list_backups(current_user=Depends(get_current_user)):
             logger.warning("密码解密失败，可能需要重新配置 WebDAV 连接")
             return R.success(data={"backups": [], "total": 0, "password_error": True})
         logger.error(f"获取备份列表失败: {e}")
-        return R.error(msg=f"获取备份列表失败: {str(e)}")
+        return R.error(msg="获取备份列表失败")
 
 
 @router.delete("/backups/{backup_name}")
-def delete_backup(backup_name: str, current_user=Depends(get_current_user)):
+def delete_backup(backup_name: str, current_user=Depends(require_admin)) -> dict:
     """删除备份文件"""
+    safe_name = _sanitize_backup_name(backup_name)
+    if not safe_name:
+        return R.error(msg="非法备份文件名")
     try:
         config = dao_get_config()
         if not config:
@@ -243,7 +400,7 @@ def delete_backup(backup_name: str, current_user=Depends(get_current_user)):
             return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
 
         backup_service = WebDAVBackup(config)
-        success = backup_service.delete_backup(backup_name)
+        success = backup_service.delete_backup(safe_name)
 
         if success:
             return R.success(msg="备份已删除")
@@ -253,88 +410,108 @@ def delete_backup(backup_name: str, current_user=Depends(get_current_user)):
             logger.warning("密码解密失败，无法删除备份")
             return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
         logger.error(f"删除备份失败: {e}")
-        return R.error(msg=f"删除备份失败: {str(e)}")
+        return R.error(msg="删除备份失败")
 
 
 # ==================== 恢复操作 ====================
 
+# 注意：/restore/upload 必须注册在 /restore/{backup_name} 之前，
+# 否则路径参数路由会把它 shadow 掉（backup_name="upload"），导致上传导入端点不可达。
+
+
+@router.post("/restore/upload")
+def restore_from_upload(file: UploadFile = UploadFile(...), current_user=Depends(require_admin)) -> dict:
+    """从上传的备份文件恢复数据（异步：上传落盘+校验后起后台线程，立即返回，避免大整机包超时）"""
+    local_zip_path = None
+    try:
+        # 检查文件类型
+        if not file.filename.endswith('.zip'):
+            return R.error(msg="只支持 .zip 格式的备份文件")
+
+        # 原子获取锁
+        if not acquire_backup_lock():
+            status = get_backup_status()
+            return R.error(msg=f"操作正在执行中: {status['message']}")
+
+        # 创建临时目录并保存上传的文件（必须在请求内消费 UploadFile 流）
+        from app.services.webdav_backup import BACKUP_TEMP_DIR
+        restore_temp_dir = BACKUP_TEMP_DIR / "restore"
+        restore_temp_dir.mkdir(parents=True, exist_ok=True)
+        # 净化文件名：只取 basename，防止路径遍历
+        safe_filename = os.path.basename(file.filename or "restore.zip")
+        if not safe_filename or safe_filename in (".", ".."):
+            safe_filename = "restore.zip"
+        local_zip_path = restore_temp_dir / safe_filename
+
+        import shutil
+        with open(local_zip_path, 'wb') as f:
+            shutil.copyfileobj(file.file, f)
+
+        # 验证备份文件格式
+        import zipfile
+        if not zipfile.is_zipfile(local_zip_path):
+            if local_zip_path.exists():
+                local_zip_path.unlink()
+            return R.error(msg="备份文件已损坏或格式不正确")
+
+        # 异步执行恢复（大整机包解压 + 替换媒体耗时较长，同步处理会触发前端超时）
+        threading.Thread(target=_run_restore_async, args=(local_zip_path,), daemon=True).start()
+        # 线程已接管 zip 文件，置空以跳过异常分支清理
+        # （restore_from_local_file 的 finally 会 rmtree 整个 restore_temp_dir，含此 zip）
+        local_zip_path = None
+        return R.success(data={"started": True}, msg="恢复已开始，请查看进度")
+
+    except Exception as e:
+        logger.error(f"从上传文件恢复失败: {e}")
+        # 异常时清理已落盘的临时文件
+        if local_zip_path and local_zip_path.exists():
+            local_zip_path.unlink()
+        release_backup_lock()
+        return R.error(msg="恢复失败，请重试")
+
+
 @router.post("/restore/{backup_name}")
-def restore_backup(backup_name: str, current_user=Depends(get_current_user)):
+def restore_backup(backup_name: str, current_user=Depends(require_admin)) -> dict:
     """从备份恢复数据"""
+    safe_name = _sanitize_backup_name(backup_name)
+    if not safe_name:
+        return R.error(msg="非法备份文件名")
     try:
         config = dao_get_config()
         if not config:
             return R.error(msg="请先配置 WebDAV 连接")
 
         # 检查状态
-        status = get_backup_status()
-        if status["is_busy"]:
+        if not acquire_backup_lock():
+            status = get_backup_status()
             return R.error(msg=f"恢复操作正在执行中: {status['message']}")
 
         # 检查密码是否可以解密
         password = get_decrypted_password()
         if not password:
+            release_backup_lock()
             logger.warning("密码解密失败，无法恢复备份")
             return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
 
         backup_service = WebDAVBackup(config)
-        result = backup_service.restore_backup(backup_name)
-        return R.success(data=result, msg="恢复成功")
+        try:
+            result = backup_service.restore_backup(safe_name)
+            return R.success(data=result, msg="恢复成功")
+        finally:
+            release_backup_lock()
 
     except Exception as e:
         if "无法解密密码" in str(e):
             logger.warning("密码解密失败，无法恢复备份")
             return R.error(msg="密码解密失败，请重新配置 WebDAV 连接")
         logger.error(f"恢复失败: {e}")
-        return R.error(msg=f"恢复失败: {str(e)}")
-
-
-@router.post("/restore/upload")
-def restore_from_upload(file: UploadFile = UploadFile(...), current_user=Depends(get_current_user)):
-    """从上传的备份文件恢复数据"""
-    try:
-        # 检查文件类型
-        if not file.filename.endswith('.zip'):
-            return R.error(msg="只支持 .zip 格式的备份文件")
-
-        # 检查是否已有恢复任务在执行
-        status = get_backup_status()
-        if status["is_busy"]:
-            return R.error(msg=f"恢复操作正在执行中: {status['message']}")
-
-        # 创建临时目录
-        from app.services.webdav_backup import BACKUP_TEMP_DIR
-        restore_temp_dir = BACKUP_TEMP_DIR / "restore"
-        restore_temp_dir.mkdir(parents=True, exist_ok=True)
-        local_zip_path = restore_temp_dir / file.filename
-
-        # 保存上传的文件
-        import shutil
-        with open(local_zip_path, 'wb') as f:
-            shutil.copyfileobj(file.file, f)
-
-        # 验证备份文件
-        import zipfile
-        if not zipfile.is_zipfile(local_zip_path):
-            return R.error(msg="备份文件已损坏或格式不正确")
-
-        # 执行恢复
-        result = restore_from_local_file(local_zip_path)
-        return R.success(data=result, msg="恢复成功")
-
-    except Exception as e:
-        logger.error(f"从上传文件恢复失败: {e}")
-        return R.error(msg=f"恢复失败: {str(e)}")
-    finally:
-        # 清理临时文件
-        if 'local_zip_path' in locals() and local_zip_path.exists():
-            local_zip_path.unlink()
+        return R.error(msg="恢复失败，请重试")
 
 
 # ==================== 定时任务 ====================
 
 @router.post("/schedule/enable")
-def enable_schedule(data: UpdateScheduleRequest, current_user=Depends(get_current_user)):
+def enable_schedule(data: UpdateScheduleRequest, current_user=Depends(require_admin)) -> dict:
     """启用自动备份"""
     try:
         from app.db.webdav_config_dao import update_config
@@ -352,11 +529,11 @@ def enable_schedule(data: UpdateScheduleRequest, current_user=Depends(get_curren
         return R.success(msg="自动备份已启用")
     except Exception as e:
         logger.error(f"启用自动备份失败: {e}")
-        return R.error(msg=f"启用自动备份失败: {str(e)}")
+        return R.error(msg="启用自动备份失败")
 
 
 @router.put("/schedule")
-def update_schedule(data: UpdateScheduleRequest, current_user=Depends(get_current_user)):
+def update_schedule(data: UpdateScheduleRequest, current_user=Depends(require_admin)) -> dict:
     """更新备份计划"""
     try:
         from app.db.webdav_config_dao import update_config
@@ -378,11 +555,11 @@ def update_schedule(data: UpdateScheduleRequest, current_user=Depends(get_curren
         return R.success(msg="备份计划已更新")
     except Exception as e:
         logger.error(f"更新备份计划失败: {e}")
-        return R.error(msg=f"更新备份计划失败: {str(e)}")
+        return R.error(msg="更新备份计划失败")
 
 
 @router.delete("/schedule")
-def disable_schedule(current_user=Depends(get_current_user)):
+def disable_schedule(current_user=Depends(require_admin)) -> dict:
     """禁用自动备份"""
     try:
         from app.db.webdav_config_dao import update_config
@@ -400,11 +577,11 @@ def disable_schedule(current_user=Depends(get_current_user)):
         return R.success(msg="自动备份已禁用")
     except Exception as e:
         logger.error(f"禁用自动备份失败: {e}")
-        return R.error(msg=f"禁用自动备份失败: {str(e)}")
+        return R.error(msg="禁用自动备份失败")
 
 
 @router.get("/schedule")
-def get_schedule(current_user=Depends(get_current_user)):
+def get_schedule(current_user=Depends(get_current_user)) -> dict:
     """获取备份计划"""
     try:
         config = dao_get_config()
@@ -422,13 +599,13 @@ def get_schedule(current_user=Depends(get_current_user)):
         })
     except Exception as e:
         logger.error(f"获取备份计划失败: {e}")
-        return R.error(msg=f"获取备份计划失败: {str(e)}")
+        return R.error(msg="获取备份计划失败")
 
 
 # ==================== 备份历史 ====================
 
 @router.get("/history")
-def get_history(limit: int = 50, current_user=Depends(get_current_user)):
+def get_history(limit: int = 50, current_user=Depends(get_current_user)) -> dict:
     """获取备份历史"""
     try:
         histories = get_backup_history(limit)
@@ -446,22 +623,22 @@ def get_history(limit: int = 50, current_user=Depends(get_current_user)):
         return R.success(data={"history": history_list, "total": len(history_list)})
     except Exception as e:
         logger.error(f"获取备份历史失败: {e}")
-        return R.error(msg=f"获取备份历史失败: {str(e)}")
+        return R.error(msg="获取备份历史失败")
 
 
 @router.get("/stats")
-def get_stats(current_user=Depends(get_current_user)):
+def get_stats(current_user=Depends(get_current_user)) -> dict:
     """获取备份统计"""
     try:
         stats = get_backup_stats()
         return R.success(data=stats)
     except Exception as e:
         logger.error(f"获取备份统计失败: {e}")
-        return R.error(msg=f"获取备份统计失败: {str(e)}")
+        return R.error(msg="获取备份统计失败")
 
 
 @router.delete("/history/{history_id}")
-def delete_history(history_id: int, current_user=Depends(get_current_user)):
+def delete_history(history_id: int, current_user=Depends(require_admin)) -> dict:
     """删除单条备份历史记录"""
     try:
         success = delete_backup_record(history_id)
@@ -470,15 +647,15 @@ def delete_history(history_id: int, current_user=Depends(get_current_user)):
         return R.error(msg="记录不存在")
     except Exception as e:
         logger.error(f"删除备份历史失败: {e}")
-        return R.error(msg=f"删除失败: {str(e)}")
+        return R.error(msg="删除失败")
 
 
 @router.delete("/history")
-def delete_all_history(current_user=Depends(get_current_user)):
+def delete_all_history(current_user=Depends(require_admin)) -> dict:
     """删除所有备份历史记录"""
     try:
         count = delete_all_backup_records()
         return R.success(data={"deleted_count": count}, msg=f"已删除 {count} 条记录")
     except Exception as e:
         logger.error(f"删除所有备份历史失败: {e}")
-        return R.error(msg=f"删除失败: {str(e)}")
+        return R.error(msg="删除失败")

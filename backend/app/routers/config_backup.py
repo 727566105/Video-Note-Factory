@@ -30,14 +30,14 @@ class ImportPreviewRequest(BaseModel):
 class ImportExecuteRequest(BaseModel):
     """导入执行请求"""
     config_data: dict
-    selected_items: List[str]
+    selected_items: Optional[List[str]] = None
     credentials: Optional[Dict[str, Dict[str, str]]] = None
 
 
 # ==================== 配置导出 ====================
 
 @router.get("/export")
-def export_configs(current_user=Depends(require_admin)):
+def export_configs(current_user=Depends(require_admin)) -> dict:
     """导出当前配置为 JSON"""
     try:
         config_data = ConfigExporter.export_config()
@@ -49,7 +49,7 @@ def export_configs(current_user=Depends(require_admin)):
 
 
 @router.get("/export/file")
-def export_configs_file(current_user=Depends(require_admin)):
+def export_configs_file(current_user=Depends(require_admin)) -> dict:
     """导出配置为 JSON 文件下载"""
     try:
         import tempfile
@@ -83,7 +83,7 @@ def export_configs_file(current_user=Depends(require_admin)):
 # ==================== 配置导入 ====================
 
 @router.post("/import/preview")
-async def preview_import(file: UploadFile = File(...), current_user=Depends(require_admin)):
+async def preview_import(file: UploadFile = File(...), current_user=Depends(require_admin)) -> dict:
     """
     预览配置导入文件
 
@@ -118,7 +118,7 @@ async def preview_import(file: UploadFile = File(...), current_user=Depends(requ
 
 
 @router.post("/import/preview/json")
-def preview_import_json(request: ImportPreviewRequest, current_user=Depends(require_admin)):
+def preview_import_json(request: ImportPreviewRequest, current_user=Depends(require_admin)) -> dict:
     """
     预览配置导入（JSON 数据）
 
@@ -144,7 +144,7 @@ def preview_import_json(request: ImportPreviewRequest, current_user=Depends(requ
 
 
 @router.post("/import/execute")
-def execute_import(request: ImportExecuteRequest, current_user=Depends(require_admin)):
+def execute_import(request: ImportExecuteRequest, current_user=Depends(require_admin)) -> dict:
     """
     执行配置导入
 
@@ -156,28 +156,27 @@ def execute_import(request: ImportExecuteRequest, current_user=Depends(require_a
         if not is_valid:
             return R.error(msg=f"配置文件验证失败: {', '.join(errors)}")
 
-        # 执行导入
+        # 执行导入（selected_items 为空时由 import_configs 自动全导入）
         results = ConfigImporter.import_configs(
             config_data=request.config_data,
             selected_items=request.selected_items,
             credentials=request.credentials
         )
 
-        # 检查是否有失败的项目
-        has_failures = len(results["failed"]) > 0
-        has_skips = len(results["skipped"]) > 0
-
-        # 构建消息
         success_count = len(results["success"])
         failed_count = len(results["failed"])
         skipped_count = len(results["skipped"])
 
+        # 构建消息
         if success_count > 0 and failed_count == 0 and skipped_count == 0:
             msg = f"成功导入 {success_count} 项配置"
         elif failed_count > 0:
             msg = f"导入完成：成功 {success_count} 项，失败 {failed_count} 项，跳过 {skipped_count} 项"
+        elif success_count == 0:
+            # 全跳过/失败：通常是配置文件中敏感信息为占位符
+            msg = "导入未完成，配置文件中的敏感信息为空或占位符，请检查导出源"
         else:
-            msg = f"导入完成：成功 {success_count} 项，跳过 {skipped_count} 项"
+            msg = f"导入完成：成功 {success_count} 项，跳过 {skipped_count} 项（跳过原因见详情）"
 
         logger.info(f"Config import executed: success={success_count}, failed={failed_count}, skipped={skipped_count}")
         return R.success(data=results, msg=msg)

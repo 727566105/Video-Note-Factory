@@ -6,6 +6,7 @@ from app.models.transcriber_model import TranscriptResult, TranscriptSegment
 from app.services.provider import ProviderService
 from app.transcriber.base import Transcriber
 from app.utils.logger import get_logger
+from app.utils.chinese_converter import to_simplified
 from openai import OpenAI
 import ffmpeg
 import tempfile
@@ -53,7 +54,7 @@ class GroqTranscriber(Transcriber, ABC):
         full_text = ""
 
         for seg in transcription.segments:
-            text = seg.text.strip()
+            text = to_simplified(seg.text.strip())
             full_text += text + " "
             segments.append(TranscriptSegment(
                 start=seg.start,
@@ -63,7 +64,7 @@ class GroqTranscriber(Transcriber, ABC):
 
         result = TranscriptResult(
             language=transcription.language,
-            full_text=full_text.strip(),
+            full_text=to_simplified(full_text.strip()),
             segments=segments,
             raw=transcription.to_dict()
         )

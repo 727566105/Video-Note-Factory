@@ -2,6 +2,7 @@ export interface IProvider {
   id: string
   name: string
   logo: string
+  logoUrl?: string
   type: string
   apiKey: string
   baseUrl: string

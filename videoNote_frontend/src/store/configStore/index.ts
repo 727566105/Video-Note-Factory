@@ -12,6 +12,15 @@ interface SystemState {
 
   toolbarConfig: ToolbarConfig
   setToolbarConfig: (config: ToolbarConfig) => void
+
+  panelSwapped: boolean
+  setPanelSwapped: (value: boolean) => void
+
+  noteViewMode: 'table' | 'card' | 'masonry' | 'compact'
+  setNoteViewMode: (mode: 'table' | 'card' | 'masonry' | 'compact') => void
+
+  feedViewMode: 'grid' | 'list'
+  setFeedViewMode: (mode: 'grid' | 'list') => void
 }
 export const useSystemStore = create<SystemState>()(
   persist(
@@ -24,6 +33,15 @@ export const useSystemStore = create<SystemState>()(
 
       toolbarConfig: DEFAULT_TOOLBAR_CONFIG,
       setToolbarConfig: config => set({ toolbarConfig: config }),
+
+      panelSwapped: false,
+      setPanelSwapped: value => set({ panelSwapped: value }),
+
+      noteViewMode: 'table',
+      setNoteViewMode: mode => set({ noteViewMode: mode }),
+
+      feedViewMode: 'grid',
+      setFeedViewMode: mode => set({ feedViewMode: mode }),
     }),
     {
       name: 'system-store',

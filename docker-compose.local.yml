@@ -1,0 +1,6 @@
+# 使用已构建好的本地镜像启动（不触发 build）
+# 用法: docker compose -f docker-compose.dev.yml -f docker-compose.local.yml --env-file .env up -d
+services:
+  videonote:
+    image: video-note-videonote:local
+    build: !reset null

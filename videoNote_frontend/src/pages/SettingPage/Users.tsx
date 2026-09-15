@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import request from '@/utils/request'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Trash2, Edit2, Plus } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 interface User {
   id: number
@@ -21,7 +22,18 @@ const formatTime = (iso: string) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+interface UserUpdatePayload {
+  username?: string
+  password?: string
+  role?: string
+}
+
+interface ApiError {
+  detail?: string
+}
+
 const Users = () => {
+  const isMobile = useIsMobile()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<number | null>(null)
@@ -45,7 +57,7 @@ const Users = () => {
   const loadUsers = async () => {
     setLoading(true)
     try {
-      const res: any = await request.get('/auth/users')
+      const res = await request.get<{ id: number; username: string; role: string }[]>('/auth/users')
       setUsers(res)
     } catch {
       toast.error('加载用户列表失败')
@@ -71,14 +83,15 @@ const Users = () => {
       setAdding(false)
       setAddForm({ username: '', password: '', role: 'user' })
       loadUsers()
-    } catch (err: any) {
-      toast.error(err?.detail || '创建失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '创建失败')
     }
   }
 
   const handleUpdate = async (id: number) => {
     try {
-      const payload: any = {}
+      const payload: UserUpdatePayload = {}
       if (editForm.username) payload.username = editForm.username
       if (editForm.password) payload.password = editForm.password
       if (editForm.role) payload.role = editForm.role
@@ -86,8 +99,9 @@ const Users = () => {
       toast.success('用户更新成功')
       setEditing(null)
       loadUsers()
-    } catch (err: any) {
-      toast.error(err?.detail || '更新失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '更新失败')
     }
   }
 
@@ -96,8 +110,9 @@ const Users = () => {
       await request.delete(`/auth/users/${id}`)
       toast.success('用户删除成功')
       loadUsers()
-    } catch (err: any) {
-      toast.error(err?.detail || '删除失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '删除失败')
     }
   }
 
@@ -130,8 +145,9 @@ const Users = () => {
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (err: any) {
-      toast.error(err?.detail || '修改失败')
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      toast.error(apiError?.detail || '修改失败')
     } finally {
       setChangingPassword(false)
     }
@@ -140,16 +156,19 @@ const Users = () => {
   // 普通用户：只显示修改密码表单
   if (!isAdmin) {
     return (
-      <div className="flex flex-col gap-6">
-        <h3 className="text-lg font-semibold">修改密码</h3>
-        <div className="max-w-md rounded-lg border bg-gray-50 p-6">
+      <div className="flex flex-col gap-6 p-4 md:p-6">
+        {/* 标题 - 仅桌面端显示 */}
+        {!isMobile && (
+          <h3 className="text-lg font-semibold">修改密码</h3>
+        )}
+        <div className="max-w-md rounded-lg border bg-muted p-4 md:p-6">
           <div className="flex flex-col gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">当前用户</label>
-              <div className="text-sm text-gray-600">{currentUser?.username}</div>
+              <label className="mb-1 block text-sm font-medium text-foreground">当前用户</label>
+              <div className="text-sm text-muted-foreground">{currentUser?.username}</div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">旧密码</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">旧密码</label>
               <Input
                 type="password"
                 value={oldPassword}
@@ -158,7 +177,7 @@ const Users = () => {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">新密码</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">新密码</label>
               <Input
                 type="password"
                 value={newPassword}
@@ -167,7 +186,7 @@ const Users = () => {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">确认新密码</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">确认新密码</label>
               <Input
                 type="password"
                 value={confirmPassword}
@@ -186,18 +205,23 @@ const Users = () => {
 
   // 管理员：完整的用户管理
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">用户管理</h3>
-        <Button onClick={() => setAdding(true)} disabled={adding}>
+    <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">
+      <div className="flex items-center justify-between gap-3">
+        {!isMobile && <h3 className="text-lg font-semibold">用户管理</h3>}
+        <Button
+          onClick={() => setAdding(true)}
+          disabled={adding}
+          size={isMobile ? 'sm' : 'default'}
+          className={isMobile ? 'ml-auto w-fit' : 'ml-auto w-fit min-w-[112px]'}
+        >
           <Plus className="mr-1 h-4 w-4" />
           新增用户
         </Button>
       </div>
 
       {adding && (
-        <div className="rounded-lg border bg-gray-50 p-4">
-          <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-lg border bg-muted p-3 md:p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
             <Input
               placeholder="用户名"
               value={addForm.username}
@@ -210,7 +234,7 @@ const Users = () => {
               onChange={e => setAddForm({ ...addForm, password: e.target.value })}
             />
             <select
-              className="rounded-md border px-3 py-2"
+              className="rounded-md border px-3 py-2 text-sm"
               value={addForm.role}
               onChange={e => setAddForm({ ...addForm, role: e.target.value })}
             >
@@ -219,18 +243,84 @@ const Users = () => {
             </select>
           </div>
           <div className="mt-3 flex gap-2">
-            <Button onClick={handleAdd}>确认创建</Button>
-            <Button variant="outline" onClick={() => setAdding(false)}>取消</Button>
+            <Button size={isMobile ? 'sm' : 'default'} onClick={handleAdd}>确认创建</Button>
+            <Button size={isMobile ? 'sm' : 'default'} variant="outline" onClick={() => setAdding(false)}>取消</Button>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="text-center text-gray-500">加载中...</div>
+        <div className="text-center text-muted-foreground py-8">加载中...</div>
+      ) : isMobile ? (
+        // 移动端：卡片视图
+        <div className="flex flex-col gap-3">
+          {users.map(user => (
+            <div key={user.id} className="rounded-lg border p-3">
+              {editing === user.id ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">ID: {user.id}</span>
+                  </div>
+                  <Input
+                    value={editForm.username}
+                    onChange={e => setEditForm({ ...editForm, username: e.target.value })}
+                    placeholder="用户名"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="新密码（留空不修改）"
+                    value={editForm.password}
+                    onChange={e => setEditForm({ ...editForm, password: e.target.value })}
+                  />
+                  <select
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    value={editForm.role}
+                    onChange={e => setEditForm({ ...editForm, role: e.target.value })}
+                  >
+                    <option value="user">普通用户</option>
+                    <option value="admin">管理员</option>
+                  </select>
+                  <div className="flex gap-2 pt-2">
+                    <Button size="sm" onClick={() => handleUpdate(user.id)}>保存</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(null)}>取消</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium">{user.username}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {user.role === 'admin' ? '管理员' : '普通用户'} · {formatTime(user.created_at)}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(user)}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    {user.username !== 'admin' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-500"
+                        onClick={() => {
+                          setPendingDeleteId(user.id)
+                          setDeleteDialogOpen(true)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       ) : (
+        // 桌面端：表格视图
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-gray-50 text-left">
+            <tr className="border-b bg-muted text-left">
               <th className="px-4 py-2 font-medium">ID</th>
               <th className="px-4 py-2 font-medium">用户名</th>
               <th className="px-4 py-2 font-medium">密码</th>
@@ -279,7 +369,7 @@ const Users = () => {
                   <>
                     <td className="px-4 py-2">{user.id}</td>
                     <td className="px-4 py-2">{user.username}</td>
-                    <td className="px-4 py-2 text-gray-400">******</td>
+                    <td className="px-4 py-2 text-muted-foreground">******</td>
                     <td className="px-4 py-2">{user.role === 'admin' ? '管理员' : '普通用户'}</td>
                     <td className="px-4 py-2">{formatTime(user.created_at)}</td>
                     <td className="px-4 py-2 text-right">

@@ -9,6 +9,7 @@ from app.models.transcriber_model import TranscriptSegment, TranscriptResult
 from app.transcriber.base import Transcriber
 from app.utils.logger import get_logger
 from app.utils.path_helper import get_model_dir
+from app.utils.chinese_converter import to_simplified
 from events import transcription_finished
 
 logger = get_logger(__name__)
@@ -57,19 +58,19 @@ class MLXWhisperTranscriber(Transcriber):
             # 转换为标准格式
             segments = []
             full_text = ""
-            
+
             for segment in result["segments"]:
-                text = segment["text"].strip()
+                text = to_simplified(segment["text"].strip())
                 full_text += text + " "
                 segments.append(TranscriptSegment(
                     start=segment["start"],
                     end=segment["end"],
                     text=text
                 ))
-            
+
             transcript_result = TranscriptResult(
                 language=result.get("language", "unknown"),
-                full_text=full_text.strip(),
+                full_text=to_simplified(full_text.strip()),
                 segments=segments,
                 raw=result
             )

@@ -1,7 +1,8 @@
 import { useState, forwardRef } from 'react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { FileText, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuthStore } from '@/store/authStore';
 
 interface ExportPDFButtonProps {
   taskId: string;
@@ -27,7 +28,11 @@ export const ExportPDFButton = forwardRef<HTMLButtonElement, ExportPDFButtonProp
   const handleExport = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/export/pdf/${taskId}`);
+      // 后端 /export/pdf/{id} 受 get_current_user 保护（HTTPBearer），原生 fetch 须显式带 token
+      const token = useAuthStore.getState().token
+      const response = await fetch(`/api/export/pdf/${taskId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: '导出失败' }));
@@ -64,7 +69,6 @@ export const ExportPDFButton = forwardRef<HTMLButtonElement, ExportPDFButtonProp
 
       toast.success('PDF 导出成功');
     } catch (error) {
-      console.error('PDF 导出失败:', error);
       const errorMessage = error instanceof Error ? error.message : 'PDF 导出失败，请重试';
       toast.error(errorMessage);
     } finally {

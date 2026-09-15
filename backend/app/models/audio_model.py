@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, List
 
 
 @dataclass
@@ -12,4 +12,27 @@ class AudioDownloadResult:
     video_id: str                # 唯一视频ID
     raw_info: dict               # yt-dlp 的原始 info 字典
     video_path: Optional[str] = None  #  新增字段：可选视频文件路径
+    description: Optional[str] = None  # 视频描述
+    author_id: Optional[str] = None
+    author_name: Optional[str] = None  # 博主名称
+    content_type: str = "video"  # "video" | "article" | "live_photo"
+    images: Optional[List[str]] = None  # 本地图片路径列表（用于图集）
+    tags: List[str] = field(default_factory=list)  # 平台原始标签
+
+
+@dataclass
+class VideoInfoResult:
+    """视频元数据（不下载文件，仅获取信息）"""
+    title: str
+    duration: float
+    cover_url: Optional[str]
+    platform: str
+    video_id: str
+    author_id: Optional[str] = None
+    author_name: Optional[str] = None
+    description: Optional[str] = None
+    raw_info: dict = field(default_factory=dict)
+    content_type: str = "video"  # "video" | "article" | "live_photo"
+    images_with_video: Optional[List[dict]] = None  # 实况照片的图片+视频URL列表
+    tags: List[str] = field(default_factory=list)  # 平台原始标签
 

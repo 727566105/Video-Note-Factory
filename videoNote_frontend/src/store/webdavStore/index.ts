@@ -12,6 +12,8 @@ import {
   deleteBackup as deleteBackupApi,
   restoreBackup,
   restoreFromUpload,
+  exportLocalBackup,
+  listLocalBackups,
   enableSchedule,
   updateSchedule,
   disableSchedule,
@@ -40,6 +42,7 @@ interface BackupStatus {
   current_operation: string | null
   progress: number
   message: string
+  skipped_files?: string[]
 }
 
 interface WebDAVStore {
@@ -65,14 +68,17 @@ interface WebDAVStore {
   testConnection: (config: WebDAVConfig) => Promise<{ success: boolean; message: string }>
 
   // 操作 - 备份
-  createBackup: () => Promise<void>
+  createBackup: (backupMode?: string) => Promise<void>
   loadBackupStatus: () => Promise<void>
   loadBackups: () => Promise<void>
   deleteBackup: (backupName: string) => Promise<void>
 
   // 操作 - 恢复
   restoreBackup: (backupName: string) => Promise<void>
-  restoreFromUpload: (file: File) => Promise<void>
+  restoreFromUpload: (file: File, onUploadProgress?: (percent: number) => void) => Promise<void>
+
+  // 操作 - 本地整机包导出
+  exportLocal: () => Promise<string | null>
 
   // 操作 - 定时任务
   loadSchedule: () => Promise<void>
@@ -130,7 +136,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
             }
           }
         } catch (error) {
-          console.error('加载 WebDAV 配置失败:', error)
         }
       },
 
@@ -140,7 +145,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           await saveConfig(config)
           set({ config: config, isConfigured: true })
         } catch (error) {
-          console.error('保存 WebDAV 配置失败:', error)
           throw error
         }
       },
@@ -151,7 +155,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           await updateConfigApi(config)
           set({ config: config, isConfigured: true })
         } catch (error) {
-          console.error('更新 WebDAV 配置失败:', error)
           throw error
         }
       },
@@ -162,7 +165,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           await deleteConfig()
           set({ config: null, isConfigured: false, schedule: null })
         } catch (error) {
-          console.error('删除 WebDAV 配置失败:', error)
           throw error
         }
       },
@@ -188,7 +190,7 @@ export const useWebDAVStore = create<WebDAVStore>()(
       },
 
       // 创建备份
-      createBackup: async () => {
+      createBackup: async (backupMode?: string) => {
         // 防止重复调用
         const state = get()
         if (state.isBackingUp) {
@@ -197,10 +199,37 @@ export const useWebDAVStore = create<WebDAVStore>()(
 
         set({ isBackingUp: true })
         try {
-          await createBackup('manual')
+          await createBackup('manual', backupMode)
           await get().loadSchedule()
         } catch (error) {
-          console.error('创建备份失败:', error)
+          throw error
+        } finally {
+          set({ isBackingUp: false })
+        }
+      },
+
+      // 导出整机包到本地（轮询进度，完成后返回最新文件名）
+      exportLocal: async () => {
+        const state = get()
+        if (state.isBackingUp) {
+          return null
+        }
+        set({ isBackingUp: true })
+        try {
+          await exportLocalBackup()
+          // 轮询直到完成（30 分钟上限）
+          const deadline = Date.now() + 30 * 60 * 1000
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1500))
+            const data = await getBackupStatus()
+            set({ backupStatus: data || get().backupStatus })
+            if (data && !data.is_busy) break
+          }
+          // 取最新本地备份
+          const list = await listLocalBackups()
+          const latest = list?.backups?.[0]
+          return latest?.name || null
+        } catch (error) {
           throw error
         } finally {
           set({ isBackingUp: false })
@@ -213,7 +242,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           const data = await getBackupStatus()
           set({ backupStatus: data || { is_busy: false, current_operation: null, progress: 0, message: '' } })
         } catch (error) {
-          console.error('加载备份状态失败:', error)
         }
       },
 
@@ -228,7 +256,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           }
           set({ backups: data?.backups || [] })
         } catch (error) {
-          console.error('加载备份列表失败:', error)
           set({ backups: [] })
         }
       },
@@ -239,7 +266,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           await deleteBackupApi(backupName)
           await get().loadBackups()
         } catch (error) {
-          console.error('删除备份失败:', error)
           throw error
         }
       },
@@ -250,22 +276,49 @@ export const useWebDAVStore = create<WebDAVStore>()(
         try {
           await restoreBackup(backupName)
         } catch (error) {
-          console.error('恢复备份失败:', error)
           throw error
         } finally {
           set({ isRestoring: false })
         }
       },
 
-      // 从上传文件恢复
-      restoreFromUpload: async (file) => {
+      // 从上传文件恢复（异步任务化：上传+触发 → 轮询恢复进度 → 完成刷新）
+      restoreFromUpload: async (file, onUploadProgress) => {
+        const state = get()
+        if (state.isRestoring) {
+          return
+        }
         set({ isRestoring: true })
         try {
-          await restoreFromUpload(file)
+          // 上传 + 触发后端后台恢复（后端立即返回 {started:true}）
+          await restoreFromUpload(file, onUploadProgress)
+          // 轮询直到后端恢复完成（30 分钟上限）
+          const deadline = Date.now() + 30 * 60 * 1000
+          let lastMessage = ''
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1500))
+            const data = await getBackupStatus()
+            set({ backupStatus: data || get().backupStatus })
+            if (data) {
+              lastMessage = data.message || ''
+              if (!data.is_busy) break
+            }
+          }
+          // 据最终 message 判断成败（后端 restore_from_local_file 完成后保留 message）
+          if (lastMessage.includes('失败')) {
+            throw new Error(lastMessage)
+          }
+          // 恢复成功：若后端透传了跳过列表，暂存到 localStorage 供 reload 后展示
+          const skippedFiles = get().backupStatus.skipped_files || []
+          if (skippedFiles.length > 0) {
+            localStorage.setItem(
+              'restore_skipped_files',
+              JSON.stringify({ files: skippedFiles, ts: Date.now() })
+            )
+          }
           // 重新加载数据
           window.location.reload()
         } catch (error) {
-          console.error('从文件恢复失败:', error)
           throw error
         } finally {
           set({ isRestoring: false })
@@ -288,7 +341,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
             set({ schedule: null })
           }
         } catch (error) {
-          console.error('加载定时任务配置失败:', error)
         }
       },
 
@@ -298,7 +350,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           await enableSchedule({ auto_backup_enabled: 1, auto_backup_schedule: schedule })
           await get().loadSchedule()
         } catch (error) {
-          console.error('启用自动备份失败:', error)
           throw error
         }
       },
@@ -312,7 +363,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           })
           await get().loadSchedule()
         } catch (error) {
-          console.error('更新定时任务失败:', error)
           throw error
         }
       },
@@ -323,7 +373,6 @@ export const useWebDAVStore = create<WebDAVStore>()(
           await disableSchedule()
           await get().loadSchedule()
         } catch (error) {
-          console.error('禁用自动备份失败:', error)
           throw error
         }
       },

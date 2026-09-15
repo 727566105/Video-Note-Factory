@@ -7,14 +7,32 @@ import os
 
 logger = get_logger(__name__)
 
-# 加载加密密钥
+# 加载加密密钥（不强制要求，使用 WebDAV 时才检查）
 ENCRYPTION_KEY = os.getenv('WEBDAV_ENCRYPTION_KEY')
+_key_not_set = False
+
 if not ENCRYPTION_KEY:
-    # 如果环境变量未设置，生成一个临时密钥（仅用于开发环境）
-    ENCRYPTION_KEY = Fernet.generate_key().decode()
-    logger.warning("WEBDAV_ENCRYPTION_KEY not set, using temporary key")
+    env_mode = os.getenv('ENV', 'development')
+    if env_mode == 'production':
+        _key_not_set = True
+        ENCRYPTION_KEY = 'placeholder_key_not_for_actual_use_32b='
+        logger.warning("WEBDAV_ENCRYPTION_KEY 未设置。启用 WebDAV 时需先设置密钥！")
+    else:
+        # 开发环境使用固定密钥
+        ENCRYPTION_KEY = 'dev_only_key_not_for_production_32bytes=='
+        logger.warning("WEBDAV_ENCRYPTION_KEY 未设置，使用开发默认密钥。切勿在生产环境使用！")
 
 cipher_suite = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
+
+
+def _check_key_available():
+    """检查密钥是否可用，使用 WebDAV 前调用"""
+    if _key_not_set:
+        raise RuntimeError(
+            "生产环境必须设置 WEBDAV_ENCRYPTION_KEY 才能使用 WebDAV 功能。\n"
+            "生成密钥: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"\n"
+            "然后添加到 .env: WEBDAV_ENCRYPTION_KEY=<生成的密钥>"
+        )
 
 
 def get_config() -> WebDAVConfig | None:
@@ -28,8 +46,10 @@ def get_config() -> WebDAVConfig | None:
 
 
 def upsert_config(url: str, username: str, password: str, path: str = '/',
-                 auto_backup_enabled: int = 0, auto_backup_schedule: str = '0 2 * * *') -> int:
+                 auto_backup_enabled: int = 0, auto_backup_schedule: str = '0 2 * * *',
+                 default_backup_mode: str = 'full') -> int:
     """保存或更新 WebDAV 配置"""
+    _check_key_available()  # 检查密钥是否可用
     db = next(get_db())
     try:
         config = db.query(WebDAVConfig).first()
@@ -45,6 +65,7 @@ def upsert_config(url: str, username: str, password: str, path: str = '/',
             config.path = path
             config.auto_backup_enabled = auto_backup_enabled
             config.auto_backup_schedule = auto_backup_schedule
+            config.default_backup_mode = default_backup_mode
             db.commit()
             logger.info(f"Updated WebDAV config: {config.id}")
         else:
@@ -55,7 +76,8 @@ def upsert_config(url: str, username: str, password: str, path: str = '/',
                 password=encrypted_password,
                 path=path,
                 auto_backup_enabled=auto_backup_enabled,
-                auto_backup_schedule=auto_backup_schedule
+                auto_backup_schedule=auto_backup_schedule,
+                default_backup_mode=default_backup_mode
             )
             db.add(config)
             db.commit()
@@ -80,6 +102,7 @@ def update_config(config_id: int, **kwargs) -> bool:
 
         # 如果更新密码，需要加密
         if 'password' in kwargs:
+            _check_key_available()  # 检查密钥是否可用
             kwargs['password'] = cipher_suite.encrypt(kwargs['password'].encode()).decode()
 
         for key, value in kwargs.items():
@@ -120,18 +143,24 @@ def test_connection(url: str, username: str, password: str) -> tuple[bool, str]:
     """测试 WebDAV 连接"""
     try:
         from webdav3.client import Client
+        from app.utils.ssrf import validate_safe_url
+
+        # SSRF 安全校验
+        is_safe, err = validate_safe_url(url)
+        if not is_safe:
+            return False, f"WebDAV 地址不安全: {err}"
 
         # 确保 URL 格式正确
         url = url.rstrip('/')
 
-        logger.info(f"Testing WebDAV connection: {url}")
-        logger.info(f"Using username: {username}")
+        logger.info("Testing WebDAV connection")
 
         # 直接使用完整 URL
         client = Client({
             'webdav_hostname': url,
             'webdav_login': username,
-            'webdav_password': password
+            'webdav_password': password,
+            'webdav_timeout': 30
         })
 
         # 尝试列出根目录来验证连接（使用空路径表示根目录）
@@ -174,6 +203,7 @@ def update_last_backup_time():
 
 def get_decrypted_password() -> str | None:
     """获取解密后的密码（仅用于内存中使用）"""
+    _check_key_available()  # 检查密钥是否可用
     config = get_config()
     if not config:
         return None

@@ -1,4 +1,6 @@
 import request from '@/utils/request.ts'
+import { getApiBaseURL } from '@/utils/api'
+import { useAuthStore } from '@/store/authStore'
 
 // ==================== 配置管理 ====================
 
@@ -13,6 +15,7 @@ export const saveConfig = async (data: {
   username: string
   password: string
   path?: string
+  default_backup_mode?: string
   auto_backup_enabled?: number
   auto_backup_schedule?: string
 }) => {
@@ -25,6 +28,7 @@ export const updateConfig = async (data: {
   username: string
   password: string
   path?: string
+  default_backup_mode?: string
   auto_backup_enabled?: number
   auto_backup_schedule?: string
 }) => {
@@ -47,10 +51,10 @@ export const testConnection = async (data: {
 
 // ==================== 备份操作 ====================
 
-// 手动触发备份
-export const createBackup = async (backupType: string = 'manual') => {
+// 手动触发备份（backupMode: full=全部含媒体 / quick=仅配置）
+export const createBackup = async (backupType: string = 'manual', backupMode?: string) => {
   return await request.post('/webdav/backup', null, {
-    params: { backup_type: backupType }
+    params: { backup_type: backupType, ...(backupMode ? { backup_mode: backupMode } : {}) }
   })
 }
 
@@ -128,8 +132,9 @@ export const deleteAllHistory = async () => {
   return await request.delete('/webdav/history')
 }
 
-// 从上传的文件恢复数据
-export const restoreFromUpload = async (file: File) => {
+// 从上传的文件恢复数据（后端异步执行恢复，此处仅上传+触发，立即返回 {started:true}）
+// timeout:0 禁用 axios 超时（1.6G 整机包上传远超默认 30s）；onProgress 上报上传百分比
+export const restoreFromUpload = async (file: File, onProgress?: (percent: number) => void) => {
   const formData = new FormData()
   formData.append('file', file)
 
@@ -137,5 +142,29 @@ export const restoreFromUpload = async (file: File) => {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: 0,
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    },
   })
+}
+
+// ==================== 本地整机包导出/下载 ====================
+
+// 异步触发本地整机包导出
+export const exportLocalBackup = async () => {
+  return await request.post('/webdav/backup/local')
+}
+
+// 列出本地导出的整机包
+export const listLocalBackups = async () => {
+  return await request.get('/webdav/backup/local')
+}
+
+// 拼接下载 URL（浏览器原生跳转下载，带 token query 以支持大文件流式下载）
+export const buildDownloadBackupUrl = (filename: string) => {
+  const token = useAuthStore.getState().token || ''
+  return `${getApiBaseURL()}/webdav/backup/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`
 }

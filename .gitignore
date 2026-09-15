@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+nohup.out
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -9,7 +10,7 @@ lerna-debug.log*
 .DS_Store
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-BiliNote/pnpm-lock.yaml
+!videoNote_frontend/pnpm-lock.yaml
 # Runtime data
 pids
 *.pid
@@ -41,6 +42,12 @@ build/Release
 # Dependency directories
 node_modules/
 jspm_packages/
+venv/
+.venv/
+env/
+.env/
+backend/venv*/
+**/venv*/
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
@@ -62,7 +69,6 @@ web_modules/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
-.BiliNote-dev/*
 # Optional REPL history
 .node_repl_history
 
@@ -79,6 +85,14 @@ web_modules/
 .env.production.local
 .env.local
 !.env.example
+
+# 本地服务 PID 和日志
+.pids/
+scripts/
+
+# nohup 后台运行输出（运行日志，勿提交）
+nohup.out
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -306,6 +320,10 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# AI 助手本地配置（含个人 IDE 路径，不入库）
+.claude/
+*/.claude/
+
 # PyPI configuration file
 .pypirc
 /backend/data/*
@@ -322,4 +340,48 @@ cython_debug/
 /data/
 /backend/.idea/*
 /backend/config/*
-/BiliNote_frontend/.idea/*docs/superpowers/
+/config/downloader.json
+backend/.env.bak
+docs/superpowers/
+.trae/
+/note_results/
+
+# Runtime data & databases (root level)
+database.db
+database.db-shm
+database.db-wal
+data/
+backend/app/config/
+backend/app/data/
+
+# 备份/恢复临时目录（导入整机包时的临时产物，勿提交）
+.backup_temp/
+
+# Test screenshots
+*.verify.png
+startup-screenshot.png
+
+# Superpowers skill local cache
+.superpowers/
+config/downloader.json
+
+# 调试与测试残留（截图/快照/临时产物，勿提交）
+.vite/
+*.swp
+.playwright-mcp/
+backend/test_screenshots/
+backend/test_report.md
+videoNote_frontend/*.png
+videoNote_frontend/*.txt
+*.network-response
+open_chrome.mjs
+video-note-toolbar.txt
+
+# 运行时数据备份（勿提交）
+data.dev.bak/
+
+# 本地工具目录（勿提交）
+.zcode/
+
+# 浏览器插件打包产物（发版时上传 release，不入库）
+videonote-helper-*.zip

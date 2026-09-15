@@ -1,11 +1,13 @@
 /* -------------------- 常量 -------------------- */
 import {
   BiliBiliLogo,
+  CCTVLogo,
   DouyinLogo,
   KuaishouLogo,
   LocalLogo,
   AudioLogo,
   YoutubeLogo,
+  XiaohongshuLogo,
 } from '@/components/Icons/platform.tsx'
 
 export const noteFormats = [
@@ -28,10 +30,25 @@ export const noteStyles = [
   { label: '会议纪要', value: 'meeting_minutes', desc: '按议题归纳讨论、决策和行动项' },
 ] as const
 
+export const outputLanguages = [
+  { label: '中文', value: 'zh' },
+  { label: 'English', value: 'en' },
+  { label: '日本語', value: 'ja' },
+  { label: '한국어', value: 'ko' },
+  { label: 'Français', value: 'fr' },
+  { label: 'Deutsch', value: 'de' },
+  { label: 'Español', value: 'es' },
+  { label: 'Русский', value: 'ru' },
+  { label: 'Português', value: 'pt' },
+  { label: 'Italiano', value: 'it' },
+] as const
+
 export const videoPlatforms = [
   { label: '哔哩哔哩', value: 'bilibili', logo: BiliBiliLogo },
   { label: 'YouTube', value: 'youtube', logo: YoutubeLogo },
+  { label: '央视网', value: 'cctv', logo: CCTVLogo },
   { label: '抖音', value: 'douyin', logo: DouyinLogo },
+  { label: '小红书', value: 'xiaohongshu', logo: XiaohongshuLogo },
   { label: '快手', value: 'kuaishou', logo: KuaishouLogo },
   { label: '本地视频', value: 'local', logo: LocalLogo },
   { label: '本地音频', value: 'local_audio', logo: AudioLogo },

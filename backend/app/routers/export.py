@@ -15,9 +15,15 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# 获取项目根目录的绝对路径
-NOTE_OUTPUT_DIR = Path(__file__).parent.parent.parent / "note_results"
-EXPORT_HISTORY_FILE = NOTE_OUTPUT_DIR / ".export_history.json"
+# 使用统一的路径管理工具
+from app.utils.path_helper import (
+    find_note_file, get_export_cache_path, get_export_history_path, get_video_folder
+)
+from app.db.video_task_dao import get_task_by_task_id
+from app.utils.pandoc_export import export_with_pandoc, is_pandoc_available, _resolve_image_paths
+from app.db.engine import get_db
+from app.services.collection import get_collection_summary
+from app.db.models.collection import Collection
 
 # PDF 样式主题
 StyleType = Literal["default", "simple", "print", "academic"]
@@ -27,35 +33,53 @@ ImageFormat = Literal["png", "jpg", "jpeg"]
 ImageTemplate = Literal["xiaohongshu", "simple", "academic"]
 
 
-def _add_export_history(task_id: str, style: str, title: str | None = None):
-    """记录导出历史"""
+def _add_export_history(task_id: str, style: str, title: str | None = None, task=None):
+    """记录导出历史到视频目录下的 exports/export_history.json"""
+    if not task or not getattr(task, 'author_id', None):
+        logger.warning(f"跳过导出历史记录：缺少 task 或 author_id (task_id={task_id})")
+        return
     try:
+        history_file = get_export_history_path(
+            author_id=task.author_id,
+            author_name=getattr(task, 'author_name', ''),
+            video_id=getattr(task, 'video_id', ''),
+            title=getattr(task, 'title', ''),
+            platform=getattr(task, 'platform', '') or ""
+        )
+
         history = []
-        if EXPORT_HISTORY_FILE.exists():
-            history = json.loads(EXPORT_HISTORY_FILE.read_text(encoding="utf-8"))
+        if history_file.exists():
+            history = json.loads(history_file.read_text(encoding="utf-8"))
 
         record = {
             "task_id": task_id,
             "style": style,
             "title": title,
             "timestamp": datetime.now().isoformat(),
-            "pdf_file": f"{task_id}_{style}.pdf"
         }
 
         history.insert(0, record)
-        # 只保留最近 1000 条记录
         history = history[:1000]
 
-        EXPORT_HISTORY_FILE.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
+        history_file.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         logger.warning(f"记录导出历史失败: {e}")
 
 
-def _get_export_history(limit: int = 50) -> list:
-    """获取导出历史"""
+def _get_export_history(limit: int = 50, task=None) -> list:
+    """获取导出历史（从视频目录读取）"""
+    if not task or not getattr(task, 'author_id', None):
+        return []
     try:
-        if EXPORT_HISTORY_FILE.exists():
-            history = json.loads(EXPORT_HISTORY_FILE.read_text(encoding="utf-8"))
+        history_file = get_export_history_path(
+            author_id=task.author_id,
+            author_name=getattr(task, 'author_name', ''),
+            video_id=getattr(task, 'video_id', ''),
+            title=getattr(task, 'title', ''),
+            platform=getattr(task, 'platform', '') or ""
+        )
+        if history_file.exists():
+            history = json.loads(history_file.read_text(encoding="utf-8"))
             return history[:limit]
         return []
     except Exception as e:
@@ -404,7 +428,7 @@ async def export_pdf(
     task_id: str,
     style: StyleType = Query(default="default", description="PDF 样式主题"),
     current_user=Depends(get_current_user)
-):
+) -> dict:
     """
     导出笔记为 PDF（带缓存和样式选择）
 
@@ -419,29 +443,62 @@ async def export_pdf(
         PDF 文件流
     """
     try:
-        markdown_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+        task = get_task_by_task_id(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
 
-        # 检查文件是否存在
-        if not markdown_file.exists():
-            logger.warning(f"PDF 导出失败：笔记不存在 (task_id={task_id})")
-            raise HTTPException(
-                status_code=404,
-                detail=f"笔记不存在，请确认任务 ID 正确"
+        # 优先从 note.json 读取 markdown 字段（包含已替换的图片 URL）
+        note_json_file = find_note_file(
+            task_id,
+            author_id=getattr(task, 'author_id', None),
+            author_name=getattr(task, 'author_name', None),
+            video_id=getattr(task, 'video_id', None),
+            title=getattr(task, 'title', None),
+            file_type="note",
+            platform=getattr(task, 'platform', '') or "",
+            user_id=task.user_id
+        )
+
+        markdown_content = ""
+        if note_json_file and note_json_file.exists():
+            try:
+                note_data = json.loads(note_json_file.read_text(encoding="utf-8"))
+                markdown_content = note_data.get("markdown", "")
+            except Exception as e:
+                logger.warning(f"读取 note.json 失败: {e}")
+
+        # 回退到 note.md 文件
+        source_file = None
+        if not markdown_content.strip():
+            markdown_file = find_note_file(
+                task_id,
+                author_id=getattr(task, 'author_id', None),
+                author_name=getattr(task, 'author_name', None),
+                video_id=getattr(task, 'video_id', None),
+                title=getattr(task, 'title', None),
+                file_type="markdown",
+                platform=getattr(task, 'platform', '') or ""
             )
-
-        # 读取 Markdown 内容
-        markdown_content = markdown_file.read_text(encoding="utf-8")
+            if markdown_file and markdown_file.exists():
+                markdown_content = markdown_file.read_text(encoding="utf-8")
+                source_file = markdown_file
 
         if not markdown_content.strip():
-            logger.warning(f"PDF 导出失败：笔记内容为空 (task_id={task_id})")
             raise HTTPException(status_code=400, detail="笔记内容为空")
 
         # 读取笔记标题（用于文件名）
         title = None
-        audio_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
-        if audio_cache_file.exists():
+        audio_cache_file = find_note_file(
+            task_id,
+            author_id=getattr(task, 'author_id', None),
+            author_name=getattr(task, 'author_name', None),
+            video_id=getattr(task, 'video_id', None),
+            title=getattr(task, 'title', None),
+            file_type="audio",
+            platform=getattr(task, 'platform', "") or ""
+        ) if task else None
+        if audio_cache_file and audio_cache_file.exists():
             try:
-                import json
                 audio_meta = json.loads(audio_cache_file.read_text(encoding="utf-8"))
                 title = audio_meta.get("title", "").strip()
                 logger.info(f"读取到标题 (task_id={task_id}): {title[:50]}...")
@@ -449,19 +506,61 @@ async def export_pdf(
                 logger.warning(f"读取标题失败 (task_id={task_id}): {e}")
 
         # PDF 缓存机制（包含样式后缀）
-        pdf_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_{style}.pdf"
+        if not task or not getattr(task, 'author_id', None):
+            raise HTTPException(status_code=400, detail="缺少 author_id 信息，无法导出")
+
+        pdf_cache_file = get_export_cache_path(
+            author_id=task.author_id,
+            author_name=getattr(task, 'author_name', ''),
+            video_id=getattr(task, 'video_id', ''),
+            title=getattr(task, 'title', ''),
+            task_id=task_id, style=style,
+            platform=getattr(task, 'platform', '') or ""
+        )
         if pdf_cache_file.exists():
-            md_mtime = markdown_file.stat().st_mtime
-            pdf_mtime = pdf_cache_file.stat().st_mtime
-            if pdf_mtime >= md_mtime:
-                logger.info(f"返回缓存的 PDF (task_id={task_id}, style={style})")
+            cache_mtime = pdf_cache_file.stat().st_mtime
+            check_file = note_json_file if note_json_file and note_json_file.exists() else source_file
+            if check_file:
+                md_mtime = check_file.stat().st_mtime
+                if cache_mtime >= md_mtime:
+                    logger.info(f"返回缓存的 PDF (task_id={task_id}, style={style})")
+                    pdf_content = pdf_cache_file.read_bytes()
+                    _add_export_history(task_id, style, title, task=task)
+                    return _build_pdf_response(pdf_content, title, task_id, style)
+            else:
                 pdf_content = pdf_cache_file.read_bytes()
-                _add_export_history(task_id, style, title)
+                _add_export_history(task_id, style, title, task=task)
                 return _build_pdf_response(pdf_content, title, task_id, style)
 
         # 生成 PDF 并缓存
         try:
             from markdown_pdf import MarkdownPdf, Section
+
+            # 获取视频目录用于解析本地图片
+            video_folder = get_video_folder(
+                task.author_id,
+                getattr(task, 'author_name', ''),
+                getattr(task, 'video_id', ''),
+                getattr(task, 'title', ''),
+                getattr(task, 'platform', '') or ""
+            )
+
+            # 将 API 图片 URL 转换为相对文件名（markdown_pdf 使用 archive 解析）
+            screenshots_dir = video_folder / "screenshots"
+            # 匹配截图 URL: /api/video_screenshots/{platform}/{author_id}/{video_id}/{filename}
+            markdown_content = re.sub(
+                r'/api/video_screenshots/[^/]+/[^/]+/[^/]+/([^)\s]+)',
+                lambda m: m.group(1) if (screenshots_dir / m.group(1)).exists() else m.group(0),
+                markdown_content
+            )
+            # 匹配封面 URL: /api/video_cover/.../video_id → cover.jpg
+            cover_candidate = video_folder / "cover.jpg"
+            if cover_candidate.exists():
+                markdown_content = re.sub(
+                    r'/api/video_cover/[^/]+/[^/]+/[^/\s)]+',
+                    str(cover_candidate),
+                    markdown_content
+                )
 
             # 清理 markdown 内容
             clean_md = markdown_content.replace('\r\n', '\n')
@@ -470,9 +569,9 @@ async def export_pdf(
             # 获取样式
             css_styles = PDF_STYLES.get(style, PDF_STYLES["default"])
 
-            # 创建 PDF
+            # 创建 PDF，设置 root 为 screenshots 目录以解析图片
             md_pdf = MarkdownPdf()
-            md_pdf.add_section(Section(clean_md), user_css=css_styles)
+            md_pdf.add_section(Section(clean_md, root=str(screenshots_dir)), user_css=css_styles)
 
             # 生成 PDF 到内存
             pdf_buffer = io.BytesIO()
@@ -494,7 +593,7 @@ async def export_pdf(
             raise HTTPException(status_code=500, detail=f"PDF 生成失败：{str(e)}")
 
         logger.info(f"PDF 导出成功 (task_id={task_id}, style={style})")
-        _add_export_history(task_id, style, title)
+        _add_export_history(task_id, style, title, task=task)
         return _build_pdf_response(pdf_content, title, task_id, style)
 
     except HTTPException:
@@ -507,14 +606,14 @@ async def export_pdf(
 @router.get("/styles")
 async def list_styles(current_user=Depends(get_current_user)):
     """获取可用的 PDF 样式列表"""
-    return {
+    return R.success(data={
         "styles": [
             {"id": "default", "name": "默认样式", "description": "适合屏幕阅读，色彩丰富"},
             {"id": "simple", "name": "简洁样式", "description": "极简设计，清爽干净"},
             {"id": "print", "name": "打印样式", "description": "适合打印，黑白配色，衬线字体"},
             {"id": "academic", "name": "学术样式", "description": "适合学术论文，首行缩进，正式排版"}
         ]
-    }
+    })
 
 
 @router.post("/batch")
@@ -522,7 +621,7 @@ async def batch_export_pdf(
     task_ids: list[str] = Body(..., embed=True),
     style: StyleType = Query(default="default", description="PDF 样式主题"),
     current_user=Depends(get_current_user)
-):
+) -> dict:
     """
     批量导出笔记为 PDF 打包下载
 
@@ -550,16 +649,34 @@ async def batch_export_pdf(
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         for task_id in task_ids:
             try:
-                markdown_file = NOTE_OUTPUT_DIR / f"{task_id}_markdown.md"
+                # 兼容查找 Markdown 文件
+                task = get_task_by_task_id(task_id)
+                markdown_file = find_note_file(
+                    task_id,
+                    author_id=getattr(task, 'author_id', None),
+                    author_name=getattr(task, 'author_name', None),
+                    video_id=getattr(task, 'video_id', None),
+                    title=getattr(task, 'title', None),
+                    file_type="markdown",
+                    platform=getattr(task, 'platform', "") or ""
+                ) if task else None
 
-                if not markdown_file.exists():
+                if not markdown_file or not markdown_file.exists():
                     failed_tasks.append({"task_id": task_id, "reason": "笔记不存在"})
                     continue
 
                 # 读取标题用于文件名
                 title = f"note_{task_id[:8]}"
-                audio_file = NOTE_OUTPUT_DIR / f"{task_id}_audio.json"
-                if audio_file.exists():
+                audio_file = find_note_file(
+                    task_id,
+                    author_id=getattr(task, 'author_id', None),
+                    author_name=getattr(task, 'author_name', None),
+                    video_id=getattr(task, 'video_id', None),
+                    title=getattr(task, 'title', None),
+                    file_type="audio",
+                    platform=getattr(task, 'platform', "") or ""
+                ) if task else None
+                if audio_file and audio_file.exists():
                     try:
                         import json
                         audio_meta = json.loads(audio_file.read_text(encoding="utf-8"))
@@ -567,11 +684,22 @@ async def batch_export_pdf(
                         if raw_title:
                             safe_title = re.sub(r'[\\/*?:"<>|]', '', raw_title)[:50]
                             title = safe_title if safe_title else title
-                    except:
+                    except Exception:
                         pass
 
                 # 检查缓存
-                pdf_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_{style}.pdf"
+                if not task or not getattr(task, 'author_id', None):
+                    failed_tasks.append({"task_id": task_id, "reason": "缺少 author_id"})
+                    continue
+
+                pdf_cache_file = get_export_cache_path(
+                    author_id=task.author_id,
+                    author_name=getattr(task, 'author_name', ''),
+                    video_id=getattr(task, 'video_id', ''),
+                    title=getattr(task, 'title', ''),
+                    task_id=task_id, style=style,
+                    platform=getattr(task, 'platform', '') or ""
+                )
                 pdf_content = None
 
                 if pdf_cache_file.exists():
@@ -602,7 +730,7 @@ async def batch_export_pdf(
                     # 保存缓存
                     try:
                         pdf_cache_file.write_bytes(pdf_content)
-                    except:
+                    except Exception:
                         pass
 
                 # 添加到 ZIP
@@ -633,22 +761,23 @@ async def batch_export_pdf(
 async def get_export_history(limit: int = Query(default=50, ge=1, le=200), current_user=Depends(get_current_user)):
     """获取导出历史记录"""
     history = _get_export_history(limit)
-    return {
+    return R.success(data={
         "total": len(history),
         "history": history
-    }
+    })
 
 
 @router.get("/history/{task_id}")
 async def get_task_history(task_id: str, current_user=Depends(get_current_user)):
     """获取指定任务的导出历史"""
-    history = _get_export_history(1000)
+    task = get_task_by_task_id(task_id)
+    history = _get_export_history(1000, task=task)
     task_history = [h for h in history if h.get("task_id") == task_id]
-    return {
+    return R.success(data={
         "task_id": task_id,
         "count": len(task_history),
         "history": task_history
-    }
+    })
 
 
 @router.get("/redownload/{task_id}")
@@ -656,9 +785,20 @@ async def redownload_pdf(
     task_id: str,
     style: StyleType = Query(default="default", description="PDF 样式主题"),
     current_user=Depends(get_current_user)
-):
-    """重新下载历史 PDF（优先使用缓存）"""
-    pdf_cache_file = NOTE_OUTPUT_DIR / f"{task_id}_{style}.pdf"
+) -> dict:
+    """重新下载历史 PDF（使用缓存）"""
+    task = get_task_by_task_id(task_id)
+    if not task or not getattr(task, 'author_id', None):
+        raise HTTPException(status_code=400, detail="缺少 author_id 信息")
+
+    pdf_cache_file = get_export_cache_path(
+        author_id=task.author_id,
+        author_name=getattr(task, 'author_name', ''),
+        video_id=getattr(task, 'video_id', ''),
+        title=getattr(task, 'title', ''),
+        task_id=task_id, style=style,
+        platform=getattr(task, 'platform', '') or ""
+    )
     if not pdf_cache_file.exists():
         raise HTTPException(status_code=404, detail="PDF 缓存不存在，请先导出一次")
 
@@ -678,10 +818,10 @@ async def list_image_templates(current_user=Depends(get_current_user)):
     from app.utils.image_export import get_available_templates
 
     templates = get_available_templates()
-    return {
+    return R.success(data={
         "templates": templates,
         "total": len(templates)
-    }
+    })
 
 
 @router.get("/image/history/{task_id}")
@@ -690,11 +830,11 @@ async def get_image_history(task_id: str, current_user=Depends(get_current_user)
     history = _get_export_history(1000)
     image_history = [h for h in history if h.get("style", "").startswith("image_")]
     task_history = [h for h in image_history if h.get("task_id") == task_id]
-    return {
+    return R.success(data={
         "task_id": task_id,
         "count": len(task_history),
         "history": task_history
-    }
+    })
 
 
 @router.get("/image/{task_id}")
@@ -704,7 +844,7 @@ async def export_image(
     width: int = Query(default=1080, ge=400, le=1920, description="图片宽度"),
     format: ImageFormat = Query(default="png", description="图片格式"),
     current_user=Depends(get_current_user)
-):
+) -> dict:
     """
     导出笔记为图文（多张图片打包为 ZIP）
 
@@ -763,7 +903,8 @@ async def export_image(
         zip_filename_encoded = quote(zip_filename.encode('utf-8'))
 
         # 记录导出历史
-        _add_export_history(task_id, f"image_{template}", title)
+        task = get_task_by_task_id(task_id)
+        _add_export_history(task_id, f"image_{template}", title, task=task)
 
         logger.info(f"图文导出成功 (task_id={task_id}, {len(image_bytes_list)}张图片)")
 
@@ -787,3 +928,296 @@ async def export_image(
     except Exception as e:
         logger.error(f"图文导出异常 (task_id={task_id}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"图文生成失败：{str(e)}")
+
+
+# ── Pandoc 格式导出（HTML / DOCX / EPUB） ──────────────────────────
+
+PandocFormat = Literal["html", "docx", "epub"]
+
+
+def _export_pandoc_format(task_id: str, fmt: PandocFormat, current_user) -> Response:
+    """通用的 Pandoc 格式导出"""
+    if not is_pandoc_available():
+        raise HTTPException(
+            status_code=501,
+            detail="服务器未安装 Pandoc，无法导出此格式"
+        )
+
+    task = get_task_by_task_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    # 优先从 note.json 读取 markdown 字段（包含已替换的图片 URL）
+    note_json_file = find_note_file(
+        task_id,
+        author_id=getattr(task, 'author_id', None),
+        author_name=getattr(task, 'author_name', None),
+        video_id=getattr(task, 'video_id', None),
+        title=getattr(task, 'title', None),
+        file_type="note",
+        platform=getattr(task, 'platform', '') or "",
+        user_id=task.user_id
+    )
+
+    markdown_content = ""
+    if note_json_file and note_json_file.exists():
+        try:
+            note_data = json.loads(note_json_file.read_text(encoding="utf-8"))
+            markdown_content = note_data.get("markdown", "")
+        except Exception as e:
+            logger.warning(f"读取 note.json 失败: {e}")
+
+    # 回退到 note.md 文件
+    if not markdown_content.strip():
+        markdown_file = find_note_file(
+            task_id,
+            author_id=getattr(task, 'author_id', None),
+            author_name=getattr(task, 'author_name', None),
+            video_id=getattr(task, 'video_id', None),
+            title=getattr(task, 'title', None),
+            file_type="markdown",
+            platform=getattr(task, 'platform', '') or ""
+        )
+        if markdown_file and markdown_file.exists():
+            markdown_content = markdown_file.read_text(encoding="utf-8")
+
+    if not markdown_content.strip():
+        raise HTTPException(status_code=400, detail="笔记内容为空")
+
+    if not getattr(task, 'author_id', None):
+        raise HTTPException(status_code=400, detail="缺少 author_id 信息，无法导出")
+
+    # 读取标题
+    note_title = ""
+    audio_cache_file = find_note_file(
+        task_id,
+        author_id=task.author_id,
+        author_name=getattr(task, 'author_name', ''),
+        video_id=getattr(task, 'video_id', ''),
+        title=getattr(task, 'title', ''),
+        file_type="audio",
+        platform=getattr(task, 'platform', '') or ""
+    )
+    if audio_cache_file and audio_cache_file.exists():
+        try:
+            audio_meta = json.loads(audio_cache_file.read_text(encoding="utf-8"))
+            note_title = audio_meta.get("title", "").strip()
+        except Exception:
+            pass
+
+    # 缓存路径
+    cache_file = get_export_cache_path(
+        author_id=task.author_id,
+        author_name=getattr(task, 'author_name', ''),
+        video_id=getattr(task, 'video_id', ''),
+        title=getattr(task, 'title', ''),
+        task_id=task_id,
+        style="pandoc",
+        export_format=fmt,
+        platform=getattr(task, 'platform', '') or ""
+    )
+
+    # 检查缓存（用 note.json 的 mtime 比较）
+    source_file = note_json_file if note_json_file and note_json_file.exists() else None
+    if cache_file.exists() and source_file:
+        md_mtime = source_file.stat().st_mtime
+        cache_mtime = cache_file.stat().st_mtime
+        if cache_mtime >= md_mtime:
+            logger.info(f"返回缓存的 {fmt.upper()} (task_id={task_id})")
+            _add_export_history(task_id, fmt, note_title, task=task)
+            return _build_pandoc_response(cache_file, note_title or task_id, fmt)
+
+    # 查找封面图（EPUB 用）和视频目录（图片解析用）
+    cover_path = None
+    video_folder = get_video_folder(
+        task.author_id,
+        getattr(task, 'author_name', ''),
+        getattr(task, 'video_id', ''),
+        getattr(task, 'title', ''),
+        getattr(task, 'platform', '') or ""
+    )
+    if fmt == "epub":
+        candidate = video_folder / "cover.jpg"
+        if candidate.exists():
+            cover_path = candidate
+
+    # 执行 Pandoc 转换
+    export_with_pandoc(
+        markdown_content=markdown_content,
+        output_format=fmt,
+        output_path=cache_file,
+        title=note_title,
+        cover_path=cover_path,
+        video_folder=video_folder,
+    )
+
+    _add_export_history(task_id, fmt, note_title, task=task)
+    return _build_pandoc_response(cache_file, note_title or task_id, fmt)
+
+
+def _build_pandoc_response(file_path: Path, title: str, fmt: str) -> FileResponse:
+    """构建 Pandoc 导出的文件下载响应"""
+    mime_map = {
+        "html": "text/html",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "epub": "application/epub+zip",
+    }
+    safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+    filename = quote(f"{safe_title}.{fmt}")
+    return FileResponse(
+        path=str(file_path),
+        media_type=mime_map.get(fmt, "application/octet-stream"),
+        filename=f"{safe_title}.{fmt}",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}"
+        }
+    )
+
+
+@router.get("/html/{task_id}")
+async def export_html(task_id: str, current_user=Depends(get_current_user)):
+    """导出笔记为 HTML"""
+    return _export_pandoc_format(task_id, "html", current_user)
+
+
+@router.get("/docx/{task_id}")
+async def export_docx(task_id: str, current_user=Depends(get_current_user)):
+    """导出笔记为 Word (.docx)"""
+    return _export_pandoc_format(task_id, "docx", current_user)
+
+
+@router.get("/epub/{task_id}")
+async def export_epub(task_id: str, current_user=Depends(get_current_user)):
+    """导出笔记为 EPUB"""
+    return _export_pandoc_format(task_id, "epub", current_user)
+
+
+# ==================== 合集总结导出 ====================
+
+def _get_collection_summary_content(collection_id: str, current_user):
+    """从数据库获取合集总结内容，返回 (markdown_content, title)"""
+    db = next(get_db())
+    try:
+        # 验证合集归属
+        collection = db.query(Collection).filter(Collection.id == collection_id).first()
+        if not collection:
+            raise HTTPException(status_code=404, detail="合集不存在")
+        if collection.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="无权访问该合集")
+
+        summary = get_collection_summary(db, collection_id)
+        if not summary or not summary.get("content"):
+            raise HTTPException(status_code=404, detail="合集总结不存在，请先生成总结")
+
+        return summary["content"], collection.name
+    finally:
+        db.close()
+
+
+@router.get("/pdf/collection/{collection_id}")
+async def export_collection_pdf(
+    collection_id: str,
+    style: StyleType = Query(default="default", description="PDF 样式主题"),
+    current_user=Depends(get_current_user)
+):
+    """导出合集总结为 PDF"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+
+    # 生成 PDF
+    import tempfile
+    from weasyprint import HTML
+    css_content = PDF_STYLES.get(style, PDF_STYLES["default"])
+
+    html_content = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>{css_content}</style></head>
+<body><h1>{title} - 合集总结</h1>{_markdown_to_html_paragraphs(markdown_content)}</body></html>"""
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        HTML(string=html_content).write_pdf(tmp.name)
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        filename = quote(f"{safe_title}_总结.pdf")
+        return FileResponse(
+            path=tmp.name,
+            media_type="application/pdf",
+            filename=f"{safe_title}_总结.pdf",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"}
+        )
+
+
+def _markdown_to_html_paragraphs(markdown_content: str) -> str:
+    """将 Markdown 简单转换为 HTML（用于合集总结 PDF 导出）"""
+    try:
+        import markdown
+        return markdown.markdown(markdown_content, extensions=['tables', 'fenced_code', 'toc'])
+    except ImportError:
+        # 回退：将换行转为 <br>
+        return markdown_content.replace('\n', '<br>')
+
+
+@router.get("/html/collection/{collection_id}")
+async def export_collection_html(collection_id: str, current_user=Depends(get_current_user)):
+    """导出合集总结为 HTML"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+    if not is_pandoc_available():
+        raise HTTPException(status_code=501, detail="Pandoc 未安装，无法导出 HTML")
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode='w', encoding='utf-8') as tmp:
+        export_with_pandoc(
+            markdown_content=markdown_content,
+            output_format="html",
+            output_path=Path(tmp.name),
+            title=f"{title} - 合集总结",
+        )
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        return FileResponse(
+            path=tmp.name,
+            media_type="text/html",
+            filename=f"{safe_title}_总结.html",
+        )
+
+
+@router.get("/docx/collection/{collection_id}")
+async def export_collection_docx(collection_id: str, current_user=Depends(get_current_user)):
+    """导出合集总结为 Word (.docx)"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+    if not is_pandoc_available():
+        raise HTTPException(status_code=501, detail="Pandoc 未安装，无法导出 Word")
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        export_with_pandoc(
+            markdown_content=markdown_content,
+            output_format="docx",
+            output_path=Path(tmp.name),
+            title=f"{title} - 合集总结",
+        )
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        return FileResponse(
+            path=tmp.name,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename=f"{safe_title}_总结.docx",
+        )
+
+
+@router.get("/epub/collection/{collection_id}")
+async def export_collection_epub(collection_id: str, current_user=Depends(get_current_user)):
+    """导出合集总结为 EPUB"""
+    markdown_content, title = _get_collection_summary_content(collection_id, current_user)
+    if not is_pandoc_available():
+        raise HTTPException(status_code=501, detail="Pandoc 未安装，无法导出 EPUB")
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+        export_with_pandoc(
+            markdown_content=markdown_content,
+            output_format="epub",
+            output_path=Path(tmp.name),
+            title=f"{title} - 合集总结",
+        )
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:80]
+        return FileResponse(
+            path=tmp.name,
+            media_type="application/epub+zip",
+            filename=f"{safe_title}_总结.epub",
+        )

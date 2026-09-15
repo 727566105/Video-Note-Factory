@@ -15,4 +15,5 @@ class GPTSource:
     extras: Optional[str] = None
     _format: Optional[list] = None
     video_img_urls:  Optional[list] = None
+    output_language: Optional[str] = None
 

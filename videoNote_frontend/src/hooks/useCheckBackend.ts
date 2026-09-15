@@ -13,7 +13,7 @@ export const useCheckBackend = () => {
 
     const check = async () => {
       try {
-        await request.get('/sys_check')
+        await request.get('/health')
         setInitialized(true)
         setLoading(false)
       } catch {
@@ -35,7 +35,7 @@ export const useCheckBackend = () => {
     const waitUntilBackendReady = async () => {
       while (true) {
         try {
-          await request.get('/sys_health')
+          await request.get('/health')
           setInitialized(true)
           setLoading(false)
           break

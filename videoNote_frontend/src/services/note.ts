@@ -1,5 +1,4 @@
 import request from '@/utils/request'
-import toast from 'react-hot-toast'
 
 export const generateNote = async (data: {
   video_url: string
@@ -11,29 +10,25 @@ export const generateNote = async (data: {
   format: Array<string>
   style: string
   extras?: string
-  video_understand?: boolean
+  video_understanding?: boolean
   video_interval?: number
   grid_size: Array<number>
+  screenshot?: boolean
+  link?: boolean
+  output_language?: string
 }) => {
   try {
     const response = await request.post('/generate_note', data)
 
-    if (!response) {
-      if (response.data.msg) {
-        toast.error(response.data.msg)
-      }
-      return null
+    // axios 拦截器已经返回了 response.data
+    if (response && response.task_id) {
+      return response
     }
-    toast.success('笔记生成任务已提交！')
-
-    return response
+    
+    return null
   } catch (e: any) {
-    console.error('❌ 请求出错', e)
-
-    // 错误提示
-    // toast.error('笔记生成失败，请稍后重试')
-
-    throw e // 抛出错误以便调用方处理
+    // request.ts 拦截器已显示错误 toast，此处仅抛出错误
+    throw e
   }
 }
 
@@ -43,13 +38,14 @@ export const delete_task = async ({ task_id, video_id, platform }: { task_id?: s
   return res
 }
 
-export const get_task_status = async (task_id: string) => {
+export const get_task_status = async (task_id: string, silent: boolean = false) => {
   try {
-    // 成功提示
-
-    return await request.get('/task_status/' + task_id)
+    // 轮询等后台场景传 silent=true，避免 403/错误触发全局 toast
+    return await request.get(
+      '/task_status/' + task_id,
+      silent ? { headers: { 'X-Silent': '1' } } : undefined
+    )
   } catch (e) {
-    console.error('❌ 请求出错', e)
     throw e // 抛出错误以便调用方处理
   }
 }
@@ -58,7 +54,6 @@ export const getTasks = async (limit: number = 100) => {
   try {
     return await request.get('/tasks?limit=' + limit)
   } catch (e) {
-    console.error('❌ 获取任务列表失败', e)
     throw e
   }
 }
@@ -75,7 +70,10 @@ export const updateQueueConfig = async (maxConcurrent: number) => {
   try {
     return await request.post('/task_queue/config', { max_concurrent: maxConcurrent })
   } catch (e) {
-    console.error('❌ 更新队列配置失败', e)
     throw e
   }
+}
+
+export const updateNoteTags = async (taskId: string, payload: { platform_tags: string[]; ai_tags: string[]; manual_tags: string[] }) => {
+  return request.put(`/notes/${taskId}/tags`, payload)
 }

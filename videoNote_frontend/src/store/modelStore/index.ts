@@ -7,6 +7,7 @@ import {
   fetchEnableModelById,
   deleteModelById
 } from '@/services/model'
+import { saveUserPreferences } from '@/services/userPreferences'
 
 interface IModel {
   id: string
@@ -29,6 +30,7 @@ interface ModelStore {
   modelList: IModelListItem[]
   loading: boolean
   selectedModel: string
+  smartSelectionEnabled: boolean
 
   loadModels: (providerId: string) => Promise<void>
   loadModelsById: (providerId: string) => Promise<IModelListItem[]>
@@ -36,6 +38,8 @@ interface ModelStore {
   addNewModel: (providerId: string, modelId: string) => Promise<void>
   deleteModel: (modelId: number) => Promise<void>
   setSelectedModel: (modelId: string) => void
+  setSmartSelectionEnabled: (enabled: boolean) => void
+  loadFromServer: (data: Record<string, any>) => void
   clearModels: () => void
 }
 
@@ -44,9 +48,9 @@ export const useModelStore = create<ModelStore>()(
     models: [],
     modelList: [],
     loading: false,
-    selectedModel: '',
+    selectedModel: 'smart_auto',
+    smartSelectionEnabled: true,
 
-    //  获取所有可用模型 (全局可用模型列表)
     loadEnabledModels: async () => {
       try {
         set({ loading: true })
@@ -54,13 +58,11 @@ export const useModelStore = create<ModelStore>()(
         set({ modelList: list })
       } catch (error) {
         set({ modelList: [] })
-        console.error('加载可用模型失败', error)
       } finally {
         set({ loading: false })
       }
     },
 
-    //  通过 provider 获取该供应商的模型列表
     loadModels: async (providerId: string) => {
       try {
         set({ loading: true })
@@ -68,7 +70,6 @@ export const useModelStore = create<ModelStore>()(
 
         let models: IModel[] = []
 
-        // 兼容 SyncPage 分页对象与普通数组两种格式
         if (Array.isArray(res.models)) {
           models = res.models
         } else if (res.models?.data && Array.isArray(res.models.data)) {
@@ -78,24 +79,20 @@ export const useModelStore = create<ModelStore>()(
         set({ models })
       } catch (error) {
         set({ models: [] })
-        console.error('加载模型列表失败', error)
       } finally {
         set({ loading: false })
       }
     },
 
-    //  单独获取某个供应商下已启用模型
     loadModelsById: async (providerId: string) => {
       try {
         const models = await fetchEnableModelById(providerId)
         return models
       } catch (error) {
-        console.error('加载供应商模型失败', error)
         return []
       }
     },
 
-    //  新增模型逻辑
     addNewModel: async (providerId: string, modelId: string) => {
       try {
         const res = await addModel({ provider_id: providerId, model_name: modelId })
@@ -115,30 +112,43 @@ export const useModelStore = create<ModelStore>()(
             ],
           }))
         } else {
-          console.error('新增模型失败', res.msg)
         }
       } catch (error) {
-        console.error('添加模型出错', error)
       }
     },
 
-    //  删除模型
     deleteModel: async (modelId: number) => {
       try {
         await deleteModelById(modelId)
-        //  删除后更新本地状态（可选）
         set((state) => ({
           models: state.models.filter((model) => model.id !== modelId.toString())
         }))
       } catch (error) {
-        console.error('删除模型失败', error)
       }
     },
 
-    //  切换选中模型
-    setSelectedModel: (modelId: string) => set({ selectedModel: modelId }),
+    setSelectedModel: (modelId: string) => {
+      set({ selectedModel: modelId })
+      saveUserPreferences({ model: { selectedModel: modelId } })
+    },
 
-    //  清空
-    clearModels: () => set({ models: [], selectedModel: '', modelList: [] }),
+    setSmartSelectionEnabled: (enabled: boolean) => {
+      set({ smartSelectionEnabled: enabled })
+      if (enabled) {
+        set({ selectedModel: 'smart_auto' })
+      }
+      saveUserPreferences({ model: { smartSelectionEnabled: enabled } })
+    },
+
+    loadFromServer: (data: Record<string, any>) => {
+      if (data.selectedModel) {
+        set({ selectedModel: data.selectedModel })
+      }
+      if (data.smartSelectionEnabled !== undefined) {
+        set({ smartSelectionEnabled: data.smartSelectionEnabled })
+      }
+    },
+
+    clearModels: () => set({ models: [], selectedModel: 'smart_auto', modelList: [] }),
   }))
 )

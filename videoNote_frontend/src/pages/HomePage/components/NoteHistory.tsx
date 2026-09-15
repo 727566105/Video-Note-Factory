@@ -2,10 +2,17 @@ import { useTaskStore } from '@/store/taskStore'
 import { cn } from '@/lib/utils.ts'
 import { Button } from '@/components/ui/button.tsx'
 import Fuse from 'fuse.js'
-import { ArrowUpDown, XIcon } from 'lucide-react'
+import { ArrowUpDown, XIcon, StickyNote } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { BiliBiliLogo, DouyinLogo, YoutubeLogo, KuaishouLogo, LocalLogo, AudioLogo } from '@/components/Icons/platform.tsx'
 import { noteStyles } from '@/constant/note.ts'
+import { getBaseURL } from '@/utils/api'
 
 import {
   Tooltip,
@@ -65,7 +72,7 @@ interface NoteHistoryProps {
 
 const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
   const tasks = useTaskStore(state => state.tasks)
-  const baseURL = (String(import.meta.env.VITE_API_BASE_URL || 'api')).replace(/\/$/, '')
+  const baseURL = getBaseURL()
   const [rawSearch, setRawSearch] = useState('')
   const [search, setSearch] = useState('')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
@@ -145,7 +152,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
           <input
             type="text"
             placeholder="搜索笔记标题..."
-            className="w-full rounded border border-neutral-300 px-3 py-1 pr-8 text-sm outline-none focus:border-primary"
+            className="w-full rounded border border-input px-3 py-1 pr-8 text-sm outline-none focus:border-primary"
             value={rawSearch}
             onChange={e => setRawSearch(e.target.value)}
           />
@@ -163,9 +170,12 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
 
       {/* 内容区 */}
       {filteredTasks.length === 0 ? (
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 py-6 text-center">
-          <p className="text-sm text-neutral-500">暂无记录</p>
-        </div>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon"><StickyNote /></EmptyMedia>
+            <EmptyTitle>暂无记录</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="flex flex-col gap-2 pb-4">
           {filteredTasks.map(task => (
@@ -173,7 +183,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
               key={task.id}
               onClick={() => onSelect(task.id)}
               className={cn(
-                'flex cursor-pointer flex-col rounded-md border border-neutral-200 p-3',
+                'flex cursor-pointer flex-col rounded-md border border-border p-3',
                 selectedId === task.id && 'border-primary bg-primary-light'
               )}
             >
@@ -188,7 +198,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     const url = isLocal
                       ? task.audioMeta.cover_url || defaultCover
                       : task.audioMeta.cover_url
-                        ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                        ? (task.audioMeta.cover_url.startsWith('/api/') ? `${baseURL}${task.audioMeta.cover_url}` : `${baseURL}/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`)
                         : '/placeholder.png'
                     setPreviewImageUrl(url)
                     setPreviewTitle(getTaskTitle(task))
@@ -210,7 +220,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     <LazyImage
                       src={
                         task.audioMeta.cover_url
-                          ? `${baseURL}/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`
+                          ? (task.audioMeta.cover_url.startsWith('/api/') ? `${baseURL}${task.audioMeta.cover_url}` : `${baseURL}/api/image_proxy?url=${encodeURIComponent(task.audioMeta.cover_url)}`)
                           : '/placeholder.png'
                       }
                       alt="封面"

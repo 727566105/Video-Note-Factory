@@ -27,6 +27,12 @@ export interface Model {
 }
 
 // Task 后端响应相关
+export interface TaskTags {
+  platform_tags: string[]
+  ai_tags: string[]
+  manual_tags: string[]
+}
+
 export interface BackendTaskNote {
   markdown: string
   transcript: {
@@ -64,6 +70,15 @@ export interface BackendTask {
   status?: string    // 任务状态：PENDING/RUNNING/SUCCESS/FAILED 等
   message?: string   // 进度提示信息
   note: BackendTaskNote | null
+  content_type?: string  // "video" | "article"
+  // 数据库元数据字段
+  title?: string | null
+  cover_url?: string | null
+  duration?: number | null
+  author?: string | null
+  author_id?: string | null
+  author_name?: string | null
+  tags?: string | null  // JSON string: {"platform_tags": [], "ai_tags": []}
 }
 
 // Config backup 相关

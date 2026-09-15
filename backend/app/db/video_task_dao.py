@@ -1,3 +1,4 @@
+from typing import Optional
 from app.db.models.video_tasks import VideoTask
 from app.db.engine import get_db
 from app.utils.logger import get_logger
@@ -6,18 +7,24 @@ logger = get_logger(__name__)
 
 
 # 插入任务（已存在则跳过）
-def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None, user_id: int = 1):
+def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str = None,
+                      user_id: int = 1, author_id: str = None, author_name: str = None,
+                      note_style: str = None):
     db = next(get_db())
     try:
-        existing = db.query(VideoTask).filter_by(task_id=task_id).first()
+        existing = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id).first()
         if existing:
+            # 任务已存在（未删除），直接返回，不重复插入
             return
         task = VideoTask(
             video_id=video_id,
             platform=platform,
             task_id=task_id,
             video_url=video_url,
-            user_id=user_id
+            user_id=user_id,
+            author_id=author_id,
+            author_name=author_name,
+            note_style=note_style,
         )
         db.add(task)
         db.commit()
@@ -25,20 +32,19 @@ def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str
         logger.info(f"Video task inserted successfully. video_id: {video_id}, platform: {platform}, task_id: {task_id}, video_url: {video_url}")
     except Exception as e:
         logger.error(f"Failed to insert video task: {e}")
+        raise
     finally:
         db.close()
 
 
 # 查询任务（最新一条）
-def get_task_by_video(video_id: str, platform: str):
+def get_task_by_video(video_id: str, platform: str, user_id: int = None):
     db = next(get_db())
     try:
-        task = (
-            db.query(VideoTask)
-            .filter_by(video_id=video_id, platform=platform)
-            .order_by(VideoTask.created_at.desc())
-            .first()
-        )
+        query = db.query(VideoTask).filter_by(video_id=video_id, platform=platform)
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+        task = query.order_by(VideoTask.created_at.desc()).first()
         if task:
             logger.info(f"Task found for video_id: {video_id} and platform: {platform}")
             return task.task_id
@@ -89,13 +95,13 @@ def delete_task_by_id(task_id: str):
         db.close()
 
 
-# 获取所有任务（按用户隔离，管理员可看全部）
+# 获取所有任务（所有用户只看自己的笔记）
 def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
     db = next(get_db())
     try:
         query = db.query(VideoTask).order_by(VideoTask.created_at.desc())
-        # 非管理员只能看自己的任务
-        if role != "admin" and user_id:
+        # 所有用户都只看自己的任务
+        if user_id:
             query = query.filter_by(user_id=user_id)
         if limit:
             query = query.limit(limit)
@@ -105,5 +111,299 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
     except Exception as e:
         logger.error(f"Failed to get all tasks: {e}")
         return []
+    finally:
+        db.close()
+
+
+def update_task_metadata(task_id: str, title: str = None, cover_url: str = None,
+                         duration: float = None, author: str = None, description: str = None,
+                         author_id: str = None, author_name: str = None, tags: str = None,
+                         video_id: str = None, user_id: int = None):
+    """更新任务的元数据（标题、封面、时长、作者、描述、标签）。
+    可选传 user_id 做用户过滤，防止多用户共享 task_id 时串台。"""
+    db = next(get_db())
+    try:
+        query = db.query(VideoTask).filter_by(task_id=task_id)
+        if user_id is not None:
+            query = query.filter_by(user_id=user_id)
+        task = query.first()
+        if task:
+            if title is not None:
+                task.title = title
+            if cover_url is not None:
+                task.cover_url = cover_url
+            if duration is not None:
+                task.duration = duration
+            if author is not None:
+                task.author = author
+            if description is not None:
+                task.description = description
+            if author_id is not None:
+                task.author_id = author_id
+            if author_name is not None:
+                task.author_name = author_name
+            if tags is not None:
+                task.tags = tags
+            if video_id is not None:
+                task.video_id = video_id
+            db.commit()
+            logger.info(f"Task metadata updated: {task_id}, title={title}, tags={tags}")
+        else:
+            logger.warning(f"No task found for metadata update: {task_id}")
+    except Exception as e:
+        logger.error(f"Failed to update task metadata: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def get_task_by_task_id(task_id: str) -> Optional[VideoTask]:
+    """根据 task_id 查询任务"""
+    db = next(get_db())
+    try:
+        task = db.query(VideoTask).filter_by(task_id=task_id).first()
+        return task
+    except Exception as e:
+        logger.error(f"Failed to get task by task_id: {e}")
+        return None
+    finally:
+        db.close()
+
+
+def get_task_by_task_id_and_user(task_id: str, user_id: int) -> Optional[VideoTask]:
+    """根据 task_id 和 user_id 查询任务（权限安全）"""
+    db = next(get_db())
+    try:
+        task = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id).first()
+        return task
+    except Exception as e:
+        logger.error(f"Failed to get task by task_id_and_user: {e}")
+        return None
+    finally:
+        db.close()
+
+
+def find_completed_task_by_video(video_id: str, platform: str) -> Optional[VideoTask]:
+    """跨用户查找已完成笔记的任务（用于复用）"""
+    from app.utils.path_helper import find_note_file
+    db = next(get_db())
+    try:
+        tasks = db.query(VideoTask).filter_by(
+            video_id=video_id, platform=platform
+        ).order_by(VideoTask.created_at.desc()).all()
+        for task in tasks:
+            # 使用 task 自己的 user_id 查找 note_{user_id}.json（新格式优先），找不到再回退 note.json（旧格式）
+            note_path = find_note_file(task.task_id, task.author_id, task.author_name,
+                                        task.video_id, task.title, "note", platform,
+                                        user_id=task.user_id)
+            if note_path and note_path.exists():
+                logger.info(f"找到可复用笔记: video_id={video_id}, task_id={task.task_id}")
+                return task
+        return None
+    except Exception as e:
+        logger.error(f"查找可复用笔记失败: {e}")
+        return None
+    finally:
+        db.close()
+
+
+def clone_task_to_user(original_task_id: str, new_user_id: int,
+                       video_id: str, platform: str, video_url: str = None) -> VideoTask:
+    """为新用户创建指向同一笔记的任务记录（用于复用）。
+
+    每个用户独立 task_id（UUID），通过 source_task_id 追踪原始任务的起源。
+    避免 UNIQUE(task_id) 约束冲突。
+    """
+    import uuid
+    db = next(get_db())
+    try:
+        # 检查新用户是否已复用过该原始任务（通过 source_task_id 查找）
+        existing = db.query(VideoTask).filter_by(
+            source_task_id=original_task_id, user_id=new_user_id
+        ).first()
+        if existing:
+            return existing
+
+        # 从原始任务复制元数据（包括标签）
+        original = db.query(VideoTask).filter_by(task_id=original_task_id).first()
+        new_task_id = str(uuid.uuid4())
+        task = VideoTask(
+            video_id=video_id,
+            platform=platform,
+            task_id=new_task_id,
+            video_url=video_url,
+            user_id=new_user_id,
+            title=original.title if original else None,
+            cover_url=original.cover_url if original else None,
+            duration=original.duration if original else None,
+            author=original.author if original else None,
+            description=original.description if original else None,
+            author_id=original.author_id if original else None,
+            author_name=original.author_name if original else None,
+            tags=original.tags if original else None,
+            source_task_id=original_task_id,  # 记录来源
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        logger.info(f"已为用户 {new_user_id} 复用笔记 original={original_task_id} -> new={new_task_id}")
+        return task
+    except Exception as e:
+        db.rollback()
+        logger.error(f"复用笔记失败: {e}")
+        raise
+    finally:
+        db.close()
+
+
+def batch_update_cover_url(video_id: str, platform: str, new_cover_url: str):
+    """批量更新指定视频的 cover_url"""
+    db = next(get_db())
+    try:
+        tasks = db.query(VideoTask).filter(
+            VideoTask.video_id == video_id,
+            VideoTask.platform == platform
+        ).all()
+        for task in tasks:
+            task.cover_url = new_cover_url
+        db.commit()
+        return len(tasks)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def find_source_data(video_id: str, platform: str) -> Optional[VideoTask]:
+    """查找指定视频是否已有源数据，用于半流程复用。
+
+    源数据定义（任一满足即可）：
+    - transcript.json 存在（音频/视频类型）
+    - 视频目录存在且含已下载的媒体文件（图文/实况照片类型）
+    """
+    from app.utils.path_helper import find_note_file, get_video_folder_name, get_author_folder_name, _get_platform_dir, VIDEO_DIR
+    db = next(get_db())
+    try:
+        tasks = db.query(VideoTask).filter_by(
+            video_id=video_id, platform=platform
+        ).order_by(VideoTask.created_at.desc()).all()
+        for task in tasks:
+            if not task.author_id:
+                continue  # author_id 为空说明下载也没成功
+            # 检查 1: transcript.json（音频转写）
+            transcript_path = find_note_file(
+                task.task_id, task.author_id, task.author_name,
+                task.video_id, task.title, "transcript", platform
+            )
+            if transcript_path and transcript_path.exists():
+                logger.info(f"找到可复用源数据(transcript): video_id={video_id}, task_id={task.task_id}")
+                return task
+            # 检查 2: 视频目录有已下载的媒体文件（图文/实况照片）
+            # 用 find_note_file(status) 定位目录（带自愈合），避免 author_name 不一致找不到
+            try:
+                status_path = find_note_file(
+                    task.task_id, task.author_id, task.author_name,
+                    task.video_id, task.title, "status", platform
+                )
+                if status_path and status_path.exists():
+                    video_dir = status_path.parent
+                    has_media = any(video_dir.glob("cover.*")) or any(video_dir.glob("image_*.jpg"))
+                    if has_media:
+                        logger.info(f"找到可复用源数据(media): video_id={video_id}, task_id={task.task_id}")
+                        return task
+            except Exception:
+                pass
+        return None
+    except Exception as e:
+        logger.error(f"查找可复用源数据失败: {e}")
+        return None
+    finally:
+        db.close()
+
+
+def find_matching_note(video_id: str, platform: str, user_id: int,
+                       note_style: str = None) -> Optional[VideoTask]:
+    """查找同视频同风格的已有笔记（跨用户），用于智能复用
+
+    :param note_style: 笔记风格（minimal/academic等），None 表示匹配任意风格
+    :return: 找到的任务记录（带 note 文件）
+    """
+    from app.utils.path_helper import find_note_file
+    db = next(get_db())
+    try:
+        query = db.query(VideoTask).filter_by(
+            video_id=video_id, platform=platform
+        ).order_by(VideoTask.created_at.desc())
+        tasks = query.all()
+        for task in tasks:
+            if task.user_id == user_id:
+                continue  # 跳过自己的任务
+            if note_style and task.note_style and task.note_style != note_style:
+                continue  # 风格不匹配
+            note_path = find_note_file(
+                task.task_id, task.author_id, task.author_name,
+                task.video_id, task.title, "note", platform,
+                user_id=task.user_id
+            )
+            if note_path and note_path.exists():
+                logger.info(f"找到可复用笔记: video_id={video_id}, style={note_style}, "
+                            f"from_user={task.user_id}, task_id={task.task_id}")
+                return task
+        return None
+    except Exception as e:
+        logger.error(f"查找可复用笔记失败: {e}")
+        return None
+    finally:
+        db.close()
+
+
+def hard_delete_task_by_user(task_id: str, user_id: int) -> Optional[VideoTask]:
+    """物理删除任务记录（按 task_id + user_id），返回被删的 task 对象供调用方清理文件。
+
+    物理删除：直接 db.delete，记录从数据库消失。
+    返回被删的 task 对象（含 author_id/video_id/title 等字段），供调用方清理本地文件。
+    任务不存在时返回 None（幂等）；数据库故障时抛异常（让调用方区分"不存在"和"故障"）。
+    """
+    db = next(get_db())
+    try:
+        task = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id).first()
+        if not task:
+            return None  # 任务不存在，幂等
+        # 先把需要的字段暂存（commit 后 session 里的对象会失效）
+        from app.db.models.video_tasks import VideoTask as VT
+        deleted = VT(
+            id=task.id, task_id=task.task_id, video_id=task.video_id,
+            platform=task.platform, video_url=task.video_url, user_id=task.user_id,
+            created_at=task.created_at, title=task.title, cover_url=task.cover_url,
+            duration=task.duration, author=task.author, description=task.description,
+            author_id=task.author_id, author_name=task.author_name,
+            tags=task.tags, source_task_id=task.source_task_id, note_style=task.note_style,
+        )
+        db.delete(task)
+        db.commit()
+        logger.info(f"任务已物理删除: task_id={task_id}, user_id={user_id}")
+        return deleted
+    except Exception as e:
+        db.rollback()
+        logger.error(f"物理删除任务失败: {e}")
+        raise  # 抛异常让调用方区分"任务不存在"和"数据库故障"
+    finally:
+        db.close()
+
+
+def get_user_task_for_video(video_id: str, platform: str, user_id: int) -> Optional[VideoTask]:
+    """查找当前用户对指定视频的任务记录"""
+    db = next(get_db())
+    try:
+        task = db.query(VideoTask).filter_by(
+            video_id=video_id, platform=platform, user_id=user_id
+        ).order_by(
+            VideoTask.created_at.desc()
+        ).first()
+        return task
+    except Exception as e:
+        logger.error(f"查找用户任务失败: {e}")
+        return None
     finally:
         db.close()
