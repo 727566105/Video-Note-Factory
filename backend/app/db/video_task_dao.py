@@ -1,9 +1,26 @@
 from typing import Optional
+from sqlalchemy import text
 from app.db.models.video_tasks import VideoTask
 from app.db.engine import get_db
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# 旧库软删时代遗留的 deleted_at 列（模型已移除该字段，业务不读写）。
+# 仅查询时用 SQL 表达式过滤旧残留，防止已删任务"复活"进列表。
+# 新库无此列，先检测避免 SQL 报错；检测结果进程内缓存一次。
+_VIDEO_TASKS_HAS_DELETED_AT: Optional[bool] = None
+
+
+def _video_tasks_has_deleted_at_col(db) -> bool:
+    global _VIDEO_TASKS_HAS_DELETED_AT
+    if _VIDEO_TASKS_HAS_DELETED_AT is None:
+        try:
+            rows = db.execute(text("PRAGMA table_info(video_tasks)")).fetchall()
+            _VIDEO_TASKS_HAS_DELETED_AT = any(r[1] == "deleted_at" for r in rows)
+        except Exception:
+            _VIDEO_TASKS_HAS_DELETED_AT = False
+    return _VIDEO_TASKS_HAS_DELETED_AT
 
 
 # 插入任务（已存在则跳过）
@@ -12,7 +29,10 @@ def insert_video_task(video_id: str, platform: str, task_id: str, video_url: str
                       note_style: str = None):
     db = next(get_db())
     try:
-        existing = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id).first()
+        existing = db.query(VideoTask).filter_by(task_id=task_id, user_id=user_id)
+        if _video_tasks_has_deleted_at_col(db):
+            existing = existing.filter(text("deleted_at IS NULL"))
+        existing = existing.first()
         if existing:
             # 任务已存在（未删除），直接返回，不重复插入
             return
@@ -42,6 +62,8 @@ def get_task_by_video(video_id: str, platform: str, user_id: int = None):
     db = next(get_db())
     try:
         query = db.query(VideoTask).filter_by(video_id=video_id, platform=platform)
+        if _video_tasks_has_deleted_at_col(db):
+            query = query.filter(text("deleted_at IS NULL"))
         if user_id:
             query = query.filter_by(user_id=user_id)
         task = query.order_by(VideoTask.created_at.desc()).first()
@@ -100,6 +122,9 @@ def get_all_tasks(user_id: int = None, role: str = "user", limit: int = None):
     db = next(get_db())
     try:
         query = db.query(VideoTask).order_by(VideoTask.created_at.desc())
+        if _video_tasks_has_deleted_at_col(db):
+            # 过滤软删时代的 deleted_at 残留（幽灵任务），避免已删任务出现在列表
+            query = query.filter(text("deleted_at IS NULL"))
         # 所有用户都只看自己的任务
         if user_id:
             query = query.filter_by(user_id=user_id)
