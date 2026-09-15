@@ -50,6 +50,7 @@ AI 视频笔记工具：导入音视频链接/文件，自动转写、总结、�
 - `videoNote_frontend/` — React 19 + Vite + TypeScript + **Tailwind CSS v4 + shadcn/ui (Radix) + Zustand**（antd 仍有残留引用，新组件统一用 shadcn/ui），端口 `VITE_FRONTEND_PORT`（默认 3015）
   - `src/layouts/SettingLayout.tsx` — 设置页侧边栏分组配置（`settingGroups` 数组），4 个分组：账号与工作区 / 基础数据设置 / AI 与处理 / 系统管理
   - `src/store/` — Zustand store（`configStore` 带 persist 中间件，持久化视图模式等偏好到 localStorage）
+  - `src/pages/HomePage/components/QuickAdd/` — 首页「快捷添加笔记」（链接/上传两个 Tab）：上传 Tab 为顶部工具栏型布局（视觉化总结/模型/总结设置工具栏 + 拖放主区 + 底部操作条），上传与链接提交逻辑都消费全局 store（`modelStore` 的模型 → `model_name/provider_id/smart_mode`，`summarySettingsStore` 的 style/format/extras 等）；组件测试在同目录 `__tests__/`
   - API 通过 `src/utils/request.ts`（axios）→ `/api` 前缀；base URL 由 `VITE_API_BASE_URL` 配置
 - `data/` — 运行时数据（`video_note.db` + `video/{platform}/{author}/{video}/` 笔记/媒体）
 - `deploy.sh` / `deploy.local.sh` / `restart.sh` / `stop.sh` — 部署/重启/停止脚本（`stop.sh` 同时处理 Docker 容器和本地进程）
@@ -164,7 +165,8 @@ npx tsc --noEmit                  # TypeScript 类型检查（改完 ts/tsx 必�
 - **跨用户共享视频目录**：多用户引用同一 `video_id` 时，只删当前用户的 `note_{user_id}.json` + `status.json`；`other_refs` 计数为 0 才 `rmtree` 整个视频目录（含媒体/截图/exports）。
 - **关联数据清理带 user_id 过滤**：`collection_items` 通过 `join collections` 过滤 user_id，`feed_items` 用自带 user_id 字段。**防跨用户共享 task_id 时误删其他用户的合集/feed**（`clone_task_to_user` 会让多用户共享同一 task_id）。
 - **`get_video_folder()` 有 mkdir 副作用**：删除文件时不要用它，改用 `get_video_folder_name()` + `get_author_folder_name()` + `_get_platform_dir()` + `VIDEO_DIR` 手动拼路径。
-- **已移除的接口/字段**：`cleanup_deleted_tasks` 管理员清理接口（`config.py`）、`deleted_at` 字段（`video_tasks` 模型 + init_db 迁移）、`soft_delete_task`/`get_deleted_tasks`/`hard_delete_task` DAO 函数、前端"清理过期数据"按钮（`TaskQueue.tsx`）。旧库的 `deleted_at` 列保留但代码不再读写。
+- **已移除的接口/字段**：`cleanup_deleted_tasks` 管理员清理接口（`config.py`）、`deleted_at` 字段（`video_tasks` 模型 + init_db 迁移）、`soft_delete_task`/`get_deleted_tasks`/`hard_delete_task` DAO 函数、前端"清理过期数据"按钮（`TaskQueue.tsx`）。旧库的 `deleted_at` 列保留但**查询层**会用 SQL 表达式过滤（见下条）。
+- **幽灵任务防护（deleted_at 残留复活）**：旧库软删时代遗留的 `deleted_at` 非空记录，模型已无该字段，`get_all_tasks` 若不过滤会把这些已删任务重新带回列表（前端渲染脏数据/封面 404/轮询幽灵状态）。`video_task_dao.py` 的 `_video_tasks_has_deleted_at_col()` 用 PRAGMA 检测列是否存在（**新库按模型建表无此列，不能直接 `deleted_at IS NULL` 否则 SQL 报错**），`get_all_tasks`/`get_task_by_video`/`insert_video_task` 三处查询在有列时过滤。改这些 DAO 时保留这层过滤；清理存量残留：`DELETE FROM video_tasks WHERE deleted_at IS NOT NULL`（连带清引用它们的 `collection_items` 孤儿）。
 - **MCP 删除接口**：`mcp_server.py` 的 `delete_task` 也是物理删除，复用 `_cleanup_task_files` + `_cleanup_task_relations`。
 
 ## status.json 归属校验（防张冠李戴）
