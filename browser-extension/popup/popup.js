@@ -232,6 +232,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 权限控制：Cookie 功能仅管理员可用，普通用户隐藏 Cookie Tab
   applyCookiePermission(auth.authRole === 'admin');
 
+  // P1 修复：popup 保持打开期间，用户在 options 页登出/换账号会改 authRole，
+  // 必须重跑 Cookie 权限（否则 admin 切普通用户后 cookie tab 仍可见）
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.authRole) {
+      applyCookiePermission(changes.authRole.newValue === 'admin');
+    }
+  });
+
   initCookieTab();
   initSubmitTab();
 
@@ -244,6 +252,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ─── Cookie 功能权限控制 ──────────────────────────────────────────
+// 说明：cookie tab 在 popup.html 里内联 style="display:none" 默认隐藏（防打开瞬间闪烁），
+// 这里只负责按角色显隐——admin 清除内联隐藏（style.display='' 回到 CSS 默认可见），
+// 普通用户保持隐藏 + 隐藏面板 + 切回快捷提交。
 function applyCookiePermission(isAdmin) {
   const cookieTab = document.querySelector('.tab[data-tab="cookie"]');
   const cookiePane = document.getElementById('cookie-tab');
@@ -256,6 +267,14 @@ function applyCookiePermission(isAdmin) {
     // 确保切到快捷提交 Tab
     switchTab('submit');
   }
+}
+
+// Cookie 功能权限守卫（fail-closed，静默返回）
+// UI 已对普通用户隐藏 Cookie 入口，此守卫是纵深防御：
+// 万一用户通过 DevTools 强显面板触发事件，也直接放行不执行，且不弹任何提示（不泄露功能存在）。
+async function requireAdminForCookie() {
+  const auth = await getAuth();
+  return auth.authRole === 'admin';
 }
 
 // ─── 登录遮罩 ─────────────────────────────────────────────────────
@@ -438,6 +457,7 @@ function initCookieTab() {
 }
 
 async function onGetCookie() {
+  if (!await requireAdminForCookie()) return;  // P3 纵深防御：非管理员静默拒绝
   if (!selectedPlatform) {
     toast('cookieToast', '请先选择平台', 'error');
     return;
@@ -463,6 +483,7 @@ async function onGetCookie() {
 }
 
 async function onCopy() {
+  if (!await requireAdminForCookie()) return;  // P3 纵深防御：非管理员静默拒绝
   if (!currentCookies) return;
   try {
     await copyToClipboard(currentCookies);
@@ -473,6 +494,7 @@ async function onCopy() {
 }
 
 async function onCopyNetscape() {
+  if (!await requireAdminForCookie()) return;  // P3 纵深防御：非管理员静默拒绝
   if (!currentCookies) return;
   try {
     const netscape = convertToNetscape(selectedPlatform, currentCookies);

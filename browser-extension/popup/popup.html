@@ -313,7 +313,9 @@ textarea,input{font:inherit; color:inherit}
   <!-- Tab · 默认快捷提交在前 -->
   <nav class="tabs" role="tablist" data-od-id="popup-tabs">
     <button class="tab active" role="tab" aria-selected="true" data-tab="submit">快捷提交</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="cookie">Cookie 获取</button>
+    <!-- Cookie 获取 tab 默认隐藏（style 内联），由 popup.js 的 applyCookiePermission 按角色显示：
+         消除普通用户打开 popup 时 getAuth 异步完成前 tab 短暂可见的闪烁窗口 -->
+    <button class="tab" role="tab" aria-selected="false" data-tab="cookie" style="display:none">Cookie 获取</button>
   </nav>
 
   <!-- 主体 -->
