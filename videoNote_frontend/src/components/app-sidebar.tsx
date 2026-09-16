@@ -110,6 +110,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <div className="flex items-center gap-2 rounded-xl border border-sidebar-border bg-sidebar-accent/65 px-3 py-2 shadow-xs">
             <Search className="size-4 text-sidebar-foreground/60 shrink-0" />
             <input
+              id="global-search"
               type="text"
               placeholder="全局搜索"
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-sidebar-foreground/60"

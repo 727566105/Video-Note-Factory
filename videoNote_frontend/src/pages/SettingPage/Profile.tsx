@@ -90,38 +90,44 @@ const Profile = () => {
             <CardDescription>新密码长度不能少于 6 位</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid max-w-md gap-4">
+            <form className="grid max-w-md gap-4" onSubmit={e => { e.preventDefault(); handleChangePassword() }}>
               <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">旧密码</label>
+                <label htmlFor="old-password" className="mb-1 block text-sm font-medium text-foreground">旧密码</label>
                 <Input
+                  id="old-password"
                   type="password"
+                  autoComplete="current-password"
                   value={oldPassword}
                   onChange={e => setOldPassword(e.target.value)}
                   placeholder="请输入旧密码"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">新密码</label>
+                <label htmlFor="new-password" className="mb-1 block text-sm font-medium text-foreground">新密码</label>
                 <Input
+                  id="new-password"
                   type="password"
+                  autoComplete="new-password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   placeholder="请输入新密码"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">确认新密码</label>
+                <label htmlFor="confirm-password" className="mb-1 block text-sm font-medium text-foreground">确认新密码</label>
                 <Input
+                  id="confirm-password"
                   type="password"
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   placeholder="请再次输入新密码"
                 />
               </div>
-              <Button className="w-fit" onClick={handleChangePassword} disabled={saving}>
+              <Button type="submit" className="w-fit" disabled={saving}>
                 {saving ? '保存中...' : '保存密码'}
               </Button>
-            </div>
+            </form>
           </CardContent>
         </Card>
       </div>

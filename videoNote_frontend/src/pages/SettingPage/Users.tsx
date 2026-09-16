@@ -168,27 +168,33 @@ const Users = () => {
               <div className="text-sm text-muted-foreground">{currentUser?.username}</div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">旧密码</label>
+              <label htmlFor="old-password" className="mb-1 block text-sm font-medium text-foreground">旧密码</label>
               <Input
+                id="old-password"
                 type="password"
+                autoComplete="current-password"
                 value={oldPassword}
                 onChange={e => setOldPassword(e.target.value)}
                 placeholder="请输入旧密码"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">新密码</label>
+              <label htmlFor="new-password" className="mb-1 block text-sm font-medium text-foreground">新密码</label>
               <Input
+                id="new-password"
                 type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
                 placeholder="请输入新密码（至少6位）"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">确认新密码</label>
+              <label htmlFor="confirm-password" className="mb-1 block text-sm font-medium text-foreground">确认新密码</label>
               <Input
+                id="confirm-password"
                 type="password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 placeholder="请再次输入新密码"
@@ -230,6 +236,7 @@ const Users = () => {
             <Input
               placeholder="密码"
               type="password"
+              autoComplete="new-password"
               value={addForm.password}
               onChange={e => setAddForm({ ...addForm, password: e.target.value })}
             />
@@ -268,6 +275,7 @@ const Users = () => {
                   />
                   <Input
                     type="password"
+                    autoComplete="new-password"
                     placeholder="新密码（留空不修改）"
                     value={editForm.password}
                     onChange={e => setEditForm({ ...editForm, password: e.target.value })}
@@ -344,6 +352,7 @@ const Users = () => {
                     <td className="px-4 py-2">
                       <Input
                         type="password"
+                        autoComplete="new-password"
                         placeholder="留空不修改"
                         value={editForm.password}
                         onChange={e => setEditForm({ ...editForm, password: e.target.value })}
