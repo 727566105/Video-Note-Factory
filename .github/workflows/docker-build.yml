@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev3.0
   workflow_dispatch:
     inputs:
       branch:
@@ -51,35 +52,39 @@ jobs:
         id: determine
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            BRANCH="main"
+            BRANCH="${{ github.ref_name }}"
           else
             BRANCH="${{ github.event.inputs.branch }}"
           fi
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
           
+          SHA=$(git rev-parse --short HEAD)
           TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
           INPUT_VERSION="${{ github.event.inputs.version }}"
           
           if [ "$BRANCH" = "main" ]; then
             echo "primary_tag=latest" >> $GITHUB_OUTPUT
+            echo "immutable_tag=$SHA" >> $GITHUB_OUTPUT
             if [ -n "$INPUT_VERSION" ]; then
               echo "version_tag=$INPUT_VERSION" >> $GITHUB_OUTPUT
             else
-              echo "version_tag=$TIMESTAMP" >> $GITHUB_OUTPUT
+              echo "version_tag=$SHA" >> $GITHUB_OUTPUT
             fi
           elif [ "$BRANCH" = "dev3.0" ]; then
             echo "primary_tag=dev3.0" >> $GITHUB_OUTPUT
+            echo "immutable_tag=$SHA-dev3.0" >> $GITHUB_OUTPUT
             if [ -n "$INPUT_VERSION" ]; then
               echo "version_tag=$INPUT_VERSION-dev3.0" >> $GITHUB_OUTPUT
             else
-              echo "version_tag=$TIMESTAMP-dev3.0" >> $GITHUB_OUTPUT
+              echo "version_tag=$SHA-dev3.0" >> $GITHUB_OUTPUT
             fi
           else
             echo "primary_tag=dev" >> $GITHUB_OUTPUT
+            echo "immutable_tag=$SHA-dev" >> $GITHUB_OUTPUT
             if [ -n "$INPUT_VERSION" ]; then
               echo "version_tag=$INPUT_VERSION-dev" >> $GITHUB_OUTPUT
             else
-              echo "version_tag=$TIMESTAMP-dev" >> $GITHUB_OUTPUT
+              echo "version_tag=$SHA-dev" >> $GITHUB_OUTPUT
             fi
           fi
 
@@ -89,12 +94,14 @@ jobs:
             --progress=plain \
             --no-cache \
             -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.immutable_tag }} \
             -t ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.version_tag }} \
             .
 
       - name: Push Docker image
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.immutable_tag }}
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.version_tag }}
 
       - name: Print build info
@@ -104,6 +111,7 @@ jobs:
           echo "构建信息:"
           echo "  分支: ${{ steps.determine.outputs.branch }}"
           echo "  镜像标签: ${{ steps.determine.outputs.primary_tag }}"
+          echo "  不可变标签: ${{ steps.determine.outputs.immutable_tag }}"
           echo "  版本标签: ${{ steps.determine.outputs.version_tag }}"
           if [ -n "${{ github.event.inputs.version }}" ]; then
             echo "  版本号: ${{ github.event.inputs.version }}"
@@ -115,13 +123,13 @@ jobs:
 
       - name: Export Docker image
         run: |
-          docker save ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }} | gzip > videonote-${{ steps.determine.outputs.version_tag }}.tar.gz
+          docker save ${{ secrets.DOCKERHUB_USERNAME }}/videonote:${{ steps.determine.outputs.primary_tag }} | gzip > videonote-${{ steps.determine.outputs.immutable_tag }}.tar.gz
           ls -lh videonote-*.tar.gz
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: videonote-${{ steps.determine.outputs.version_tag }}
+          name: videonote-${{ steps.determine.outputs.immutable_tag }}
           path: videonote-*.tar.gz
           retention-days: 30
 
