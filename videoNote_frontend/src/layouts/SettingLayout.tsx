@@ -15,8 +15,16 @@ import {
   User,
   UserCog,
 } from 'lucide-react'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useAuthStore } from '@/store/authStore'
+import { useSettingsNavStore } from '@/store/settingsNavStore'
 
 type SettingItem = {
   path: string
@@ -229,6 +237,77 @@ function SettingsNavigation({
   )
 }
 
+function MobileSettingsNavigation({
+  groups,
+  pathname,
+}: {
+  groups: SettingGroup[]
+  pathname: string
+}) {
+  const navigate = useNavigate()
+  const open = useSettingsNavStore(state => state.mobileNavOpen)
+  const onOpenChange = useSettingsNavStore(state => state.setMobileNavOpen)
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="left"
+        className="w-[86vw] gap-0 border-border/70 p-0 sm:max-w-[320px]"
+      >
+        <SheetHeader className="border-b border-border/70 p-5 pr-14 text-left">
+          <SheetTitle className="text-base">设置中心</SheetTitle>
+          <SheetDescription>统一管理系统偏好</SheetDescription>
+        </SheetHeader>
+        <nav aria-label="设置导航" className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          {groups.map(group => (
+            <div key={group.id}>
+              <div className="px-2 text-xs font-semibold text-muted-foreground">
+                {group.title}
+              </div>
+              <div className="mt-2 space-y-1">
+                {group.items.map(item => {
+                  const active = isActivePath(pathname, item.path)
+                  return (
+                    <button
+                      key={item.path}
+                      aria-current={active ? 'page' : undefined}
+                      onClick={() => {
+                        navigate(item.path)
+                        onOpenChange(false)
+                      }}
+                      className={[
+                        'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
+                        active
+                          ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+                          : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
+                      ].join(' ')}
+                    >
+                      <span
+                        className={[
+                          'flex size-8 shrink-0 items-center justify-center rounded-lg',
+                          active ? 'bg-primary/12 text-primary' : 'bg-background/70',
+                        ].join(' ')}
+                      >
+                        {item.icon}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{item.label}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {item.description}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 const SettingLayout = () => {
   const [mounted, setMounted] = React.useState(false)
   const isMobile = useIsMobile()
@@ -251,6 +330,7 @@ const SettingLayout = () => {
   if (isMobile) {
     return (
       <div className="flex h-full flex-col bg-background">
+        <MobileSettingsNavigation groups={groups} pathname={location.pathname} />
         <div className="min-h-0 flex-1 overflow-auto">
           <Outlet />
         </div>

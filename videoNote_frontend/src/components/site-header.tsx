@@ -11,12 +11,13 @@ import { useNavigate, useLocation } from "react-router-dom"
 import {
   ArrowLeft,
   LogOut,
+  Menu,
   Settings,
-  User,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useTaskStore } from "@/store/taskStore"
+import { useSettingsNavStore } from "@/store/settingsNavStore"
 
 // 页面标题映射（一级和二级列表页面）
 const pageTitleMap: Record<string, string> = {
@@ -104,6 +105,7 @@ export function SiteHeader() {
   const user = useAuthStore(state => state.user)
   const logout = useAuthStore(state => state.logout)
   const tasks = useTaskStore(state => state.tasks)
+  const setMobileNavOpen = useSettingsNavStore(state => state.setMobileNavOpen)
 
   const handleLogout = () => {
     useTaskStore.getState().clearTasks()
@@ -113,6 +115,7 @@ export function SiteHeader() {
 
   const pathname = location.pathname
   const isHome = isHomePage(pathname)
+  const isSettingsPage = pathname.startsWith('/settings')
   const isDetail = isDetailPage(pathname)
   const isNotFound = isNotFoundPage(pathname)
 
@@ -182,10 +185,32 @@ export function SiteHeader() {
             />
             <span className="font-semibold text-base text-foreground">VideoNote</span>
           </button>
+        ) : isSettingsPage ? (
+          // 设置页：顶部导航直接打开设置抽屉，不再返回首页
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="设置菜单"
+              className="h-8 w-8 shrink-0"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            <span className="font-medium text-base text-foreground truncate">
+              {getDetailTitle()}
+            </span>
+          </div>
         ) : isDetail || isNotFound ? (
           // 详情页或 404 页：返回箭头 + 标题
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleBack}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="返回"
+              className="h-8 w-8 shrink-0"
+              onClick={handleBack}
+            >
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <span className="font-medium text-base text-foreground truncate">
@@ -211,13 +236,6 @@ export function SiteHeader() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem
-              className="cursor-pointer"
-              onClick={() => navigate('/settings/profile')}
-            >
-              <User className="mr-2 h-4 w-4" />
-              个人资料
-            </DropdownMenuItem>
             <DropdownMenuItem
               className="cursor-pointer"
               onClick={() => navigate('/settings/profile')}

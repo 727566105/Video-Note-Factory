@@ -4,7 +4,6 @@ import {
   LogOut,
   Monitor,
   Moon,
-  User,
   Settings,
   Sun,
 } from "lucide-react"
@@ -126,13 +125,6 @@ export function NavUser({
             <DropdownMenuSeparator />
 
             <DropdownMenuGroup>
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onClick={() => navigate('/settings/profile')}
-              >
-                <User className="mr-2 h-4 w-4" />
-                个人资料
-              </DropdownMenuItem>
               <DropdownMenuItem
                 className="cursor-pointer"
                 onClick={() => navigate('/settings/profile')}
