@@ -56,6 +56,7 @@ class DouyinConfig:
         "Cookie": None
     }
 
+
     PROXIES = {
         "http": None,
         "https": None,
@@ -74,6 +75,34 @@ class DouyinConfig:
         "url": "https://ttwid.bytedance.com/ttwid/union/register/",
         "data": '{"region":"cn","aid":1768,"needFid":false,"service":"www.ixigua.com","migrate_info":{"ticket":"","source":"node"},"cbUrlProtocol":"https","union":true}'
     }
+
+
+def build_douyin_request_headers(cookie: Optional[str]) -> dict:
+    """
+    构建抖音 Web API 请求头。
+
+    抖音网关会校验 Argus 头；Cookie 中的 UIFID 需要同步放到请求头里。
+    """
+    headers = {
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "User-Agent": DouyinConfig.HEADERS["User-Agent"],
+        "Referer": "https://www.douyin.com/",
+        "Accept": "application/json, text/plain, */*",
+        "x-tt-argus": "1",
+    }
+    if cookie:
+        headers["Cookie"] = cookie
+
+    cookie_values = {}
+    for item in (cookie or "").split(";"):
+        if "=" in item:
+            key, value = item.strip().split("=", 1)
+            cookie_values[key] = value
+    uifid = cookie_values.get("UIFID") or cookie_values.get("UIFID_TEMP")
+    if uifid:
+        headers["uifid"] = uifid
+
+    return headers
 
 
 class BaseRequestModel(BaseModel):
@@ -119,7 +148,6 @@ class DouyinDownloader(Downloader):
     
     def __init__(self, cookie=None):
         super().__init__()
-        self.headers_config = DouyinConfig.HEADERS.copy()
         
         # 获取并转换 cookie
         cookie_str = cookie if cookie else cfm.get('douyin', auto_convert=True)
@@ -134,9 +162,8 @@ class DouyinDownloader(Downloader):
             else:
                 logger.info("抖音 cookie 验证成功")
         
-        # cookie 为空时不设 Cookie header（避免传字面 "None" 给 requests）
-        if cookie_str:
-            self.headers_config["Cookie"] = cookie_str
+        # 统一构造 API/媒体请求头，保证 Argus 校验字段不遗漏
+        self.headers_config = build_douyin_request_headers(cookie_str)
         logger.debug(f"抖音下载器初始化完成，Cookie 长度: {len(cookie_str) if cookie_str else 0}")
         
         self.proxies_config = DouyinConfig.PROXIES.copy()

@@ -11,6 +11,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.routers import config as config_router
+from app.services.cookie_manager import CookieConfigManager
+
 _db_ok = False
 try:
     from app.db.init_db import init_db
@@ -23,10 +26,12 @@ except Exception:
 
 
 @pytest.fixture
-def app():
-    """创建测试用 FastAPI 应用"""
+def app(monkeypatch, tmp_path):
+    """创建测试用 FastAPI 应用，并隔离 Cookie 运行时配置"""
     from fastapi import FastAPI
     from app.routers import auth, config
+    test_cookie_manager = CookieConfigManager(str(tmp_path / "downloader.json"))
+    monkeypatch.setattr(config, "cookie_manager", test_cookie_manager)
     _app = FastAPI()
     _app.include_router(auth.router, prefix="/api/auth")
     _app.include_router(config.router, prefix="/api")
@@ -96,6 +101,8 @@ class TestCookieEndpointAuth:
         )
         assert resp.status_code == 200
         assert resp.json()["code"] == 0
+        # 端点写入的是测试隔离实例，不能触碰仓库运行时 downloader.json。
+        assert config_router.cookie_manager.get("douyin") == "sessionid=test_admin"
 
     # ── get_downloader_cookie ─────────────────────────────────
 

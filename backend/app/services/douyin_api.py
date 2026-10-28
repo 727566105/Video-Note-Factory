@@ -9,7 +9,11 @@ from urllib.parse import urlencode, quote
 import requests
 
 from app.downloaders.douyin_helper.abogus import ABogus
-from app.downloaders.douyin_downloader import DouyinConfig, BaseRequestModel, get_timestamp
+from app.downloaders.douyin_downloader import (
+    BaseRequestModel,
+    build_douyin_request_headers,
+    get_timestamp,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -145,13 +149,7 @@ def fetch_douyin_user_videos(
     if not cookie_str or 'ttwid' not in cookie_str or 'sessionid' not in cookie_str:
         return DouyinFetchResult(error="抖音 Cookie 缺少必要字段(ttwid/sessionid)，请在设置页重新配置")
 
-    headers = {
-        "User-Agent": DouyinConfig.HEADERS["User-Agent"],
-        "Referer": "https://www.douyin.com/",
-        "Cookie": cookie_str,
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "zh-CN,zh;q=0.9",
-    }
+    headers = build_douyin_request_headers(cookie_str)
 
     while pages_fetched < max_pages:
         try:

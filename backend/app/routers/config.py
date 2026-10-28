@@ -108,7 +108,10 @@ async def test_downloader_cookie(req: CookieTestRequest, user=Depends(require_ad
 
         elif platform == "douyin":
             from app.downloaders.douyin_helper.abogus import ABogus
-            from app.downloaders.douyin_downloader import DouyinConfig, BaseRequestModel
+            from app.downloaders.douyin_downloader import (
+                BaseRequestModel,
+                build_douyin_request_headers,
+            )
             from urllib.parse import urlencode, quote
 
             params = BaseRequestModel().model_dump()
@@ -121,13 +124,31 @@ async def test_downloader_cookie(req: CookieTestRequest, user=Depends(require_ad
             query_str = urlencode(params)
             url = f"https://www.douyin.com/aweme/v1/web/aweme/post/?{query_str}&a_bogus={a_bogus}"
 
-            resp = http_requests.get(url, headers={
-                "User-Agent": DouyinConfig.HEADERS["User-Agent"],
-                "Referer": "https://www.douyin.com/",
-                "Cookie": cookie,
-                "Accept": "application/json",
-            }, timeout=10)
-            data = resp.json()
+            resp = http_requests.get(
+                url,
+                headers=build_douyin_request_headers(cookie),
+                timeout=10,
+            )
+            try:
+                data = resp.json()
+            except ValueError:
+                content_type = resp.headers.get("content-type", "")
+                logger.warning(
+                    "抖音 Cookie 验证返回非 JSON 响应: status=%s, content_type=%s",
+                    resp.status_code,
+                    content_type,
+                )
+                if resp.status_code == 403:
+                    return R.success({
+                        "valid": False,
+                        "message": "抖音 Cookie 验证被安全网关拦截",
+                        "details": "请在浏览器刷新抖音页面后重新复制完整 Cookie；若持续失败，请稍后重试",
+                    })
+                return R.success({
+                    "valid": False,
+                    "message": "抖音 Cookie 验证响应异常",
+                    "details": "抖音返回了无法识别的内容，请稍后重试",
+                })
 
             status_code = data.get("status_code", -1)
             if status_code == 0:
