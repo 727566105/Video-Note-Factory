@@ -4,7 +4,7 @@
  * 策略：
  * - 仅在生产环境缓存静态资源（dev 模式下 Vite HMR + chunk 版本号会导致缓存失效报错）
  * - 导航请求：network-first，失败降级到缓存的 index.html（SPA fallback）
- * - 静态资源：stale-while-revalidate，所有 fetch 都包 try/catch，绝不 reject
+ * - 前端资源和导航：network-first，发版后立即使用新资源
  * - API/上传等动态请求：直接放行，不拦截
  */
 
@@ -112,27 +112,11 @@ async function networkFirst(request, fallbackPath) {
 }
 
 /**
- * Stale-while-revalidate 策略（用于静态资源）
- * 有缓存先返回缓存 + 后台更新，无缓存尝试网络，全失败返回 503
+ * Network-first 策略（用于前端资源）
+ * 优先获取最新资源，离线时才回退缓存
  */
-async function staleWhileRevalidate(request) {
+async function networkFirstResource(request) {
   const cache = await caches.open(CACHE_NAME)
-  const cachedResponse = await cache.match(request)
-
-  if (cachedResponse) {
-    // 后台更新缓存，失败静默忽略
-    fetch(request)
-      .then(response => {
-        if (response.ok) {
-          cache.put(request, response.clone()).catch(() => undefined)
-        }
-      })
-      .catch(() => undefined)
-
-    return cachedResponse
-  }
-
-  // 无缓存：尝试网络
   try {
     const response = await fetch(request)
     if (response.ok) {
@@ -148,3 +132,8 @@ async function staleWhileRevalidate(request) {
     })
   }
 }
+
+/**
+ * 兼容保留：旧函数名不再用于请求分发。
+ */
+const staleWhileRevalidate = networkFirstResource
