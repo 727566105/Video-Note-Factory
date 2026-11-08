@@ -25,6 +25,7 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   flexRender,
+  type PaginationState,
   type VisibilityState,
   type SortingState,
 } from '@tanstack/react-table'
@@ -611,7 +612,7 @@ export const NoteListPage: FC = () => {
     navigate(`/notes/${item.id}`)
   }
 
-  const filteredNotes = notes.filter(note => {
+  const filteredNotes = useMemo(() => notes.filter(note => {
     // 文本搜索
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -634,7 +635,7 @@ export const NoteListPage: FC = () => {
       return false
     }
     return true
-  })
+  }), [notes, searchQuery, selectedPlatforms, selectedStatuses, selectedAuthors])
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-transparent">
@@ -1091,7 +1092,7 @@ export const NoteListPage: FC = () => {
 
 export default NoteListPage
 
-function DataTable({
+export function DataTable({
   data,
   loading,
   selectedRows,
@@ -1130,6 +1131,7 @@ function DataTable({
 }) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
 
   const selectedRowsSetRef = useRef(new Set<string>(selectedRows))
   selectedRowsSetRef.current = new Set(selectedRows)
@@ -1164,12 +1166,11 @@ function DataTable({
     getSortedRowModel: getSortedRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     state: {
       columnVisibility,
       sorting,
-    },
-    initialState: {
-      pagination: { pageSize: 10 },
+      pagination,
     },
   })
 
